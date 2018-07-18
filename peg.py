@@ -102,12 +102,12 @@ class Parser:
         if self.pos+n >= len(self.code): return None
         return self.code[self.pos+n]
 
-    def nextc(self):
-        self.pos += 1
+    def nextc(self, n=1):
+        self.pos += n
         return self.peekc()
 
-    def testc(self, c):
-        return self.peekc() == c
+    def testc(self, c, n=0):
+        return self.peekc(n) == c
 
     def matchc(self, c):
         if not self.testc(c): return False
@@ -161,10 +161,7 @@ class Parser:
             return Token(TokenTypes.LITERAL, self.code[d:self.pos-1])
         # Range <- ’[’ (!’]’ Range)* ’]’ Spacing
         elif self.matchc('['):
-            d = self.pos
-            while not self.testc(']'): self.nextc()
-            if not self.matchc(']'): raise SyntaxError("Expected end of class")
-            return Token(TokenTypes.CLASS, self.code[d:self.pos-1])
+            return self.lexRange()
         # LEFTARROW ’<-’
         elif self.testc('<') and self.peekc(1) == '-':
             self.nextc(); self.nextc()
@@ -187,6 +184,19 @@ class Parser:
             return Token(TokenTypes.QUESTION)
         else:
             raise SyntaxError("Unexpected char `{}'".format(self.peekc()))
+
+    def lexRange(self):
+        d = self.pos
+        ranges = []
+        # Range <- Char ’-’ Char / Char
+        while not self.testc(']'):
+            left = self.peekc()
+            if self.testc('-', 1):
+                self.nextc(2)
+                ranges.append([left, self.peekc()])
+            self.nextc()
+        if not self.matchc(']'): raise SyntaxError("Expected end of class")
+        return Token(TokenTypes.CLASS, ranges or self.code[d:self.pos-1])
 
     def spacing(self):
         self.cleanspaces()
@@ -325,6 +335,13 @@ def test_tokenizer():
         Token(TokenTypes.END),
     ])
 
+    test('Hex <- [a-fA-F0-9]', [
+        Token(TokenTypes.IDENTIFIER, 'Hex'),
+        Token(TokenTypes.ARROW),
+        Token(TokenTypes.CLASS, [['a', 'f'], ['A', 'F'], ['0', '9']]),
+        Token(TokenTypes.END),
+    ])
+
 
 def test_parser():
     test = functools.partial(test_runner, lambda x: Parser(x).parse)
@@ -338,11 +355,11 @@ def test_parser():
 
     test('Definition1 <- "tx"', {'Definition1': Literal('tx')})
 
-    test('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
+    test('Int <- [0-9]+', {'Int': [Class([['0', '9']]), Plus()]})
 
     test('EndOfFile <- !.', {'EndOfFile': [Not(), Dot()]})
 
-    test('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
+    test('Int <- [0-9]+', {'Int': [Class([['0', '9']]), Plus()]})
 
     test('R0 <- "oi" "tenta"?', {'R0': [Literal('oi'), [Literal("tenta"), Question()]]})
 
@@ -355,7 +372,7 @@ def test_parser():
 
     test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', {
         'R0': [Identifier('R1'), [[Literal(','), Identifier('R1')], Star()]],
-        'R1': [Class('0-9'), Plus()],
+        'R1': [Class([['0', '9']]), Plus()],
     })
 
     # test('x <- "a', {})
@@ -386,7 +403,7 @@ Num <- [0-9]+
                 Identifier('Mul')],
         'Mul': [[Identifier('Pri'), Literal('*'), Identifier('Mul')],
                 Identifier('Pri')],
-        'Num': [Class('0-9'), Plus()],
+        'Num': [Class([['0', '9']]), Plus()],
         'Pri': [[Literal('('), Identifier('Add'), Literal(')')],
                 Identifier('Num')],
     })

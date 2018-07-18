@@ -146,16 +146,25 @@ class Parser:
             d = self.pos
             while self.peekc() and self.peekc().isalnum(): self.pos += 1
             return Token(TokenTypes.IDENTIFIER, self.code[d:self.pos])
+        # Literal <- ['] (!['] Char)* ['] Spacing
+        elif self.matchc("'"):
+            d = self.pos
+            while self.peekc() and not self.testc("'"): self.nextc()
+            if not self.matchc("'"): raise SyntaxError("Expected end of string")
+            return Token(TokenTypes.LITERAL, self.code[d:self.pos-1])
+        # / ["] (!["] Char)* ["] Spacing
         elif self.matchc('"'):
             d = self.pos
             while self.peekc() and not self.testc('"'): self.nextc()
             if not self.matchc('"'): raise SyntaxError("Expected end of string")
             return Token(TokenTypes.LITERAL, self.code[d:self.pos-1])
+        # Range <- ’[’ (!’]’ Range)* ’]’ Spacing
         elif self.matchc('['):
             d = self.pos
             while not self.testc(']'): self.nextc()
             if not self.matchc(']'): raise SyntaxError("Expected end of class")
             return Token(TokenTypes.CLASS, self.code[d:self.pos-1])
+        # LEFTARROW ’<-’
         elif self.testc('<') and self.peekc(1) == '-':
             self.nextc(); self.nextc()
             return Token(TokenTypes.ARROW)
@@ -173,6 +182,8 @@ class Parser:
             return Token(TokenTypes.PLUS)
         elif self.matchc('!'):
             return Token(TokenTypes.NOT)
+        elif self.matchc('?'):
+            return Token(TokenTypes.QUESTION)
         else:
             raise SyntaxError("Unexpected char `{}'".format(self.peekc()))
 
@@ -311,21 +322,24 @@ def test():
     # # # # Parser # # # #
 
     def ppp(g, expected):
-        print(repr(g), end=':\n    ')
+        print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
         pp(p(g))
         assert(p(g) == expected)
+        print()
 
     ppp('# ', {})
 
-    ppp('# foo\n R1 <- "a"', {'R1': Literal('a')})
+    ppp('# foo\n R1 <- "a"\nR2 <- \'b\'', {'R1': Literal('a'), 'R2': Literal('b')})
 
-    ppp('Rule1 <- "tx"', {'Rule1': Literal('tx')})
+    ppp('Definition1 <- "tx"', {'Definition1': Literal('tx')})
 
     ppp('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
 
     ppp('EndOfFile <- !.', {'EndOfFile': [Not(), Dot()]})
 
-    ppp('R0 <- "a"\nR1 <- "b"', {'R0': Literal('a'), 'R1': Literal('b')})
+    ppp('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
+
+    ppp('R0 <- "oi" "tenta"?', {'R0': [Literal('oi'), [Literal("tenta"), Question()]]})
 
     ppp('Foo <- ("a" / "b")+', {'Foo': [[Literal('a'), Literal('b')], Plus()]})
 
@@ -349,8 +363,29 @@ Value <- (![,\n] .)*
 '''
 
     # pp(t(csv))
-    pp(p(csv))
+    ppp(csv, {
+        'File': [Identifier('CSV'), Star()],
+        'CSV': [Identifier('Value'),
+                [[Literal(','), Identifier('Value')], Star()],
+                Literal('\n')],
+        'Value': [[Not(), Class(',\n'), Dot()], Star()],
+    })
 
+    arith = '''
+Add <- Mul '+' Add / Mul
+Mul <- Pri '*' Mul / Pri
+Pri <- '(' Add ')' / Num
+Num <- [0-9]+
+'''
+    ppp(arith, {
+        'Add': [[Identifier('Mul'), Literal('+'), Identifier('Add')],
+                Identifier('Mul')],
+        'Mul': [[Identifier('Pri'), Literal('*'), Identifier('Mul')],
+                Identifier('Pri')],
+        'Num': [Class('0-9'), Plus()],
+        'Pri': [[Literal('('), Identifier('Add'), Literal(')')],
+                Identifier('Num')],
+    })
 
 
 def main():

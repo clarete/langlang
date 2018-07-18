@@ -18,6 +18,7 @@
 from __future__ import print_function
 
 import enum
+import functools
 import pprint
 
 class TokenTypes(enum.Enum):
@@ -276,38 +277,43 @@ class Parser:
             return value
         return None
 
+    def run(self, data):
+        return data
+
 
 def peg(g):
     p = Parser(g)
     return p.parse()
 
 
-def test():
+def test_runner(f, g, expected, *args):
+    print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
+    pprint.pprint(f(g)(*args))
+    assert(f(g)(*args) == expected)
+    print()
 
-    def t(x):
-        pa = Parser(x)
-        ts = []
-        while True:
-            t = pa.nextt()
-            ts.append(t)
-            if t._type == TokenTypes.END: break
-        return ts
 
-    p = lambda x: Parser(x).parse()
-    pp = pprint.pprint
+def expand_tokenizer(x):
+    pa = Parser(x)
+    ts = []
+    while True:
+        t = pa.nextt()
+        ts.append(t)
+        if t._type == TokenTypes.END: break
+    return lambda: ts
 
-    # # # # Tokenizer # # # #
 
-    # pp(t('Rule1 <- "tx"'))
-    assert(t('Rule1 <- "tx"') == [
+def test_tokenizer():
+    test = functools.partial(test_runner, expand_tokenizer)
+
+    test('Rule1 <- "tx"', [
         Token(TokenTypes.IDENTIFIER, 'Rule1'),
         Token(TokenTypes.ARROW),
         Token(TokenTypes.LITERAL, 'tx'),
         Token(TokenTypes.END),
     ])
 
-    # pp(t('Value <- (![,\n] .)*'))
-    assert(t('Value <- (![,\n] .)*') == [
+    test('Value <- (![,\n] .)*', [
         Token(TokenTypes.IDENTIFIER, 'Value'),
         Token(TokenTypes.ARROW),
         Token(TokenTypes.OPEN),
@@ -319,41 +325,40 @@ def test():
         Token(TokenTypes.END),
     ])
 
-    # # # # Parser # # # #
 
-    def ppp(g, expected):
-        print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
-        pp(p(g))
-        assert(p(g) == expected)
-        print()
+def test_parser():
+    test = functools.partial(test_runner, lambda x: Parser(x).parse)
 
-    ppp('# ', {})
+    test('# ', {})
 
-    ppp('# foo\n R1 <- "a"\nR2 <- \'b\'', {'R1': Literal('a'), 'R2': Literal('b')})
+    test('# foo\n R1 <- "a"\nR2 <- \'b\'', {
+        'R1': Literal('a'),
+        'R2': Literal('b')
+    })
 
-    ppp('Definition1 <- "tx"', {'Definition1': Literal('tx')})
+    test('Definition1 <- "tx"', {'Definition1': Literal('tx')})
 
-    ppp('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
+    test('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
 
-    ppp('EndOfFile <- !.', {'EndOfFile': [Not(), Dot()]})
+    test('EndOfFile <- !.', {'EndOfFile': [Not(), Dot()]})
 
-    ppp('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
+    test('Int <- [0-9]+', {'Int': [Class('0-9'), Plus()]})
 
-    ppp('R0 <- "oi" "tenta"?', {'R0': [Literal('oi'), [Literal("tenta"), Question()]]})
+    test('R0 <- "oi" "tenta"?', {'R0': [Literal('oi'), [Literal("tenta"), Question()]]})
 
-    ppp('Foo <- ("a" / "b")+', {'Foo': [[Literal('a'), Literal('b')], Plus()]})
+    test('Foo <- ("a" / "b")+', {'Foo': [[Literal('a'), Literal('b')], Plus()]})
 
-    ppp('R0 <- "a"\n      / "b"\nR1 <- "c"', {
+    test('R0 <- "a"\n      / "b"\nR1 <- "c"', {
         'R0': [Literal('a'), Literal('b')],
         'R1': Literal('c'),
     })
 
-    ppp('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', {
+    test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', {
         'R0': [Identifier('R1'), [[Literal(','), Identifier('R1')], Star()]],
         'R1': [Class('0-9'), Plus()],
     })
 
-    # ppp('x <- "a', {})
+    # test('x <- "a', {})
 
     # Some real stuff
     csv = '''
@@ -362,8 +367,7 @@ CSV <- Value ( "," Value )* "\n"
 Value <- (![,\n] .)*
 '''
 
-    # pp(t(csv))
-    ppp(csv, {
+    test(csv, {
         'File': [Identifier('CSV'), Star()],
         'CSV': [Identifier('Value'),
                 [[Literal(','), Identifier('Value')], Star()],
@@ -377,7 +381,7 @@ Mul <- Pri '*' Mul / Pri
 Pri <- '(' Add ')' / Num
 Num <- [0-9]+
 '''
-    ppp(arith, {
+    test(arith, {
         'Add': [[Identifier('Mul'), Literal('+'), Identifier('Add')],
                 Identifier('Mul')],
         'Mul': [[Identifier('Pri'), Literal('*'), Identifier('Mul')],
@@ -386,6 +390,25 @@ Num <- [0-9]+
         'Pri': [[Literal('('), Identifier('Add'), Literal(')')],
                 Identifier('Num')],
     })
+
+
+def test_eval():
+    arith = '''
+Add <- Mul '+' Add / Mul
+Mul <- Pri '*' Mul / Pri
+Pri <- '(' Add ')' / Num
+Num <- [0-9]+
+'''
+    test = functools.partial(test_runner, lambda g: Parser(g).run)
+    test(arith,
+         "2",                   # output ):
+         "2")                   # input  :(
+
+
+def test():
+    test_tokenizer()
+    test_parser()
+    test_eval()
 
 
 def main():

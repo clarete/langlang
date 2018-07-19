@@ -1,3 +1,5 @@
+# -*- coding: utf-8; -*-
+#
 # peg.py - Parsing Expression Grammar implementation
 #
 # Copyright (C) 2018  Lincoln Clarete
@@ -51,10 +53,14 @@ class Token:
                 other.value == self.value)
 
 class Node:
+    def __init__(self, value=None):
+        self.value = value
     def __repr__(self):
-        return "{}()".format(self.__class__.__name__)
+        value = "{}".format(repr(self.value)) if self.value else ''
+        return "{}({})".format(self.__class__.__name__, value)
     def __eq__(self, other):
-        return isinstance(other, self.__class__)
+        return (isinstance(other, self.__class__) and
+                other.value == self.value)
 
 class And(Node): pass
 
@@ -66,23 +72,17 @@ class Star(Node): pass
 
 class Plus(Node): pass
 
-class Primary(Node):
-    def __init__(self, name=None):
-        self.name = name
-    def __repr__(self):
-        name = "{}".format(repr(self.name)) if self.name else ''
-        return "{}({})".format(self.__class__.__name__, name)
-    def __eq__(self, other):
-        return (isinstance(other, self.__class__) and
-                other.name == self.name)
+class Expression(Node): pass
 
-class Identifier(Primary): pass
+class Sequence(Node): pass
 
-class Literal(Primary): pass
+class Identifier(Node): pass
 
-class Class(Primary): pass
+class Literal(Node): pass
 
-class Dot(Primary): pass
+class Class(Node): pass
+
+class Dot(Node): pass
 
 def fio(thing):
     "first if only"
@@ -241,32 +241,33 @@ class Parser:
         output = [self.parseSequence()]
         while self.matcht(TokenTypes.PRIORITY):
             output.append(self.parseSequence())
-        return fio(output)
+        # We don't need to create a new expression when there's only
+        # one element so we save a lil recursion here and there
+        if len(output) > 1: return Expression(output)
+        else: return fio(output)
 
     def parseSequence(self):
         # Sequence <- Prefix*
         output = []
         while True:
             # Prefix <- (AND / NOT)? Suffix
-            if self.matcht(TokenTypes.AND):
-                output.append(And())
-            elif self.matcht(TokenTypes.NOT):
-                output.append(Not())
+            prefix = lambda x: x
+            if self.matcht(TokenTypes.AND): prefix = And
+            elif self.matcht(TokenTypes.NOT): prefix = Not
             suffix = self.parseSuffix()
             if suffix is None: break
-            output.append(suffix)
-        return fio(output)
+            output.append(prefix(suffix))
+        if len(output) > 1: return Sequence(output)
+        else: return fio(output)
 
     def parseSuffix(self):
         # Suffix <- Primary (QUESTION / STAR / PLUS)?
         output = [self.parsePrimary()]
-        if self.matcht(TokenTypes.QUESTION):
-            output.append(Question())
-        elif self.matcht(TokenTypes.STAR):
-            output.append(Star())
-        elif self.matcht(TokenTypes.PLUS):
-            output.append(Plus())
-        return fio(output)
+        suffix = lambda x: x
+        if self.matcht(TokenTypes.QUESTION): suffix = Question
+        elif self.matcht(TokenTypes.STAR): suffix = Star
+        elif self.matcht(TokenTypes.PLUS): suffix = Plus
+        return suffix(fio(output))
 
     def parsePrimary(self):
         # Primary <- Identifier !LEFTARROW
@@ -287,19 +288,166 @@ class Parser:
             return value
         return None
 
-    def run(self, data):
-        return data
+class Eval:
+
+    def __init__(self, grammar, start, data):
+        self.g = grammar
+        self.start = start
+        self.data = data
+        self.pos = 0
+
+    def current(self):
+        if self.pos >= len(self.data): return None
+        return self.data[self.pos]
+
+    def advance(self, n=1):
+        if self.pos+n >= len(self.data)+1: return None
+        self.pos += n
+        return self.current()
+
+    def ret(self, mark):
+        return self.data[mark:self.pos] or None
+
+    def evalClass(self, atom):
+        d = self.pos
+        value = atom.value
+        if isinstance(value, list):
+            for [left, right] in value:
+                if left <= self.current() <= right:
+                    value = self.current()
+                    self.advance()
+                    return value
+        else:
+            for char in value:
+                if self.current() == char:
+                    value = self.current()
+                    self.advance();
+                    return value
+        return None
+
+    def evalLiteral(self, atom):
+        d = self.pos
+        if self.current() == atom.value:
+            self.advance()
+        return self.ret(d)
+
+    def evalDot(self, atom):
+        d = self.pos
+        self.advance()
+        return self.ret(d)
+
+    def evalIdentifier(self, atom):
+        return self.evalAtom(self.g[atom.value])
+
+    def evalPlus(self, atom):
+        out = [self.evalAtom(atom.value)]
+        if out: out.extend(self.evalStar(Star(atom.value)))
+        return out or None
+
+    def evalStar(self, atom):
+        out = []
+        while True:
+            d = self.pos
+            value = self.evalAtom(atom.value)
+            if value is None:
+                # Need to restore the position to prior to the last
+                # failed evaluation.
+                self.pos = d
+                break
+            out.append(value)
+        return fio(out)
+
+    def evalNot(self, atom):
+        d = self.pos
+        value = self.evalAtom(atom.value)
+        if value:
+            # We got a match. To negate it, we'll reset the cursor
+            # position to prior to the evaluation and return None.
+            self.pos = d
+            return None
+        else:
+            value = self.current()
+            self.advance()
+            return value
+
+    def evalSequence(self, atom):
+        d = self.pos
+        out = []
+        for sa in atom.value:
+            value = self.evalAtom(sa)
+            if value: out.append(value)
+            else:
+                self.pos = d
+                return None
+        return fio(out)
+
+    def evalExpression(self, atom):
+        d = self.pos
+        for sa in atom.value:
+            value = self.evalAtom(sa)
+            if value: return value
+        return None
+
+    def evalAtom(self, atom):
+        if isinstance(atom, Class):
+            return self.evalClass(atom)
+        elif isinstance(atom, Literal):
+            return self.evalLiteral(atom)
+        elif isinstance(atom, Dot):
+            return self.evalDot(atom)
+        elif isinstance(atom, Identifier):
+            return self.evalIdentifier(atom)
+        elif isinstance(atom, Plus):
+            return self.evalPlus(atom)
+        elif isinstance(atom, Star):
+            return self.evalStar(atom)
+        elif isinstance(atom, Not):
+            return self.evalNot(atom)
+        elif isinstance(atom, Sequence):
+            return self.evalSequence(atom)
+        elif isinstance(atom, Expression):
+            return self.evalExpression(atom)
+        raise Exception('Unexpected atom')
+
+    def run(self):
+        return self.evalAtom(self.g[self.start])
 
 
 def peg(g):
     p = Parser(g)
     return p.parse()
 
+## --- tests ---
+
+csv = '''
+File <- CSV*
+CSV  <- Val (',' Val)* '\n'
+Val  <- (![,\n])*
+'''
+
+arith = '''
+Add <- Mul '+' Add / Mul
+Mul <- Pri '*' Mul / Pri
+Pri <- '(' Add ')' / Num
+Num <- [0-9]+
+'''
 
 def test_runner(f, g, expected, *args):
     print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
     pprint.pprint(f(g)(*args))
-    assert(f(g)(*args) == expected)
+    try:
+        assert(f(g)(*args) == expected)
+    except Exception as exc:
+        import pdb; pdb.set_trace()
+        raise exc
+    print()
+
+
+def test_runner_eval(g, start, data, expected):
+    print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
+    value = Eval(Parser(g).parse(), start, data).run()
+    pprint.pprint(value)
+    assert(value == expected)
     print()
 
 
@@ -355,71 +503,114 @@ def test_parser():
 
     test('Definition1 <- "tx"', {'Definition1': Literal('tx')})
 
-    test('Int <- [0-9]+', {'Int': [Class([['0', '9']]), Plus()]})
+    test('Int <- [0-9]+', {'Int': Plus(Class([['0', '9']]))})
 
-    test('EndOfFile <- !.', {'EndOfFile': [Not(), Dot()]})
+    test('EndOfFile <- !.', {'EndOfFile': Not(Dot())})
 
-    test('Int <- [0-9]+', {'Int': [Class([['0', '9']]), Plus()]})
+    test('R0 <- "oi" "tenta"?', {'R0': Sequence([Literal('oi'), Question(Literal("tenta"))])})
 
-    test('R0 <- "oi" "tenta"?', {'R0': [Literal('oi'), [Literal("tenta"), Question()]]})
-
-    test('Foo <- ("a" / "b")+', {'Foo': [[Literal('a'), Literal('b')], Plus()]})
+    test('Foo <- ("a" / "b")+', {'Foo': Plus(Expression([Literal('a'), Literal('b')]))})
 
     test('R0 <- "a"\n      / "b"\nR1 <- "c"', {
-        'R0': [Literal('a'), Literal('b')],
+        'R0': Expression([Literal('a'), Literal('b')]),
         'R1': Literal('c'),
     })
 
     test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', {
-        'R0': [Identifier('R1'), [[Literal(','), Identifier('R1')], Star()]],
-        'R1': [Class([['0', '9']]), Plus()],
+        'R0': Sequence([
+            Identifier('R1'),
+            Star(Sequence([Literal(','), Identifier('R1')]))]),
+        'R1': Plus(Class([['0', '9']])),
     })
-
-    # test('x <- "a', {})
 
     # Some real stuff
-    csv = '''
-File <- CSV*
-CSV <- Value ( "," Value )* "\n"
-Value <- (![,\n] .)*
-'''
 
     test(csv, {
-        'File': [Identifier('CSV'), Star()],
-        'CSV': [Identifier('Value'),
-                [[Literal(','), Identifier('Value')], Star()],
-                Literal('\n')],
-        'Value': [[Not(), Class(',\n'), Dot()], Star()],
+        'File': Star(Identifier('CSV')),
+        'Val': Star(Not(Class(',\n'))),
+        'CSV': Sequence([
+            Identifier('Val'),
+            Star(Sequence([Literal(','), Identifier('Val')])),
+            Literal('\n')]),
     })
 
-    arith = '''
-Add <- Mul '+' Add / Mul
-Mul <- Pri '*' Mul / Pri
-Pri <- '(' Add ')' / Num
-Num <- [0-9]+
-'''
     test(arith, {
-        'Add': [[Identifier('Mul'), Literal('+'), Identifier('Add')],
-                Identifier('Mul')],
-        'Mul': [[Identifier('Pri'), Literal('*'), Identifier('Mul')],
-                Identifier('Pri')],
-        'Num': [Class([['0', '9']]), Plus()],
-        'Pri': [[Literal('('), Identifier('Add'), Literal(')')],
-                Identifier('Num')],
+        'Add': Expression([Sequence([Identifier('Mul'), Literal('+'), Identifier('Add')]),
+                           Identifier('Mul')]),
+        'Mul': Expression([Sequence([Identifier('Pri'), Literal('*'), Identifier('Mul')]),
+                           Identifier('Pri')]),
+        'Num': Plus(Class([['0', '9']])),
+        'Pri': Expression([Sequence([Literal('('), Identifier('Add'), Literal(')')]),
+                Identifier('Num')]),
     })
 
 
 def test_eval():
-    arith = '''
-Add <- Mul '+' Add / Mul
-Mul <- Pri '*' Mul / Pri
-Pri <- '(' Add ')' / Num
-Num <- [0-9]+
-'''
-    test = functools.partial(test_runner, lambda g: Parser(g).run)
-    test(arith,
-         "2",                   # output ):
-         "2")                   # input  :(
+    e = Eval({}, '', "affbcdea&2")
+    assert(e.evalAtom(Class('af'))         == 'a');   assert(e.pos == 1)
+    assert(e.evalAtom(Class('gd'))         == None);  assert(e.pos == 1)
+    assert(e.evalAtom(Class('xyf'))        == 'f');   assert(e.pos == 2)
+    assert(e.evalAtom(Class([['a', 'f']])) == 'f');   assert(e.pos == 3)
+    assert(e.evalAtom(Class([['a', 'f']])) == 'b');   assert(e.pos == 4)
+    assert(e.evalAtom(Class([['a', 'f']])) == 'c');   assert(e.pos == 5)
+    assert(e.current() == 'd');                       assert(e.pos == 5)
+    assert(e.evalAtom(Literal('a'))        == None);  assert(e.pos == 5)
+    assert(e.evalAtom(Literal('d'))        == 'd');   assert(e.pos == 6)
+    assert(e.current() == 'e');                       assert(e.pos == 6)
+    assert(e.evalAtom(Dot())               == 'e');   assert(e.pos == 7)
+    assert(e.evalAtom(Dot())               == 'a');   assert(e.pos == 8)
+    assert(e.evalAtom(Dot())               == '&');   assert(e.pos == 9)
+    assert(e.evalAtom(Dot())               == '2');   assert(e.pos == 10)
+    assert(e.evalAtom(Dot())               == None);  assert(e.pos == 10)
+
+    e = Eval(Parser('Digit <- [0-9]').parse(), 'Digit', "42f")
+    assert(e.evalAtom(Identifier('Digit')) == "4")
+    assert(e.evalAtom(Identifier('Digit')) == "2")
+    assert(e.evalAtom(Identifier('Digit')) == None)
+    assert(e.current() == 'f')
+
+    e = Eval(Parser('Digit <- [0-9]+').parse(), 'Digit', "42f")
+    assert(e.evalAtom(Identifier('Digit')) == ['4', '2'])
+    e = Eval(Parser('Digit <- [0-9]*').parse(), 'Digit', "2048f")
+    assert(e.evalAtom(Identifier('Digit')) == ['2', '0', '4', '8'])
+    e = Eval(Parser('Digit <- [0-9]*').parse(), 'Digit', '2048')
+    assert(e.evalAtom(Identifier('Digit')) == ['2', '0', '4', '8'])
+
+    e = Eval(Parser('AtoC <- [a-c]\nNoAtoC <- !AtoC\nEOF <- !.\n').parse(), '', 'abcdef')
+    assert(e.evalAtom(Identifier('NoAtoC')) == None); assert(e.pos == 0)
+    assert(e.evalAtom(Identifier('AtoC'))   == 'a')   ; assert(e.pos == 1)
+    assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 1)
+    assert(e.evalAtom(Identifier('AtoC'))   == 'b')   ; assert(e.pos == 2)
+    assert(e.evalAtom(Identifier('AtoC'))   == 'c')   ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('NoAtoC')) == 'd')   ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('EOF'))    == None)  ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('NoAtoC')) == 'e')   ; assert(e.pos == 5)
+    assert(e.evalAtom(Identifier('NoAtoC')) == 'f')   ; assert(e.pos == 6)
+    assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 6)
+    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 6)
+    # TODO: Should this evaluate to true? Right now it returns what
+    # e.current() returns, which is None since there are no more chars
+    # in the stream. I thought about putting a special case for `!.`
+    # in Eval.evalNot but it sounded too weird and I ended up not
+    # doing it.
+    #assert(e.evalAtom(Identifier('EOF')) == True) ; assert(e.pos == 6)
+
+    e = Eval(Parser('EOF <- !.\nALL <- [a-f]').parse(), 'EOF', 'f')
+    assert(e.evalAtom(Identifier('EOF')) == None)
+    assert(e.evalAtom(Identifier('ALL')) == 'f')
+    e = Eval(Parser(arith).parse(), 'Add', "12+34*56")
+    assert(e.evalAtom(Identifier('Add')) == [
+        ['1', '2'],
+        '+', [['3', '4'],
+              '*',
+              ['5', '6']]])
+
+    e = Eval(Parser(csv).parse(), 'File', "Name,Num,Lang\nLink,3,pt-br\n")
+    foo = e.evalAtom(Identifier('File'))
+    pprint.pprint(foo)
 
 
 def test():

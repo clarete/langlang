@@ -311,6 +311,8 @@ class Eval:
     def evalClass(self, atom):
         d = self.pos
         value = atom.value
+        if not self.current(): return None
+
         if isinstance(value, list):
             for [left, right] in value:
                 if left <= self.current() <= right:
@@ -355,7 +357,7 @@ class Eval:
                 self.pos = d
                 break
             out.append(value)
-        return fio(out)
+        return out
 
     def evalNot(self, atom):
         d = self.pos

@@ -183,7 +183,6 @@ class Parser:
             raise SyntaxError("Unexpected char `{}'".format(self.peekc()))
 
     def lexRange(self):
-        d = self.pos
         ranges = []
         chars = []
         # Range <- Char ’-’ Char / Char
@@ -193,7 +192,7 @@ class Parser:
             if self.matchc('-'): ranges.append([left, self.lexChar()])
             else: chars.extend([left, self.lexChar()])
         if not self.matchc(']'): raise SyntaxError("Expected end of class")
-        return Token(TokenTypes.CLASS, ranges or ''.join(chars))#self.code[d:self.pos-1])
+        return Token(TokenTypes.CLASS, ranges or ''.join(chars))
 
     def lexChar(self):
         # Char <- '\\' [nrt'"\[\]\\]
@@ -209,12 +208,11 @@ class Parser:
         return value
 
     def lexLiteral(self, end):
-        d = self.pos
         output = []
         while self.peekc() and not self.testc(end):
             output.append(self.lexChar())
         if not self.matchc(end): raise SyntaxError("Expected end of string")
-        return Token(TokenTypes.LITERAL, ''.join(output))#self.code[d:self.pos-1])
+        return Token(TokenTypes.LITERAL, ''.join(output))
 
     def spacing(self):
         self.cleanspaces()
@@ -370,13 +368,8 @@ class Eval:
     def evalStar(self, atom):
         out = []
         while True:
-            d = self.pos
             value = self.evalAtom(atom.value)
-            if value is None:
-                # Need to restore the position to prior to the last
-                # failed evaluation.
-                self.pos = d
-                break
+            if value is None: break
             out.append(value)
         return out
 

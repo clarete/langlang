@@ -149,16 +149,10 @@ class Parser:
             return Token(TokenTypes.IDENTIFIER, self.code[d:self.pos])
         # Literal <- ['] (!['] Char)* ['] Spacing
         elif self.matchc("'"):
-            d = self.pos
-            while self.peekc() and not self.testc("'"): self.nextc()
-            if not self.matchc("'"): raise SyntaxError("Expected end of string")
-            return Token(TokenTypes.LITERAL, self.code[d:self.pos-1])
+            return self.lexLiteral("'")
         # / ["] (!["] Char)* ["] Spacing
         elif self.matchc('"'):
-            d = self.pos
-            while self.peekc() and not self.testc('"'): self.nextc()
-            if not self.matchc('"'): raise SyntaxError("Expected end of string")
-            return Token(TokenTypes.LITERAL, self.code[d:self.pos-1])
+            return self.lexLiteral('"')
         # Range <- ’[’ (!’]’ Range)* ’]’ Spacing
         elif self.matchc('['):
             return self.lexRange()
@@ -188,29 +182,53 @@ class Parser:
     def lexRange(self):
         d = self.pos
         ranges = []
+        chars = []
         # Range <- Char ’-’ Char / Char
         while not self.testc(']'):
-            left = self.peekc()
-            if self.testc('-', 1):
-                self.nextc(2)
-                ranges.append([left, self.peekc()])
-            self.nextc()
+            left = self.lexChar()
+            # if left == self.testc(']'): break
+            if self.matchc('-'): ranges.append([left, self.lexChar()])
+            else: chars.extend([left, self.lexChar()])
         if not self.matchc(']'): raise SyntaxError("Expected end of class")
-        return Token(TokenTypes.CLASS, ranges or self.code[d:self.pos-1])
+        return Token(TokenTypes.CLASS, ranges or ''.join(chars))#self.code[d:self.pos-1])
+
+    def lexChar(self):
+        # Char <- '\\' [nrt'"\[\]\\]
+        if self.matchc('\\'):
+            if self.matchc('n'): return '\n'
+            elif self.matchc('r'): return '\r'
+            elif self.matchc('t'): return '\t'
+            elif self.matchc('\\'): return '\\'
+            elif self.peekc() is None: SyntaxError('Unexpected end of input')
+            else: raise SyntaxError('Unknown escape char `{}`'.format(self.peekc()))
+        value = self.peekc()
+        self.nextc()
+        return value
+
+    def lexLiteral(self, end):
+        d = self.pos
+        output = []
+        while self.peekc() and not self.testc(end):
+            output.append(self.lexChar())
+        if not self.matchc(end): raise SyntaxError("Expected end of string")
+        return Token(TokenTypes.LITERAL, ''.join(output))#self.code[d:self.pos-1])
 
     def spacing(self):
         self.cleanspaces()
         # ’#’ (!EndOfLine .)* EndOfLine
         if self.matchc('#'):
-            while not self.matchc('\n'):
+            while not (self.testc('\\') and self.peekc(1) == 'n'):
                 if not self.peekc(): break
                 self.nextc()
-                self.line += 1
+            self.nextc(2)
+            self.line += 1
             self.cleanspaces()
 
     def cleanspaces(self):
         while True:
-            if self.matchc('\n'): self.line += 1
+            if self.matchc('\\'):
+                if self.matchc('n'):
+                    self.line += 1
             elif self.peekc() and self.peekc().isspace(): self.nextc()
             else: break
 
@@ -368,16 +386,19 @@ class Eval:
             self.pos = d
             return None
         else:
-            value = self.current()
-            self.advance()
-            return value
+            return True
 
     def evalSequence(self, atom):
         d = self.pos
         out = []
         for sa in atom.value:
             value = self.evalAtom(sa)
-            if value: out.append(value)
+            # Special case from more general case (handled in the
+            # following elif) because of predicates. They don't append
+            # to output but allow the next thing in this sequence to
+            # be evaluated if they return True.
+            if value is True: continue
+            elif value: out.append(value)
             else:
                 self.pos = d
                 return None
@@ -421,13 +442,13 @@ def peg(g):
 
 ## --- tests ---
 
-csv = '''
+csv = r'''
 File <- CSV*
 CSV  <- Val (',' Val)* '\n'
-Val  <- (![,\n])*
+Val  <- (![,\n] .)*
 '''
 
-arith = '''
+arith = r'''
 Add <- Mul '+' Add / Mul
 Mul <- Pri '*' Mul / Pri
 Pri <- '(' Add ')' / Num
@@ -473,7 +494,7 @@ def test_tokenizer():
         Token(TokenTypes.END),
     ])
 
-    test('Value <- (![,\n] .)*', [
+    test('Value <- (![,\\n] .)*', [
         Token(TokenTypes.IDENTIFIER, 'Value'),
         Token(TokenTypes.ARROW),
         Token(TokenTypes.OPEN),
@@ -498,7 +519,7 @@ def test_parser():
 
     test('# ', {})
 
-    test('# foo\n R1 <- "a"\nR2 <- \'b\'', {
+    test('# foo\\n R1 <- "a"\\nR2 <- \'b\'', {
         'R1': Literal('a'),
         'R2': Literal('b')
     })
@@ -513,12 +534,12 @@ def test_parser():
 
     test('Foo <- ("a" / "b")+', {'Foo': Plus(Expression([Literal('a'), Literal('b')]))})
 
-    test('R0 <- "a"\n      / "b"\nR1 <- "c"', {
+    test('R0 <- "a"\\n      / "b"\\nR1 <- "c"', {
         'R0': Expression([Literal('a'), Literal('b')]),
         'R1': Literal('c'),
     })
 
-    test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', {
+    test('R0 <- R1 ("," R1)*\\nR1 <- [0-9]+', {
         'R0': Sequence([
             Identifier('R1'),
             Star(Sequence([Literal(','), Identifier('R1')]))]),
@@ -529,7 +550,7 @@ def test_parser():
 
     test(csv, {
         'File': Star(Identifier('CSV')),
-        'Val': Star(Not(Class(',\n'))),
+        'Val': Star(Sequence([Not(Class(',\n')), Dot()])),
         'CSV': Sequence([
             Identifier('Val'),
             Star(Sequence([Literal(','), Identifier('Val')])),
@@ -578,8 +599,8 @@ def test_eval():
     e = Eval(Parser('Digit <- [0-9]*').parse(), 'Digit', '2048')
     assert(e.evalAtom(Identifier('Digit')) == ['2', '0', '4', '8'])
 
-    e = Eval(Parser('AtoC <- [a-c]\nNoAtoC <- !AtoC\nEOF <- !.\n').parse(), '', 'abcdef')
-    assert(e.evalAtom(Identifier('NoAtoC')) == None); assert(e.pos == 0)
+    e = Eval(Parser('AtoC <- [a-c]\\nNoAtoC <- !AtoC .\\nEOF <- !.\\n').parse(), '', 'abcdef')
+    assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 0)
     assert(e.evalAtom(Identifier('AtoC'))   == 'a')   ; assert(e.pos == 1)
     assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 1)
     assert(e.evalAtom(Identifier('AtoC'))   == 'b')   ; assert(e.pos == 2)
@@ -593,14 +614,9 @@ def test_eval():
     assert(e.evalAtom(Identifier('NoAtoC')) == 'f')   ; assert(e.pos == 6)
     assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 6)
     assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 6)
-    # TODO: Should this evaluate to true? Right now it returns what
-    # e.current() returns, which is None since there are no more chars
-    # in the stream. I thought about putting a special case for `!.`
-    # in Eval.evalNot but it sounded too weird and I ended up not
-    # doing it.
-    #assert(e.evalAtom(Identifier('EOF')) == True) ; assert(e.pos == 6)
+    assert(e.evalAtom(Identifier('EOF'))    == True)  ; assert(e.pos == 6)
 
-    e = Eval(Parser('EOF <- !.\nALL <- [a-f]').parse(), 'EOF', 'f')
+    e = Eval(Parser('EOF <- !.\\nALL <- [a-f]').parse(), 'EOF', 'f')
     assert(e.evalAtom(Identifier('EOF')) == None)
     assert(e.evalAtom(Identifier('ALL')) == 'f')
     e = Eval(Parser(arith).parse(), 'Add', "12+34*56")
@@ -611,8 +627,13 @@ def test_eval():
               ['5', '6']]])
 
     e = Eval(Parser(csv).parse(), 'File', "Name,Num,Lang\nLink,3,pt-br\n")
-    foo = e.evalAtom(Identifier('File'))
-    pprint.pprint(foo)
+    assert(e.evalAtom(Identifier('File')) == [[['N', 'a', 'm', 'e'],
+      [[',', ['N', 'u', 'm']],
+       [',', ['L', 'a', 'n', 'g']]],
+      '\n'],
+     [['L', 'i', 'n', 'k'],
+      [[',', ['3']],
+       [',', ['p', 't', '-', 'b', 'r']]], '\n']])
 
 
 def test():

@@ -19,8 +19,11 @@
 
 from __future__ import print_function
 
+import argparse
 import enum
 import functools
+import io
+import os
 import pprint
 
 class TokenTypes(enum.Enum):
@@ -643,8 +646,24 @@ def test():
 
 
 def main():
-    pass
+    parser = argparse.ArgumentParser(
+        description='Parse structured data with Parsing Expression Grammars')
+    parser.add_argument(
+        '-g', '--grammar', dest='grammar', action='store',
+        help='Grammar File')
+    parser.add_argument(
+        '-d', '--data', dest='data', action='store',
+        help='Data File')
+    parser.add_argument(
+        '-s', '--start', dest='start', action='store',
+        help='Start rule. Which rule the parser should start at.')
+    args = parser.parse_args()
 
+    with io.open(os.path.abspath(args.grammar), 'r') as grammarFile:
+        grammar = Parser(grammarFile.read()).parse()
+    with io.open(os.path.abspath(args.data), 'r') as dataFile:
+        output = Eval(grammar, args.start, dataFile.read()).run()
+        print(output)
 
 if __name__ == '__main__':
     test()

@@ -460,9 +460,10 @@ Num <- [0-9]+
 
 def test_runner(f, g, expected, *args):
     print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
-    pprint.pprint(f(g)(*args))
+    value = f(g)(*args)
+    pprint.pprint(value)
     try:
-        assert(f(g)(*args) == expected)
+        assert(value == expected)
     except Exception as exc:
         import pdb; pdb.set_trace()
         raise exc

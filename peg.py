@@ -394,6 +394,10 @@ class Eval:
             return True, fio(out)
         return False, None
 
+    def evalQuestion(self, atom):
+        match, value = self.evalAtom(atom.value)
+        return True, value
+
     def evalStar(self, atom):
         out = []
         while True:
@@ -454,6 +458,8 @@ class Eval:
             return self.evalSequence(atom)
         elif isinstance(atom, Expression):
             return self.evalExpression(atom)
+        elif isinstance(atom, Question):
+            return self.evalQuestion(atom)
         raise Exception('Unexpected atom')
 
     def run(self):

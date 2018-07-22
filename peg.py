@@ -44,16 +44,22 @@ class TokenTypes(enum.Enum):
     ) = range(14)
 
 class Token:
-    def __init__(self, _type, value=None):
+    def __init__(self, _type, value=None, line=0, pos=0):
         self._type = _type
         self.value = value
+        self.line = line
+        self.pos = pos
     def __repr__(self):
-        value = " " + repr(self.value) if self.value else ""
+        value = ", " + repr(self.value) if self.value else ""
+        value += ", line=%d" % self.line
+        value += ", pos=%d" % self.pos
         return "Token({}{})".format(self._type, value)
     def __eq__(self, other):
         return (isinstance(other, self.__class__) and
                 other._type == self._type and
-                other.value == self.value)
+                other.value == self.value and
+                other.line == self.line and
+                other.pos == self.pos)
 
 class Node:
     def __init__(self, value=None):
@@ -99,6 +105,7 @@ class Parser:
         self.code = code
         self.pos = 0
         self.line = 0
+        self.token_start = 0
         self.token = None
 
     def peekc(self, n=0):
@@ -138,18 +145,23 @@ class Parser:
     def consumet(self, t):
         value = self.matcht(t)
         if value: return value
-        raise SyntaxError("Expected token %s, received %s" % (
-            repr(t), repr(self.token._type)))
+        raise SyntaxError("Expected %s but found %s" % (
+            t.name, self.token._type.name))
+
+    def t(self, _type, value=None):
+        return Token(_type, value, line=self.line, pos=self.token_start)
 
     def lex(self):
         self.spacing()
-        if self.peekc() is None: return Token(TokenTypes.END)
+        self.token_start = self.pos
+        if self.peekc() is None: return self.t(TokenTypes.END)
 
         # Identifier <- IdentStart IdentCont* Spacing
         if self.peekc().isalpha():
             d = self.pos
-            while self.peekc() and self.peekc().isalnum(): self.pos += 1
-            return Token(TokenTypes.IDENTIFIER, self.code[d:self.pos])
+            while self.peekc() and self.peekc().isalnum():
+                self.pos += 1
+            return self.t(TokenTypes.IDENTIFIER, self.code[d:self.pos])
         # Literal <- ['] (!['] Char)* ['] Spacing
         elif self.matchc("'"):
             return self.lexLiteral("'")
@@ -160,25 +172,25 @@ class Parser:
         elif self.matchc('['):
             return self.lexRange()
         # LEFTARROW ’<-’
-        elif self.testc('<') and self.peekc(1) == '-':
-            self.nextc(); self.nextc()
-            return Token(TokenTypes.ARROW)
+        elif self.matchc('<'):
+            if self.matchc('-'): return self.t(TokenTypes.ARROW)
+            else: raise SyntaxError("Missing the dash in the arrow")
         elif self.matchc('('):
-            return Token(TokenTypes.OPEN)
+            return self.t(TokenTypes.OPEN)
         elif self.matchc(')'):
-            return Token(TokenTypes.CLOSE)
+            return self.t(TokenTypes.CLOSE)
         elif self.matchc('/'):
-            return Token(TokenTypes.PRIORITY)
+            return self.t(TokenTypes.PRIORITY)
         elif self.matchc('.'):
-            return Token(TokenTypes.DOT)
+            return self.t(TokenTypes.DOT)
         elif self.matchc('*'):
-            return Token(TokenTypes.STAR)
+            return self.t(TokenTypes.STAR)
         elif self.matchc('+'):
-            return Token(TokenTypes.PLUS)
+            return self.t(TokenTypes.PLUS)
         elif self.matchc('!'):
-            return Token(TokenTypes.NOT)
+            return self.t(TokenTypes.NOT)
         elif self.matchc('?'):
-            return Token(TokenTypes.QUESTION)
+            return self.t(TokenTypes.QUESTION)
         else:
             raise SyntaxError("Unexpected char `{}'".format(self.peekc()))
 
@@ -188,11 +200,10 @@ class Parser:
         # Range <- Char ’-’ Char / Char
         while not self.testc(']'):
             left = self.lexChar()
-            # if left == self.testc(']'): break
             if self.matchc('-'): ranges.append([left, self.lexChar()])
-            else: chars.extend([left, self.lexChar()])
+            else: chars.append(left)
         if not self.matchc(']'): raise SyntaxError("Expected end of class")
-        return Token(TokenTypes.CLASS, ranges or ''.join(chars))
+        return self.t(TokenTypes.CLASS, ranges or ''.join(chars))
 
     def lexChar(self):
         # Char <- '\\' [nrt'"\[\]\\]
@@ -200,6 +211,10 @@ class Parser:
             if self.matchc('n'): return '\n'
             elif self.matchc('r'): return '\r'
             elif self.matchc('t'): return '\t'
+            elif self.matchc('\''): return '\''
+            elif self.matchc('"'): return '"'
+            elif self.matchc('['): return '['
+            elif self.matchc(']'): return ']'
             elif self.matchc('\\'): return '\\'
             elif self.peekc() is None: SyntaxError('Unexpected end of input')
             else: raise SyntaxError('Unknown escape char `{}`'.format(self.peekc()))
@@ -212,17 +227,14 @@ class Parser:
         while self.peekc() and not self.testc(end):
             output.append(self.lexChar())
         if not self.matchc(end): raise SyntaxError("Expected end of string")
-        return Token(TokenTypes.LITERAL, ''.join(output))
+        return self.t(TokenTypes.LITERAL, ''.join(output))
 
     def spacing(self):
         self.cleanspaces()
         # ’#’ (!EndOfLine .)* EndOfLine
         if self.matchc('#'):
-            while not (self.testc('\\') and self.peekc(1) == 'n'):
-                if not self.peekc(): break
+            while not self.testc('\n') and self.peekc():
                 self.nextc()
-            self.nextc(2)
-            self.line += 1
             self.cleanspaces()
 
     def cleanspaces(self):
@@ -232,13 +244,6 @@ class Parser:
                     self.line += 1
             elif self.peekc() and self.peekc().isspace(): self.nextc()
             else: break
-
-    def parse(self):
-        try:
-            self.nextt()
-            return self.parseDefinitions()
-        except SyntaxError as exc:
-            print(self.code)
 
     def parseDefinitions(self):
         # Grammar <- Spacing Definition+ EndOfFile
@@ -307,6 +312,28 @@ class Parser:
             return value
         return None
 
+    def parse(self):
+        self.nextt()
+        return self.parseDefinitions()
+
+    def run(self):
+        try: return self.parse()
+        except SyntaxError as exc:
+            output = ['%s at line %d' % (str(exc), self.line)]
+            output.append('')
+            code = self.code
+            mark = self.token_start
+            output.append(
+                code[:mark] +
+                '\u001b[41m' +
+                code[mark] +
+                '\u001b[0m' +
+                code[mark+1:]
+            )
+            exc.msg = '\n'.join(output);
+            raise exc
+
+
 class Eval:
 
     def __init__(self, grammar, start, data):
@@ -363,7 +390,7 @@ class Eval:
     def evalPlus(self, atom):
         out = [self.evalAtom(atom.value)]
         if out: out.extend(self.evalStar(Star(atom.value)))
-        return out or None
+        return fio(out or None)
 
     def evalStar(self, atom):
         out = []
@@ -485,29 +512,31 @@ def test_tokenizer():
     test = functools.partial(test_runner, expand_tokenizer)
 
     test('Rule1 <- "tx"', [
-        Token(TokenTypes.IDENTIFIER, 'Rule1'),
-        Token(TokenTypes.ARROW),
-        Token(TokenTypes.LITERAL, 'tx'),
-        Token(TokenTypes.END),
+        Token(TokenTypes.IDENTIFIER, 'Rule1', line=0, pos=0),
+        Token(TokenTypes.ARROW,               line=0, pos=6),
+        Token(TokenTypes.LITERAL,    'tx',    line=0, pos=9),
+        Token(TokenTypes.END,                 line=0, pos=13),
     ])
 
-    test('Value <- (![,\\n] .)*', [
-        Token(TokenTypes.IDENTIFIER, 'Value'),
-        Token(TokenTypes.ARROW),
-        Token(TokenTypes.OPEN),
-        Token(TokenTypes.NOT),
-        Token(TokenTypes.CLASS, ',\n'),
-        Token(TokenTypes.DOT),
-        Token(TokenTypes.CLOSE),
-        Token(TokenTypes.STAR),
-        Token(TokenTypes.END),
+    test('V <- (![,\\n] .)*', [
+        Token(TokenTypes.IDENTIFIER, 'V', line=0, pos=0),
+        Token(TokenTypes.ARROW,           line=0, pos=2),
+        Token(TokenTypes.OPEN,            line=0, pos=5),
+        Token(TokenTypes.NOT,             line=0, pos=6),
+        Token(TokenTypes.CLASS, ',\n',    line=0, pos=7),
+        Token(TokenTypes.DOT,             line=0, pos=13),
+        Token(TokenTypes.CLOSE,           line=0, pos=14),
+        Token(TokenTypes.STAR,            line=0, pos=15),
+        Token(TokenTypes.END,             line=0, pos=16),
     ])
 
     test('Hex <- [a-fA-F0-9]', [
-        Token(TokenTypes.IDENTIFIER, 'Hex'),
-        Token(TokenTypes.ARROW),
-        Token(TokenTypes.CLASS, [['a', 'f'], ['A', 'F'], ['0', '9']]),
-        Token(TokenTypes.END),
+        Token(TokenTypes.IDENTIFIER, 'Hex', line=0, pos=0),
+        Token(TokenTypes.ARROW,             line=0, pos=4),
+        Token(TokenTypes.CLASS,
+              [['a', 'f'], ['A', 'F'], ['0', '9']],
+              line=0, pos=7),
+        Token(TokenTypes.END, line=0, pos=18),
     ])
 
 
@@ -516,7 +545,17 @@ def test_parser():
 
     test('# ', {})
 
-    test('# foo\\n R1 <- "a"\\nR2 <- \'b\'', {
+    test('#foo\r\nR0 <- "a"', {'R0': Literal('a')})
+
+    test(r"R0 <- '\\' [nrt'\"\[\]]", {
+        'R0': Sequence([Literal('\\'), Class('nrt\'"[]')]),
+    })
+
+    test("R <- '\r\n' / '\n' / '\r'\\n", {
+        'R': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')])
+    })
+
+    test('# foo\n R1 <- "a"\nR2 <- \'b\'', {
         'R1': Literal('a'),
         'R2': Literal('b')
     })
@@ -543,6 +582,24 @@ def test_parser():
         'R1': Plus(Class([['0', '9']])),
     })
 
+    test(r"""# first line with comment
+Spacing    <- (Space / Comment)*
+Comment    <- '#' (!EndOfLine .)* EndOfLine
+Space      <- ' ' / '\t' / EndOfLine
+EndOfLine  <- '\r\n' / '\n' / '\r'
+EndOfFile  <- !.
+          """, {
+              'Spacing': Star(Expression([Identifier('Space'), Identifier('Comment')])),
+              'Comment': Sequence([
+                  Literal('#'),
+                  Star(Sequence([Not(Identifier('EndOfLine')), Dot()])),
+                  Identifier('EndOfLine'),
+              ]),
+              'Space': Expression([Literal(' '), Literal('\t'), Identifier('EndOfLine')]),
+              'EndOfLine': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')]),
+              'EndOfFile': Not(Dot()),
+          })
+
     # Some real stuff
 
     test(csv, {
@@ -563,6 +620,43 @@ def test_parser():
         'Pri': Expression([Sequence([Literal('('), Identifier('Add'), Literal(')')]),
                 Identifier('Num')]),
     })
+
+
+def _safe_from_error(p):
+    raised = False
+    value = None
+    try:
+        value = p.parse()
+    except Exception as exc:
+        raised = True
+        value = exc
+    return raised, value
+
+
+def test_parse_errors():
+    p = Parser("X 'a'")
+    raised, value = _safe_from_error(p)
+    assert(raised == True)
+    assert(isinstance(value, SyntaxError))
+    assert(str(value) == "Expected ARROW but found LITERAL")
+    assert(p.token == Token(TokenTypes.LITERAL, 'a', line=0, pos=2))
+
+    p = Parser("X < 'a'")
+    raised, value = _safe_from_error(p)
+    assert(raised == True)
+    assert(isinstance(value, SyntaxError))
+    assert(str(value) == "Missing the dash in the arrow")
+    assert(p.token == Token(TokenTypes.IDENTIFIER, 'X', line=0, pos=0))
+
+
+    value = Parser('AtoC <- [a-c]\\nNoAtoC <- !AtoC .\\nEOF < !.\\n').run()
+    expected = r'''Missing the dash in the arrow at line 2
+
+AtoC <- [a-c]
+NoAtoC <- !AtoC .
+EOF \x1b[31m\x1b[0m !.
+'''
+    #assert(value == expected)
 
 
 def test_eval():
@@ -632,10 +726,31 @@ def test_eval():
       [[',', ['3']],
        [',', ['p', 't', '-', 'b', 'r']]], '\n']])
 
+    e = Eval(Parser("EndOfLine <- '\r\n' / '\n' / '\r'").parse(), 'EndOfLine', "\n\r\n\r")
+    assert(e.evalAtom(Identifier('EndOfLine')) == '\n'); assert(e.pos == 1);
+
+    e = Eval(Parser("""
+
+NL <- '\r\n'
+    / '\n'
+    / '\r'
+    / '\t'
+
+C <- [a-z]+
+   / NL
+
+""").parse(), 'EndOfLine', "tst\n\r\t")
+
+    assert(e.evalAtom(Identifier('C')) == ['t', 's', 't'])  ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('C')) == '\n')             ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('C')) == '\r')
+    assert(e.evalAtom(Identifier('C')) == '\t')
+
 
 def test():
     test_tokenizer()
     test_parser()
+    # test_parse_errors()
     test_eval()
 
 
@@ -654,7 +769,7 @@ def main():
     args = parser.parse_args()
 
     with io.open(os.path.abspath(args.grammar), 'r') as grammarFile:
-        grammar = Parser(grammarFile.read()).parse()
+        grammar = Parser(grammarFile.read()).run()
     with io.open(os.path.abspath(args.data), 'r') as dataFile:
         output = Eval(grammar, args.start, dataFile.read()).run()
         print(output)

@@ -357,82 +357,82 @@ class Eval:
     def evalClass(self, atom):
         d = self.pos
         value = atom.value
-        if not self.current(): return None
+        if not self.current(): return False, None
 
         if isinstance(value, list):
             for [left, right] in value:
                 if left <= self.current() <= right:
                     value = self.current()
                     self.advance()
-                    return value
+                    return True, value
         else:
             for char in value:
                 if self.current() == char:
                     value = self.current()
                     self.advance();
-                    return value
-        return None
+                    return True, value
+        return False, None
 
     def evalLiteral(self, atom):
         d = self.pos
         if self.current() == atom.value:
             self.advance()
-        return self.ret(d)
+        output = self.ret(d)
+        return output != None, output
 
     def evalDot(self, atom):
         d = self.pos
         self.advance()
-        return self.ret(d)
-
-    def evalIdentifier(self, atom):
-        return self.evalAtom(self.g[atom.value])
+        output = self.ret(d)
+        return output != None, output
 
     def evalPlus(self, atom):
-        out = [self.evalAtom(atom.value)]
-        if out: out.extend(self.evalStar(Star(atom.value)))
-        return fio(out or None)
+        match, value = self.evalAtom(atom.value)
+        if match:
+            out = [value] + self.evalStar(Star(atom.value))[1]
+            return True, fio(out)
+        return False, None
 
     def evalStar(self, atom):
         out = []
         while True:
-            value = self.evalAtom(atom.value)
-            if value is None: break
+            match, value = self.evalAtom(atom.value)
+            if not match: break
             out.append(value)
-        return out
+        return True, out
 
     def evalNot(self, atom):
         d = self.pos
-        value = self.evalAtom(atom.value)
-        if value:
+        match, value = self.evalAtom(atom.value)
+        if match:
             # We got a match. To negate it, we'll reset the cursor
             # position to prior to the evaluation and return None.
             self.pos = d
-            return None
+            return False, None
         else:
-            return True
+            return True, None
 
     def evalSequence(self, atom):
         d = self.pos
         out = []
         for sa in atom.value:
-            value = self.evalAtom(sa)
-            # Special case from more general case (handled in the
-            # following elif) because of predicates. They don't append
-            # to output but allow the next thing in this sequence to
-            # be evaluated if they return True.
-            if value is True: continue
-            elif value: out.append(value)
+            match, value = self.evalAtom(sa)
+            if match and value: out.append(value)
+            elif match: continue
             else:
                 self.pos = d
-                return None
-        return fio(out)
+                return False, None
+        return True, fio(out)
 
     def evalExpression(self, atom):
         d = self.pos
         for sa in atom.value:
-            value = self.evalAtom(sa)
-            if value: return value
-        return None
+            match, value = self.evalAtom(sa)
+            if match: return True, value
+        return False, None
+
+    def evalIdentifier(self, atom):
+        return self.evalAtom(self.g[atom.value])
 
     def evalAtom(self, atom):
         if isinstance(atom, Class):
@@ -661,73 +661,76 @@ EOF \x1b[31m\x1b[0m !.
 
 def test_eval():
     e = Eval({}, '', "affbcdea&2")
-    assert(e.evalAtom(Class('af'))         == 'a');   assert(e.pos == 1)
-    assert(e.evalAtom(Class('gd'))         == None);  assert(e.pos == 1)
-    assert(e.evalAtom(Class('xyf'))        == 'f');   assert(e.pos == 2)
-    assert(e.evalAtom(Class([['a', 'f']])) == 'f');   assert(e.pos == 3)
-    assert(e.evalAtom(Class([['a', 'f']])) == 'b');   assert(e.pos == 4)
-    assert(e.evalAtom(Class([['a', 'f']])) == 'c');   assert(e.pos == 5)
-    assert(e.current() == 'd');                       assert(e.pos == 5)
-    assert(e.evalAtom(Literal('a'))        == None);  assert(e.pos == 5)
-    assert(e.evalAtom(Literal('d'))        == 'd');   assert(e.pos == 6)
-    assert(e.current() == 'e');                       assert(e.pos == 6)
-    assert(e.evalAtom(Dot())               == 'e');   assert(e.pos == 7)
-    assert(e.evalAtom(Dot())               == 'a');   assert(e.pos == 8)
-    assert(e.evalAtom(Dot())               == '&');   assert(e.pos == 9)
-    assert(e.evalAtom(Dot())               == '2');   assert(e.pos == 10)
-    assert(e.evalAtom(Dot())               == None);  assert(e.pos == 10)
+    assert(e.evalAtom(Class('af'))         == (True, 'a'));   assert(e.pos == 1)
+    assert(e.evalAtom(Class('gd'))         == (False, None)); assert(e.pos == 1)
+    assert(e.evalAtom(Class('xyf'))        == (True, 'f'));   assert(e.pos == 2)
+    assert(e.evalAtom(Class([['a', 'f']])) == (True, 'f'));   assert(e.pos == 3)
+    assert(e.evalAtom(Class([['a', 'f']])) == (True, 'b'));   assert(e.pos == 4)
+    assert(e.evalAtom(Class([['a', 'f']])) == (True, 'c'));   assert(e.pos == 5)
+    assert(e.current() == 'd');                               assert(e.pos == 5)
+    assert(e.evalAtom(Literal('a'))        == (False, None)); assert(e.pos == 5)
+    assert(e.evalAtom(Literal('d'))        == (True, 'd'));   assert(e.pos == 6)
+    assert(e.current() == 'e');                               assert(e.pos == 6)
+    assert(e.evalAtom(Dot())               == (True, 'e'));   assert(e.pos == 7)
+    assert(e.evalAtom(Dot())               == (True, 'a'));   assert(e.pos == 8)
+    assert(e.evalAtom(Dot())               == (True, '&'));   assert(e.pos == 9)
+    assert(e.evalAtom(Dot())               == (True, '2'));   assert(e.pos == 10)
+    assert(e.evalAtom(Dot())               == (False, None)); assert(e.pos == 10)
+
+    e = Eval(Parser('Lit <- "test"').parse(), 'Lit', "testando")
+    assert(e.evalAtom(Identifier('Lit')) == (True, "test"))
 
     e = Eval(Parser('Digit <- [0-9]').parse(), 'Digit', "42f")
-    assert(e.evalAtom(Identifier('Digit')) == "4")
-    assert(e.evalAtom(Identifier('Digit')) == "2")
-    assert(e.evalAtom(Identifier('Digit')) == None)
+    assert(e.evalAtom(Identifier('Digit')) == (True, "4"))
+    assert(e.evalAtom(Identifier('Digit')) == (True, "2"))
+    assert(e.evalAtom(Identifier('Digit')) == (False, None))
     assert(e.current() == 'f')
 
     e = Eval(Parser('Digit <- [0-9]+').parse(), 'Digit', "42f")
-    assert(e.evalAtom(Identifier('Digit')) == ['4', '2'])
+    assert(e.evalAtom(Identifier('Digit')) == (True, ['4', '2']))
     e = Eval(Parser('Digit <- [0-9]*').parse(), 'Digit', "2048f")
-    assert(e.evalAtom(Identifier('Digit')) == ['2', '0', '4', '8'])
+    assert(e.evalAtom(Identifier('Digit')) == (True, ['2', '0', '4', '8']))
     e = Eval(Parser('Digit <- [0-9]*').parse(), 'Digit', '2048')
-    assert(e.evalAtom(Identifier('Digit')) == ['2', '0', '4', '8'])
+    assert(e.evalAtom(Identifier('Digit')) == (True, ['2', '0', '4', '8']))
 
     e = Eval(Parser('AtoC <- [a-c]\\nNoAtoC <- !AtoC .\\nEOF <- !.\\n').parse(), '', 'abcdef')
-    assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 0)
-    assert(e.evalAtom(Identifier('AtoC'))   == 'a')   ; assert(e.pos == 1)
-    assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 1)
-    assert(e.evalAtom(Identifier('AtoC'))   == 'b')   ; assert(e.pos == 2)
-    assert(e.evalAtom(Identifier('AtoC'))   == 'c')   ; assert(e.pos == 3)
-    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 3)
-    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 3)
-    assert(e.evalAtom(Identifier('NoAtoC')) == 'd')   ; assert(e.pos == 4)
-    assert(e.evalAtom(Identifier('EOF'))    == None)  ; assert(e.pos == 4)
-    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 4)
-    assert(e.evalAtom(Identifier('NoAtoC')) == 'e')   ; assert(e.pos == 5)
-    assert(e.evalAtom(Identifier('NoAtoC')) == 'f')   ; assert(e.pos == 6)
-    assert(e.evalAtom(Identifier('NoAtoC')) == None)  ; assert(e.pos == 6)
-    assert(e.evalAtom(Identifier('AtoC'))   == None)  ; assert(e.pos == 6)
-    assert(e.evalAtom(Identifier('EOF'))    == True)  ; assert(e.pos == 6)
+    assert(e.evalAtom(Identifier('NoAtoC')) == (False, None))  ; assert(e.pos == 0)
+    assert(e.evalAtom(Identifier('AtoC'))   == (True, 'a'))    ; assert(e.pos == 1)
+    assert(e.evalAtom(Identifier('NoAtoC')) == (False, None))  ; assert(e.pos == 1)
+    assert(e.evalAtom(Identifier('AtoC'))   == (True, 'b'))    ; assert(e.pos == 2)
+    assert(e.evalAtom(Identifier('AtoC'))   == (True, 'c'))    ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('AtoC'))   == (False, None))  ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('AtoC'))   == (False, None))  ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('NoAtoC')) == (True, 'd'))    ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('EOF'))    == (False, None))  ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('AtoC'))   == (False, None))  ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('NoAtoC')) == (True, 'e'))    ; assert(e.pos == 5)
+    assert(e.evalAtom(Identifier('NoAtoC')) == (True, 'f'))    ; assert(e.pos == 6)
+    assert(e.evalAtom(Identifier('NoAtoC')) == (False, None))  ; assert(e.pos == 6)
+    assert(e.evalAtom(Identifier('AtoC'))   == (False, None))  ; assert(e.pos == 6)
+    assert(e.evalAtom(Identifier('EOF'))    == (True, None))   ; assert(e.pos == 6)
 
     e = Eval(Parser('EOF <- !.\\nALL <- [a-f]').parse(), 'EOF', 'f')
-    assert(e.evalAtom(Identifier('EOF')) == None)
-    assert(e.evalAtom(Identifier('ALL')) == 'f')
+    assert(e.evalAtom(Identifier('EOF')) == (False, None))
+    assert(e.evalAtom(Identifier('ALL')) == (True, 'f'))
     e = Eval(Parser(arith).parse(), 'Add', "12+34*56")
-    assert(e.evalAtom(Identifier('Add')) == [
+    assert(e.evalAtom(Identifier('Add')) == (True, [
         ['1', '2'],
         '+', [['3', '4'],
               '*',
-              ['5', '6']]])
+              ['5', '6']]]))
 
     e = Eval(Parser(csv).parse(), 'File', "Name,Num,Lang\nLink,3,pt-br\n")
-    assert(e.evalAtom(Identifier('File')) == [[['N', 'a', 'm', 'e'],
+    assert(e.evalAtom(Identifier('File')) == (True, [[['N', 'a', 'm', 'e'],
       [[',', ['N', 'u', 'm']],
        [',', ['L', 'a', 'n', 'g']]],
       '\n'],
      [['L', 'i', 'n', 'k'],
       [[',', ['3']],
-       [',', ['p', 't', '-', 'b', 'r']]], '\n']])
+       [',', ['p', 't', '-', 'b', 'r']]], '\n']]))
 
     e = Eval(Parser("EndOfLine <- '\r\n' / '\n' / '\r'").parse(), 'EndOfLine', "\n\r\n\r")
-    assert(e.evalAtom(Identifier('EndOfLine')) == '\n'); assert(e.pos == 1);
+    assert(e.evalAtom(Identifier('EndOfLine')) == (True, '\n')); assert(e.pos == 1);
 
     e = Eval(Parser("""
 
@@ -741,10 +744,10 @@ C <- [a-z]+
 
 """).parse(), 'EndOfLine', "tst\n\r\t")
 
-    assert(e.evalAtom(Identifier('C')) == ['t', 's', 't'])  ; assert(e.pos == 3)
-    assert(e.evalAtom(Identifier('C')) == '\n')             ; assert(e.pos == 4)
-    assert(e.evalAtom(Identifier('C')) == '\r')
-    assert(e.evalAtom(Identifier('C')) == '\t')
+    assert(e.evalAtom(Identifier('C')) == (True, ['t', 's', 't']))  ; assert(e.pos == 3)
+    assert(e.evalAtom(Identifier('C')) == (True, '\n'))             ; assert(e.pos == 4)
+    assert(e.evalAtom(Identifier('C')) == (True, '\r'))
+    assert(e.evalAtom(Identifier('C')) == (True, '\t'))
 
 
 def test():

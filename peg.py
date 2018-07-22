@@ -375,8 +375,9 @@ class Eval:
 
     def evalLiteral(self, atom):
         d = self.pos
-        if self.current() == atom.value:
-            self.advance()
+        for c in atom.value:
+            if self.current() == c:
+                self.advance()
         output = self.ret(d)
         return output != None, output
 

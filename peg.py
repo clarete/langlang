@@ -782,7 +782,7 @@ def main():
         grammar = Parser(grammarFile.read()).run()
     with io.open(os.path.abspath(args.data), 'r') as dataFile:
         output = Eval(grammar, args.start, dataFile.read()).run()
-        print(output)
+        pprint.pprint(output)
 
 if __name__ == '__main__':
     test()

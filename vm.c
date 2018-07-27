@@ -13,22 +13,24 @@ Each instruction is 16 bit long. The first 4 bits are reserved for the
 opcode and the other 12 bits can be used to store parameters for the
 instruction:
 
-  opcode  | parameter
-  4bits   | 12bits
-  --------|------------------------
-  | | | | | | | | | | | | | | | | |
-  ---------------------------------
+  The instruction "Char 'a'" will be represented in the following
+  format:
+
+    opcode  | parameter
+    4bits   | 12bits
+    --------|------------------------
+    |0|0|0|1|0|0|0|0|0|1|1|0|0|0|0|1|
+    ---------------------------------
 
 Bytecode Format
 ===============
 
 The Bytecode object is a sequence of instructions.
 
-   16bits  16bits  16bits
-     |       |       |
- ----|-------|-------|----
- | Inst1 | Inst2 | InstN |
- -------------------------
+      16bits  16bits  16bits
+    ----|-------|-------|----
+    | Inst1 | Inst2 | InstN |
+    -------------------------
  */
 
 /** Advance m->pc one step and return last byte read */
@@ -37,49 +39,63 @@ The Bytecode object is a sequence of instructions.
 /** Move m->pc two bytes ahead and read them into an uint16_t */
 #define READ16C(m) (m->pc += 2, (uint16_t) ((m->pc[-2] << 8 | m->pc[-1])))
 
+/** Retrieve name of opcode */
+#define OP_NAME(o) opNames[o]
+
 /** Report errors that stop the execution of the VM right away */
 #define FATAL(f, ...)                                                  \
   do { fprintf (stderr, f "\n", ##__VA_ARGS__); exit (EXIT_FAILURE); } \
   while (0)
 
-/* The code is represented as a list of instructions */
-typedef uint16_t Bytecode;
+/* opcodes */
+typedef enum {
+  OP_CHAR = 0x1,
+  OP_END,
+} Instructions;
 
-/* The Bytecode object contains a list of instructions */
-typedef struct {
-  short opc;                    /* First 4 bits of the instruction */
-  uint16_t arg;                 /* Other 12 bits of the instruction */
-} Instruction;
+/* The code is represented as a list of instructions */
+typedef uint8_t Bytecode;
 
 /* Virtual Machine */
 typedef struct {
-  char *s;
+  const char *s;
   long i;
   Bytecode *pc;
 } Machine;
 
-void mInit (Machine *m, Bytecode *code)
+static const char *opNames[OP_END] = {
+  [OP_CHAR] = "OP_CHAR",
+};
+
+/* Set initial values for the machine */
+void mInit (Machine *m, Bytecode *code, const char *input)
 {
   m->pc = code;
-}
-
-/* Read the next instruction from PC */
-void mReadInstruction (Machine *m, Instruction *i)
-{
-  uint16_t inst = READ16C (m);
-  i->opc = (inst & 0xF000) >> 12;
-  i->arg = inst & 0x0FFF;
+  m->s = input;
+  m->i = 0;
 }
 
 /* Run the matching machine */
 void mEval (Machine *m)
 {
-  Instruction i;
+  uint16_t instruction, operand;
+  short opcode;
   while (true) {
-    mReadInstruction (m, &i);
-    switch (i.opc) {
-    default: FATAL ("Unknown Instruction 0x%04x", i.opc);
+    /* Fetch instruction */
+    instruction = READ16C (m);
+    /* Decode opcode & operand */
+    opcode = (instruction & 0xF000) >> 12;
+    operand = instruction & 0x0FFF;
+    /* Execute instruction */
+    switch (opcode) {
+    case OP_CHAR:
+      printf ("OP_CHAR: %c (%x)\n", operand, operand);
+      if (m->s[m->i] == operand) m->i++;
+      else m->i = -1;
+      break;
+    default: FATAL ("Unknown Instruction 0x%04x", opcode);
     }
+    break;
   }
 }
 
@@ -115,7 +131,7 @@ int run (const char *grammar_file, const char *input_file)
   read_file (grammar_file, (void *) &grammar, &grammar_size);
   read_file (input_file, (void *) &input, &input_size);
 
-  mInit (&m, grammar);
+  mInit (&m, grammar, (const char *) input);
   mEval (&m);
 
   free (grammar);

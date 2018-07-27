@@ -33,11 +33,15 @@ The Bytecode object is a sequence of instructions.
     -------------------------
  */
 
+/* -- Helpers to read instructions from Bytecode stream -- */
+
 /** Advance m->pc one step and return last byte read */
 #define READ8C(m) (*m->pc++)
 
 /** Move m->pc two bytes ahead and read them into an uint16_t */
 #define READ16C(m) (m->pc += 2, (uint16_t) ((m->pc[-2] << 8 | m->pc[-1])))
+
+/* -- Error control & report utilities -- */
 
 /** Retrieve name of opcode */
 #define OP_NAME(o) opNames[o]
@@ -50,6 +54,7 @@ The Bytecode object is a sequence of instructions.
 /* opcodes */
 typedef enum {
   OP_CHAR = 0x1,
+  OP_ANY,
   OP_END,
 } Instructions;
 
@@ -59,19 +64,22 @@ typedef uint8_t Bytecode;
 /* Virtual Machine */
 typedef struct {
   const char *s;
-  long i;
+  size_t s_size;
+  unsigned long i;
   Bytecode *pc;
 } Machine;
 
+/* Helps debugging */
 static const char *opNames[OP_END] = {
   [OP_CHAR] = "OP_CHAR",
 };
 
 /* Set initial values for the machine */
-void mInit (Machine *m, Bytecode *code, const char *input)
+void mInit (Machine *m, Bytecode *code, const char *input, size_t input_size)
 {
   m->pc = code;
   m->s = input;
+  m->s_size = input_size;
   m->i = 0;
 }
 
@@ -86,15 +94,37 @@ void mEval (Machine *m)
     /* Decode opcode & operand */
     opcode = (instruction & 0xF000) >> 12;
     operand = instruction & 0x0FFF;
+
+    /* printf ("OPCODE: %08x\n", opcode); */
+    /* printf ("OPERAND: %08x\n\n", operand); */
+
     /* Execute instruction */
     switch (opcode) {
-    case OP_CHAR:
-      printf ("OP_CHAR: %c (%x)\n", operand, operand);
-      if (m->s[m->i] == operand) m->i++;
-      else m->i = -1;
-      break;
+
+      /*
+        s[i] = ‘c’
+        match ‘c’ s i = i+1 (ch.1)
+
+        s[i] 6 = ‘c’
+        -------------------
+        match ‘c’ s i = nil (ch.2)
+      */
+    case OP_CHAR: if (m->s[m->i] == operand) m->i++; break;
+
+      /*
+        i ≤ |s|
+        -----------------
+        match . s i = i+1 (any.1)
+
+        i > |s|
+        -----------------
+        match . s i = nil (any.2)
+      */
+    case OP_ANY: if (m->i < m->s_size) m->i++; break;
+
     default: FATAL ("Unknown Instruction 0x%04x", opcode);
     }
+
     break;
   }
 }
@@ -126,12 +156,12 @@ int run (const char *grammar_file, const char *input_file)
   Machine m;
   size_t grammar_size = 0, input_size = 0;
   Bytecode *grammar = NULL;
-  uint8_t *input = NULL;
+  char *input = NULL;
 
   read_file (grammar_file, (void *) &grammar, &grammar_size);
   read_file (input_file, (void *) &input, &input_size);
 
-  mInit (&m, grammar, (const char *) input);
+  mInit (&m, grammar, input, input_size);
   mEval (&m);
 
   free (grammar);
@@ -154,6 +184,8 @@ void usage (const char *program, const char *msg)
    description. */
 #define MATCH_OPT(short_desc,long_desc) \
   (argc > 0) && (strcmp (*args, short_desc) == 0 || strcmp (*args, long_desc) == 0)
+
+#ifndef TEST
 
 /* Temporary main function */
 int main (int argc, char **argv)
@@ -190,3 +222,62 @@ int main (int argc, char **argv)
   /* Welcome to the machine */
   return run (grammar, input);
 }
+
+#else  /* TEST */
+
+#include <assert.h>
+
+/* (ch.1) */
+static void test_char_success ()
+{
+  Machine m;
+  Bytecode b[2] = { 0x0010, 0x0061 }; /* Char 'a' */
+  printf (" * t:ch.1\n");
+  mInit (&m, b, "a", 1);
+  mEval (&m);
+  assert (m.i == 1);
+}
+
+/* (ch.2) */
+static void test_char_failure ()
+{
+  Machine m;
+  Bytecode b[2] = { 0x0010, 0x0061 }; /* Char 'a' */
+  printf (" * t:ch.2\n");
+  mInit (&m, b, "x", 1);
+  mEval (&m);
+  assert (m.i == 0);
+}
+
+/* (any.1) */
+static void test_any_success ()
+{
+  Machine m;
+  Bytecode b[2] = { 0x0020, 0x0000 }; /* Any */
+  printf (" * t:any.1\n");
+  mInit (&m, b, "a", 1);
+  mEval (&m);
+  assert (m.i == 1);
+}
+
+/* (any.2) */
+void test_any_failure ()
+{
+  Machine m;
+  Bytecode b[2] = { 0x0020, 0x0000 }; /* Any */
+  printf (" * t:any.2\n");
+  mInit (&m, b, "", 0);
+  mEval (&m);
+  assert (m.i == 0);
+}
+
+int main ()
+{
+  test_char_success ();
+  test_char_failure ();
+  test_any_success ();
+  test_any_failure ();
+  return 0;
+}
+
+#endif  /* TEST */

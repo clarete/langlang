@@ -72,6 +72,7 @@ typedef struct {
 /* Helps debugging */
 static const char *opNames[OP_END] = {
   [OP_CHAR] = "OP_CHAR",
+  [OP_ANY] = "OP_ANY",
 };
 
 /* Set initial values for the machine */
@@ -96,29 +97,9 @@ void mEval (Machine *m)
     operand = instruction & 0x0FFF;
     /* Execute instruction */
     switch (opcode) {
-
     case 0: return;
-      /*
-        s[i] = ‘c’
-        match ‘c’ s i = i+1 (ch.1)
-
-        s[i] 6 = ‘c’
-        -------------------
-        match ‘c’ s i = nil (ch.2)
-      */
     case OP_CHAR: if (m->s[m->i] == operand) m->i++; break;
-
-      /*
-        i ≤ |s|
-        -----------------
-        match . s i = i+1 (any.1)
-
-        i > |s|
-        -----------------
-        match . s i = nil (any.2)
-      */
     case OP_ANY: if (m->i < m->s_size) m->i++; break;
-
     default: FATAL ("Unknown Instruction 0x%04x", opcode);
     }
   }
@@ -224,8 +205,11 @@ int main (int argc, char **argv)
 
 #include <assert.h>
 
-/* (ch.1) */
-static void test_char_success ()
+/*
+  s[i] = ‘c’
+  match ‘c’ s i = i+1 (ch.1)
+*/
+static void test_ch1 ()
 {
   Machine m;
   Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
@@ -235,8 +219,12 @@ static void test_char_success ()
   assert (m.i == 1);
 }
 
-/* (ch.2) */
-static void test_char_failure ()
+/*
+  s[i] 6 = ‘c’
+  -------------------
+  match ‘c’ s i = nil (ch.2)
+ */
+static void test_ch2 ()
 {
   Machine m;
   Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
@@ -246,8 +234,12 @@ static void test_char_failure ()
   assert (m.i == 0);
 }
 
-/* (any.1) */
-static void test_any_success ()
+/*
+  i ≤ |s|
+  -----------------
+  match . s i = i+1 (any.1)
+*/
+static void test_any1 ()
 {
   Machine m;
   Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
@@ -257,8 +249,12 @@ static void test_any_success ()
   assert (m.i == 1);
 }
 
-/* (any.2) */
-void test_any_failure ()
+/*
+  i > |s|
+  -----------------
+  match . s i = nil (any.2)
+*/
+void test_any2 ()
 {
   Machine m;
   Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
@@ -268,12 +264,33 @@ void test_any_failure ()
   assert (m.i == 0);
 }
 
+/*
+  match p 1 s i = i+j     match p 2 s i + j = i+j+k
+  -------------------------------------------------
+          match p 1 p 2 s i = i+j+k (con.1)
+*/
+void test_con1 ()
+{
+  Machine m;
+  Bytecode b[8] = {
+    0x0010, 0x0061, /* Char 'a' */
+    0x0020, 0x0000, /* Any */
+    0x0010, 0x0063, /* Char 'c' */
+    0, 0,
+  };
+  printf (" * t:con.1\n");
+  mInit (&m, b, "abc", 3);
+  mEval (&m);
+  assert (m.i == 3);
+}
+
 int main ()
 {
-  test_char_success ();
-  test_char_failure ();
-  test_any_success ();
-  test_any_failure ();
+  test_ch1 ();
+  test_ch2 ();
+  test_any1 ();
+  test_any2 ();
+  test_con1 ();
   return 0;
 }
 

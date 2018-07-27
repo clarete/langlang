@@ -94,13 +94,10 @@ void mEval (Machine *m)
     /* Decode opcode & operand */
     opcode = (instruction & 0xF000) >> 12;
     operand = instruction & 0x0FFF;
-
-    /* printf ("OPCODE: %08x\n", opcode); */
-    /* printf ("OPERAND: %08x\n\n", operand); */
-
     /* Execute instruction */
     switch (opcode) {
 
+    case 0: return;
       /*
         s[i] = ‘c’
         match ‘c’ s i = i+1 (ch.1)
@@ -124,26 +121,26 @@ void mEval (Machine *m)
 
     default: FATAL ("Unknown Instruction 0x%04x", opcode);
     }
-
-    break;
   }
 }
 
 /* Reads the entire content of the file under `path' into `buffer' */
-void read_file (const char *path, void **buffer, size_t *size)
+void read_file (const char *path, uint8_t **buffer, size_t *size)
 {
   FILE *fp = fopen (path, "rb");
   if (!fp) FATAL ("Can't open file %s", path);
-  /* Read file size */
+
+  /* Read file size. */
   fseek (fp, 0, SEEK_END);
   *size = ftell (fp);
   rewind (fp);
-  /* Allocate buffer and read the file into it */
-  if ((*buffer = malloc (*size)) == NULL) {
+  /* Allocate buffer and read the file into it.  The +1 is reserved
+     for the NULL char. */
+  if ((*buffer = calloc (0, *size + 1)) == NULL) {
     fclose (fp);
     FATAL ("Can't read file into memory %s", path);
   }
-  if ((fread (*buffer, 1, *size, fp) != *size)) {
+  if ((fread (*buffer, sizeof (uint8_t), *size, fp) != *size)) {
     fclose (fp);
     FATAL ("Can't read file %s", path);
   }
@@ -158,8 +155,8 @@ int run (const char *grammar_file, const char *input_file)
   Bytecode *grammar = NULL;
   char *input = NULL;
 
-  read_file (grammar_file, (void *) &grammar, &grammar_size);
-  read_file (input_file, (void *) &input, &input_size);
+  read_file (grammar_file, &grammar, &grammar_size);
+  read_file (input_file, (uint8_t **) &input, &input_size);
 
   mInit (&m, grammar, input, input_size);
   mEval (&m);
@@ -231,7 +228,7 @@ int main (int argc, char **argv)
 static void test_char_success ()
 {
   Machine m;
-  Bytecode b[2] = { 0x0010, 0x0061 }; /* Char 'a' */
+  Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
   printf (" * t:ch.1\n");
   mInit (&m, b, "a", 1);
   mEval (&m);
@@ -242,7 +239,7 @@ static void test_char_success ()
 static void test_char_failure ()
 {
   Machine m;
-  Bytecode b[2] = { 0x0010, 0x0061 }; /* Char 'a' */
+  Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
   printf (" * t:ch.2\n");
   mInit (&m, b, "x", 1);
   mEval (&m);
@@ -253,7 +250,7 @@ static void test_char_failure ()
 static void test_any_success ()
 {
   Machine m;
-  Bytecode b[2] = { 0x0020, 0x0000 }; /* Any */
+  Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
   printf (" * t:any.1\n");
   mInit (&m, b, "a", 1);
   mEval (&m);
@@ -264,7 +261,7 @@ static void test_any_success ()
 void test_any_failure ()
 {
   Machine m;
-  Bytecode b[2] = { 0x0020, 0x0000 }; /* Any */
+  Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
   printf (" * t:any.2\n");
   mInit (&m, b, "", 0);
   mEval (&m);

@@ -1,0 +1,17 @@
+* Parsing Machine for PEGs
+
+** Bootstrap
+
+   #+begin_src sh
+   ./pegc -i peg.g -o peg.bin           # Not really working yet
+   ./vm --grammar peg.bin --input peg.g # --transform pegc --output peg2.bin
+   # [ "$(md5sum peg.bin)" -eq "$(md5sum peg2.bin)" ] && echo "(:" || echo "):"
+   #+end_src
+
+** Heavily based on
+
+   * Parsing Expression Grammars: A Recognition-Based Syntactic
+     Foundation (Bryan Ford, 2004)
+   * A Parsing Machine for PEGs (Sérgio Medeiros & Roberto
+     Ierusalimschy, 2008)
+   * An Efficient Parsing Machine for PEGs (Jos Craaijo, 2018)

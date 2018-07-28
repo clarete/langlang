@@ -173,11 +173,11 @@ void mEval (Machine *m)
         bt = *POP ();
         m->i = bt.i;
         m->pc = bt.pc;
+        m->fail = false;        /* We're backtracking */
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
         break;
       }
-
     }
   }
 }
@@ -350,6 +350,53 @@ void test_any2 ()
 }
 
 /*
+  match p s i = nil
+  -----------------
+  match !p s i = i (not.1)
+*/
+void test_not1 ()
+{
+  Machine m;
+  /* !'a' */
+  Bytecode b[10] = {
+    0x0030, 0x0005, /* Choice 0x0005 */
+    0x0010, 0x0061, /* Char 'a' */
+    0x0040, 0x0001, /* Commit 1 */
+    0x0050, 0x0000, /* Fail */
+    0, 0
+  };
+  printf (" * t:not.1\n");
+  mInit (&m, b, "b", 0);
+  mEval (&m);
+  assert (!m.fail);
+  assert (m.i == 0);
+}
+
+/*
+  match p s i = i+j
+  ------------------
+  match !p s i = nil (not.2)
+*/
+void test_not2 ()
+{
+  Machine m;
+  /* !'a' */
+  Bytecode b[10] = {
+    0x0030, 0x0005, /* Choice 0x0005 */
+    0x0010, 0x0061, /* Char 'a' */
+    0x0040, 0x0000, /* Commit 1 */
+    0x0050, 0x0000, /* Fail */
+    0, 0
+  };
+  printf (" * t:not.2\n");
+  mInit (&m, b, "a", 0);
+  mEval (&m);
+  printf (" * FOOO: %ld\n", m.i);
+  assert (m.fail);
+  /* assert (m.i == 0); */
+}
+
+/*
   match p1 s i = i+j    match p2 s i + j = i+j+k
   ----------------------------------------------
          match p1 p2 s i = i+j+k (con.1)
@@ -489,6 +536,8 @@ int main ()
   test_ch2 ();
   test_any1 ();
   test_any2 ();
+  test_not1 ();
+  test_not2 ();
   test_con1 ();
   test_con2 ();
   test_con3 ();

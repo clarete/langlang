@@ -6,6 +6,32 @@
 
 /*
 
+Basic Functionality
+===================
+
+Matching
+ * [x] Patterns
+ * [ ] Expressions
+Extraction
+ * [ ] Lists
+
+Semantic Operations
+===================
+
+Character
+ * [x] 'c'
+ * [x] . (Any)
+Concatenation
+ * [x] a b
+Ordered Choice
+ * [x] a / b
+Predicates
+ * [x] !a
+ * [ ] &a (syntax suggar)
+Suffixes
+ * [x] a*
+ * [ ] a? (syntax suggar)
+
 Machine Instructions
 ====================
 

@@ -159,8 +159,13 @@ void mEval (Machine *m)
       break;
     case OP_COMMIT:
       if (!m->fail) {
-        POP ();            /* Discard backtrack entry */
-        m->pc += operand;  /* Jump to the given position */
+        /* Cast to signed so we can read negative numbers and jump
+           backwards (we need that feature for the Star operator.
+           With a lil bit more work we can clame all the 14 bits
+           available but 8 bits are enough for now. */
+        int8_t rand = operand;
+        POP ();                 /* Discard backtrack entry */
+        m->pc += rand;          /* Jump to the given position */
       }
       break;
     default:
@@ -530,6 +535,50 @@ void test_ord3 ()
   assert (m.i == 1);
 }
 
+/*
+  match p s i = i+j    match p∗ s i + j = i+j+k
+  ----------------------------------------------
+          match p∗ s i = i+j+k (rep.1)
+*/
+void test_rep1 ()
+{
+  Machine m;
+  /* 'a*' */
+  Bytecode b[8] = {
+    0x0030, 0x0004, /* Choice 0x0004 */
+    0x0010, 0x0061, /* Char 'a' */
+    0x0040, 0x00fc, /* Commit 0x00fc (-4) */
+    0, 0,
+  };
+  printf (" * t:rep.2\n");
+  mInit (&m, b, "aab", 1);
+  mEval (&m);
+  assert (m.fail);
+  assert (m.i == 2);
+}
+
+/*
+  match p s i = nil
+  -----------------
+  match p∗ s i = i (rep.2)
+*/
+void test_rep2 ()
+{
+  Machine m;
+  /* 'a*' */
+  Bytecode b[8] = {
+    0x0030, 0x0004, /* Choice 0x0004 */
+    0x0010, 0x0061, /* Char 'a' */
+    0x0040, 0x00fc, /* Commit 0x00fc (-4) */
+    0, 0,
+  };
+  printf (" * t:rep.2\n");
+  mInit (&m, b, "b", 1);
+  mEval (&m);
+  assert (!m.fail);
+  assert (m.i == 0);
+}
+
 int main ()
 {
   test_ch1 ();
@@ -544,6 +593,8 @@ int main ()
   test_ord1 ();
   test_ord2 ();
   test_ord3 ();
+  test_rep1 ();
+  test_rep2 ();
   return 0;
 }
 

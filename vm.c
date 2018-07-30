@@ -92,6 +92,7 @@ typedef enum {
   OP_CHOICE,
   OP_COMMIT,
   OP_FAIL,
+  OP_FAIL_TWICE,
   OP_END,
 } Instructions;
 
@@ -122,6 +123,7 @@ static const char *opNames[OP_END] = {
   [OP_CHOICE] = "OP_CHOICE",
   [OP_COMMIT] = "OP_COMMIT",
   [OP_FAIL] = "OP_FAIL",
+  [OP_FAIL_TWICE] = "OP_FAIL_TWICE",
 };
 
 /* Create a new backtrack entry */
@@ -193,6 +195,10 @@ void mEval (Machine *m)
         POP ();                 /* Discard backtrack entry */
         m->pc += rand;          /* Jump to the given position */
       }
+      break;
+    case OP_FAIL_TWICE:
+      m->fail = true;
+      if (sp > m->stack) POP ();
       break;
     default:
       FATAL ("Unknown Instruction 0x%04x", opcode);
@@ -403,6 +409,23 @@ void test_not1 ()
   assert (m.i == 0);
 }
 
+void test_not1_fail_twice ()
+{
+  Machine m;
+  /* !'a' */
+  Bytecode b[8] = {
+    0x0030, 0x0005, /* Choice 0x0005 */
+    0x0010, 0x0061, /* Char 'a' */
+    0x0060, 0x0000, /* FailTwice */
+    0, 0
+  };
+  printf (" * t:not.1 fail-twice\n");
+  mInit (&m, b, "b", 0);
+  mEval (&m);
+  assert (!m.fail);
+  assert (m.i == 0);
+}
+
 /*
   match p s i = i+j
   ------------------
@@ -422,8 +445,26 @@ void test_not2 ()
   printf (" * t:not.2\n");
   mInit (&m, b, "a", 0);
   mEval (&m);
-  printf (" * FOOO: %ld\n", m.i);
   assert (m.fail);
+  /* assert (m.i == 0); */
+}
+
+void test_not2_fail_twice ()
+{
+  Machine m;
+  /* !'a' */
+  Bytecode b[8] = {
+    0x0030, 0x0005, /* Choice 0x0005 */
+    0x0010, 0x0061, /* Char 'a' */
+    0x0060, 0x0000, /* FailTwice */
+    0, 0
+  };
+  printf (" * t:not.2 fail-twice\n");
+  mInit (&m, b, "a", 0);
+  mEval (&m);
+  assert (m.fail);
+  /* TODO: FailTwice can restore `i' but it's not implemented like
+     that until I understand if that'd cause any other implication. */
   /* assert (m.i == 0); */
 }
 
@@ -612,7 +653,9 @@ int main ()
   test_any1 ();
   test_any2 ();
   test_not1 ();
+  test_not1_fail_twice ();
   test_not2 ();
+  test_not2_fail_twice ();
   test_con1 ();
   test_con2 ();
   test_con3 ();

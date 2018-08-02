@@ -102,15 +102,15 @@ typedef uint8_t Bytecode;
 /* Entry that's stored in the Machine's stack for supporting backtrack
    on the ordered choice operator */
 typedef struct {
-  unsigned long i;
+  const char *i;
   Bytecode *pc;
 } BacktrackEntry;
 
 /* Virtual Machine */
 typedef struct {
   const char *s;
+  const char *i;
   size_t s_size;
-  unsigned long i;
   Bytecode *pc;
   BacktrackEntry stack[STACK_SIZE];
   bool fail;
@@ -127,7 +127,7 @@ static const char *opNames[OP_END] = {
 };
 
 /* Create a new backtrack entry */
-BacktrackEntry newBacktrackEntry (unsigned long i, Bytecode *pc)
+BacktrackEntry newBacktrackEntry (const char *i, Bytecode *pc)
 {
   BacktrackEntry b = { i, pc };
   return b;
@@ -139,8 +139,8 @@ void mInit (Machine *m, Bytecode *code, const char *input, size_t input_size)
   memset (m->stack, 0, STACK_SIZE * sizeof (void *));
   m->pc = code;
   m->s = input;
+  m->i = input;
   m->s_size = input_size;
-  m->i = 0;
   m->fail = false;
 }
 
@@ -153,14 +153,15 @@ void mEval (Machine *m)
 #define READ16C(m) (m->pc += 2, (uint16_t) ((m->pc[-2] << 8 | m->pc[-1])))
   /** Push data onto the machine's stack  */
 #define PUSH(d) ((*sp++) = d)
-  /** Pop data from the machine's stack  */
+  /** Pop data from the machine's stack. Notice it doesn't dereference
+      the pointer, callers are supposed to do that when needed. */
 #define POP() (--sp)
 
-  BacktrackEntry bt, *sp = m->stack;
+  BacktrackEntry *sp = m->stack;
   uint16_t instruction, operand;
   short opcode;
 
-  while (true) {
+  while (!m->fail) {
     /* Fetch instruction */
     instruction = READ16C (m);
 
@@ -171,50 +172,44 @@ void mEval (Machine *m)
     /* Execute instruction */
     switch (opcode) {
     case 0: return;
-    case OP_FAIL:
-      m->fail = true;
-      break;
     case OP_CHAR:
-      if (m->s[m->i] == operand) m->i++;
-      else m->fail = true;
-      break;
+      if (*m->i == operand) m->i++;
+      else goto fail;
+      continue;
     case OP_ANY:
-      if (m->i < m->s_size) m->i++;
-      else m->fail = true;
-      break;
+      if (m->i < (m->s + m->s_size)) m->i++;
+      else goto fail;
+      continue;
     case OP_CHOICE:
       PUSH (newBacktrackEntry (m->i, m->pc + operand));
-      break;
-    case OP_COMMIT:
-      if (!m->fail) {
-        /* Cast to signed so we can read negative numbers and jump
-           backwards (we need that feature for the Star operator.
-           With a lil bit more work we can clame all the 14 bits
-           available but 8 bits are enough for now. */
-        int8_t rand = operand;
-        POP ();                 /* Discard backtrack entry */
-        m->pc += rand;          /* Jump to the given position */
-      }
-      break;
-    case OP_FAIL_TWICE:
-      m->fail = true;
-      if (sp > m->stack) POP ();
-      break;
-    default:
-      FATAL ("Unknown Instruction 0x%04x", opcode);
+      continue;
+    case OP_COMMIT: {
+      /* Cast to signed so we can read negative numbers and jump
+         backwards (we need that feature for the Star operator.
+         With a lil bit more work we can clame all the 14 bits
+         available but 8 bits are enough for now. */
+      int8_t rand = operand;
+      POP ();                   /* Discard backtrack entry */
+      m->pc += rand;            /* Jump to the given position */
+      continue;
     }
-
-    if (m->fail) {
+    case OP_FAIL_TWICE:
+      POP ();                   /* Fall through */
+    case OP_FAIL:
+    fail:
       if (sp > m->stack) {
         /* Fail〈(pc,i1):e〉 ----> 〈pc,i1,e〉 */
-        bt = *POP ();
-        m->i = bt.i;
-        m->pc = bt.pc;
-        m->fail = false;        /* We're backtracking */
+        do m->i = (*POP ()).i;
+        while (m->i == NULL);
+        m->pc = sp->pc;         /* Restore the program counter */
+        m->fail = false;        /* Backtrack instead of error */
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
-        break;
+        m->fail = true;
       }
+      continue;
+    default:
+      FATAL ("Unknown Instruction 0x%04x", opcode);
     }
   }
 }
@@ -321,6 +316,7 @@ int main (int argc, char **argv)
 
 /*
   s[i] = ‘c’
+  -------------------
   match ‘c’ s i = i+1 (ch.1)
 */
 static void test_ch1 ()
@@ -332,11 +328,13 @@ static void test_ch1 ()
   mInit (&m, b, "a", 1);
   mEval (&m);
   assert (!m.fail);
-  assert (m.i == 1);
+  assert (m.i - m.s == 1);      /* Match */
+  /* printf ("FOO: s:%p i:%p i-s:%d\n", m.s, m.i, m.i - m.s); */
+  /* assert (strcmp (m.i, "a") == 0); */
 }
 
 /*
-  s[i] 6 = ‘c’
+  s[i] != ‘c’
   -------------------
   match ‘c’ s i = nil (ch.2)
  */
@@ -349,7 +347,7 @@ static void test_ch2 ()
   mInit (&m, b, "x", 1);
   mEval (&m);
   assert (m.fail);
-  assert (m.i == 0);
+  assert (m.i - m.s == 0);      /* Match */
 }
 
 /*
@@ -365,8 +363,8 @@ static void test_any1 ()
   printf (" * t:any.1\n");
   mInit (&m, b, "a", 1);
   mEval (&m);
-  assert (!m.fail);
-  assert (m.i == 1);
+  assert (!m.fail);             /* Didn't fail */
+  assert (m.i == m.s+1);        /* Matched one char */
 }
 
 /*
@@ -382,8 +380,8 @@ void test_any2 ()
   printf (" * t:any.2\n");
   mInit (&m, b, "", 0);
   mEval (&m);
-  assert (m.fail);
-  assert (m.i == 0);
+  assert (m.fail);              /* Failed */
+  assert (m.i == m.s);          /* And didn't match any char. */
 }
 
 /*
@@ -405,8 +403,8 @@ void test_not1 ()
   printf (" * t:not.1\n");
   mInit (&m, b, "b", 0);
   mEval (&m);
-  assert (!m.fail);
-  assert (m.i == 0);
+  assert (!m.fail);             /* Didn't fail */
+  assert (m.i == m.s);          /* But didn't match anything */
 }
 
 void test_not1_fail_twice ()
@@ -422,8 +420,8 @@ void test_not1_fail_twice ()
   printf (" * t:not.1 fail-twice\n");
   mInit (&m, b, "b", 0);
   mEval (&m);
-  assert (!m.fail);
-  assert (m.i == 0);
+  assert (!m.fail);             /* Did not fail */
+  assert (m.i - m.s == 0);      /* But didn't match any char */
 }
 
 /*
@@ -445,8 +443,8 @@ void test_not2 ()
   printf (" * t:not.2\n");
   mInit (&m, b, "a", 0);
   mEval (&m);
-  assert (m.fail);
-  /* assert (m.i == 0); */
+  assert (m.fail);              /* Failed */
+  /* assert (m.i - m.s == 0);      /\* Didn't match anything *\/ */
 }
 
 void test_not2_fail_twice ()
@@ -462,10 +460,11 @@ void test_not2_fail_twice ()
   printf (" * t:not.2 fail-twice\n");
   mInit (&m, b, "a", 0);
   mEval (&m);
-  assert (m.fail);
+  assert (m.fail);              /* Failed */
+
   /* TODO: FailTwice can restore `i' but it's not implemented like
      that until I understand if that'd cause any other implication. */
-  /* assert (m.i == 0); */
+  /* assert (m.i - m.s == 0); */
 }
 
 /*
@@ -486,8 +485,8 @@ void test_con1 ()
   printf (" * t:con.1\n");
   mInit (&m, b, "abc", 3);
   mEval (&m);
-  assert (!m.fail);
-  assert (m.i == 3);
+  assert (!m.fail);             /* Didn't fail */
+  assert (m.i - m.s == 3);      /* Matched all 3 chars */
 }
 
 /*
@@ -508,8 +507,8 @@ void test_con2 ()
   printf (" * t:con.2\n");
   mInit (&m, b, "abc", 3);
   mEval (&m);
-  assert (m.fail);
-  assert (m.i == 1);
+  assert (m.fail);              /* Failed */
+  assert (m.i - m.s == 1);      /* Matched one char */
 }
 
 /*
@@ -530,8 +529,8 @@ void test_con3 ()
   printf (" * t:con.3\n");
   mInit (&m, b, "cba", 3);
   mEval (&m);
-  assert (m.fail);
-  assert (m.i == 0);
+  assert (m.fail);              /* Failed */
+  assert (m.i - m.s == 0);      /* Didn't match any char */
 }
 
 /*
@@ -553,8 +552,8 @@ void test_ord1 ()
   printf (" * t:ord.1\n");
   mInit (&m, b, "c", 1);
   mEval (&m);
-  assert (m.fail);
-  assert (m.i == 0);
+  assert (m.fail);              /* Failed */
+  assert (m.i - m.s == 0);      /* Didn't match any char */
 }
 
 /*
@@ -576,8 +575,8 @@ void test_ord2 ()
   printf (" * t:ord.2\n");
   mInit (&m, b, "a", 1);
   mEval (&m);
-  assert (m.i == 1);
-  /* TODO: Ensure that stack is empty */
+  assert (!m.fail);             /* Didn't fail */
+  assert (m.i - m.s == 1);      /* Match the first char */
 }
 
 /*
@@ -599,7 +598,8 @@ void test_ord3 ()
   printf (" * t:ord.3\n");
   mInit (&m, b, "b", 1);
   mEval (&m);
-  assert (m.i == 1);
+  assert (!m.fail);             /* Didn't fail */
+  assert (m.i - m.s == 1);      /* Match the first char */
 }
 
 /*
@@ -621,7 +621,7 @@ void test_rep1 ()
   mInit (&m, b, "aab", 1);
   mEval (&m);
   assert (m.fail);
-  assert (m.i == 2);
+  assert (m.i - m.s == 2);
 }
 
 /*
@@ -642,8 +642,8 @@ void test_rep2 ()
   printf (" * t:rep.2\n");
   mInit (&m, b, "b", 1);
   mEval (&m);
-  assert (!m.fail);
-  assert (m.i == 0);
+  assert (!m.fail);             /* Did not fail */
+  assert (m.i - m.s == 0);      /* But didn't match any char */
 }
 
 int main ()

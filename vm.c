@@ -35,13 +35,18 @@ Suffixes
 Machine Instructions
 ====================
 
-* [x] Char C
+* [x] Char c
 * [x] Any
-* [x] Choice L
-* [x] Commit L
+* [x] Choice l
+* [x] Commit l
 * [x] Fail
-* [ ] Jump L
-* [ ] Call L
+* [x] FailTwice l
+* [ ] PartialCommit
+* [ ] BackCommit l
+* [ ] TestChar l o
+* [ ] TestAny n o
+* [ ] Jump l
+* [ ] Call l
 * [ ] Return
 
 Instruction Format
@@ -59,6 +64,9 @@ instruction:
     --------|------------------------
     |0|0|0|1|0|0|0|0|0|1|1|0|0|0|0|1|
     ---------------------------------
+
+  Since there are only 4 bits for instructions, we can have at most 31
+  of them.
 
 Bytecode Format
 ===============

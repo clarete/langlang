@@ -25,6 +25,7 @@ import functools
 import io
 import os
 import pprint
+import struct
 
 class TokenTypes(enum.Enum):
     (IDENTIFIER,
@@ -247,11 +248,11 @@ class Parser:
 
     def parseDefinitions(self):
         # Grammar <- Spacing Definition+ EndOfFile
-        definitions = {}
+        definitions = []
         while not self.testt(TokenTypes.END):
             definition = self.parseDefinition()
             if not definition: break
-            definitions.update(definition)
+            definitions.append(definition)
         return definitions
 
     def parseDefinition(self):
@@ -334,10 +335,14 @@ class Parser:
             raise exc
 
 
+def mergeDicts(dicts):
+    return {x: y for di in dicts for x, y in di.items()}
+
+
 class Eval:
 
     def __init__(self, grammar, start, data):
-        self.g = grammar
+        self.g = mergeDicts(grammar)
         self.start = start
         self.data = data
         self.pos = 0
@@ -466,9 +471,235 @@ class Eval:
         return self.evalAtom(self.g[self.start])
 
 
-def peg(g):
-    p = Parser(g)
-    return p.parse()
+class Instructions(enum.Enum):
+    (OP_CHAR,
+     OP_ANY,
+     OP_CHOICE,
+     OP_COMMIT,
+     OP_FAIL,
+     OP_FAIL_TWICE,
+     OP_TEST_CHAR,
+     OP_TEST_ANY,
+     OP_JUMP,
+     OP_CALL,
+     OP_RETURN,
+     OP_END,
+    ) = range(1, 13)
+
+
+class Compiler:
+    """
+    /*
+
+  Matching a character
+
+    Π(‘c’) ≡ Char c
+
+    (ch.1)
+      s[i] = ‘c’
+      ---------------------
+      match g ‘c’ s i = i+1
+    (ch.2)
+      s[i] != ‘c’
+      ---------------------
+      match g ‘c’ s i = nil
+
+  Matching any character
+
+    Π(.) ≡ Any
+
+    (any.1)
+      i ≤ |s|
+      -------------------
+      match g . s i = i+1
+    (any.2)
+      i > |s|
+      -------------------
+      match g . s i = nil
+
+  Not Predicate
+
+    Π(!p) ≡ Choice |Π(p)| + 2
+            Π(p)
+            FailTwice
+
+    Π(!p) ≡ Choice |Π(p)| + 3
+            Π(p)
+            Commit 1
+            Fail
+
+    (not.1)
+      match g p s i = nil
+      -------------------
+      match g !p s i = i
+    (not.2)
+      match g p s i = i+j
+      --------------------
+      match g !p s i = nil
+
+  And Predicate
+    (and.1)
+      match g p s i = i+j
+      -------------------
+      match g &p s i = i
+    (and.2)
+      match g p s i = nil
+      --------------------
+      match g &p s i = nil
+
+  Concatenation
+
+    Π(p1p2) ≡ Π(p1) Π(p2)
+
+    (con.1)
+      match g p1 s i = i+j   match g p2 s i + j = i+j+k
+      -------------------------------------------------
+      match g p1 p2 s i = i+j+k
+    (con.2)
+      match g p1 s i = i+j   match g p2 s i + j = nil
+      -----------------------------------------------
+      match g p1 p2 s i = nil
+
+  Ordered Choice
+
+    Π(p1/p2) ≡ Choice |Π(p1)| + 2
+               Π(p1)
+               Commit |Π(p2)| + 1
+               Π(p2)
+
+    (ord.1)
+      match g p1 s i = nil   match g p2 s i = nil
+      -------------------------------------------
+      match g p1/p2 s i = nil
+    (ord.2)
+      match g p1 s i = i+j
+      -----------------------
+      match g p1/p2 s i = i+j
+    (ord.3)
+      match g p1 s i = nil   match g p2 s i = i+k
+      -------------------------------------------
+      match g p1/p2 s i = i+k
+
+  Repetition
+
+    Π(p∗) ≡ Choice |Π(p)| + 2
+            Π(p)
+            PartialCommit − |Π(p)|
+
+    Π(p∗) ≡ Choice |Π(p)| + 2
+            Π(p)
+            Commit − (|Π(p)| + 1)
+
+    (rep.1)
+      match g p s i = i+j   match g p∗ s i + j = i+j+k
+      ------------------------------------------------
+      match g p∗ s i = i+j+k
+    (rep.2)
+      match g p s i = nil
+      -------------------
+      match g p∗ s i = i
+
+  Variables
+
+    Π(g, i, Ak) ≡ Call o(g, Ak) − i
+
+    (var.1)
+      match g g(Ak) s i = i+j
+      ------------------------
+      match g Ak s i = i+j
+    (var.2)
+      match g g(Ak) s i = nil
+      ------------------------
+      match g Ak s i = nil
+
+  Closed Grammars
+
+    Π(g', i, (g, Ak)) ≡ Call o(g, Ak)
+                        Jump |Π'(g, x)| +1
+                        Π'(g, 2)
+
+    (cg.1)
+      match g g(Ak) s i = i+j
+      --------------------------
+      match g' (g, Ak) s i = i+j
+    (cg.2)
+      match g g(A k ) s i = nil
+      --------------------------
+      match g' (g, Ak) s i = nil
+ */
+    """
+
+    def __init__(self, grammar):
+        self.g = {x: y for di in grammar for x, y in di.items()}
+        self.start = grammar[0].keys()[0]
+        self.pos = 0
+        self.code = []
+
+    def emitInstruction(self, instruction, argument=0):
+        self.code.append(instruction.value << 4)
+        self.code.append(argument)
+        self.pos += 2
+
+    def compileReturn(self):
+        self.emitInstruction(Instructions.OP_RETURN)
+
+    def compileChar(self, value):
+        self.emitInstruction(Instructions.OP_CHAR, ord(value))
+
+    def compileDot(self, atom):
+        self.emitInstruction(Instructions.OP_ANY)
+
+    def _compileAtomAndGetSize(self, atom):
+        currentPos = self.pos
+        self.compileAtom(atom)
+        programSize = self.pos - currentPos
+        return programSize
+
+    def compileNot(self, atom):
+        self.emitInstruction(Instructions.OP_CHOICE)
+        locationCell = self.pos-1 # Argument to instruction above
+        programSize = self._compileAtomAndGetSize(atom.value)
+        self.code[locationCell] = programSize + 3
+        self.emitInstruction(Instructions.OP_FAIL_TWICE)
+
+    def compileLiteral(self, literal):
+        for i in literal.value: self.compileChar(i)
+
+    def compileSequence(self, sequence):
+        for atom in sequence.value:
+            self.compileAtom(atom)
+
+    def compileExpression(self, expr):
+        it = len(expr.value)
+        for atom in expr.value:
+            import pdb; pdb.set_trace()
+            print("EXPR %s [%d]" % (atom, it))
+            self.emitInstruction(Instructions.OP_CHOICE)
+            locationCell = self.pos-1 # Argument to instruction above
+            programSize = self._compileAtomAndGetSize(atom)
+            self.code[locationCell] = programSize + it
+            self.emitInstruction(Instructions.OP_COMMIT)
+            it -= 1
+
+    def compileAtom(self, atom):
+        if isinstance(atom, Literal):
+            self.compileLiteral(atom)
+        elif isinstance(atom, Dot):
+            return self.compileDot(atom)
+        elif isinstance(atom, Not):
+            return self.compileNot(atom)
+        elif isinstance(atom, Sequence):
+            return self.compileSequence(atom)
+        elif isinstance(atom, Expression):
+            return self.compileExpression(atom)
+        else:
+            raise Exception("Unknown atom %s" % atom)
+
+    def run(self):
+        self.compileAtom(self.g[self.start])
+        self.compileReturn()
+        return struct.pack('B' * len(self.code), *self.code)
+
 
 ## --- tests ---
 
@@ -500,6 +731,13 @@ def test_runner(f, g, expected, *args):
 def test_runner_eval(g, start, data, expected):
     print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
     value = Eval(Parser(g).parse(), start, data).run()
+    pprint.pprint(value)
+    assert(value == expected)
+    print()
+
+def test_runner_compile(g, expected):
+    print('\033[92m{}\033[0m'.format(repr(g)), end=':\n    ')
+    value = Compile(Parser(g).parse()).run()
     pprint.pprint(value)
     assert(value == expected)
     print()
@@ -550,44 +788,39 @@ def test_tokenizer():
 def test_parser():
     test = functools.partial(test_runner, lambda x: Parser(x).parse)
 
-    test('# ', {})
+    test('# ', [])
 
-    test('#foo\r\nR0 <- "a"', {'R0': Literal('a')})
+    test('#foo\r\nR0 <- "a"', [{'R0': Literal('a')}])
 
-    test(r"R0 <- '\\' [nrt'\"\[\]]", {
-        'R0': Sequence([Literal('\\'), Class('nrt\'"[]')]),
-    })
+    test(r"R0 <- '\\' [nrt'\"\[\]]", [
+        {'R0': Sequence([Literal('\\'), Class('nrt\'"[]')])}])
 
-    test("R <- '\r\n' / '\n' / '\r'\\n", {
-        'R': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')])
-    })
+    test("R <- '\r\n' / '\n' / '\r'\\n", [
+        {'R': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')])}])
 
-    test('# foo\n R1 <- "a"\nR2 <- \'b\'', {
-        'R1': Literal('a'),
-        'R2': Literal('b')
-    })
+    test('# foo\n R1 <- "a"\nR2 <- \'b\'', [
+        {'R1': Literal('a')},
+        {'R2': Literal('b')}])
 
-    test('Definition1 <- "tx"', {'Definition1': Literal('tx')})
+    test('Definition1 <- "tx"', [{'Definition1': Literal('tx')}])
 
-    test('Int <- [0-9]+', {'Int': Plus(Class([['0', '9']]))})
+    test('Int <- [0-9]+', [{'Int': Plus(Class([['0', '9']]))}])
 
-    test('EndOfFile <- !.', {'EndOfFile': Not(Dot())})
+    test('EndOfFile <- !.', [{'EndOfFile': Not(Dot())}])
 
-    test('R0 <- "oi" "tenta"?', {'R0': Sequence([Literal('oi'), Question(Literal("tenta"))])})
+    test('R0 <- "oi" "tenta"?', [{'R0': Sequence([Literal('oi'), Question(Literal("tenta"))])}])
 
-    test('Foo <- ("a" / "b")+', {'Foo': Plus(Expression([Literal('a'), Literal('b')]))})
+    test('Foo <- ("a" / "b")+', [{'Foo': Plus(Expression([Literal('a'), Literal('b')]))}])
 
-    test('R0 <- "a"\\n      / "b"\\nR1 <- "c"', {
-        'R0': Expression([Literal('a'), Literal('b')]),
-        'R1': Literal('c'),
-    })
+    test('R0 <- "a"\\n      / "b"\\nR1 <- "c"', [
+        {'R0': Expression([Literal('a'), Literal('b')])},
+        {'R1': Literal('c')}])
 
-    test('R0 <- R1 ("," R1)*\\nR1 <- [0-9]+', {
-        'R0': Sequence([
+    test('R0 <- R1 ("," R1)*\\nR1 <- [0-9]+', [
+        {'R0': Sequence([
             Identifier('R1'),
-            Star(Sequence([Literal(','), Identifier('R1')]))]),
-        'R1': Plus(Class([['0', '9']])),
-    })
+            Star(Sequence([Literal(','), Identifier('R1')]))])},
+        {'R1': Plus(Class([['0', '9']]))}])
 
     test(r"""# first line with comment
 Spacing    <- (Space / Comment)*
@@ -595,38 +828,48 @@ Comment    <- '#' (!EndOfLine .)* EndOfLine
 Space      <- ' ' / '\t' / EndOfLine
 EndOfLine  <- '\r\n' / '\n' / '\r'
 EndOfFile  <- !.
-          """, {
-              'Spacing': Star(Expression([Identifier('Space'), Identifier('Comment')])),
-              'Comment': Sequence([
-                  Literal('#'),
-                  Star(Sequence([Not(Identifier('EndOfLine')), Dot()])),
-                  Identifier('EndOfLine'),
-              ]),
-              'Space': Expression([Literal(' '), Literal('\t'), Identifier('EndOfLine')]),
-              'EndOfLine': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')]),
-              'EndOfFile': Not(Dot()),
-          })
+    """, [
+        {'Spacing': Star(Expression([
+            Identifier('Space'),
+            Identifier('Comment')]))},
+        {'Comment': Sequence([
+            Literal('#'),
+            Star(Sequence([Not(Identifier('EndOfLine')), Dot()])),
+            Identifier('EndOfLine')])},
+        {'Space': Expression([
+            Literal(' '),
+            Literal('\t'),
+            Identifier('EndOfLine')])},
+        {'EndOfLine': Expression([
+            Literal('\r\n'),
+            Literal('\n'),
+            Literal('\r')])},
+        {'EndOfFile': Not(Dot())}])
 
     # Some real stuff
 
-    test(csv, {
-        'File': Star(Identifier('CSV')),
-        'Val': Star(Sequence([Not(Class(',\n')), Dot()])),
-        'CSV': Sequence([
+    test(csv, [
+        {'File': Star(Identifier('CSV'))},
+        {'CSV': Sequence([
             Identifier('Val'),
             Star(Sequence([Literal(','), Identifier('Val')])),
-            Literal('\n')]),
-    })
+            Literal('\n')])},
+        {'Val': Star(Sequence([Not(Class(',\n')), Dot()]))}])
 
-    test(arith, {
-        'Add': Expression([Sequence([Identifier('Mul'), Literal('+'), Identifier('Add')]),
-                           Identifier('Mul')]),
-        'Mul': Expression([Sequence([Identifier('Pri'), Literal('*'), Identifier('Mul')]),
-                           Identifier('Pri')]),
-        'Num': Plus(Class([['0', '9']])),
-        'Pri': Expression([Sequence([Literal('('), Identifier('Add'), Literal(')')]),
-                Identifier('Num')]),
-    })
+    test(arith, [
+        {'Add': Expression([Sequence([Identifier('Mul'),
+                                      Literal('+'),
+                                      Identifier('Add')]),
+                            Identifier('Mul')])},
+        {'Mul': Expression([Sequence([Identifier('Pri'),
+                                      Literal('*'),
+                                      Identifier('Mul')]),
+                            Identifier('Pri')])},
+        {'Pri': Expression([Sequence([Literal('('),
+                                      Identifier('Add'),
+                                      Literal(')')]),
+                            Identifier('Num')])},
+        {'Num': Plus(Class([['0', '9']]))}])
 
 
 def _safe_from_error(p):
@@ -757,11 +1000,48 @@ C <- [a-z]+
     assert(e.evalAtom(Identifier('C')) == (True, '\t'))
 
 
+def test_compile():
+    cc = lambda code: Compiler(Parser(code).run()).run()
+    bn = lambda *bc: struct.pack('B' * len(bc), *bc)
+
+    # Char 'c'
+    assert(cc("S <- 'a'") == bn(0x0010, 0x0061, 0x00b0, 0))
+
+    # Any
+    assert(cc("S <- .") == bn(0x0020, 0x0000, 0x00b0, 0))
+
+    # Not
+    assert(cc("S <- !'a'") == bn(
+        0x0030, 0x0005,
+        0x0010, 0x0061,
+        0x0060, 0x0000,
+        0x00b0, 0))
+    assert(cc("S <- !.") == bn(
+        0x0030, 0x0005,
+        0x0020, 0x0000,
+        0x0060, 0x0000,
+        0x00b0, 0))
+
+    # Concatenation
+    assert(cc("S <- 'a' 'b'") == bn(
+        0x0010, 0x0061,
+        0x0010, 0x0062,
+        0x00b0, 0))
+
+    # Ordered Choice
+    # assert(cc("S <- 'a' / 'b' / 'c'") == bn(
+    #     0x0030, 0x0004,
+    #     0x0010, 0x0061,
+    #     0x0040, 0x0003,
+    #     0x0010, 0x0062,
+    #     0x00b0, 0))
+
 def test():
     test_tokenizer()
     test_parser()
     # test_parse_errors()
     test_eval()
+    test_compile()
 
 
 def main():
@@ -771,19 +1051,28 @@ def main():
         '-g', '--grammar', dest='grammar', action='store',
         help='Grammar File')
     parser.add_argument(
+        '-c', '--compile', dest='compile', action='store_true', default=False,
+        help='Compile grammar')
+    parser.add_argument(
         '-d', '--data', dest='data', action='store',
         help='Data File')
     parser.add_argument(
         '-s', '--start', dest='start', action='store',
         help='Start rule. Which rule the parser should start at.')
     args = parser.parse_args()
-
     with io.open(os.path.abspath(args.grammar), 'r') as grammarFile:
         grammar = Parser(grammarFile.read()).run()
-    with io.open(os.path.abspath(args.data), 'r') as dataFile:
-        output = Eval(grammar, args.start, dataFile.read()).run()
-        pprint.pprint(output)
+
+    if args.compile:
+        name, _ = os.path.splitext(args.grammar)
+        with io.open('%s.bin' % name, 'wb') as out:
+            compiled = Compiler(grammar).run()
+            out.write(compiled)
+    else:
+        with io.open(os.path.abspath(args.data), 'r') as dataFile:
+            output = Eval(grammar, args.start, dataFile.read()).run()
+            pprint.pprint(output)
 
 if __name__ == '__main__':
     test()
-    main()
+    #main()

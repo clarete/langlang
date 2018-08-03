@@ -329,8 +329,6 @@ static void test_ch1 ()
   mEval (&m);
   assert (!m.fail);
   assert (m.i - m.s == 1);      /* Match */
-  /* printf ("FOO: s:%p i:%p i-s:%d\n", m.s, m.i, m.i - m.s); */
-  /* assert (strcmp (m.i, "a") == 0); */
 }
 
 /*
@@ -444,6 +442,9 @@ void test_not2 ()
   mInit (&m, b, "a", 0);
   mEval (&m);
   assert (m.fail);              /* Failed */
+  /* The failure was noted but the machine consumed the char. If the
+     fail state is consistent, it's kind of OK to not require the next
+     assert?! - same for the next test */
   /* assert (m.i - m.s == 0);      /\* Didn't match anything *\/ */
 }
 
@@ -461,9 +462,6 @@ void test_not2_fail_twice ()
   mInit (&m, b, "a", 0);
   mEval (&m);
   assert (m.fail);              /* Failed */
-
-  /* TODO: FailTwice can restore `i' but it's not implemented like
-     that until I understand if that'd cause any other implication. */
   /* assert (m.i - m.s == 0); */
 }
 
@@ -545,7 +543,7 @@ void test_ord1 ()
   Bytecode b[10] = {
     0x0030, 0x0004, /* Choice 0x0004 */
     0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0002, /* Commit 0x0003 */
+    0x0040, 0x0003, /* Commit 0x0003 */
     0x0010, 0x0062, /* Char 'b' */
     0, 0,
   };
@@ -568,7 +566,7 @@ void test_ord2 ()
   Bytecode b[10] = {
     0x0030, 0x0004, /* Choice 0x0004 */
     0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0002, /* Commit 0x0003 */
+    0x0040, 0x0003, /* Commit 0x0003 */
     0x0010, 0x0062, /* Char 'b' */
     0, 0,
   };
@@ -617,7 +615,7 @@ void test_rep1 ()
     0x0040, 0x00fc, /* Commit 0x00fc (-4) */
     0, 0,
   };
-  printf (" * t:rep.2\n");
+  printf (" * t:rep.1\n");
   mInit (&m, b, "aab", 1);
   mEval (&m);
   assert (m.fail);

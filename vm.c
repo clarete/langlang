@@ -126,7 +126,6 @@ typedef struct {
 /* Virtual Machine */
 typedef struct {
   const char *s;
-  const char *i;
   size_t s_size;
   Instruction *pc;
   BacktrackEntry stack[STACK_SIZE];
@@ -149,7 +148,6 @@ void mInit (Machine *m, const char *input, size_t input_size)
   memset (m->stack, 0, STACK_SIZE * sizeof (void *));
   m->pc = NULL;                 /* Will be set by mRead() */
   m->s = input;
-  m->i = input;
   m->s_size = input_size;
   m->fail = false;
 }
@@ -213,7 +211,9 @@ const char *mEval (Machine *m)
       else goto fail;
       continue;
     case OP_CHOICE:
-      PUSH (m->i, pc + pc->rand);
+      DEBUG ("       OP_CHOICE: `%p'", i);
+      PUSH (i, pc + pc->rand);
+      DEBUG_STACK ();
       pc++;
       continue;
     case OP_COMMIT:
@@ -227,6 +227,7 @@ const char *mEval (Machine *m)
     fail:
       /* No-op if TEST isn't defined */
       DEBUG_FAILSTATE ();
+      DEBUG_STACK ();
 
       if (sp > m->stack) {
         /* Fail〈(pc,i1):e〉 ----> 〈pc,i1,e〉 */
@@ -449,7 +450,7 @@ void test_not1 ()
   o = mEval (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (m.i - m.s == 0);      /* But didn't match anything */
+  assert (o - m.s == 0);        /* But didn't match anything */
 }
 
 void test_not1_fail_twice ()
@@ -470,7 +471,7 @@ void test_not1_fail_twice ()
   o = mEval (&m);
 
   assert (o);                   /* Did not fail */
-  assert (m.i - m.s == 0);      /* But didn't match any char */
+  assert (o - m.s == 0);        /* But didn't match any char */
 }
 
 /*
@@ -682,8 +683,6 @@ void test_rep1 ()
   mInit (&m, "aab", 1);
   mRead (&m, b, 10);
   o = mEval (&m);
-
-  printf ("FOO: s:%p i:%p i-s:%ld\n", m.s, o, o - m.s);
 
   assert (o);                   /* Didn't fail */
   assert (o - m.s == 2);        /* Matched two chars */

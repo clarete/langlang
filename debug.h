@@ -47,16 +47,27 @@
   } while (0)
 
 #  define DEBUG_FAILSTATE() do {                                        \
-    DEBUG ("       FAIL[%s]", m->i);                                    \
+    DEBUG ("       FAIL[%s]", i);                                       \
     DEBUG ("         NEXT: %s", OP_NAME ((*(pc)).rator));               \
-    DEBUG ("         STACK: %p %p", (void *) sp, (void *) m->stack);    \
   } while (0)
+
+#  define DEBUG_STACK() do {                                            \
+    DEBUG ("         STACK: %p %p", (void *) sp, (void *) m->stack);    \
+    for (BacktrackEntry *_tmp_bt = sp; _tmp_bt > m->stack; _tmp_bt--) { \
+      DEBUG ("           [I]: %p %p `%s'",                              \
+             (void *) _tmp_bt,                                          \
+             (void *) (_tmp_bt - 1)->pc,                                \
+             (_tmp_bt - 1)->i);                                         \
+    }                                                                   \
+  } while (0)
+
 # else  /* TEST */
 #  define DEBUG(f, ...)
 #  define DEBUG_INSTRUCTION()
 #  define DEBUG_INSTRUCTION_NEXT()
 #  define DEBUG_INSTRUCTION_LOAD()
 #  define DEBUG_FAILSTATE()
+#  define DEBUG_STACK()
 # endif  /* TEST */
 
 char *debug_byte (int8_t data)

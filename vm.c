@@ -262,7 +262,7 @@ const char *mEval (Machine *m)
 }
 
 /* Reads the entire content of the file under `path' into `buffer' */
-void read_file (const char *path, uint8_t **buffer, size_t *size)
+void readFile (const char *path, uint8_t **buffer, size_t *size)
 {
   FILE *fp = fopen (path, "rb");
   if (!fp) FATAL ("Can't open file %s", path);
@@ -292,8 +292,8 @@ int run (const char *grammar_file, const char *input_file)
   Bytecode *grammar = NULL;
   char *input = NULL;
 
-  read_file (grammar_file, &grammar, &grammar_size);
-  read_file (input_file, (uint8_t **) &input, &input_size);
+  readFile (grammar_file, &grammar, &grammar_size);
+  readFile (input_file, (uint8_t **) &input, &input_size);
 
   mInit (&m, input, input_size);
   mRead (&m, grammar, grammar_size);

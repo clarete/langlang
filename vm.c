@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+
+#include "debug.h"
 
 /*
 
@@ -107,11 +110,17 @@ typedef enum {
 /* The code is represented as a list of instructions */
 typedef uint8_t Bytecode;
 
+/* Instruction following the format of 4b operator and 12b operand */
+typedef struct {
+  unsigned short rator: 4;
+  short rand: 12;
+} Instruction;
+
 /* Entry that's stored in the Machine's stack for supporting backtrack
    on the ordered choice operator */
 typedef struct {
   const char *i;
-  Bytecode *pc;
+  Instruction *pc;
 } BacktrackEntry;
 
 /* Virtual Machine */
@@ -119,7 +128,7 @@ typedef struct {
   const char *s;
   const char *i;
   size_t s_size;
-  Bytecode *pc;
+  Instruction *pc;
   BacktrackEntry stack[STACK_SIZE];
   bool fail;
 } Machine;
@@ -134,92 +143,109 @@ static const char *opNames[OP_END] = {
   [OP_FAIL_TWICE] = "OP_FAIL_TWICE",
 };
 
-/* Create a new backtrack entry */
-BacktrackEntry newBacktrackEntry (const char *i, Bytecode *pc)
-{
-  BacktrackEntry b = { i, pc };
-  return b;
-}
-
 /* Set initial values for the machine */
-void mInit (Machine *m, Bytecode *code, const char *input, size_t input_size)
+void mInit (Machine *m, const char *input, size_t input_size)
 {
   memset (m->stack, 0, STACK_SIZE * sizeof (void *));
-  m->pc = code;
+  m->pc = NULL;                 /* Will be set by mRead() */
   m->s = input;
   m->i = input;
   m->s_size = input_size;
   m->fail = false;
 }
 
-/* Run the matching machine */
-void mEval (Machine *m)
+void mRead (Machine *m, Bytecode *code, size_t code_size)
 {
-  /** Advance m->pc one step and return last byte read */
-#define READ8C(m) (*m->pc++)
+  Instruction *tmp;
+  uint16_t data;
+
   /** Move m->pc two bytes ahead and read them into an uint16_t */
-#define READ16C(m) (m->pc += 2, (uint16_t) ((m->pc[-2] << 8 | m->pc[-1])))
+#define READ16C() (code += 2, (uint16_t) ((code[-2] << 8 | code[-1])))
+
+  /* Code size is in uint8_t and each instruction is 16bits */
+  if ((tmp = m->pc = malloc (sizeof (Instruction) * code_size / 2)) == NULL)
+    FATAL ("Can't allocate %s", "memory");
+  while (*code) {
+    data = READ16C ();
+    tmp->rator = (data & 0xF000) >> 12;
+    if ((data & (1 << 11)) != 0) /* 12th bit is the sign bit */
+      tmp->rand = data | ~((1 << 12) - 1);
+    else
+      tmp->rand = data & 0x0FFF;
+    tmp++;
+  }
+
+#undef READ16C
+}
+
+/* Run the matching machine */
+const char *mEval (Machine *m)
+{
+  BacktrackEntry *sp = m->stack;
+  Instruction *pc = m->pc;
+  const char *i = m->s;
+
   /** Push data onto the machine's stack  */
-#define PUSH(d) ((*sp++) = d)
+#define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
   /** Pop data from the machine's stack. Notice it doesn't dereference
       the pointer, callers are supposed to do that when needed. */
 #define POP() (--sp)
+  /** The end of the input is the offset from the cursor to the end of
+      the input string. */
+#define THE_END (m->s + m->s_size)
 
-  BacktrackEntry *sp = m->stack;
-  uint16_t instruction, operand;
-  short opcode;
+  while (true) {
 
-  while (!m->fail) {
-    /* Fetch instruction */
-    instruction = READ16C (m);
+    /* No-op if TEST isn't defined */
+    DEBUG_INSTRUCTION_NEXT ();
 
-    /* Decode opcode & operand */
-    opcode = (instruction & 0xF000) >> 12;
-    operand = instruction & 0x0FFF;
-
-    /* Execute instruction */
-    switch (opcode) {
-    case 0: return;
+    switch (pc->rator) {
+    case 0: return i;
     case OP_CHAR:
-      if (*m->i == operand) m->i++;
+      DEBUG ("       OP_CHAR: `%c' == `%c' ? %d",
+             *i, pc->rand, *i == pc->rand);
+      if (*i == pc->rand) { i++; pc++; }
       else goto fail;
       continue;
     case OP_ANY:
-      if (m->i < (m->s + m->s_size)) m->i++;
+      DEBUG ("       OP_ANY: `%c' < |s| ? %d", *i, i < THE_END);
+      if (i < THE_END) { i++; pc++; }
       else goto fail;
       continue;
     case OP_CHOICE:
-      PUSH (newBacktrackEntry (m->i, m->pc + operand));
+      PUSH (m->i, pc + pc->rand);
+      pc++;
       continue;
-    case OP_COMMIT: {
-      /* Cast to signed so we can read negative numbers and jump
-         backwards (we need that feature for the Star operator.
-         With a lil bit more work we can clame all the 14 bits
-         available but 8 bits are enough for now. */
-      int8_t rand = operand;
+    case OP_COMMIT:
+      assert (sp > m->stack);
       POP ();                   /* Discard backtrack entry */
-      m->pc += rand;            /* Jump to the given position */
+      pc += pc->rand;           /* Jump to the given position */
       continue;
-    }
     case OP_FAIL_TWICE:
-      POP ();                   /* Fall through */
+      POP ();                   /* Drop top of stack & Fall through */
     case OP_FAIL:
     fail:
+      /* No-op if TEST isn't defined */
+      DEBUG_FAILSTATE ();
+
       if (sp > m->stack) {
         /* Fail〈(pc,i1):e〉 ----> 〈pc,i1,e〉 */
-        do m->i = (*POP ()).i;
-        while (m->i == NULL);
-        m->pc = sp->pc;         /* Restore the program counter */
-        m->fail = false;        /* Backtrack instead of error */
+        do i = (*POP ()).i;
+        while (i == NULL);
+        pc = sp->pc;            /* Restore the program counter */
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
-        m->fail = true;
+        return NULL;
       }
       continue;
     default:
-      FATAL ("Unknown Instruction 0x%04x", opcode);
+      FATAL ("Unknown Instruction 0x%04x", pc->rator);
     }
   }
+
+#undef PUSH
+#undef POP
+#undef THE_END
 }
 
 /* Reads the entire content of the file under `path' into `buffer' */
@@ -256,7 +282,8 @@ int run (const char *grammar_file, const char *input_file)
   read_file (grammar_file, &grammar, &grammar_size);
   read_file (input_file, (uint8_t **) &input, &input_size);
 
-  mInit (&m, grammar, input, input_size);
+  mInit (&m, input, input_size);
+  mRead (&m, grammar, grammar_size);
   mEval (&m);
 
   free (grammar);
@@ -332,11 +359,15 @@ static void test_ch1 ()
   Machine m;
   /* Start <- 'a' */
   Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
-  printf (" * t:ch.1\n");
-  mInit (&m, b, "a", 1);
-  mEval (&m);
-  assert (!m.fail);
-  assert (m.i - m.s == 1);      /* Match */
+  const char *o;
+  DEBUG (" * t:ch.1 %s", "");
+
+  mInit (&m, "a", 1);
+  mRead (&m, b, 4);
+  o = mEval (&m);
+
+  assert (o);
+  assert (o - m.s == 1);        /* Match */
 }
 
 /*
@@ -349,11 +380,11 @@ static void test_ch2 ()
   Machine m;
   /* Start <- 'a' */
   Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
-  printf (" * t:ch.2\n");
-  mInit (&m, b, "x", 1);
-  mEval (&m);
-  assert (m.fail);
-  assert (m.i - m.s == 0);      /* Match */
+  DEBUG (" * t:ch.2 %s", "");
+
+  mInit (&m, "x", 1);
+  mRead (&m, b, 4);
+  assert (!mEval (&m));         /* Failed */
 }
 
 /*
@@ -366,11 +397,15 @@ static void test_any1 ()
   Machine m;
   /* Start <- '.' */
   Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
-  printf (" * t:any.1\n");
-  mInit (&m, b, "a", 1);
-  mEval (&m);
-  assert (!m.fail);             /* Didn't fail */
-  assert (m.i == m.s+1);        /* Matched one char */
+  const char *o;
+  DEBUG (" * t:any.1 %s", "");
+
+  mInit (&m, "a", 1);
+  mRead (&m, b, 4);
+  o = mEval (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 1);        /* Match */
 }
 
 /*
@@ -383,11 +418,11 @@ void test_any2 ()
   Machine m;
   /* '.' */
   Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
-  printf (" * t:any.2\n");
-  mInit (&m, b, "", 0);
-  mEval (&m);
-  assert (m.fail);              /* Failed */
-  assert (m.i == m.s);          /* And didn't match any char. */
+  DEBUG (" * t:any.2 %s", "");
+
+  mInit (&m, "", 0);
+  mRead (&m, b, 4);
+  assert (!mEval (&m));         /* Failed */
 }
 
 /*
@@ -400,17 +435,21 @@ void test_not1 ()
   Machine m;
   /* !'a' */
   Bytecode b[10] = {
-    0x0030, 0x0005, /* Choice 0x0005 */
+    0x0030, 0x0004, /* Choice 0x0004 */
     0x0010, 0x0061, /* Char 'a' */
     0x0040, 0x0001, /* Commit 1 */
     0x0050, 0x0000, /* Fail */
     0, 0
   };
-  printf (" * t:not.1\n");
-  mInit (&m, b, "b", 0);
-  mEval (&m);
-  assert (!m.fail);             /* Didn't fail */
-  assert (m.i == m.s);          /* But didn't match anything */
+  const char *o;
+  DEBUG (" * t:not.1 %s", "");
+
+  mInit (&m, "b", 0);
+  mRead (&m, b, 10);
+  o = mEval (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (m.i - m.s == 0);      /* But didn't match anything */
 }
 
 void test_not1_fail_twice ()
@@ -423,10 +462,14 @@ void test_not1_fail_twice ()
     0x0060, 0x0000, /* FailTwice */
     0, 0
   };
+  const char *o;
   printf (" * t:not.1 fail-twice\n");
-  mInit (&m, b, "b", 0);
-  mEval (&m);
-  assert (!m.fail);             /* Did not fail */
+
+  mInit (&m, "b", 0);
+  mRead (&m, b, 8);
+  o = mEval (&m);
+
+  assert (o);                   /* Did not fail */
   assert (m.i - m.s == 0);      /* But didn't match any char */
 }
 
@@ -442,18 +485,15 @@ void test_not2 ()
   Bytecode b[10] = {
     0x0030, 0x0005, /* Choice 0x0005 */
     0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0000, /* Commit 1 */
+    0x0040, 0x0001, /* Commit 1 */
     0x0050, 0x0000, /* Fail */
     0, 0
   };
-  printf (" * t:not.2\n");
-  mInit (&m, b, "a", 0);
-  mEval (&m);
-  assert (m.fail);              /* Failed */
-  /* The failure was noted but the machine consumed the char. If the
-     fail state is consistent, it's kind of OK to not require the next
-     assert?! - same for the next test */
-  /* assert (m.i - m.s == 0);      /\* Didn't match anything *\/ */
+  DEBUG (" * t:not.2 %s", "");
+
+  mInit (&m, "a", 0);
+  mRead (&m, b, 10);
+  assert (!mEval (&m));         /* Failed */
 }
 
 void test_not2_fail_twice ()
@@ -466,11 +506,11 @@ void test_not2_fail_twice ()
     0x0060, 0x0000, /* FailTwice */
     0, 0
   };
-  printf (" * t:not.2 fail-twice\n");
-  mInit (&m, b, "a", 0);
-  mEval (&m);
-  assert (m.fail);              /* Failed */
-  /* assert (m.i - m.s == 0); */
+  DEBUG (" * t:not.2 fail-twice %s", "");
+
+  mInit (&m, "a", 0);
+  mRead (&m, b, 8);
+  assert (!mEval (&m));         /* Failed */
 }
 
 /*
@@ -488,11 +528,16 @@ void test_con1 ()
     0x0010, 0x0063, /* Char 'c' */
     0, 0,
   };
-  printf (" * t:con.1\n");
-  mInit (&m, b, "abc", 3);
-  mEval (&m);
-  assert (!m.fail);             /* Didn't fail */
-  assert (m.i - m.s == 3);      /* Matched all 3 chars */
+  const char *o;
+
+  DEBUG (" * t:con.1 %s", "");
+
+  mInit (&m, "abc", 3);
+  mRead (&m, b, 8);
+  o = mEval (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 3);        /* Matched all 3 chars */
 }
 
 /*
@@ -510,11 +555,11 @@ void test_con2 ()
     0x0020, 0x0000, /* Any */
     0, 0,
   };
-  printf (" * t:con.2\n");
-  mInit (&m, b, "abc", 3);
-  mEval (&m);
-  assert (m.fail);              /* Failed */
-  assert (m.i - m.s == 1);      /* Matched one char */
+  DEBUG (" * t:con.2 %s", "");
+
+  mInit (&m, "abc", 3);
+  mRead (&m, b, 8);
+  assert (!mEval (&m));         /* Failed */
 }
 
 /*
@@ -532,11 +577,11 @@ void test_con3 ()
     0x0020, 0x0000, /* Any */
     0, 0,
   };
-  printf (" * t:con.3\n");
-  mInit (&m, b, "cba", 3);
-  mEval (&m);
-  assert (m.fail);              /* Failed */
-  assert (m.i - m.s == 0);      /* Didn't match any char */
+  DEBUG (" * t:con.3 %s", "");
+
+  mInit (&m, "cba", 3);
+  mRead (&m, b, 8);
+  assert (!mEval (&m));         /* Failed */
 }
 
 /*
@@ -549,17 +594,17 @@ void test_ord1 ()
   Machine m;
   /* 'a' / 'b' */
   Bytecode b[10] = {
-    0x0030, 0x0004, /* Choice 0x0004 */
+    0x0030, 0x0003, /* Choice 0x0003 */
     0x0010, 0x0061, /* Char 'a' */
     0x0040, 0x0003, /* Commit 0x0003 */
     0x0010, 0x0062, /* Char 'b' */
     0, 0,
   };
-  printf (" * t:ord.1\n");
-  mInit (&m, b, "c", 1);
-  mEval (&m);
-  assert (m.fail);              /* Failed */
-  assert (m.i - m.s == 0);      /* Didn't match any char */
+  DEBUG (" * t:ord.1 %s", "");
+
+  mInit (&m, "c", 1);
+  mRead (&m, b, 10);
+  assert (!mEval (&m));         /* Failed */
 }
 
 /*
@@ -572,17 +617,21 @@ void test_ord2 ()
   Machine m;
   /* 'a' / 'b' */
   Bytecode b[10] = {
-    0x0030, 0x0004, /* Choice 0x0004 */
+    0x0030, 0x0003, /* Choice 0x0003 */
     0x0010, 0x0061, /* Char 'a' */
     0x0040, 0x0003, /* Commit 0x0003 */
     0x0010, 0x0062, /* Char 'b' */
     0, 0,
   };
-  printf (" * t:ord.2\n");
-  mInit (&m, b, "a", 1);
-  mEval (&m);
-  assert (!m.fail);             /* Didn't fail */
-  assert (m.i - m.s == 1);      /* Match the first char */
+  const char *o;
+  DEBUG (" * t:ord.2 %s", "");
+
+  mInit (&m, "a", 1);
+  mRead (&m, b, 10);
+  o = mEval (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 1);        /* Match the first char */
 }
 
 /*
@@ -595,17 +644,21 @@ void test_ord3 ()
   Machine m;
   /* 'a' / 'b' */
   Bytecode b[10] = {
-    0x0030, 0x0004, /* Choice 0x0004 */
+    0x0030, 0x0003, /* Choice 0x0003 */
     0x0010, 0x0061, /* Char 'a' */
     0x0040, 0x0002, /* Commit 0x0003 */
     0x0010, 0x0062, /* Char 'b' */
     0, 0,
   };
-  printf (" * t:ord.3\n");
-  mInit (&m, b, "b", 1);
-  mEval (&m);
-  assert (!m.fail);             /* Didn't fail */
-  assert (m.i - m.s == 1);      /* Match the first char */
+  const char *o;
+  DEBUG (" * t:ord.3 %s", "");
+
+  mInit (&m, "b", 1);
+  mRead (&m, b, 10);
+  o = mEval (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 1);        /* Match the first char */
 }
 
 /*
@@ -618,16 +671,22 @@ void test_rep1 ()
   Machine m;
   /* 'a*' */
   Bytecode b[8] = {
-    0x0030, 0x0004, /* Choice 0x0004 */
+    0x0030, 0x0003, /* Choice 0x0003 */
     0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x00fc, /* Commit 0x00fc (-4) */
+    0x004f, 0x00fe, /* Commit 0xffe (-2) */
     0, 0,
   };
-  printf (" * t:rep.1\n");
-  mInit (&m, b, "aab", 1);
-  mEval (&m);
-  assert (m.fail);
-  assert (m.i - m.s == 2);
+  const char *o;
+  DEBUG (" * t:rep.1 %s", "");
+
+  mInit (&m, "aab", 1);
+  mRead (&m, b, 10);
+  o = mEval (&m);
+
+  printf ("FOO: s:%p i:%p i-s:%ld\n", m.s, o, o - m.s);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 2);        /* Matched two chars */
 }
 
 /*
@@ -640,16 +699,20 @@ void test_rep2 ()
   Machine m;
   /* 'a*' */
   Bytecode b[8] = {
-    0x0030, 0x0004, /* Choice 0x0004 */
+    0x0030, 0x0003, /* Choice 0x0003 */
     0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x00fc, /* Commit 0x00fc (-4) */
+    0x004f, 0x00fe, /* Commit 0xffe (-2) */
     0, 0,
   };
-  printf (" * t:rep.2\n");
-  mInit (&m, b, "b", 1);
-  mEval (&m);
-  assert (!m.fail);             /* Did not fail */
-  assert (m.i - m.s == 0);      /* But didn't match any char */
+  const char *o;
+  DEBUG (" * t:rep.2 %s", "");
+
+  mInit (&m, "b", 1);
+  mRead (&m, b, 10);
+  o = mEval (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 0);        /* But didn't match any char */
 }
 
 int main ()

@@ -45,7 +45,7 @@ Machine Instructions
 * [x] Fail
 * [x] FailTwice l
 * [x] PartialCommit
-* [ ] BackCommit l
+* [x] BackCommit l
 * [ ] TestChar l o
 * [ ] TestAny n o
 * [ ] Jump l
@@ -153,7 +153,7 @@ typedef enum {
   OP_FAIL,
   OP_FAIL_TWICE,
   OP_PARTIAL_COMMIT,
-  OP_END,
+  OP_BACK_COMMIT,
 } Instructions;
 
 /* The code is represented as a list of instructions */
@@ -189,6 +189,7 @@ static const char *opNames[OP_END] = {
   [OP_FAIL] = "OP_FAIL",
   [OP_FAIL_TWICE] = "OP_FAIL_TWICE",
   [OP_PARTIAL_COMMIT] = "OP_PARTIAL_COMMIT",
+  [OP_BACK_COMMIT] = "OP_BACK_COMMIT",
 };
 
 /* Set initial values for the machine */
@@ -268,15 +269,24 @@ const char *mEval (Machine *m)
       pc++;
       continue;
     case OP_COMMIT:
+      DEBUG ("       OP_COMMIT: `%p'", i);
       assert (sp > m->stack);
       POP ();                   /* Discard backtrack entry */
       pc += SOPERAND0 (pc);     /* Jump to the given position */
       DEBUG_STACK ();
       continue;
     case OP_PARTIAL_COMMIT:
+      assert (sp > m->stack);
       DEBUG ("       OP_PARTIAL_COMMIT: %s", i);
       pc += SOPERAND0 (pc);
       (sp - 1)->i = i;
+      DEBUG_STACK ();
+      continue;
+    case OP_BACK_COMMIT:
+      assert (sp > m->stack);
+      DEBUG ("       OP_BACK_COMMIT: %s", i);
+      i = POP ()->i;
+      pc += SOPERAND0 (pc);
       DEBUG_STACK ();
       continue;
     case OP_FAIL_TWICE:
@@ -289,7 +299,7 @@ const char *mEval (Machine *m)
 
       if (sp > m->stack) {
         /* Fail〈(pc,i1):e〉 ----> 〈pc,i1,e〉 */
-        do i = (*POP ()).i;
+        do i = POP ()->i;
         while (i == NULL);
         pc = sp->pc;            /* Restore the program counter */
       } else {
@@ -624,6 +634,28 @@ void test_and1 ()
   assert (o - m.s == 0);        /* But didn't match anything */
 }
 
+void test_and1_back_commit ()
+{
+  Machine m;
+  /* &'a' */
+  Bytecode b[32] = {
+    0x30, 0x0, 0x0, 0x04, /* Choice 0x04 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x80, 0x0, 0x0, 0x01, /* BackCommit 1 */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
+  };
+  const char *o;
+  DEBUG (" * t:and.1 (%s)", "back-commit");
+
+  mInit (&m, "a", 1);
+  mRead (&m, b, 32);
+  o = mEval (&m);
+  mFree (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 0);        /* But didn't match anything */
+}
+
 /*
 match g p s i = nil
 --------------------
@@ -649,6 +681,28 @@ void test_and2 ()
   mRead (&m, b, 32);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
+}
+
+void test_and2_back_commit ()
+{
+  Machine m;
+  /* &'a' */
+  Bytecode b[32] = {
+    0x30, 0x0, 0x0, 0x04, /* Choice 0x04 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x80, 0x0, 0x0, 0x01, /* BackCommit 1 */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
+  };
+  const char *o;
+  DEBUG (" * t:and.2 (%s)", "back-commit");
+
+  mInit (&m, "b", 1);
+  mRead (&m, b, 32);
+  o = mEval (&m);
+  mFree (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 0);        /* But didn't match anything */
 }
 
 /*
@@ -914,7 +968,9 @@ int main ()
   test_not2 ();
   test_not2_fail_twice ();
   test_and1 ();
+  test_and1_back_commit ();
   test_and2 ();
+  test_and2_back_commit ();
   test_con1 ();
   test_con2 ();
   test_con3 ();

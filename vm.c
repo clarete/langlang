@@ -51,36 +51,84 @@ Machine Instructions
 * [ ] Jump l
 * [ ] Call l
 * [ ] Return
-
-Instruction Format
-==================
-
-Each instruction is 16 bit long. The first 4 bits are reserved for the
-opcode and the other 12 bits can be used to store parameters for the
-instruction:
-
-  The instruction "Char 'a'" will be represented in the following
-  format:
-
-    opcode  | parameter
-    4bits   | 12bits
-    --------|------------------------
-    |0|0|0|1|0|0|0|0|0|1|1|0|0|0|0|1|
-    ---------------------------------
-
-  Since there are only 4 bits for instructions, we can have at most 31
-  of them.
+* [ ] Set
+* [ ] Span
 
 Bytecode Format
 ===============
 
-The Bytecode object is a sequence of instructions.
+Patterns get compiled to Bytecode objects. Bytecode objects are
+sequences of instructions. Each instruction is 32 bits long.
 
-      16bits  16bits  16bits
-    ----|-------|-------|----
-    | Inst1 | Inst2 | InstN |
-    -------------------------
- */
+      32bits   32bits   32bits
+    -----|--------|--------|----
+    | Instr1 | Instr2 | InstrN |
+    ----------------------------
+
+Instruction Format
+==================
+
+Each instruction is 32 bit long. The first 4 bits are reserved for the
+opcode and the other 28 bits store parameters for the instruction.  We
+have instructions that take 0, 1 or 2 parameters. Since there are only
+4 bits for instructions, we can have at most 31 of them.
+
+The utility `OP_MASK()' can be used to read the OPCODE from a 32bit
+instruction data. Each argument size introduces different functions.
+They're Here are the types of arguments:
+
+Instruction with 1 parameter (Eg.: Char x)
+------------------------------------------
+    opcode  | Parameter #1
+    --------|--------------------------------------------------------
+    |0|0|0|1|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
+    --------|--------------------------------------------------------
+    [ 0 - 4 |                                                5 - 32 ]
+    [     4 |                                                    28 ]
+
+    * soperand() Read signed value
+    * uoperand() Read unsigned value
+
+Instruction with 2 parameters (Eg.: TestChar 4 97)
+-------------------------------------------------
+    opcode  | Parameter #1              | Parameter #2
+    --------|---------------------------|----------------------------
+    |0|0|0|1|0|0|0|0|0|0|0|0|0|0|0|1|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
+    --------|---------------------------|----------------------------
+    [ 0 - 4 |                    5 - 18 |                   19 - 32 ]
+    [     4 |                        14 |                        14 ]
+
+    * s1operand() Read first operand as signed value
+    * u1operand() Read first operand as unsigned values
+    * s2operand() Read second operand as signed value
+    * u2operand() Read second operand as unsigned value
+*/
+
+/* Instruction Offsets - All sizes are in bits */
+#define INSTRUCTION_SIZE    32    /* Instruction size */
+#define OPERATOR_SIZE       4     /* Operator size */
+#define OPERATOR_OFFSET     (INSTRUCTION_SIZE - OPERATOR_SIZE)
+
+/* [0..OPERATOR_OFFSET] */
+#define S_OPERAND_SIZE   OPERATOR_OFFSET
+
+/* [OPERATOR_OFFSET..S1_OPERAND_SIZE */
+#define S1_OPERAND_SIZE    14
+#define S1_OPERAND_OFFSET  OPERATOR_OFFSET - S1_OPERATOR_SIZE
+
+#define S1_OPERAND_SIZE    14
+
+#define S2_OPERAND_SIZE  14
+
+/** Clear all 28bits from the right then shift to the right */
+#define OP_MASK(c) (((c) & 0xff000000) >> OPERATOR_OFFSET)
+
+/** Read unsigned single operand */
+#define UOPERAND(op) (op->rand & 0x00ffffff)
+/** Read signed values */
+#define SIGNED(i,s) ((int32_t) ((i & (1 << (s - 1))) ? (i | ~((1 << s) - 1)) : i))
+/** Read single operand from instruction */
+#define SOPERAND0(op) SIGNED (op->rand, S_OPERAND_SIZE)
 
 /* Arbitrary values */
 
@@ -114,7 +162,7 @@ typedef uint8_t Bytecode;
 /* Instruction following the format of 4b operator and 12b operand */
 typedef struct {
   unsigned short rator: 4;
-  short rand: 12;
+  uint32_t rand: 28;
 } Instruction;
 
 /* Entry that's stored in the Machine's stack for supporting backtrack
@@ -161,25 +209,22 @@ void mFree (Machine *m)
 void mRead (Machine *m, Bytecode *code, size_t code_size)
 {
   Instruction *tmp;
-  uint16_t data;
-
-  /** Move m->code two bytes ahead and read them into an uint16_t */
-#define READ16C() (code += 2, (uint16_t) ((code[-2] << 8 | code[-1])))
+  uint32_t instr;
 
   /* Code size is in uint8_t and each instruction is 16bits */
-  if ((tmp = m->code = calloc (sizeof (Instruction), code_size / 2 + 2)) == NULL)
+  if ((tmp = m->code = calloc (sizeof (Instruction), code_size / 4 + 2)) == NULL)
     FATAL ("Can't allocate %s", "memory");
   while (*code) {
-    data = READ16C ();
-    tmp->rator = (data & 0xF000) >> 12;
-    if ((data & (1 << 11)) != 0) /* 12th bit is the sign bit */
-      tmp->rand = (data | ~((1 << 12) - 1)) & 0x0FFF;
-    else
-      tmp->rand = data & 0x0FFF;
+    instr  = *code++ << 24;
+    instr |= *code++ << 16;
+    instr |= *code++ << 8;
+    instr |= *code++;
+
+    tmp->rator = OP_MASK (instr);
+    tmp->rand = instr;          /* Use SOPERAND* to access this */
+    DEBUG_INSTRUCTION_LOAD ();
     tmp++;
   }
-
-#undef READ16C
 }
 
 /* Run the matching machine */
@@ -206,8 +251,9 @@ const char *mEval (Machine *m)
     switch (pc->rator) {
     case 0: return i;
     case OP_CHAR:
-      DEBUG ("       OP_CHAR: `%c' == `%c' ? %d", *i, pc->rand, *i == pc->rand);
-      if (*i == pc->rand) { i++; pc++; }
+      DEBUG ("       OP_CHAR: `%c' == `%c' ? %d", *i,
+             UOPERAND (pc), *i == UOPERAND (pc));
+      if (*i == UOPERAND (pc)) { i++; pc++; }
       else goto fail;
       continue;
     case OP_ANY:
@@ -217,19 +263,19 @@ const char *mEval (Machine *m)
       continue;
     case OP_CHOICE:
       DEBUG ("       OP_CHOICE: `%p'", i);
-      PUSH (i, pc + pc->rand);
+      PUSH (i, pc + UOPERAND (pc));
       DEBUG_STACK ();
       pc++;
       continue;
     case OP_COMMIT:
       assert (sp > m->stack);
       POP ();                   /* Discard backtrack entry */
-      pc += pc->rand;           /* Jump to the given position */
+      pc += SOPERAND0 (pc);     /* Jump to the given position */
       DEBUG_STACK ();
       continue;
     case OP_PARTIAL_COMMIT:
       DEBUG ("       OP_PARTIAL_COMMIT: %s", i);
-      pc += pc->rand;
+      pc += SOPERAND0 (pc);
       (sp - 1)->i = i;
       DEBUG_STACK ();
       continue;
@@ -372,12 +418,15 @@ static void test_ch1 ()
 {
   Machine m;
   /* Start <- 'a' */
-  Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
+  Bytecode b[8] = {
+    0x10, 0x0, 0x0, 0x61,     /* Char 'a' */
+    0x00, 0x0, 0x0, 0x00,     /* Halt */
+  };
   const char *o;
   DEBUG (" * t:ch.1 %s", "");
 
   mInit (&m, "a", 1);
-  mRead (&m, b, 4);
+  mRead (&m, b, 8);
   o = mEval (&m);
   mFree (&m);
 
@@ -394,11 +443,14 @@ static void test_ch2 ()
 {
   Machine m;
   /* Start <- 'a' */
-  Bytecode b[4] = { 0x0010, 0x0061, 0, 0 }; /* Char 'a' */
+  Bytecode b[8] = {
+    0x10, 0x0, 0x0, 0x61,     /* Char 'a' */
+    0x00, 0x0, 0x0, 0x00,     /* Halt */
+  };
   DEBUG (" * t:ch.2 %s", "");
 
   mInit (&m, "x", 1);
-  mRead (&m, b, 4);
+  mRead (&m, b, 8);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
 }
@@ -412,12 +464,15 @@ static void test_any1 ()
 {
   Machine m;
   /* Start <- '.' */
-  Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
+  Bytecode b[8] = {
+    0x20, 0x0, 0x0, 0x0,      /* Any */
+    0x00, 0x0, 0x0, 0x0,      /* Halt */
+  };
   const char *o;
   DEBUG (" * t:any.1 %s", "");
 
   mInit (&m, "a", 1);
-  mRead (&m, b, 4);
+  mRead (&m, b, 8);
   o = mEval (&m);
   mFree (&m);
 
@@ -434,11 +489,14 @@ void test_any2 ()
 {
   Machine m;
   /* '.' */
-  Bytecode b[4] = { 0x0020, 0x0000, 0, 0 }; /* Any */
+  Bytecode b[8] = {
+    0x20, 0x0, 0x0, 0x0,      /* Any */
+    0x00, 0x0, 0x0, 0x0,      /* Halt */
+  };
   DEBUG (" * t:any.2 %s", "");
 
   mInit (&m, "", 0);
-  mRead (&m, b, 4);
+  mRead (&m, b, 8);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
 }
@@ -452,18 +510,18 @@ void test_not1 ()
 {
   Machine m;
   /* !'a' */
-  Bytecode b[10] = {
-    0x0030, 0x0004, /* Choice 0x0004 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0001, /* Commit 1 */
-    0x0050, 0x0000, /* Fail */
-    0, 0
+  Bytecode b[20] = {
+    0x30, 0x0, 0x0, 0x04, /* Choice 0x04 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x40, 0x0, 0x0, 0x01, /* Commit 1 */
+    0x50, 0x0, 0x0, 0x00, /* Fail */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
   DEBUG (" * t:not.1 %s", "");
 
   mInit (&m, "b", 0);
-  mRead (&m, b, 10);
+  mRead (&m, b, 20);
   o = mEval (&m);
   mFree (&m);
 
@@ -475,17 +533,17 @@ void test_not1_fail_twice ()
 {
   Machine m;
   /* !'a' */
-  Bytecode b[8] = {
-    0x0030, 0x0005, /* Choice 0x0005 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x0060, 0x0000, /* FailTwice */
-    0, 0
+  Bytecode b[16] = {
+    0x30, 0x0, 0x0, 0x05, /* Choice 0x05 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x60, 0x0, 0x0, 0x00, /* FailTwice */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
   printf (" * t:not.1 fail-twice\n");
 
   mInit (&m, "b", 0);
-  mRead (&m, b, 8);
+  mRead (&m, b, 16);
   o = mEval (&m);
   mFree (&m);
 
@@ -502,17 +560,17 @@ void test_not2 ()
 {
   Machine m;
   /* !'a' */
-  Bytecode b[10] = {
-    0x0030, 0x0005, /* Choice 0x0005 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0001, /* Commit 1 */
-    0x0050, 0x0000, /* Fail */
-    0, 0
+  Bytecode b[20] = {
+    0x30, 0x0, 0x0, 0x04, /* Choice 0x04 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x40, 0x0, 0x0, 0x01, /* Commit 1 */
+    0x50, 0x0, 0x0, 0x00, /* Fail */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   DEBUG (" * t:not.2 %s", "");
 
   mInit (&m, "a", 0);
-  mRead (&m, b, 10);
+  mRead (&m, b, 20);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
 }
@@ -521,16 +579,16 @@ void test_not2_fail_twice ()
 {
   Machine m;
   /* !'a' */
-  Bytecode b[8] = {
-    0x0030, 0x0005, /* Choice 0x0005 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x0060, 0x0000, /* FailTwice */
-    0, 0
+  Bytecode b[16] = {
+    0x30, 0x0, 0x0, 0x05, /* Choice 0x05 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x60, 0x0, 0x0, 0x00, /* FailTwice */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   DEBUG (" * t:not.2 fail-twice %s", "");
 
   mInit (&m, "a", 0);
-  mRead (&m, b, 8);
+  mRead (&m, b, 16);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
 }
@@ -544,18 +602,18 @@ void test_con1 ()
 {
   Machine m;
   /* 'a' '.' 'c' */
-  Bytecode b[8] = {
-    0x0010, 0x0061, /* Char 'a' */
-    0x0020, 0x0000, /* Any */
-    0x0010, 0x0063, /* Char 'c' */
-    0, 0,
+  Bytecode b[16] = {
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x20, 0x0, 0x0, 0x00, /* Any */
+    0x10, 0x0, 0x0, 0x63, /* Char 'c' */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
 
   DEBUG (" * t:con.1 %s", "");
 
   mInit (&m, "abc", 3);
-  mRead (&m, b, 8);
+  mRead (&m, b, 16);
   o = mEval (&m);
   mFree (&m);
 
@@ -572,16 +630,16 @@ void test_con2 ()
 {
   Machine m;
   /* 'a' 'c' '.' */
-  Bytecode b[8] = {
-    0x0010, 0x0061, /* Char 'a' */
-    0x0010, 0x0063, /* Char 'c' */
-    0x0020, 0x0000, /* Any */
-    0, 0,
+  Bytecode b[16] = {
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x10, 0x0, 0x0, 0x63, /* Char 'c' */
+    0x20, 0x0, 0x0, 0x00, /* Any */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   DEBUG (" * t:con.2 %s", "");
 
   mInit (&m, "abc", 3);
-  mRead (&m, b, 8);
+  mRead (&m, b, 16);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
 }
@@ -595,16 +653,16 @@ void test_con3 ()
 {
   Machine m;
   /* 'a' 'c' '.' */
-  Bytecode b[8] = {
-    0x0010, 0x0061, /* Char 'a' */
-    0x0010, 0x0063, /* Char 'c' */
-    0x0020, 0x0000, /* Any */
-    0, 0,
+  Bytecode b[16] = {
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x10, 0x0, 0x0, 0x63, /* Char 'c' */
+    0x20, 0x0, 0x0, 0x00, /* Any */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   DEBUG (" * t:con.3 %s", "");
 
   mInit (&m, "cba", 3);
-  mRead (&m, b, 8);
+  mRead (&m, b, 16);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
 }
@@ -618,17 +676,17 @@ void test_ord1 ()
 {
   Machine m;
   /* 'a' / 'b' */
-  Bytecode b[10] = {
-    0x0030, 0x0003, /* Choice 0x0003 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0003, /* Commit 0x0003 */
-    0x0010, 0x0062, /* Char 'b' */
-    0, 0,
+  Bytecode b[20] = {
+    0x30, 0x0, 0x0, 0x03, /* Choice 0x03 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x40, 0x0, 0x0, 0x03, /* Commit 0x03 */
+    0x10, 0x0, 0x0, 0x62, /* Char 'b' */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   DEBUG (" * t:ord.1 %s", "");
 
   mInit (&m, "c", 1);
-  mRead (&m, b, 10);
+  mRead (&m, b, 20);
   assert (!mEval (&m));         /* Failed */
   mFree (&m);
 }
@@ -642,18 +700,18 @@ void test_ord2 ()
 {
   Machine m;
   /* 'a' / 'b' */
-  Bytecode b[10] = {
-    0x0030, 0x0003, /* Choice 0x0003 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0003, /* Commit 0x0003 */
-    0x0010, 0x0062, /* Char 'b' */
-    0, 0,
+  Bytecode b[20] = {
+    0x30, 0x0, 0x0, 0x03, /* Choice 0x03 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x40, 0x0, 0x0, 0x03, /* Commit 0x03 */
+    0x10, 0x0, 0x0, 0x62, /* Char 'b' */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
   DEBUG (" * t:ord.2 %s", "");
 
   mInit (&m, "a", 1);
-  mRead (&m, b, 10);
+  mRead (&m, b, 20);
   o = mEval (&m);
   mFree (&m);
 
@@ -670,18 +728,18 @@ void test_ord3 ()
 {
   Machine m;
   /* 'a' / 'b' */
-  Bytecode b[10] = {
-    0x0030, 0x0003, /* Choice 0x0003 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x0040, 0x0002, /* Commit 0x0003 */
-    0x0010, 0x0062, /* Char 'b' */
-    0, 0,
+  Bytecode b[20] = {
+    0x30, 0x0, 0x0, 0x03, /* Choice 0x03 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x40, 0x0, 0x0, 0x03, /* Commit 0x03 */
+    0x10, 0x0, 0x0, 0x62, /* Char 'b' */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
   DEBUG (" * t:ord.3 %s", "");
 
   mInit (&m, "b", 1);
-  mRead (&m, b, 10);
+  mRead (&m, b, 20);
   o = mEval (&m);
   mFree (&m);
 
@@ -698,17 +756,17 @@ void test_rep1 ()
 {
   Machine m;
   /* 'a*' */
-  Bytecode b[8] = {
-    0x0030, 0x0003, /* Choice 0x0003 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x004f, 0x00fe, /* Commit 0xffe (-2) */
-    0, 0,
+  Bytecode b[16] = {
+    0x30, 0x00, 0x00, 0x03, /* Choice 0x03 */
+    0x10, 0x00, 0x00, 0x61, /* Char 'a' */
+    0x4f, 0xff, 0xff, 0xfe, /* Commit 0xffe (-2) */
+    0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
   DEBUG (" * t:rep.1 %s", "");
 
   mInit (&m, "aab", 1);
-  mRead (&m, b, 10);
+  mRead (&m, b, 16);
   o = mEval (&m);
   mFree (&m);
 
@@ -720,17 +778,17 @@ void test_rep1_partial_commit ()
 {
   Machine m;
   /* 'a*' */
-  Bytecode b[8] = {
-    0x0030, 0x0003, /* Choice 0x0003 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x007f, 0x00ff, /* PartialCommit 0xfff (-1) */
-    0, 0,
+  Bytecode b[16] = {
+    0x30, 0x00, 0x00, 0x03, /* Choice 0x03 */
+    0x10, 0x00, 0x00, 0x61, /* Char 'a' */
+    0x7f, 0xff, 0xff, 0xff, /* PartialCommit 0xffff (-1) */
+    0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
   DEBUG (" * t:rep.1 %s", "(partial-commit)");
 
   mInit (&m, "aab", 1);
-  mRead (&m, b, 10);
+  mRead (&m, b, 16);
   o = mEval (&m);
   mFree (&m);
 
@@ -747,17 +805,17 @@ void test_rep2 ()
 {
   Machine m;
   /* 'a*' */
-  Bytecode b[8] = {
-    0x0030, 0x0003, /* Choice 0x0003 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x004f, 0x00fe, /* Commit 0xffe (-2) */
-    0, 0,
+  Bytecode b[16] = {
+    0x30, 0x00, 0x00, 0x03, /* Choice 0x03 */
+    0x10, 0x00, 0x00, 0x61, /* Char 'a' */
+    0x4f, 0xff, 0xff, 0xfe, /* Commit 0xffe (-2) */
+    0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
   DEBUG (" * t:rep.2 %s", "");
 
   mInit (&m, "b", 1);
-  mRead (&m, b, 10);
+  mRead (&m, b, 16);
   o = mEval (&m);
   mFree (&m);
 
@@ -769,17 +827,17 @@ void test_rep2_partial_commit ()
 {
   Machine m;
   /* 'a*' */
-  Bytecode b[8] = {
-    0x0030, 0x0003, /* Choice 0x0003 */
-    0x0010, 0x0061, /* Char 'a' */
-    0x004f, 0x00ff, /* PartialCommit 0xffe (-1) */
-    0, 0,
+  Bytecode b[16] = {
+    0x30, 0x00, 0x00, 0x03, /* Choice 0x03 */
+    0x10, 0x00, 0x00, 0x61, /* Char 'a' */
+    0x7f, 0xff, 0xff, 0xff, /* PartialCommit 0xffff (-1) */
+    0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
   DEBUG (" * t:rep.2 %s", "(partial-commit)");
 
   mInit (&m, "b", 1);
-  mRead (&m, b, 10);
+  mRead (&m, b, 16);
   o = mEval (&m);
   mFree (&m);
 

@@ -594,6 +594,64 @@ void test_not2_fail_twice ()
 }
 
 /*
+  match g p s i = i+j
+  -------------------
+  match g &p s i = i (and.1)
+*/
+void test_and1 ()
+{
+  Machine m;
+  /* &'a' */
+  Bytecode b[32] = {
+    0x30, 0x0, 0x0, 0x07, /* Choice 0x07 */
+    0x30, 0x0, 0x0, 0x04, /* Choice 0x04 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x40, 0x0, 0x0, 0x01, /* Commit 1 */
+    0x50, 0x0, 0x0, 0x00, /* Fail */
+    0x40, 0x0, 0x0, 0x01, /* Commit 1 */
+    0x50, 0x0, 0x0, 0x00, /* Fail */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
+  };
+  const char *o;
+  DEBUG (" * t:and.%s", "1");
+
+  mInit (&m, "a", 1);
+  mRead (&m, b, 32);
+  o = mEval (&m);
+  mFree (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 0);        /* But didn't match anything */
+}
+
+/*
+match g p s i = nil
+--------------------
+match g &p s i = nil (and.2)
+*/
+void test_and2 ()
+{
+  Machine m;
+  /* &'a' */
+  Bytecode b[32] = {
+    0x30, 0x0, 0x0, 0x07, /* Choice 0x07 */
+    0x30, 0x0, 0x0, 0x04, /* Choice 0x04 */
+    0x10, 0x0, 0x0, 0x61, /* Char 'a' */
+    0x40, 0x0, 0x0, 0x01, /* Commit 1 */
+    0x50, 0x0, 0x0, 0x00, /* Fail */
+    0x40, 0x0, 0x0, 0x01, /* Commit 1 */
+    0x50, 0x0, 0x0, 0x00, /* Fail */
+    0x00, 0x0, 0x0, 0x00, /* Halt */
+  };
+  DEBUG (" * t:and.%s", "2");
+
+  mInit (&m, "b", 0);
+  mRead (&m, b, 32);
+  assert (!mEval (&m));         /* Failed */
+  mFree (&m);
+}
+
+/*
   match p1 s i = i+j    match p2 s i + j = i+j+k
   ----------------------------------------------
          match p1 p2 s i = i+j+k (con.1)
@@ -855,6 +913,8 @@ int main ()
   test_not1_fail_twice ();
   test_not2 ();
   test_not2_fail_twice ();
+  test_and1 ();
+  test_and2 ();
   test_con1 ();
   test_con2 ();
   test_con3 ();

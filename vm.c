@@ -308,7 +308,7 @@ const char *mEval (Machine *m)
       }
       continue;
     default:
-      FATAL ("Unknown Instruction 0x%04x", pc->rator);
+      FATAL ("Unknown Instruction 0x%04x [%s]", pc->rator, OP_NAME (pc->rator));
     }
   }
 

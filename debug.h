@@ -18,30 +18,32 @@
   
 #  define DEBUG_INSTRUCTION() do {                                      \
     uint8_t *instr = (uint8_t *) &instruction;                          \
-    int16_t rand16 = operand;                                           \
     const char *opname = OP_NAME (opcode);                              \
     DEBUG ("INSTR: " BY2BIPT "" BY2BIPT                                 \
-           ", RATOR: " BY2BIPT " (%13s), RAND: " BY2BIPT " (%d)",       \
+           ", RATOR: " BY2BIPT " (%19s), RAND: " BY2BIPT " (%d)",       \
            BY2BI (instr[0]), BY2BI (instr[1]), BY2BI (opcode),          \
            opname == NULL ? "HALT" : opname,                            \
-           BY2BI (operand), rand16);                                    \
+           BY2BI (operand), SOPERAND0 (pc));                            \
   } while (0)
 
 #  define DEBUG_INSTRUCTION_LOAD() do {                                 \
-    uint8_t *instr = (uint8_t *) &data;                                 \
-    int16_t rand16 = tmp->rand;                                         \
-    const char *opname = OP_NAME (tmp->rator);                          \
-    DEBUG ("      LLL INSTR: " BY2BIPT "" BY2BIPT                       \
-           ", RATOR: " BY2BIPT " (%13s), RAND: " BY2BIPT " (%d)",       \
-           BY2BI (instr[0]), BY2BI (instr[1]), BY2BI (tmp->rator),      \
-           opname == NULL ? "HALT" : opname,                            \
-           BY2BI (tmp->rand), rand16);                                  \
+  char buffer[INSTRUCTION_SIZE+1];                                      \
+  buffer[INSTRUCTION_SIZE] = '\0';                                      \
+  debug_byte (instr, buffer, INSTRUCTION_SIZE);                         \
+  int32_t rand = tmp->rand;                                             \
+  const char *opname = OP_NAME (tmp->rator);                            \
+  DEBUG ("     INSTR: %s, RATOR: " BY2BIPT                              \
+         " (%17s), RAND: " BY2BIPT " (%d)",                             \
+         buffer,                                                        \
+         BY2BI (tmp->rator),                                            \
+         opname == NULL ? "HALT" : opname,                              \
+         BY2BI (tmp->rand), rand);                                      \
   } while (0)
 
 #  define DEBUG_INSTRUCTION_NEXT() do {                                 \
     const char *opname = OP_NAME (pc->rator);                           \
     int16_t rand16 = pc->rand;                                          \
-    DEBUG ("     RATOR: " BY2BIPT " (%13s), RAND: " BY2BIPT " (%d)",    \
+    DEBUG ("     RATOR: " BY2BIPT " (%17s), RAND: " BY2BIPT " (%d)",    \
            BY2BI (pc->rator), opname == NULL ? "HALT" : opname,         \
            BY2BI (pc->rand),  rand16);                                  \
   } while (0)
@@ -70,20 +72,12 @@
 #  define DEBUG_STACK()
 # endif  /* TEST */
 
-char *debug_byte (int8_t data)
-{
-  const size_t BITS = 8*sizeof(data);
-  char *bin_str = malloc (BITS+1);
-
-  for (unsigned int i = 0; i < BITS; i++) {
-    unsigned int mask = 1u << (BITS - 1 - i);
-    bin_str[i] = (data & mask) ? '1' : '0';
-  }
-  bin_str[BITS] = '\0';
-
-  return bin_str;
+char *debug_byte (uint32_t a, char *buffer, int size) {
+  buffer += size - 1;
+  for (int i = 31; i >= 0; i--, a >>=1)
+    *buffer-- = (a & 1) + '0';
+  return buffer;
 }
-
 #endif  /* DEBUG_H */
 
 /* printf ("FOO: s:%p i:%p i-s:%ld\n", m.s, m.i, m.i - m.s); */

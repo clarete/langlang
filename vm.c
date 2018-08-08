@@ -510,7 +510,7 @@ static void test_ch2 ()
 static void test_any1 ()
 {
   Machine m;
-  /* Start <- '.' */
+  /* Start <- . */
   Bytecode b[8] = {
     0x20, 0x0, 0x0, 0x0,      /* Any */
     0x00, 0x0, 0x0, 0x0,      /* Halt */
@@ -535,7 +535,7 @@ static void test_any1 ()
 void test_any2 ()
 {
   Machine m;
-  /* '.' */
+  /* . */
   Bytecode b[8] = {
     0x20, 0x0, 0x0, 0x0,      /* Any */
     0x00, 0x0, 0x0, 0x0,      /* Halt */
@@ -750,7 +750,7 @@ void test_and2_back_commit ()
 void test_con1 ()
 {
   Machine m;
-  /* 'a' '.' 'c' */
+  /* 'a' . 'c' */
   Bytecode b[16] = {
     0x10, 0x0, 0x0, 0x61, /* Char 'a' */
     0x20, 0x0, 0x0, 0x00, /* Any */
@@ -778,7 +778,7 @@ void test_con1 ()
 void test_con2 ()
 {
   Machine m;
-  /* 'a' 'c' '.' */
+  /* 'a' 'c' . */
   Bytecode b[16] = {
     0x10, 0x0, 0x0, 0x61, /* Char 'a' */
     0x10, 0x0, 0x0, 0x63, /* Char 'c' */
@@ -801,7 +801,7 @@ void test_con2 ()
 void test_con3 ()
 {
   Machine m;
-  /* 'a' 'c' '.' */
+  /* 'a' 'c' . */
   Bytecode b[16] = {
     0x10, 0x0, 0x0, 0x61, /* Char 'a' */
     0x10, 0x0, 0x0, 0x63, /* Char 'c' */

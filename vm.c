@@ -14,7 +14,7 @@ Basic Functionality
 
 Matching
  * [x] Patterns
- * [ ] Expressions
+ * [x] Expressions
 Extraction
  * [ ] Lists
 
@@ -30,7 +30,7 @@ Ordered Choice
  * [x] a / b
 Predicates
  * [x] !a
- * [ ] &a (syntax suggar)
+ * [x] &a (syntax suggar)
 Suffixes
  * [x] a*
  * [ ] a? (syntax suggar)
@@ -48,9 +48,9 @@ Machine Instructions
 * [x] BackCommit l
 * [ ] TestChar l o
 * [ ] TestAny n o
-* [ ] Jump l
-* [ ] Call l
-* [ ] Return
+* [x] Jump l
+* [x] Call l
+* [x] Return
 * [ ] Set
 * [ ] Span
 
@@ -154,6 +154,12 @@ typedef enum {
   OP_FAIL_TWICE,
   OP_PARTIAL_COMMIT,
   OP_BACK_COMMIT,
+  OP_TEST_CHAR,
+  OP_TEST_ANY,
+  OP_JUMP,
+  OP_CALL,
+  OP_RETURN,
+  OP_END,
 } Instructions;
 
 /* The code is represented as a list of instructions */
@@ -190,6 +196,11 @@ static const char *opNames[OP_END] = {
   [OP_FAIL_TWICE] = "OP_FAIL_TWICE",
   [OP_PARTIAL_COMMIT] = "OP_PARTIAL_COMMIT",
   [OP_BACK_COMMIT] = "OP_BACK_COMMIT",
+  [OP_TEST_CHAR] = "OP_TEST_CHAR",
+  [OP_TEST_ANY] = "OP_TEST_ANY",
+  [OP_JUMP] = "OP_JUMP",
+  [OP_CALL] = "OP_CALL",
+  [OP_RETURN] = "OP_RETURN",
 };
 
 /* Set initial values for the machine */
@@ -248,6 +259,7 @@ const char *mEval (Machine *m)
 
     /* No-op if TEST isn't defined */
     DEBUG_INSTRUCTION_NEXT ();
+    DEBUG_STACK ();
 
     switch (pc->rator) {
     case 0: return i;
@@ -265,7 +277,6 @@ const char *mEval (Machine *m)
     case OP_CHOICE:
       DEBUG ("       OP_CHOICE: `%p'", i);
       PUSH (i, pc + UOPERAND (pc));
-      DEBUG_STACK ();
       pc++;
       continue;
     case OP_COMMIT:
@@ -273,21 +284,29 @@ const char *mEval (Machine *m)
       assert (sp > m->stack);
       POP ();                   /* Discard backtrack entry */
       pc += SOPERAND0 (pc);     /* Jump to the given position */
-      DEBUG_STACK ();
       continue;
     case OP_PARTIAL_COMMIT:
       assert (sp > m->stack);
       DEBUG ("       OP_PARTIAL_COMMIT: %s", i);
       pc += SOPERAND0 (pc);
       (sp - 1)->i = i;
-      DEBUG_STACK ();
       continue;
     case OP_BACK_COMMIT:
       assert (sp > m->stack);
       DEBUG ("       OP_BACK_COMMIT: %s", i);
       i = POP ()->i;
       pc += SOPERAND0 (pc);
-      DEBUG_STACK ();
+      continue;
+    case OP_JUMP:
+      pc = m->code + SOPERAND0 (pc);
+      continue;
+    case OP_CALL:
+      PUSH (NULL, pc + 1);
+      pc += SOPERAND0 (pc);
+      continue;
+    case OP_RETURN:
+      assert (sp > m->stack);
+      pc = POP ()->pc;
       continue;
     case OP_FAIL_TWICE:
       POP ();                   /* Drop top of stack & Fall through */
@@ -295,12 +314,11 @@ const char *mEval (Machine *m)
     fail:
       /* No-op if TEST isn't defined */
       DEBUG_FAILSTATE ();
-      DEBUG_STACK ();
 
       if (sp > m->stack) {
         /* Fail〈(pc,i1):e〉 ----> 〈pc,i1,e〉 */
         do i = POP ()->i;
-        while (i == NULL);
+        while (i == NULL && sp > m->stack);
         pc = sp->pc;            /* Restore the program counter */
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
@@ -957,6 +975,80 @@ void test_rep2_partial_commit ()
   assert (o - m.s == 0);        /* But didn't match any char */
 }
 
+/*
+  match g g(Ak) s i = i+j
+  -----------------------
+  match g Ak s i = i+j (var.1)
+*/
+void test_var1 ()
+{
+  Machine m;
+  Bytecode b[48] = {
+    0xc0, 0x0, 0x0, 0x02,       /* 0x1: Call 0x2 [0x3]     */
+    0xb0, 0x0, 0x0, 0x0b,       /* 0x2: Jump 0xb           */
+
+    /* S <- D '+' D */
+    0xc0, 0x0, 0x0, 0x04,       /* 0x3: Call 0x5 [0x7]     */
+    0x10, 0x0, 0x0, 0x2b,       /* 0x4: Char '+'           */
+    0xc0, 0x0, 0x0, 0x02,       /* 0x5: Call 0x2 [0x7]     */
+    0xd0, 0x0, 0x0, 0x00,       /* 0x6: Return             */
+
+    /* D <- '0' / '1' */
+    0x30, 0x0, 0x0, 0x03,       /* 0x7: Choice 0x3 [0x8]   */
+    0x10, 0x0, 0x0, 0x30,       /* 0x8: Char '0'           */
+    0x40, 0x0, 0x0, 0x03,       /* 0x9: Commit 0x03 [0xa]  */
+    0x10, 0x0, 0x0, 0x31,       /* 0xa: Char '1'           */
+    0xd0, 0x0, 0x0, 0x00,       /* 0xb: Return             */
+
+    0x00, 0x0, 0x0, 0x00,       /* 0xc: Halt               */
+  };
+  const char *o;
+  DEBUG (" * t:var.%s", "1");
+
+  mInit (&m, "1+1", 3);
+  mRead (&m, b, 48);
+  o = mEval (&m);
+  mFree (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - m.s == 3);        /* Matched the whole input */
+}
+
+/*
+  match g g(Ak) s i = nil
+  -----------------------
+  match g Ak s i = nil (var.2)
+*/
+void test_var2 ()
+{
+  Machine m;
+  Bytecode b[48] = {
+    0xc0, 0x0, 0x0, 0x02,       /* 0x1: Call 0x2 [0x3]     */
+    0xb0, 0x0, 0x0, 0x0b,       /* 0x2: Jump 0xb           */
+
+    /* S <- D '+' D */
+    0xc0, 0x0, 0x0, 0x04,       /* 0x3: Call 0x5 [0x7]     */
+    0x10, 0x0, 0x0, 0x2b,       /* 0x4: Char '+'           */
+    0xc0, 0x0, 0x0, 0x02,       /* 0x5: Call 0x2 [0x7]     */
+    0xd0, 0x0, 0x0, 0x00,       /* 0x6: Return             */
+
+    /* D <- '0' / '1' */
+    0x30, 0x0, 0x0, 0x03,       /* 0x7: Choice 0x3 [0x8]   */
+    0x10, 0x0, 0x0, 0x30,       /* 0x8: Char '0'           */
+    0x40, 0x0, 0x0, 0x03,       /* 0x9: Commit 0x03 [0xa]  */
+    0x10, 0x0, 0x0, 0x31,       /* 0xa: Char '1'           */
+    0xd0, 0x0, 0x0, 0x00,       /* 0xb: Return             */
+
+    0x00, 0x0, 0x0, 0x00,       /* 0xc: Halt               */
+  };
+  DEBUG (" * t:var.%s", "2");
+
+  mInit (&m, "2+1", 3);
+  mRead (&m, b, 48);
+  assert (!mEval (&m));         /* Failed */
+  mFree (&m);
+}
+
 int main ()
 {
   test_ch1 ();
@@ -981,6 +1073,8 @@ int main ()
   test_rep1_partial_commit ();
   test_rep2 ();
   test_rep2_partial_commit ();
+  test_var1 ();
+  test_var2 ();
   return 0;
 }
 

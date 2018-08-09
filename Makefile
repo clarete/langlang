@@ -1,10 +1,12 @@
 all: build
 
+T      ?= -DTEST
 bin    := vm
-objs   := vm.o
-flags  := -O0 -g -pg -Wall -pedantic -std=c99
+flags  := -O0 -g -pg -Wall -pedantic -std=c99 $(T)
 
-%.o: %.c; cc $(flags) -c -o $@ $<
-$(bin): $(objs); cc $(flags) -o $@ $^
+vm: vm.o
+%.o: %.c debug.h; cc $(flags) -c -o $@ $<
+$(bin):; cc $(flags) -o $@ $@.o
+
 build: $(bin)
-clean:; -rm $(bin) $(objs)
+clean:; -rm $(bin) *.o

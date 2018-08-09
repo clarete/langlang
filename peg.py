@@ -478,176 +478,58 @@ class Instructions(enum.Enum):
      OP_COMMIT,
      OP_FAIL,
      OP_FAIL_TWICE,
+     OP_PARTIAL_COMMIT,
+     OP_BACK_COMMIT,
      OP_TEST_CHAR,
      OP_TEST_ANY,
      OP_JUMP,
      OP_CALL,
      OP_RETURN,
      OP_END,
-    ) = range(1, 13)
+    ) = range(1, 15)
 
 
 class Compiler:
-    """
-    /*
-
-  Matching a character
-
-    Π(‘c’) ≡ Char c
-
-    (ch.1)
-      s[i] = ‘c’
-      ---------------------
-      match g ‘c’ s i = i+1
-    (ch.2)
-      s[i] != ‘c’
-      ---------------------
-      match g ‘c’ s i = nil
-
-  Matching any character
-
-    Π(.) ≡ Any
-
-    (any.1)
-      i ≤ |s|
-      -------------------
-      match g . s i = i+1
-    (any.2)
-      i > |s|
-      -------------------
-      match g . s i = nil
-
-  Not Predicate
-
-    Π(!p) ≡ Choice |Π(p)| + 2
-            Π(p)
-            FailTwice
-
-    Π(!p) ≡ Choice |Π(p)| + 3
-            Π(p)
-            Commit 1
-            Fail
-
-    (not.1)
-      match g p s i = nil
-      -------------------
-      match g !p s i = i
-    (not.2)
-      match g p s i = i+j
-      --------------------
-      match g !p s i = nil
-
-  And Predicate
-    (and.1)
-      match g p s i = i+j
-      -------------------
-      match g &p s i = i
-    (and.2)
-      match g p s i = nil
-      --------------------
-      match g &p s i = nil
-
-  Concatenation
-
-    Π(p1p2) ≡ Π(p1) Π(p2)
-
-    (con.1)
-      match g p1 s i = i+j   match g p2 s i + j = i+j+k
-      -------------------------------------------------
-      match g p1 p2 s i = i+j+k
-    (con.2)
-      match g p1 s i = i+j   match g p2 s i + j = nil
-      -----------------------------------------------
-      match g p1 p2 s i = nil
-
-  Ordered Choice
-
-    Π(p1/p2) ≡ Choice |Π(p1)| + 2
-               Π(p1)
-               Commit |Π(p2)| + 1
-               Π(p2)
-
-    (ord.1)
-      match g p1 s i = nil   match g p2 s i = nil
-      -------------------------------------------
-      match g p1/p2 s i = nil
-    (ord.2)
-      match g p1 s i = i+j
-      -----------------------
-      match g p1/p2 s i = i+j
-    (ord.3)
-      match g p1 s i = nil   match g p2 s i = i+k
-      -------------------------------------------
-      match g p1/p2 s i = i+k
-
-  Repetition
-
-    Π(p∗) ≡ Choice |Π(p)| + 2
-            Π(p)
-            PartialCommit − |Π(p)|
-
-    Π(p∗) ≡ Choice |Π(p)| + 2
-            Π(p)
-            Commit − (|Π(p)| + 1)
-
-    (rep.1)
-      match g p s i = i+j   match g p∗ s i + j = i+j+k
-      ------------------------------------------------
-      match g p∗ s i = i+j+k
-    (rep.2)
-      match g p s i = nil
-      -------------------
-      match g p∗ s i = i
-
-  Variables
-
-    Π(g, i, Ak) ≡ Call o(g, Ak) − i
-
-    (var.1)
-      match g g(Ak) s i = i+j
-      ------------------------
-      match g Ak s i = i+j
-    (var.2)
-      match g g(Ak) s i = nil
-      ------------------------
-      match g Ak s i = nil
-
-  Closed Grammars
-
-    Π(g', i, (g, Ak)) ≡ Call o(g, Ak)
-                        Jump |Π'(g, x)| +1
-                        Π'(g, 2)
-
-    (cg.1)
-      match g g(Ak) s i = i+j
-      --------------------------
-      match g' (g, Ak) s i = i+j
-    (cg.2)
-      match g g(A k ) s i = nil
-      --------------------------
-      match g' (g, Ak) s i = nil
- */
-    """
 
     def __init__(self, grammar):
         self.g = {x: y for di in grammar for x, y in di.items()}
         self.start = grammar[0].keys()[0]
         self.pos = 0
         self.code = []
+        self.stack = []
 
-    def emitInstruction(self, instruction, argument=0):
-        self.code.append(instruction.value << 4)
-        self.code.append(argument)
-        self.pos += 2
+    def genInstruction(self, instruction, arg0=None, arg1=None):
+        if arg0 is not None and arg1 is not None: # Two 14bit args
+            raise NotImplementedError("I owe you two parameters!")
+        elif arg0 is not None and arg1 is None: # Single 28bits arg
+            return (arg0 & 0x00ffffff) | (instruction.value << 28)
+        elif arg0 is None and arg1 is not None: # Not supported
+            raise Exception("Plz use arg0 instead of arg1")
+        else:                  # No arguments. Just padding with zeros
+            return (instruction.value << 28)
+
+    def compileInstruction(self, instruction):
+        self.code.append(instruction)
+        self.pos += 1
+
+    def compileInvariant(self, program):
+        # It's always 2 because invariant contains two instructions
+        self.compileInstruction(self.genInstruction(Instructions.OP_CALL, 2))
+        self.compileInstruction(self.genInstruction(Instructions.OP_JUMP))
+        locationCell = self.pos-1 # Argument to instruction above
+        programSize = self._compileAtomAndGetSize(program)
+        self.code[locationCell] = self.genInstruction(Instructions.OP_JUMP, programSize + 2)
+        self.compileInstruction(self.genInstruction(Instructions.OP_RETURN))
+        self.compileInstruction(0) # Halt
 
     def compileReturn(self):
-        self.emitInstruction(Instructions.OP_RETURN)
+        self.compileInstruction(self.genInstruction(Instructions.OP_RETURN))
 
     def compileChar(self, value):
-        self.emitInstruction(Instructions.OP_CHAR, ord(value))
+        self.compileInstruction(self.genInstruction(Instructions.OP_CHAR, ord(value)))
 
     def compileDot(self, atom):
-        self.emitInstruction(Instructions.OP_ANY)
+        self.compileInstruction(self.genInstruction(Instructions.OP_ANY))
 
     def _compileAtomAndGetSize(self, atom):
         currentPos = self.pos
@@ -672,7 +554,6 @@ class Compiler:
     def compileExpression(self, expr):
         it = len(expr.value)
         for atom in expr.value:
-            import pdb; pdb.set_trace()
             print("EXPR %s [%d]" % (atom, it))
             self.emitInstruction(Instructions.OP_CHOICE)
             locationCell = self.pos-1 # Argument to instruction above
@@ -683,7 +564,7 @@ class Compiler:
 
     def compileAtom(self, atom):
         if isinstance(atom, Literal):
-            self.compileLiteral(atom)
+            return self.compileLiteral(atom)
         elif isinstance(atom, Dot):
             return self.compileDot(atom)
         elif isinstance(atom, Not):
@@ -696,9 +577,8 @@ class Compiler:
             raise Exception("Unknown atom %s" % atom)
 
     def run(self):
-        self.compileAtom(self.g[self.start])
-        self.compileReturn()
-        return struct.pack('B' * len(self.code), *self.code)
+        self.compileInvariant(self.g[self.start])
+        return struct.pack('>' + ('I' * len(self.code)), *self.code)
 
 
 ## --- tests ---
@@ -1000,47 +880,88 @@ C <- [a-z]+
     assert(e.evalAtom(Identifier('C')) == (True, '\t'))
 
 
+def test_compiler():
+    compiler = Compiler(Parser("S <- 'a'").run())
+    # No arguments
+    assert(
+        compiler.genInstruction(Instructions.OP_ANY) ==
+        0b00100000000000000000000000000000
+    )
+    # One Argument
+    assert(
+        compiler.genInstruction(Instructions.OP_CHAR, ord('a')) ==
+        0b00010000000000000000000001100001
+    )
+
+
 def test_compile():
     cc = lambda code: Compiler(Parser(code).run()).run()
     bn = lambda *bc: struct.pack('B' * len(bc), *bc)
 
     # Char 'c'
-    assert(cc("S <- 'a'") == bn(0x0010, 0x0061, 0x00b0, 0))
+    assert(cc("S <- 'a'") == bn(
+        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
+        0xb0, 0x0, 0x0, 0x03,   # 0x2: Jump 0x3
+        0x10, 0x0, 0x0, 0x61,   # 0x3: Char 'a'
+        0xd0, 0x0, 0x0, 0x00,   # 0x4: Return
+        0x00, 0x0, 0x0, 0x00,   # 0x5: Halt
+    ))
 
     # Any
-    assert(cc("S <- .") == bn(0x0020, 0x0000, 0x00b0, 0))
+    assert(cc("S <- .") == bn(
+        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
+        0xb0, 0x0, 0x0, 0x05,   # 0x2: Jump 0x5
+        0x20, 0x0, 0x0, 0x0,    # 0x3: Any
+        0xd0, 0x0, 0x0, 0x00,   # 0x4: Return
+        0x00, 0x0, 0x0, 0x00,   # 0x5: Halt
+    ))
 
     # Not
     assert(cc("S <- !'a'") == bn(
-        0x0030, 0x0005,
-        0x0010, 0x0061,
-        0x0060, 0x0000,
-        0x00b0, 0))
-    assert(cc("S <- !.") == bn(
-        0x0030, 0x0005,
-        0x0020, 0x0000,
-        0x0060, 0x0000,
-        0x00b0, 0))
+        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
+        0xb0, 0x0, 0x0, 0x05,   # 0x2: Jump 0x5
+        0x30, 0x0, 0x0, 0x04,   # 0x3: Choice 0x04 [0x7]
+        0x10, 0x0, 0x0, 0x61,   # 0x4: Char 'a'
+        0x40, 0x0, 0x0, 0x01,   # 0x5: Commit 1 [0x6]
+        0x50, 0x0, 0x0, 0x00,   # 0x6: Fail
+        0x00, 0x0, 0x0, 0x00,   # 0x7: Halt
+    ))
+
+    # And
+    assert(cc("S <- &'a'") == bn(
+        0x30, 0x0, 0x0, 0x07,   # Choice 0x07
+        0x30, 0x0, 0x0, 0x04,   # Choice 0x04
+        0x10, 0x0, 0x0, 0x61,   # Char 'a'
+        0x40, 0x0, 0x0, 0x01,   # Commit 1
+        0x50, 0x0, 0x0, 0x00,   # Fail
+        0x40, 0x0, 0x0, 0x01,   # Commit 1
+        0x50, 0x0, 0x0, 0x00,   # Fail
+        0x00, 0x0, 0x0, 0x00,   # Halt
+    ))
 
     # Concatenation
-    assert(cc("S <- 'a' 'b'") == bn(
-        0x0010, 0x0061,
-        0x0010, 0x0062,
-        0x00b0, 0))
+    assert(cc("S <- 'a' . 'c'") == bn(
+        0x10, 0x0, 0x0, 0x61,   # Char 'a'
+        0x20, 0x0, 0x0, 0x00,   # Any
+        0x10, 0x0, 0x0, 0x63,   # Char 'c'
+        0x00, 0x0, 0x0, 0x00,   # Halt
+    ))
 
     # Ordered Choice
-    # assert(cc("S <- 'a' / 'b' / 'c'") == bn(
-    #     0x0030, 0x0004,
-    #     0x0010, 0x0061,
-    #     0x0040, 0x0003,
-    #     0x0010, 0x0062,
-    #     0x00b0, 0))
+    assert(cc("S <- 'a' / 'b'") == bn(
+        0x30, 0x0, 0x0, 0x03,   # Choice 0x03
+        0x10, 0x0, 0x0, 0x61,   # Char 'a'
+        0x40, 0x0, 0x0, 0x03,   # Commit 0x03
+        0x10, 0x0, 0x0, 0x62,   # Char 'b'
+        0x00, 0x0, 0x0, 0x00,   # Halt
+    ))
 
 def test():
     test_tokenizer()
     test_parser()
     # test_parse_errors()
     test_eval()
+    test_compiler()
     test_compile()
 
 
@@ -1063,16 +984,16 @@ def main():
     with io.open(os.path.abspath(args.grammar), 'r') as grammarFile:
         grammar = Parser(grammarFile.read()).run()
 
-    if args.compile:
-        name, _ = os.path.splitext(args.grammar)
-        with io.open('%s.bin' % name, 'wb') as out:
-            compiled = Compiler(grammar).run()
-            out.write(compiled)
-    else:
-        with io.open(os.path.abspath(args.data), 'r') as dataFile:
-            output = Eval(grammar, args.start, dataFile.read()).run()
-            pprint.pprint(output)
+    # if args.compile:
+    #     name, _ = os.path.splitext(args.grammar)
+    #     with io.open('%s.bin' % name, 'wb') as out:
+    #         compiled = Compiler(grammar).run()
+    #         out.write(compiled)
+    # else:
+    with io.open(os.path.abspath(args.data), 'r') as dataFile:
+        output = Eval(grammar, args.start, dataFile.read()).run()
+        pprint.pprint(output)
 
 if __name__ == '__main__':
-    test()
-    #main()
+    # test()
+    main()

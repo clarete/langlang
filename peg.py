@@ -472,7 +472,8 @@ class Eval:
 
 
 class Instructions(enum.Enum):
-    (OP_CHAR,
+    (OP_HALT,
+     OP_CHAR,
      OP_ANY,
      OP_CHOICE,
      OP_COMMIT,
@@ -486,7 +487,7 @@ class Instructions(enum.Enum):
      OP_CALL,
      OP_RETURN,
      OP_END,
-    ) = range(1, 15)
+    ) = range(15)
 
 
 class Compiler:
@@ -496,9 +497,8 @@ class Compiler:
         self.start = grammar[0].keys()[0]
         self.pos = 0
         self.code = []
-        self.stack = []
 
-    def genInstruction(self, instruction, arg0=None, arg1=None):
+    def gen(self, instruction, arg0=None, arg1=None):
         if arg0 is not None and arg1 is not None: # Two 14bit args
             raise NotImplementedError("I owe you two parameters!")
         elif arg0 is not None and arg1 is None: # Single 28bits arg
@@ -508,44 +508,36 @@ class Compiler:
         else:                  # No arguments. Just padding with zeros
             return (instruction.value << 28)
 
-    def compileInstruction(self, instruction):
-        self.code.append(instruction)
+    def emit(self, *args):
+        self.code.append(self.gen(*args))
         self.pos += 1
+        return self.pos
 
-    def compileInvariant(self, program):
-        # It's always 2 because invariant contains two instructions
-        self.compileInstruction(self.genInstruction(Instructions.OP_CALL, 2))
-        self.compileInstruction(self.genInstruction(Instructions.OP_JUMP))
-        locationCell = self.pos-1 # Argument to instruction above
-        programSize = self._compileAtomAndGetSize(program)
-        self.code[locationCell] = self.genInstruction(Instructions.OP_JUMP, programSize + 2)
-        self.compileInstruction(self.genInstruction(Instructions.OP_RETURN))
-        self.compileInstruction(0) # Halt
-
-    def compileReturn(self):
-        self.compileInstruction(self.genInstruction(Instructions.OP_RETURN))
-
-    def compileChar(self, value):
-        self.compileInstruction(self.genInstruction(Instructions.OP_CHAR, ord(value)))
-
-    def compileDot(self, atom):
-        self.compileInstruction(self.genInstruction(Instructions.OP_ANY))
-
-    def _compileAtomAndGetSize(self, atom):
+    def cc(self, atom):
         currentPos = self.pos
         self.compileAtom(atom)
         programSize = self.pos - currentPos
         return programSize
 
+    def invariant(self, program):
+        # It's always 2 because invariant contains two instructions
+        self.emit(Instructions.OP_CALL, 2)
+        pos = self.emit(Instructions.OP_JUMP)
+        size = self.cc(program)
+        self.code[pos-1] = self.gen(Instructions.OP_JUMP, size + 3)
+        self.emit(Instructions.OP_RETURN)
+        self.emit(Instructions.OP_HALT)
+
     def compileNot(self, atom):
-        self.emitInstruction(Instructions.OP_CHOICE)
-        locationCell = self.pos-1 # Argument to instruction above
-        programSize = self._compileAtomAndGetSize(atom.value)
-        self.code[locationCell] = programSize + 3
-        self.emitInstruction(Instructions.OP_FAIL_TWICE)
+        pos = self.emit(Instructions.OP_CHOICE)
+        size = self.cc(atom.value)
+        self.code[pos-1] = self.gen(Instructions.OP_CHOICE, size + 3)
+        self.emit(Instructions.OP_COMMIT, 1)
+        self.emit(Instructions.OP_FAIL)
 
     def compileLiteral(self, literal):
-        for i in literal.value: self.compileChar(i)
+        for i in literal.value:
+            self.emit(Instructions.OP_CHAR, ord(i))
 
     def compileSequence(self, sequence):
         for atom in sequence.value:
@@ -555,29 +547,23 @@ class Compiler:
         it = len(expr.value)
         for atom in expr.value:
             print("EXPR %s [%d]" % (atom, it))
-            self.emitInstruction(Instructions.OP_CHOICE)
+            self.emit(Instructions.OP_CHOICE)
             locationCell = self.pos-1 # Argument to instruction above
             programSize = self._compileAtomAndGetSize(atom)
             self.code[locationCell] = programSize + it
-            self.emitInstruction(Instructions.OP_COMMIT)
+            self.emit(Instructions.OP_COMMIT)
             it -= 1
 
     def compileAtom(self, atom):
-        if isinstance(atom, Literal):
-            return self.compileLiteral(atom)
-        elif isinstance(atom, Dot):
-            return self.compileDot(atom)
-        elif isinstance(atom, Not):
-            return self.compileNot(atom)
-        elif isinstance(atom, Sequence):
-            return self.compileSequence(atom)
-        elif isinstance(atom, Expression):
-            return self.compileExpression(atom)
-        else:
-            raise Exception("Unknown atom %s" % atom)
+        if isinstance(atom, Literal): self.compileLiteral(atom)
+        elif isinstance(atom, Dot): self.emit(Instructions.OP_ANY)
+        elif isinstance(atom, Not): self.compileNot(atom)
+        elif isinstance(atom, Sequence): self.compileSequence(atom)
+        elif isinstance(atom, Expression): self.compileExpression(atom)
+        else: raise Exception("Unknown atom %s" % atom)
 
     def run(self):
-        self.compileInvariant(self.g[self.start])
+        self.invariant(self.g[self.start])
         return struct.pack('>' + ('I' * len(self.code)), *self.code)
 
 
@@ -884,12 +870,12 @@ def test_compiler():
     compiler = Compiler(Parser("S <- 'a'").run())
     # No arguments
     assert(
-        compiler.genInstruction(Instructions.OP_ANY) ==
+        compiler.gen(Instructions.OP_ANY) ==
         0b00100000000000000000000000000000
     )
     # One Argument
     assert(
-        compiler.genInstruction(Instructions.OP_CHAR, ord('a')) ==
+        compiler.gen(Instructions.OP_CHAR, ord('a')) ==
         0b00010000000000000000000001100001
     )
 
@@ -901,7 +887,7 @@ def test_compile():
     # Char 'c'
     assert(cc("S <- 'a'") == bn(
         0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x03,   # 0x2: Jump 0x3
+        0xb0, 0x0, 0x0, 0x04,   # 0x4: Jump 0x4
         0x10, 0x0, 0x0, 0x61,   # 0x3: Char 'a'
         0xd0, 0x0, 0x0, 0x00,   # 0x4: Return
         0x00, 0x0, 0x0, 0x00,   # 0x5: Halt
@@ -910,8 +896,8 @@ def test_compile():
     # Any
     assert(cc("S <- .") == bn(
         0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x05,   # 0x2: Jump 0x5
-        0x20, 0x0, 0x0, 0x0,    # 0x3: Any
+        0xb0, 0x0, 0x0, 0x04,   # 0x2: Jump 0x4
+        0x20, 0x0, 0x0, 0x00,   # 0x3: Any
         0xd0, 0x0, 0x0, 0x00,   # 0x4: Return
         0x00, 0x0, 0x0, 0x00,   # 0x5: Halt
     ))
@@ -919,28 +905,35 @@ def test_compile():
     # Not
     assert(cc("S <- !'a'") == bn(
         0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x05,   # 0x2: Jump 0x5
-        0x30, 0x0, 0x0, 0x04,   # 0x3: Choice 0x04 [0x7]
+        0xb0, 0x0, 0x0, 0x07,   # 0x2: Jump 0x7
+        0x30, 0x0, 0x0, 0x04,   # 0x3: Choice 0x04 [0x6]
         0x10, 0x0, 0x0, 0x61,   # 0x4: Char 'a'
         0x40, 0x0, 0x0, 0x01,   # 0x5: Commit 1 [0x6]
         0x50, 0x0, 0x0, 0x00,   # 0x6: Fail
-        0x00, 0x0, 0x0, 0x00,   # 0x7: Halt
+        0xd0, 0x0, 0x0, 0x00,   # 0x7: Return
+        0x00, 0x0, 0x0, 0x00,   # 0x8: Halt
     ))
 
     # And
     assert(cc("S <- &'a'") == bn(
-        0x30, 0x0, 0x0, 0x07,   # Choice 0x07
-        0x30, 0x0, 0x0, 0x04,   # Choice 0x04
-        0x10, 0x0, 0x0, 0x61,   # Char 'a'
-        0x40, 0x0, 0x0, 0x01,   # Commit 1
-        0x50, 0x0, 0x0, 0x00,   # Fail
-        0x40, 0x0, 0x0, 0x01,   # Commit 1
-        0x50, 0x0, 0x0, 0x00,   # Fail
-        0x00, 0x0, 0x0, 0x00,   # Halt
+        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
+        0xb0, 0x0, 0x0, 0x0a,   # 0x2: Jump 0xa
+        0x30, 0x0, 0x0, 0x07,   # 0x3: Choice 0x07
+        0x30, 0x0, 0x0, 0x04,   # 0x4: Choice 0x04
+        0x10, 0x0, 0x0, 0x61,   # 0x5: Char 'a'
+        0x40, 0x0, 0x0, 0x01,   # 0x6: Commit 1
+        0x50, 0x0, 0x0, 0x00,   # 0x7: Fail
+        0x40, 0x0, 0x0, 0x01,   # 0x8: Commit 1
+        0x50, 0x0, 0x0, 0x00,   # 0x9: Fail
+        0xd0, 0x0, 0x0, 0x00,   # 0xa: Return
+        0x00, 0x0, 0x0, 0x00,   # 0xb: Halt
     ))
-
+    return
     # Concatenation
     assert(cc("S <- 'a' . 'c'") == bn(
+        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
+        0xb0, 0x0, 0x0, 0x05,   # 0x2: Jump 0x5
+
         0x10, 0x0, 0x0, 0x61,   # Char 'a'
         0x20, 0x0, 0x0, 0x00,   # Any
         0x10, 0x0, 0x0, 0x63,   # Char 'c'

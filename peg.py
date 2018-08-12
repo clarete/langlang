@@ -1055,20 +1055,30 @@ def main():
     parser.add_argument(
         '-s', '--start', dest='start', action='store',
         help='Start rule. Which rule the parser should start at.')
+    parser.add_argument(
+        '-t', '--tests', dest='test', action='store_true', default=False,
+        help='Run tests.')
     args = parser.parse_args()
+
+    if args.test: exit(test())
+
+    if not (args.grammar and (args.data or args.compile)):
+        parser.print_help()
+        exit(0)
+
     with io.open(os.path.abspath(args.grammar), 'r') as grammarFile:
         grammar = Parser(grammarFile.read()).run()
 
-    # if args.compile:
-    #     name, _ = os.path.splitext(args.grammar)
-    #     with io.open('%s.bin' % name, 'wb') as out:
-    #         compiled = Compiler(grammar).run()
-    #         out.write(compiled)
-    # else:
-    with io.open(os.path.abspath(args.data), 'r') as dataFile:
-        output = Eval(grammar, args.start, dataFile.read()).run()
-        pprint.pprint(output)
+    if args.compile:
+        name, _ = os.path.splitext(args.grammar)
+        with io.open('%s.bin' % name, 'wb') as out:
+            compiled = Compiler(grammar).run()
+            out.write(compiled)
+    else:
+        with io.open(os.path.abspath(args.data), 'r') as dataFile:
+            output = Eval(grammar, args.start, dataFile.read()).run()
+            pprint.pprint(output)
+
 
 if __name__ == '__main__':
-    # test()
     main()

@@ -495,10 +495,12 @@ class Instructions(enum.Enum):
 class Compiler:
 
     def __init__(self, grammar):
+        self.ga = grammar
         self.g = {x: y for di in grammar for x, y in di.items()}
-        self.start = grammar[0].keys()[0]
+        self.start = list(grammar[0].keys())[0]
         self.pos = 0
         self.code = []
+        self.callsites = {}
 
     def gen(self, instruction, arg0=None, arg1=None):
         if arg0 is not None and arg1 is not None: # Two 14bit args
@@ -520,15 +522,6 @@ class Compiler:
         self.compileAtom(atom)
         programSize = self.pos - currentPos
         return programSize
-
-    def invariant(self, program):
-        # It's always 2 because invariant contains two instructions
-        self.emit(Instructions.OP_CALL, 2)
-        pos = self.emit(Instructions.OP_JUMP)
-        size = self.cc(program)
-        self.code[pos-1] = self.gen(Instructions.OP_JUMP, size + 3)
-        self.emit(Instructions.OP_RETURN)
-        self.emit(Instructions.OP_HALT)
 
     def compileNot(self, atom):
         pos = self.emit(Instructions.OP_CHOICE)
@@ -575,19 +568,61 @@ class Compiler:
         for i in commits:
             self.code[i] = self.gen(Instructions.OP_COMMIT, self.pos - i)
 
+    def compileIdentifier(self, atom):
+        # Emit an OP_CALL as a placeholder to be patched at the end of
+        # the code generation
+        pos = self.emit(Instructions.OP_CALL) -1
+        if atom.value not in self.callsites:
+            self.callsites[atom.value] = []
+        self.callsites[atom.value].append(pos)
+
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
         elif isinstance(atom, Dot): self.emit(Instructions.OP_ANY)
         elif isinstance(atom, Not): self.compileNot(atom)
         elif isinstance(atom, And): self.compileAnd(atom)
+        elif isinstance(atom, Identifier): self.compileIdentifier(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
         else: raise Exception("Unknown atom %s" % atom)
 
     def run(self):
-        self.invariant(self.g[self.start])
+        # It's always 2 because invariant contains two instructions
+        self.emit(Instructions.OP_CALL, 2)
+        pos = self.emit(Instructions.OP_JUMP)
+        size = 0
+        addresses = {}
+        for nt in self.ga:
+            [[name, rule]] = nt.items()
+            addresses[name] = self.pos
+            size += self.cc(rule)
+            self.emit(Instructions.OP_RETURN)
+            size += 1           # This accounts for the above return
+        self.code[pos-1] = self.gen(Instructions.OP_JUMP, size + 2)
+        self.emit(Instructions.OP_HALT)
+
+        # Patch all OP_CALL instructions generated with final
+        # addresses
+        for identifier, callsites in self.callsites.items():
+            for cs in callsites:
+                self.code[cs] = self.gen(Instructions.OP_CALL, addresses[identifier] - cs)
         return struct.pack('>' + ('I' * len(self.code)), *self.code)
 
+## --- Utilities ---
+
+def dbgcc(c, bc):
+    print('\033[92m{}\033[0m'.format(c), end=':\n')
+    for x in range(0, len(bc), 4):
+        instruction = Instructions(ord(bc[x]) >> 4)
+        chars = [bc[x+y] for y in range(4)]
+        value = ord(bc[x+3])
+        print('   {:02x} {} [{:>10}{}]'.format(
+            x / 4,
+            ''.join(chars).encode('hex'),
+            instruction.name,
+            value and ' {:02x}'.format(value) or '   ',
+        ))
+    return bc
 
 ## --- tests ---
 
@@ -903,7 +938,7 @@ def test_compiler():
 
 
 def test_compile():
-    cc = lambda code: Compiler(Parser(code).run()).run()
+    cc = lambda c: dbgcc(c, Compiler(Parser(c).run()).run())
     bn = lambda *bc: struct.pack('B' * len(bc), *bc)
 
     # Char 'c'
@@ -972,6 +1007,26 @@ def test_compile():
         0x10, 0x0, 0x0, 0x62,   # 0x6: Char 'b'
         0xd0, 0x0, 0x0, 0x00,   # 0x7: Return
         0x00, 0x0, 0x0, 0x00,   # 0x8: Halt
+    ))
+
+    assert(cc("S <- D '+'D\nD <- '0' / '1'") == bn(
+        0xc0, 0x0, 0x0, 0x02,       #/* 0x1: Call 0x2 [0x3]     */
+        0xb0, 0x0, 0x0, 0x0b,       #/* 0x2: Jump 0xb           */
+
+        # /* S <- D '+' D */
+        0xc0, 0x0, 0x0, 0x04,       #/* 0x3: Call 0x5 [0x7]     */
+        0x10, 0x0, 0x0, 0x2b,       #/* 0x4: Char '+'           */
+        0xc0, 0x0, 0x0, 0x02,       #/* 0x5: Call 0x2 [0x7]     */
+        0xd0, 0x0, 0x0, 0x00,       #/* 0x6: Return             */
+
+        # /* D <- '0' / '1' */
+        0x30, 0x0, 0x0, 0x03,       #/* 0x7: Choice 0x3 [0x8]   */
+        0x10, 0x0, 0x0, 0x30,       #/* 0x8: Char '0'           */
+        0x40, 0x0, 0x0, 0x02,       #/* 0x9: Commit 0x03 [0xa]  */
+        0x10, 0x0, 0x0, 0x31,       #/* 0xa: Char '1'           */
+        0xd0, 0x0, 0x0, 0x00,       #/* 0xb: Return             */
+
+        0x00, 0x0, 0x0, 0x00,       #/* 0xc: Halt               */
     ))
 
 

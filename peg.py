@@ -524,19 +524,17 @@ class Compiler:
         return programSize
 
     def compileNot(self, atom):
-        pos = self.emit(Instructions.OP_CHOICE)
+        pos = self.emit(Instructions.OP_CHOICE) -1
         size = self.cc(atom.value)
-        self.code[pos-1] = self.gen(Instructions.OP_CHOICE, size + 3)
+        self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 3)
         self.emit(Instructions.OP_COMMIT, 1)
         self.emit(Instructions.OP_FAIL)
 
     def compileAnd(self, atom):
-        self.emit(Instructions.OP_CHOICE)
-        currentPos = self.pos
-        locationCell = currentPos-1 # Argument to instruction above
+        pos = self.emit(Instructions.OP_CHOICE)
         self.compileNot(atom)
-        programSize = self.pos - currentPos
-        self.code[locationCell] = self.gen(Instructions.OP_CHOICE, programSize + 3)
+        size = self.pos - pos
+        self.code[pos-1] = self.gen(Instructions.OP_CHOICE, size + 3)
         self.emit(Instructions.OP_COMMIT, 1)
         self.emit(Instructions.OP_FAIL)
 
@@ -1028,7 +1026,6 @@ def test_compile():
 
         0x00, 0x0, 0x0, 0x00,       #/* 0xc: Halt               */
     ))
-
 
 
 def test():

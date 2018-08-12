@@ -556,15 +556,24 @@ class Compiler:
             self.compileAtom(atom)
 
     def compileExpression(self, expr):
-        it = len(expr.value)
-        for atom in expr.value:
-            print("EXPR %s [%d]" % (atom, it))
-            self.emit(Instructions.OP_CHOICE)
-            locationCell = self.pos-1 # Argument to instruction above
-            programSize = self._compileAtomAndGetSize(atom)
-            self.code[locationCell] = programSize + it
-            self.emit(Instructions.OP_COMMIT)
-            it -= 1
+        choices = expr.value
+        count = len(choices)
+        commits = []     # List of positions that need to be rewritten
+        i = 0
+        while i < count:
+            pos = self.emit(Instructions.OP_CHOICE) -1
+            size = self.cc(choices[i])
+            self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 2)
+            i += 1
+            # Save next instruction's position
+            commits.append(self.emit(Instructions.OP_COMMIT) - 1)
+            self.cc(choices[i])
+            # If it's not the last option, we need the CHOICE header
+            if i + 1 != count: continue
+            i += 1
+        # Rewrite the locations for commits
+        for i in commits:
+            self.code[i] = self.gen(Instructions.OP_COMMIT, self.pos - i)
 
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
@@ -941,26 +950,31 @@ def test_compile():
         0xd0, 0x0, 0x0, 0x00,   # 0xa: Return
         0x00, 0x0, 0x0, 0x00,   # 0xb: Halt
     ))
-    return
+
     # Concatenation
     assert(cc("S <- 'a' . 'c'") == bn(
         0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x05,   # 0x2: Jump 0x5
-
-        0x10, 0x0, 0x0, 0x61,   # Char 'a'
-        0x20, 0x0, 0x0, 0x00,   # Any
-        0x10, 0x0, 0x0, 0x63,   # Char 'c'
-        0x00, 0x0, 0x0, 0x00,   # Halt
+        0xb0, 0x0, 0x0, 0x06,   # 0x2: Jump 0x6
+        0x10, 0x0, 0x0, 0x61,   # 0x3: Char 'a'
+        0x20, 0x0, 0x0, 0x00,   # 0x4: Any
+        0x10, 0x0, 0x0, 0x63,   # 0x5: Char 'c'
+        0xd0, 0x0, 0x0, 0x00,   # 0x6: Return
+        0x00, 0x0, 0x0, 0x00,   # 0x7: Halt
     ))
 
     # Ordered Choice
     assert(cc("S <- 'a' / 'b'") == bn(
-        0x30, 0x0, 0x0, 0x03,   # Choice 0x03
-        0x10, 0x0, 0x0, 0x61,   # Char 'a'
-        0x40, 0x0, 0x0, 0x03,   # Commit 0x03
-        0x10, 0x0, 0x0, 0x62,   # Char 'b'
-        0x00, 0x0, 0x0, 0x00,   # Halt
+        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
+        0xb0, 0x0, 0x0, 0x07,   # 0x2: Jump 0x7
+        0x30, 0x0, 0x0, 0x03,   # 0x3: Choice 0x03
+        0x10, 0x0, 0x0, 0x61,   # 0x4: Char 'a'
+        0x40, 0x0, 0x0, 0x02,   # 0x5: Commit 0x02
+        0x10, 0x0, 0x0, 0x62,   # 0x6: Char 'b'
+        0xd0, 0x0, 0x0, 0x00,   # 0x7: Return
+        0x00, 0x0, 0x0, 0x00,   # 0x8: Halt
     ))
+
+
 
 def test():
     test_tokenizer()

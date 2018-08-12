@@ -190,6 +190,8 @@ class Parser:
             return self.t(TokenTypes.PLUS)
         elif self.matchc('!'):
             return self.t(TokenTypes.NOT)
+        elif self.matchc('&'):
+            return self.t(TokenTypes.AND)
         elif self.matchc('?'):
             return self.t(TokenTypes.QUESTION)
         else:
@@ -535,6 +537,16 @@ class Compiler:
         self.emit(Instructions.OP_COMMIT, 1)
         self.emit(Instructions.OP_FAIL)
 
+    def compileAnd(self, atom):
+        self.emit(Instructions.OP_CHOICE)
+        currentPos = self.pos
+        locationCell = currentPos-1 # Argument to instruction above
+        self.compileNot(atom)
+        programSize = self.pos - currentPos
+        self.code[locationCell] = self.gen(Instructions.OP_CHOICE, programSize + 3)
+        self.emit(Instructions.OP_COMMIT, 1)
+        self.emit(Instructions.OP_FAIL)
+
     def compileLiteral(self, literal):
         for i in literal.value:
             self.emit(Instructions.OP_CHAR, ord(i))
@@ -558,6 +570,7 @@ class Compiler:
         if isinstance(atom, Literal): self.compileLiteral(atom)
         elif isinstance(atom, Dot): self.emit(Instructions.OP_ANY)
         elif isinstance(atom, Not): self.compileNot(atom)
+        elif isinstance(atom, And): self.compileAnd(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
         else: raise Exception("Unknown atom %s" % atom)

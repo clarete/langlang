@@ -506,7 +506,7 @@ class Compiler:
         if arg0 is not None and arg1 is not None: # Two 14bit args
             raise NotImplementedError("I owe you two parameters!")
         elif arg0 is not None and arg1 is None: # Single 28bits arg
-            return (arg0 & 0x00ffffff) | (instruction.value << 28)
+            return (arg0 & 0x0fffffff) | (instruction.value << 28)
         elif arg0 is None and arg1 is not None: # Not supported
             raise Exception("Plz use arg0 instead of arg1")
         else:                  # No arguments. Just padding with zeros

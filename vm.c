@@ -366,7 +366,7 @@ void readFile (const char *path, uint8_t **buffer, size_t *size)
   rewind (fp);
   /* Allocate buffer and read the file into it.  The +1 is reserved
      for the NULL char. */
-  if ((*buffer = calloc (0, *size + 1)) == NULL) {
+  if ((*buffer = calloc (*size + 1, sizeof (uint8_t))) == NULL) {
     fclose (fp);
     FATAL ("Can't read file into memory %s", path);
   }

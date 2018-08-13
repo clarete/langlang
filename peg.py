@@ -580,12 +580,17 @@ class Compiler:
         self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 2)
         self.emit(Instructions.OP_COMMIT, 0 - (size + 1))
 
+    def compilePlus(self, atom):
+        self.cc(atom.value)
+        self.compileStar(atom)
+
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
         elif isinstance(atom, Dot): self.emit(Instructions.OP_ANY)
         elif isinstance(atom, Not): self.compileNot(atom)
         elif isinstance(atom, And): self.compileAnd(atom)
         elif isinstance(atom, Star): self.compileStar(atom)
+        elif isinstance(atom, Plus): self.compilePlus(atom)
         elif isinstance(atom, Identifier): self.compileIdentifier(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
@@ -1026,6 +1031,16 @@ def test_compile():
     ))
 
     # Plus
+    assert(cc("S <- 'a'+") == bn(
+        0xc0, 0x00, 0x00, 0x02,   # 0x1: Call 0x2 [0x3]
+        0xb0, 0x00, 0x00, 0x07,   # 0x2: Jump 0x7
+        0x10, 0x00, 0x00, 0x61,   # 0x3: Char 'a'
+        0x30, 0x00, 0x00, 0x03,   # 0x4: Choice 0x03
+        0x10, 0x00, 0x00, 0x61,   # 0x5: Char 'a'
+        0x4f, 0xff, 0xff, 0xfe,   # 0x6: Commit 0xffe (-2)
+        0xd0, 0x00, 0x00, 0x00,   # 0x7: Return
+        0x00, 0x00, 0x00, 0x00,   # 0x8: Halt
+    ))
 
     # Class
 

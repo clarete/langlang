@@ -552,16 +552,19 @@ class Compiler:
         commits = []     # List of positions that need to be rewritten
         i = 0
         while i < count:
+            # If it's the last option, we don't need the CHOICE header
+            if i + 1 == count:
+                self.cc(choices[i])
+                break
+
             pos = self.emit(Instructions.OP_CHOICE) -1
             size = self.cc(choices[i])
             self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 2)
-            i += 1
-            # Save next instruction's position
+            # Save next instruction's position as a location that
+            # needs to be updated
             commits.append(self.emit(Instructions.OP_COMMIT) - 1)
-            self.cc(choices[i])
-            # If it's not the last option, we need the CHOICE header
-            if i + 1 != count: continue
             i += 1
+
         # Rewrite the locations for commits
         for i in commits:
             self.code[i] = self.gen(Instructions.OP_COMMIT, self.pos - i)
@@ -1017,6 +1020,23 @@ def test_compile():
         0x10, 0x0, 0x0, 0x62,   # 0x6: Char 'b'
         0xd0, 0x0, 0x0, 0x00,   # 0x7: Return
         0x00, 0x0, 0x0, 0x00,   # 0x8: Halt
+    ))
+
+    assert(cc("S <- 'a' / 'b' / 'c' / 'd'") == bn(
+        0xc0, 0x0, 0x0, 0x02,   # 0x0: Call 0x2 [0x3]
+        0xb0, 0x0, 0x0, 0x0d,   # 0x1: Jump 0xd
+        0x30, 0x0, 0x0, 0x03,   # 0x2: Choice 0x03
+        0x10, 0x0, 0x0, 0x61,   # 0x3: Char 'a'
+        0x40, 0x0, 0x0, 0x08,   # 0x4: Commit 0x08
+        0x30, 0x0, 0x0, 0x03,   # 0x5: Choice 0x03
+        0x10, 0x0, 0x0, 0x62,   # 0x6: Char 'b'
+        0x40, 0x0, 0x0, 0x05,   # 0x7: Commit 0x05
+        0x30, 0x0, 0x0, 0x03,   # 0x8: Choice 0x03
+        0x10, 0x0, 0x0, 0x63,   # 0x9: Char 'c'
+        0x40, 0x0, 0x0, 0x02,   # 0xa: Commit 0x02
+        0x10, 0x0, 0x0, 0x64,   # 0xb: Char 'd'
+        0xd0, 0x0, 0x0, 0x00,   # 0xc: Return
+        0x00, 0x0, 0x0, 0x00,   # 0xd: Halt
     ))
 
     # Repetition (Star)

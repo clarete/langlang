@@ -488,8 +488,9 @@ class Instructions(enum.Enum):
      OP_JUMP,
      OP_CALL,
      OP_RETURN,
+     OP_SPAN,
      OP_END,
-    ) = range(15)
+    ) = range(16)
 
 
 class Compiler:
@@ -504,7 +505,7 @@ class Compiler:
 
     def gen(self, instruction, arg0=None, arg1=None):
         if arg0 is not None and arg1 is not None: # Two 14bit args
-            raise NotImplementedError("I owe you two parameters!")
+            return ((arg1 | (arg0 << 14)) | 0xe << 28)
         elif arg0 is not None and arg1 is None: # Single 28bits arg
             return (arg0 & 0x0fffffff) | (instruction.value << 28)
         elif arg0 is None and arg1 is not None: # Not supported
@@ -546,28 +547,21 @@ class Compiler:
         for atom in sequence.value:
             self.compileAtom(atom)
 
-    def compileExpression(self, expr):
-        choices = expr.value
-        count = len(choices)
+    def _compileChoices(self, choices, compFunc):
         commits = []     # List of positions that need to be rewritten
-        i = 0
-        while i < count:
-            # If it's the last option, we don't need the CHOICE header
-            if i + 1 == count:
-                self.cc(choices[i])
+        for i, c in enumerate(choices):
+            if i + 1 == len(choices):
+                compFunc(c)
                 break
-
             pos = self.emit(Instructions.OP_CHOICE) -1
-            size = self.cc(choices[i])
+            size = compFunc(c)
             self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 2)
-            # Save next instruction's position as a location that
-            # needs to be updated
             commits.append(self.emit(Instructions.OP_COMMIT) - 1)
-            i += 1
-
-        # Rewrite the locations for commits
-        for i in commits:
+        for i in commits:       # Rewrite the locations for commits
             self.code[i] = self.gen(Instructions.OP_COMMIT, self.pos - i)
+
+    def compileExpression(self, expr):
+        self._compileChoices(expr.value, self.cc)
 
     def compileIdentifier(self, atom):
         # Emit an OP_CALL as a placeholder to be patched at the end of
@@ -587,6 +581,27 @@ class Compiler:
         self.cc(atom.value)
         self.compileStar(atom)
 
+    def compileRange(self, theRange):
+        currentPos = self.pos
+        left, right = theRange
+        self.emit(Instructions.OP_SPAN, ord(left), ord(right))
+        return self.pos - currentPos
+
+    def compileClass(self, atom):
+        """Generate code for matching classes of characters
+
+        Classes of characteres can be either one interval, multiple
+        intervals or sets of characters.
+
+        If `atom' describes only one interval, a single `Span'
+        instruction is generated.
+        """
+        if isinstance(atom.value, list):
+            if len(atom.value) == 1:
+                self.compileRange(atom.value[0])
+            else:
+                self._compileChoices(atom.value, self.compileRange)
+
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
         elif isinstance(atom, Dot): self.emit(Instructions.OP_ANY)
@@ -594,6 +609,7 @@ class Compiler:
         elif isinstance(atom, And): self.compileAnd(atom)
         elif isinstance(atom, Star): self.compileStar(atom)
         elif isinstance(atom, Plus): self.compilePlus(atom)
+        elif isinstance(atom, Class): self.compileClass(atom)
         elif isinstance(atom, Identifier): self.compileIdentifier(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
@@ -1062,7 +1078,29 @@ def test_compile():
         0x00, 0x00, 0x00, 0x00,   # 0x8: Halt
     ))
 
-    # Class
+    # Class -> Span
+    assert(cc("S <- [a-e]") == bn(
+        0xc0, 0x00, 0x00, 0x02,   # 0x0: Call 0x2
+        0xb0, 0x00, 0x00, 0x04,   # 0x1: Jump 0x4
+        0xe0, 0x18, 0x40, 0x65,   # 0x2: Span a-e
+        0xd0, 0x00, 0x00, 0x00,   # 0x3: Return
+        0x00, 0x00, 0x00, 0x00,   # 0x4: Halt
+    ))
+
+    assert(cc("S <- [a-zA-Z]") == bn(
+        0xc0, 0x00, 0x00, 0x02,   # 0x0: Call 0x2
+        0xb0, 0x00, 0x00, 0x07,   # 0x1: Jump 0x7
+        0x30, 0x00, 0x00, 0x03,   # 0x2: Choice 0x03
+        0xe0, 0x18, 0x40, 0x7a,   # 0x2: Span a-z
+        0x40, 0x00, 0x00, 0x02,   # 0x4: Commit 0x02
+        0xe0, 0x10, 0x40, 0x5a,   # 0x2: Span a-z
+        0xd0, 0x00, 0x00, 0x00,   # 0x6: Return
+        0x00, 0x00, 0x00, 0x00,   # 0x7: Halt
+    ))
+
+    # Class -> Set
+    # assert(cc("S <- [']") == bn(
+    # ))
 
     # Grammar/Variables (Call/Return)
     assert(cc("S <- D '+'D\nD <- '0' / '1'") == bn(

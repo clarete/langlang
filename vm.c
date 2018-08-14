@@ -71,7 +71,7 @@ Machine Instructions
 * [x] Call l
 * [x] Return
 * [ ] Set
-* [ ] Span
+* [x] Span
 
 Bytecode Format
 ===============
@@ -123,31 +123,27 @@ Instruction with 2 parameters (Eg.: TestChar 4 97)
     * u2operand() Read second operand as unsigned value
 */
 
+
 /* Instruction Offsets - All sizes are in bits */
-#define INSTRUCTION_SIZE    32    /* Instruction size */
-#define OPERATOR_SIZE       4     /* Operator size */
-#define OPERATOR_OFFSET     (INSTRUCTION_SIZE - OPERATOR_SIZE)
-
-/* [0..OPERATOR_OFFSET] */
-#define S_OPERAND_SIZE   OPERATOR_OFFSET
-
-/* [OPERATOR_OFFSET..S1_OPERAND_SIZE */
-#define S1_OPERAND_SIZE    14
-#define S1_OPERAND_OFFSET  OPERATOR_OFFSET - S1_OPERATOR_SIZE
-
-#define S1_OPERAND_SIZE    14
-
-#define S2_OPERAND_SIZE  14
+#define INSTRUCTION_SIZE   32     /* Instruction size */
+#define OPERATOR_SIZE      4      /* Operator size */
+#define OPERATOR_OFFSET    (INSTRUCTION_SIZE - OPERATOR_SIZE)
+#define SL_OPERAND_SIZE    OPERATOR_OFFSET       /* Signed Long (28b) */
+#define SS_OPERAND_SIZE    (SL_OPERAND_SIZE / 2) /* Signed Short (14b) */
 
 /** Clear all 28bits from the right then shift to the right */
 #define OP_MASK(c) (((c) & 0xff000000) >> OPERATOR_OFFSET)
 
 /** Read unsigned single operand */
-#define UOPERAND(op) (op->rand & 0x00ffffff)
+#define UOPERAND0(op) (op->rand & 0x0fffffff)
+#define UOPERAND1(op) ((op->rand & 0x0fffffff) >> SS_OPERAND_SIZE)
+#define UOPERAND2(op) (op->rand & ((1 << SS_OPERAND_SIZE) - 1))
 /** Read signed values */
 #define SIGNED(i,s) ((int32_t) ((i & (1 << (s - 1))) ? (i | ~((1 << s) - 1)) : i))
 /** Read single operand from instruction */
-#define SOPERAND0(op) SIGNED (op->rand, S_OPERAND_SIZE)
+#define SOPERAND0(op) SIGNED (op->rand, SL_OPERAND_SIZE)
+#define SOPERAND1(op) SIGNED (op->rand >> SS_OPERAND_SIZE, SS_OPERAND_SIZE)
+#define SOPERAND2(op) SIGNED (op->rand, SS_OPERAND_SIZE)
 
 /* Arbitrary values */
 
@@ -178,6 +174,7 @@ typedef enum {
   OP_JUMP,
   OP_CALL,
   OP_RETURN,
+  OP_SPAN,
   OP_END,
 } Instructions;
 
@@ -217,6 +214,7 @@ static const char *opNames[OP_END] = {
   [OP_TEST_ANY] = "OP_TEST_ANY",
   [OP_JUMP] = "OP_JUMP",
   [OP_CALL] = "OP_CALL",
+  [OP_SPAN] = "OP_SPAN",
   [OP_RETURN] = "OP_RETURN",
 };
 
@@ -280,8 +278,8 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
     case 0: return i;
     case OP_CHAR:
       DEBUG ("       OP_CHAR: `%c' == `%c' ? %d", *i,
-             UOPERAND (pc), *i == UOPERAND (pc));
-      if (*i == UOPERAND (pc)) { i++; pc++; }
+             UOPERAND0 (pc), *i == UOPERAND0 (pc));
+      if (*i == UOPERAND0 (pc)) { i++; pc++; }
       else goto fail;
       continue;
     case OP_ANY:
@@ -289,8 +287,15 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       if (i < THE_END) { i++; pc++; }
       else goto fail;
       continue;
+    case OP_SPAN:
+      DEBUG ("       OP_SPAN: `%c' in [%c(%d)-%c(%d)]", *i,
+             UOPERAND1 (pc), UOPERAND1 (pc),
+             UOPERAND2 (pc), UOPERAND2 (pc));
+      if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) { i++; pc++; }
+      else goto fail;
+      continue;
     case OP_CHOICE:
-      PUSH (i, pc + UOPERAND (pc));
+      PUSH (i, pc + UOPERAND0 (pc));
       pc++;
       continue;
     case OP_COMMIT:
@@ -1075,6 +1080,29 @@ void test_var2 ()
   mFree (&m);
 }
 
+void test_span1 ()
+{
+  Machine m;
+  /* 'a*' */
+  Bytecode b[16] = {
+    0x30, 0x00, 0x00, 0x03,     /* 0x0: Choice 0x03        */
+    0xe0, 0x18, 0x40, 0x65,     /* 0x1: Span a-e           */
+    0x4f, 0xff, 0xff, 0xfe,     /* 0x2: Commit 0xffe (-2)  */
+    0x00, 0x00, 0x00, 0x00,     /* 0x3: Halt               */
+  };
+  const char *o;
+  const char *i = "abcdefgh";
+  DEBUG (" * t:span.%s", "1");
+
+  mInit (&m);
+  mLoad (&m, b, 16);
+  o = mMatch (&m, i, strlen (i));
+  mFree (&m);
+
+  assert (o);                   /* Didn't fail */
+  assert (o - i == 5);          /* Matched chars */
+}
+
 int main ()
 {
   test_ch1 ();
@@ -1101,6 +1129,8 @@ int main ()
   test_rep2_partial_commit ();
   test_var1 ();
   test_var2 ();
+
+  test_span1 ();
   return 0;
 }
 

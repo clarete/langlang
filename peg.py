@@ -581,7 +581,7 @@ class Compiler:
         pos = self.emit(Instructions.OP_CHOICE) -1
         size = self.cc(atom.value)
         self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 2)
-        self.emit(Instructions.OP_COMMIT, 0 - (size + 1))
+        self.emit(Instructions.OP_COMMIT, -(size + 1))
 
     def compilePlus(self, atom):
         self.cc(atom.value)

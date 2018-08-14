@@ -199,8 +199,6 @@ typedef struct {
 
 /* Virtual Machine */
 typedef struct {
-  const char *s;
-  size_t s_size;
   Instruction *code;
   BacktrackEntry stack[STACK_SIZE];
 } Machine;
@@ -223,12 +221,10 @@ static const char *opNames[OP_END] = {
 };
 
 /* Set initial values for the machine */
-void mInit (Machine *m, const char *input, size_t input_size)
+void mInit (Machine *m)
 {
   memset (m->stack, 0, STACK_SIZE * sizeof (void *));
-  m->code = NULL;               /* Will be set by mRead() */
-  m->s = input;
-  m->s_size = input_size;
+  m->code = NULL;               /* Will be set by mLoad() */
 }
 
 void mFree (Machine *m)
@@ -237,7 +233,7 @@ void mFree (Machine *m)
   m->code = NULL;
 }
 
-void mRead (Machine *m, Bytecode *code, size_t code_size)
+void mLoad (Machine *m, Bytecode *code, size_t code_size)
 {
   Instruction *tmp;
   uint32_t instr;
@@ -259,11 +255,11 @@ void mRead (Machine *m, Bytecode *code, size_t code_size)
 }
 
 /* Run the matching machine */
-const char *mEval (Machine *m)
+const char *mMatch (Machine *m, const char *input, size_t input_size)
 {
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
-  const char *i = m->s;
+  const char *i = input;
 
   /** Push data onto the machine's stack  */
 #define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
@@ -272,7 +268,7 @@ const char *mEval (Machine *m)
 #define POP() (--sp)
   /** The end of the input is the offset from the cursor to the end of
       the input string. */
-#define THE_END (m->s + m->s_size)
+#define THE_END (input + input_size)
 
   while (true) {
 
@@ -294,25 +290,21 @@ const char *mEval (Machine *m)
       else goto fail;
       continue;
     case OP_CHOICE:
-      DEBUG ("       OP_CHOICE: `%p'", i);
       PUSH (i, pc + UOPERAND (pc));
       pc++;
       continue;
     case OP_COMMIT:
-      DEBUG ("       OP_COMMIT: `%p'", i);
       assert (sp > m->stack);
       POP ();                   /* Discard backtrack entry */
       pc += SOPERAND0 (pc);     /* Jump to the given position */
       continue;
     case OP_PARTIAL_COMMIT:
       assert (sp > m->stack);
-      DEBUG ("       OP_PARTIAL_COMMIT: %s", i);
       pc += SOPERAND0 (pc);
       (sp - 1)->i = i;
       continue;
     case OP_BACK_COMMIT:
       assert (sp > m->stack);
-      DEBUG ("       OP_BACK_COMMIT: %s", i);
       i = POP ()->i;
       pc += SOPERAND0 (pc);
       continue;
@@ -388,9 +380,9 @@ int run (const char *grammar_file, const char *input_file)
   readFile (grammar_file, &grammar, &grammar_size);
   readFile (input_file, (uint8_t **) &input, &input_size);
 
-  mInit (&m, input, input_size);
-  mRead (&m, grammar, grammar_size);
-  mEval (&m);
+  mInit (&m);
+  mLoad (&m, grammar, grammar_size);
+  const char *o = mMatch (&m, input, input_size);
   mFree (&m);
 
   free (grammar);
@@ -469,16 +461,17 @@ static void test_ch1 ()
     0x10, 0x0, 0x0, 0x61,     /* Char 'a' */
     0x00, 0x0, 0x0, 0x00,     /* Halt */
   };
+  const char *i = "a";
   const char *o;
   DEBUG (" * t:ch.1 %s", "");
 
-  mInit (&m, "a", 1);
-  mRead (&m, b, 8);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 8);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);
-  assert (o - m.s == 1);        /* Match */
+  assert (o - i == 1);        /* Match */
 }
 
 /*
@@ -496,9 +489,9 @@ static void test_ch2 ()
   };
   DEBUG (" * t:ch.2 %s", "");
 
-  mInit (&m, "x", 1);
-  mRead (&m, b, 8);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 8);
+  assert (!mMatch (&m, "x", 1)); /* Failed */
   mFree (&m);
 }
 
@@ -516,15 +509,16 @@ static void test_any1 ()
     0x00, 0x0, 0x0, 0x0,      /* Halt */
   };
   const char *o;
+  const char *i = "a";
   DEBUG (" * t:any.1 %s", "");
 
-  mInit (&m, "a", 1);
-  mRead (&m, b, 8);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 8);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 1);        /* Match */
+  assert (o - i == 1);        /* Match */
 }
 
 /*
@@ -542,9 +536,9 @@ void test_any2 ()
   };
   DEBUG (" * t:any.2 %s", "");
 
-  mInit (&m, "", 0);
-  mRead (&m, b, 8);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 8);
+  assert (!mMatch (&m, "", 0)); /* Failed */
   mFree (&m);
 }
 
@@ -565,15 +559,16 @@ void test_not1 ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "b";
   DEBUG (" * t:not.1 %s", "");
 
-  mInit (&m, "b", 0);
-  mRead (&m, b, 20);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 20);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 0);        /* But didn't match anything */
+  assert (o - i == 0);        /* But didn't match anything */
 }
 
 void test_not1_fail_twice ()
@@ -587,15 +582,16 @@ void test_not1_fail_twice ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "b";
   printf (" * t:not.1 fail-twice\n");
 
-  mInit (&m, "b", 0);
-  mRead (&m, b, 16);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 16);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Did not fail */
-  assert (o - m.s == 0);        /* But didn't match any char */
+  assert (o - i == 0);        /* But didn't match any char */
 }
 
 /*
@@ -616,9 +612,9 @@ void test_not2 ()
   };
   DEBUG (" * t:not.2 %s", "");
 
-  mInit (&m, "a", 0);
-  mRead (&m, b, 20);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 20);
+  assert (!mMatch (&m, "a", 0));         /* Failed */
   mFree (&m);
 }
 
@@ -634,9 +630,9 @@ void test_not2_fail_twice ()
   };
   DEBUG (" * t:not.2 fail-twice %s", "");
 
-  mInit (&m, "a", 0);
-  mRead (&m, b, 16);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 16);
+  assert (!mMatch (&m, "a", 0));         /* Failed */
   mFree (&m);
 }
 
@@ -660,15 +656,16 @@ void test_and1 ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "a";
   DEBUG (" * t:and.%s", "1");
 
-  mInit (&m, "a", 1);
-  mRead (&m, b, 32);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 32);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 0);        /* But didn't match anything */
+  assert (o - i == 0);        /* But didn't match anything */
 }
 
 void test_and1_back_commit ()
@@ -682,15 +679,16 @@ void test_and1_back_commit ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "a";
   DEBUG (" * t:and.1 (%s)", "back-commit");
 
-  mInit (&m, "a", 1);
-  mRead (&m, b, 32);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 32);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 0);        /* But didn't match anything */
+  assert (o - i == 0);        /* But didn't match anything */
 }
 
 /*
@@ -714,9 +712,9 @@ void test_and2 ()
   };
   DEBUG (" * t:and.%s", "2");
 
-  mInit (&m, "b", 0);
-  mRead (&m, b, 32);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 32);
+  assert (!mMatch (&m, "b", 0)); /* Failed */
   mFree (&m);
 }
 
@@ -731,15 +729,16 @@ void test_and2_back_commit ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "b";
   DEBUG (" * t:and.2 (%s)", "back-commit");
 
-  mInit (&m, "b", 1);
-  mRead (&m, b, 32);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 32);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 0);        /* But didn't match anything */
+  assert (o - i == 0);        /* But didn't match anything */
 }
 
 /*
@@ -758,16 +757,17 @@ void test_con1 ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "abc";
 
   DEBUG (" * t:con.1 %s", "");
 
-  mInit (&m, "abc", 3);
-  mRead (&m, b, 16);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 16);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 3);        /* Matched all 3 chars */
+  assert (o - i == 3);        /* Matched all 3 chars */
 }
 
 /*
@@ -787,9 +787,9 @@ void test_con2 ()
   };
   DEBUG (" * t:con.2 %s", "");
 
-  mInit (&m, "abc", 3);
-  mRead (&m, b, 16);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 16);
+  assert (!mMatch (&m, "abc", 3)); /* Failed */
   mFree (&m);
 }
 
@@ -810,9 +810,9 @@ void test_con3 ()
   };
   DEBUG (" * t:con.3 %s", "");
 
-  mInit (&m, "cba", 3);
-  mRead (&m, b, 16);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 16);
+  assert (!mMatch (&m, "cba", 3)); /* Failed */
   mFree (&m);
 }
 
@@ -834,9 +834,9 @@ void test_ord1 ()
   };
   DEBUG (" * t:ord.1 %s", "");
 
-  mInit (&m, "c", 1);
-  mRead (&m, b, 20);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 20);
+  assert (!mMatch (&m, "c", 1)); /* Failed */
   mFree (&m);
 }
 
@@ -857,15 +857,16 @@ void test_ord2 ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "a";
   DEBUG (" * t:ord.2 %s", "");
 
-  mInit (&m, "a", 1);
-  mRead (&m, b, 20);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 20);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 1);        /* Match the first char */
+  assert (o - i == 1);        /* Match the first char */
 }
 
 /*
@@ -885,15 +886,16 @@ void test_ord3 ()
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "b";
   DEBUG (" * t:ord.3 %s", "");
 
-  mInit (&m, "b", 1);
-  mRead (&m, b, 20);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 20);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 1);        /* Match the first char */
+  assert (o - i == 1);        /* Match the first char */
 }
 
 /*
@@ -912,15 +914,16 @@ void test_rep1 ()
     0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "aab";
   DEBUG (" * t:rep.1 %s", "");
 
-  mInit (&m, "aab", 1);
-  mRead (&m, b, 16);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 16);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 2);        /* Matched two chars */
+  assert (o - i == 2);        /* Matched two chars */
 }
 
 void test_rep1_partial_commit ()
@@ -934,15 +937,16 @@ void test_rep1_partial_commit ()
     0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "aab";
   DEBUG (" * t:rep.1 %s", "(partial-commit)");
 
-  mInit (&m, "aab", 1);
-  mRead (&m, b, 16);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 16);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 2);        /* Matched two chars */
+  assert (o - i == 2);        /* Matched two chars */
 }
 
 /*
@@ -961,15 +965,16 @@ void test_rep2 ()
     0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "b";
   DEBUG (" * t:rep.2 %s", "");
 
-  mInit (&m, "b", 1);
-  mRead (&m, b, 16);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 16);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 0);        /* But didn't match any char */
+  assert (o - i == 0);        /* But didn't match any char */
 }
 
 void test_rep2_partial_commit ()
@@ -983,15 +988,16 @@ void test_rep2_partial_commit ()
     0x00, 0x00, 0x00, 0x00, /* Halt */
   };
   const char *o;
+  const char *i = "b";
   DEBUG (" * t:rep.2 %s", "(partial-commit)");
 
-  mInit (&m, "b", 1);
-  mRead (&m, b, 16);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 16);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 0);        /* But didn't match any char */
+  assert (o - i == 0);        /* But didn't match any char */
 }
 
 /*
@@ -1022,15 +1028,16 @@ void test_var1 ()
     0x00, 0x0, 0x0, 0x00,       /* 0xc: Halt               */
   };
   const char *o;
+  const char *i = "1+1";
   DEBUG (" * t:var.%s", "1");
 
-  mInit (&m, "1+1", 3);
-  mRead (&m, b, 48);
-  o = mEval (&m);
+  mInit (&m);
+  mLoad (&m, b, 48);
+  o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - m.s == 3);        /* Matched the whole input */
+  assert (o - i == 3);        /* Matched the whole input */
 }
 
 /*
@@ -1054,7 +1061,7 @@ void test_var2 ()
     /* D <- '0' / '1' */
     0x30, 0x0, 0x0, 0x03,       /* 0x7: Choice 0x3 [0x8]   */
     0x10, 0x0, 0x0, 0x30,       /* 0x8: Char '0'           */
-    0x40, 0x0, 0x0, 0x03,       /* 0x9: Commit 0x03 [0xa]  */
+    0x40, 0x0, 0x0, 0x02,       /* 0x9: Commit 0x02 [0xb]  */
     0x10, 0x0, 0x0, 0x31,       /* 0xa: Char '1'           */
     0xd0, 0x0, 0x0, 0x00,       /* 0xb: Return             */
 
@@ -1062,9 +1069,9 @@ void test_var2 ()
   };
   DEBUG (" * t:var.%s", "2");
 
-  mInit (&m, "2+1", 3);
-  mRead (&m, b, 48);
-  assert (!mEval (&m));         /* Failed */
+  mInit (&m);
+  mLoad (&m, b, 48);
+  assert (!mMatch (&m, "1+2", 3)); /* Failed */
   mFree (&m);
 }
 

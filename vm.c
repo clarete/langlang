@@ -277,20 +277,20 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
     switch (pc->rator) {
     case 0: return i;
     case OP_CHAR:
-      DEBUG ("       OP_CHAR: `%c' == `%c' ? %d", *i,
-             UOPERAND0 (pc), *i == UOPERAND0 (pc));
+      DEBUGLN ("       OP_CHAR: `%c' == `%c' ? %d", *i,
+               UOPERAND0 (pc), *i == UOPERAND0 (pc));
       if (*i == UOPERAND0 (pc)) { i++; pc++; }
       else goto fail;
       continue;
     case OP_ANY:
-      DEBUG ("       OP_ANY: `%c' < |s| ? %d", *i, i < THE_END);
+      DEBUGLN ("       OP_ANY: `%c' < |s| ? %d", *i, i < THE_END);
       if (i < THE_END) { i++; pc++; }
       else goto fail;
       continue;
     case OP_SPAN:
-      DEBUG ("       OP_SPAN: `%c' in [%c(%d)-%c(%d)]", *i,
-             UOPERAND1 (pc), UOPERAND1 (pc),
-             UOPERAND2 (pc), UOPERAND2 (pc));
+      DEBUGLN ("       OP_SPAN: `%c' in [%c(%d)-%c(%d)]", *i,
+               UOPERAND1 (pc), UOPERAND1 (pc),
+               UOPERAND2 (pc), UOPERAND2 (pc));
       if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) { i++; pc++; }
       else goto fail;
       continue;
@@ -468,7 +468,7 @@ static void test_ch1 ()
   };
   const char *i = "a";
   const char *o;
-  DEBUG (" * t:ch.1 %s", "");
+  DEBUGLN (" * t:ch.1 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 8);
@@ -489,10 +489,10 @@ static void test_ch2 ()
   Machine m;
   /* Start <- 'a' */
   Bytecode b[8] = {
-    0x10, 0x0, 0x0, 0x61,     /* Char 'a' */
-    0x00, 0x0, 0x0, 0x00,     /* Halt */
+    0x08, 0x0, 0x0, 0x61,       /* Char 'a' */
+    0x00, 0x0, 0x0, 0x00,       /* Halt */
   };
-  DEBUG (" * t:ch.2 %s", "");
+  DEBUGLN (" * t:ch.2 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 8);
@@ -515,7 +515,7 @@ static void test_any1 ()
   };
   const char *o;
   const char *i = "a";
-  DEBUG (" * t:any.1 %s", "");
+  DEBUGLN (" * t:any.1 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 8);
@@ -539,7 +539,7 @@ void test_any2 ()
     0x20, 0x0, 0x0, 0x0,      /* Any */
     0x00, 0x0, 0x0, 0x0,      /* Halt */
   };
-  DEBUG (" * t:any.2 %s", "");
+  DEBUGLN (" * t:any.2 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 8);
@@ -565,7 +565,7 @@ void test_not1 ()
   };
   const char *o;
   const char *i = "b";
-  DEBUG (" * t:not.1 %s", "");
+  DEBUGLN (" * t:not.1 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 20);
@@ -615,7 +615,7 @@ void test_not2 ()
     0x50, 0x0, 0x0, 0x00, /* Fail */
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
-  DEBUG (" * t:not.2 %s", "");
+  DEBUGLN (" * t:not.2 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 20);
@@ -633,7 +633,7 @@ void test_not2_fail_twice ()
     0x60, 0x0, 0x0, 0x00, /* FailTwice */
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
-  DEBUG (" * t:not.2 fail-twice %s", "");
+  DEBUGLN (" * t:not.2 fail-twice %s", "");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -662,7 +662,7 @@ void test_and1 ()
   };
   const char *o;
   const char *i = "a";
-  DEBUG (" * t:and.%s", "1");
+  DEBUGLN (" * t:and.%s", "1");
 
   mInit (&m);
   mLoad (&m, b, 32);
@@ -685,7 +685,7 @@ void test_and1_back_commit ()
   };
   const char *o;
   const char *i = "a";
-  DEBUG (" * t:and.1 (%s)", "back-commit");
+  DEBUGLN (" * t:and.1 (%s)", "back-commit");
 
   mInit (&m);
   mLoad (&m, b, 32);
@@ -715,7 +715,7 @@ void test_and2 ()
     0x50, 0x0, 0x0, 0x00, /* Fail */
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
-  DEBUG (" * t:and.%s", "2");
+  DEBUGLN (" * t:and.%s", "2");
 
   mInit (&m);
   mLoad (&m, b, 32);
@@ -735,7 +735,7 @@ void test_and2_back_commit ()
   };
   const char *o;
   const char *i = "b";
-  DEBUG (" * t:and.2 (%s)", "back-commit");
+  DEBUGLN (" * t:and.2 (%s)", "back-commit");
 
   mInit (&m);
   mLoad (&m, b, 32);
@@ -764,7 +764,7 @@ void test_con1 ()
   const char *o;
   const char *i = "abc";
 
-  DEBUG (" * t:con.1 %s", "");
+  DEBUGLN (" * t:con.1 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -790,7 +790,7 @@ void test_con2 ()
     0x20, 0x0, 0x0, 0x00, /* Any */
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
-  DEBUG (" * t:con.2 %s", "");
+  DEBUGLN (" * t:con.2 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -813,7 +813,7 @@ void test_con3 ()
     0x20, 0x0, 0x0, 0x00, /* Any */
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
-  DEBUG (" * t:con.3 %s", "");
+  DEBUGLN (" * t:con.3 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -837,7 +837,7 @@ void test_ord1 ()
     0x10, 0x0, 0x0, 0x62, /* Char 'b' */
     0x00, 0x0, 0x0, 0x00, /* Halt */
   };
-  DEBUG (" * t:ord.1 %s", "");
+  DEBUGLN (" * t:ord.1 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 20);
@@ -863,7 +863,7 @@ void test_ord2 ()
   };
   const char *o;
   const char *i = "a";
-  DEBUG (" * t:ord.2 %s", "");
+  DEBUGLN (" * t:ord.2 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 20);
@@ -892,7 +892,7 @@ void test_ord3 ()
   };
   const char *o;
   const char *i = "b";
-  DEBUG (" * t:ord.3 %s", "");
+  DEBUGLN (" * t:ord.3 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 20);
@@ -920,7 +920,7 @@ void test_rep1 ()
   };
   const char *o;
   const char *i = "aab";
-  DEBUG (" * t:rep.1 %s", "");
+  DEBUGLN (" * t:rep.1 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -943,7 +943,7 @@ void test_rep1_partial_commit ()
   };
   const char *o;
   const char *i = "aab";
-  DEBUG (" * t:rep.1 %s", "(partial-commit)");
+  DEBUGLN (" * t:rep.1 %s", "(partial-commit)");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -971,7 +971,7 @@ void test_rep2 ()
   };
   const char *o;
   const char *i = "b";
-  DEBUG (" * t:rep.2 %s", "");
+  DEBUGLN (" * t:rep.2 %s", "");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -994,7 +994,7 @@ void test_rep2_partial_commit ()
   };
   const char *o;
   const char *i = "b";
-  DEBUG (" * t:rep.2 %s", "(partial-commit)");
+  DEBUGLN (" * t:rep.2 %s", "(partial-commit)");
 
   mInit (&m);
   mLoad (&m, b, 16);
@@ -1034,7 +1034,7 @@ void test_var1 ()
   };
   const char *o;
   const char *i = "1+1";
-  DEBUG (" * t:var.%s", "1");
+  DEBUGLN (" * t:var.%s", "1");
 
   mInit (&m);
   mLoad (&m, b, 48);
@@ -1072,7 +1072,7 @@ void test_var2 ()
 
     0x00, 0x0, 0x0, 0x00,       /* 0xc: Halt               */
   };
-  DEBUG (" * t:var.%s", "2");
+  DEBUGLN (" * t:var.%s", "2");
 
   mInit (&m);
   mLoad (&m, b, 48);
@@ -1092,7 +1092,7 @@ void test_span1 ()
   };
   const char *o;
   const char *i = "abcdefgh";
-  DEBUG (" * t:span.%s", "1");
+  DEBUGLN (" * t:span.%s", "1");
 
   mInit (&m);
   mLoad (&m, b, 16);

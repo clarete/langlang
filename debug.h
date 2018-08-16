@@ -1,6 +1,9 @@
-#ifndef DEBUG_H
+#ifndef DEBUG_GUARD
+#define DEBUG_GUARD
+
 # include <stdint.h>
 # include <stdlib.h>
+
 # ifdef TEST
 #  define BFMT "%c%c%c%c%c%c%c%c"
 #  define B(byte)        \
@@ -64,12 +67,11 @@
 #  define DEBUG_STACK()
 # endif  /* TEST */
 
-char *debug_byte (uint32_t a, char *buffer, int size) {
+static inline char *debug_byte (uint32_t a, char *buffer, int size) {
   buffer += size - 1;
   for (int i = 31; i >= 0; i--, a >>=1)
     *buffer-- = (a & 1) + '0';
   return buffer;
 }
-#endif  /* DEBUG_H */
 
-/* printf ("FOO: s:%p i:%p i-s:%ld\n", m.s, m.i, m.i - m.s); */
+#endif  /* DEBUG_GUARD */

@@ -87,10 +87,10 @@ sequences of instructions. Each instruction is 32 bits long.
 Instruction Format
 ==================
 
-Each instruction is 32 bit long. The first 4 bits are reserved for the
-opcode and the other 28 bits store parameters for the instruction.  We
+Each instruction is 32 bit long. The first 6 bits are reserved for the
+opcode and the other 26 bits store parameters for the instruction.  We
 have instructions that take 0, 1 or 2 parameters. Since there are only
-4 bits for instructions, we can have at most 31 of them.
+6 bits for instructions, we can have at most 63 of them.
 
 The utility `OP_MASK()' can be used to read the OPCODE from a 32bit
 instruction data. Each argument size introduces different functions.
@@ -98,24 +98,24 @@ They're Here are the types of arguments:
 
 Instruction with 1 parameter (Eg.: Char x)
 ------------------------------------------
-    opcode  | Parameter #1
-    --------|--------------------------------------------------------
-    |0|0|0|1|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
-    --------|--------------------------------------------------------
-    [ 0 - 4 |                                                5 - 32 ]
-    [     4 |                                                    28 ]
+    opcode    |Parameter #1
+    ----------|------------------------------------------------------
+    |0|0|0|0|1|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
+    ----------|------------------------------------------------------
+    [   0 - 5 |                                              6 - 32 ]
+    [       5 |                                                  27 ]
 
     * soperand() Read signed value
     * uoperand() Read unsigned value
 
 Instruction with 2 parameters (Eg.: TestChar 4 97)
 -------------------------------------------------
-    opcode  | Parameter #1              | Parameter #2
-    --------|---------------------------|----------------------------
-    |0|0|0|1|0|0|0|0|0|0|0|0|0|0|0|1|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
-    --------|---------------------------|----------------------------
-    [ 0 - 4 |                    5 - 18 |                   19 - 32 ]
-    [     4 |                        14 |                        14 ]
+    opcode    | Parameter #1        | Parameter #2
+    ----------|---------------------|--------------------------------
+    |0|0|0|0|1|0|0|0|0|0|0|0|0|0|0|1|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
+    ----------|---------------------|--------------------------------
+    [   0 - 5 |              6 - 16 |                       17 - 32 ]
+    [       5 |                  11 |                            16 ]
 
     * s1operand() Read first operand as signed value
     * u1operand() Read first operand as unsigned values
@@ -125,25 +125,26 @@ Instruction with 2 parameters (Eg.: TestChar 4 97)
 
 
 /* Instruction Offsets - All sizes are in bits */
-#define INSTRUCTION_SIZE   32     /* Instruction size */
-#define OPERATOR_SIZE      4      /* Operator size */
+#define INSTRUCTION_SIZE   32   /* Instruction size */
+#define OPERATOR_SIZE      5    /* Operator size */
 #define OPERATOR_OFFSET    (INSTRUCTION_SIZE - OPERATOR_SIZE)
-#define SL_OPERAND_SIZE    OPERATOR_OFFSET       /* Signed Long (28b) */
-#define SS_OPERAND_SIZE    (SL_OPERAND_SIZE / 2) /* Signed Short (14b) */
+#define SL_OPERAND_SIZE    OPERATOR_OFFSET /* 27b */
+#define S1_OPERAND_SIZE    11
+#define S2_OPERAND_SIZE    16
 
 /** Clear all 28bits from the right then shift to the right */
-#define OP_MASK(c) (((c) & 0xff000000) >> OPERATOR_OFFSET)
+#define OP_MASK(c) (((c) & 0xf8000000) >> OPERATOR_OFFSET)
 
 /** Read unsigned single operand */
-#define UOPERAND0(op) (op->rand & 0x0fffffff)
-#define UOPERAND1(op) ((op->rand & 0x0fffffff) >> SS_OPERAND_SIZE)
-#define UOPERAND2(op) (op->rand & ((1 << SS_OPERAND_SIZE) - 1))
+#define UOPERAND0(op) (op->rand & 0x7ffffff)
+#define UOPERAND1(op) ((op->rand & 0x7ffffff) >> S1_OPERAND_SIZE)
+#define UOPERAND2(op) (op->rand & ((1 << S2_OPERAND_SIZE) - 1))
 /** Read signed values */
 #define SIGNED(i,s) ((int32_t) ((i & (1 << (s - 1))) ? (i | ~((1 << s) - 1)) : i))
 /** Read single operand from instruction */
 #define SOPERAND0(op) SIGNED (op->rand, SL_OPERAND_SIZE)
-#define SOPERAND1(op) SIGNED (op->rand >> SS_OPERAND_SIZE, SS_OPERAND_SIZE)
-#define SOPERAND2(op) SIGNED (op->rand, SS_OPERAND_SIZE)
+/* #define SOPERAND1(op) SIGNED (op->rand >> SS_OPERAND_SIZE, SS_OPERAND_SIZE) */
+/* #define SOPERAND2(op) SIGNED (op->rand, SS_OPERAND_SIZE) */
 
 /* Arbitrary values */
 

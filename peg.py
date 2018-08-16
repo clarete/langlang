@@ -493,6 +493,25 @@ class Instructions(enum.Enum):
     ) = range(16)
 
 
+INSTRUCTION_SIZE =  32
+OPERATOR_SIZE    =  5
+OPERATOR_OFFSET  =  (INSTRUCTION_SIZE - OPERATOR_SIZE)
+SL_OPERAND_SIZE  =  OPERATOR_OFFSET
+S1_OPERAND_SIZE  =  11
+S2_OPERAND_SIZE  =  16
+
+def gen(instruction_name, arg0=None, arg1=None):
+    instruction = Instructions["OP_{}".format(instruction_name.upper())]
+    if arg0 is not None and arg1 is not None: # Two args, 1) 10b 2) 16b
+        return ((arg1 | (arg0 << 16)) | 0xe << OPERATOR_OFFSET)
+    elif arg0 is not None and arg1 is None: # Single 27bits arg
+        return (arg0 & 0x07ffffff) | (instruction.value << OPERATOR_OFFSET)
+    elif arg0 is None and arg1 is not None: # Not supported
+        raise Exception("Plz use arg0 instead of arg1")
+    else:                  # No arguments. Just padding with zeros
+        return (instruction.value << OPERATOR_OFFSET)
+
+
 class Compiler:
 
     def __init__(self, grammar):
@@ -503,18 +522,8 @@ class Compiler:
         self.code = []
         self.callsites = {}
 
-    def gen(self, instruction, arg0=None, arg1=None):
-        if arg0 is not None and arg1 is not None: # Two 14bit args
-            return ((arg1 | (arg0 << 14)) | 0xe << 28)
-        elif arg0 is not None and arg1 is None: # Single 28bits arg
-            return (arg0 & 0x0fffffff) | (instruction.value << 28)
-        elif arg0 is None and arg1 is not None: # Not supported
-            raise Exception("Plz use arg0 instead of arg1")
-        else:                  # No arguments. Just padding with zeros
-            return (instruction.value << 28)
-
     def emit(self, *args):
-        self.code.append(self.gen(*args))
+        self.code.append(gen(*args))
         self.pos += 1
         return self.pos
 
@@ -525,23 +534,23 @@ class Compiler:
         return programSize
 
     def compileNot(self, atom):
-        pos = self.emit(Instructions.OP_CHOICE) -1
+        pos = self.emit("choice") -1
         size = self.cc(atom.value)
-        self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 3)
-        self.emit(Instructions.OP_COMMIT, 1)
-        self.emit(Instructions.OP_FAIL)
+        self.code[pos] = gen("choice", size + 3)
+        self.emit("commit", 1)
+        self.emit("fail")
 
     def compileAnd(self, atom):
-        pos = self.emit(Instructions.OP_CHOICE)
+        pos = self.emit("choice")
         self.compileNot(atom)
         size = self.pos - pos
-        self.code[pos-1] = self.gen(Instructions.OP_CHOICE, size + 3)
-        self.emit(Instructions.OP_COMMIT, 1)
-        self.emit(Instructions.OP_FAIL)
+        self.code[pos-1] = gen("choice", size + 3)
+        self.emit("commit", 1)
+        self.emit("fail")
 
     def compileLiteral(self, literal):
         for i in literal.value:
-            self.emit(Instructions.OP_CHAR, ord(i))
+            self.emit("char", ord(i))
 
     def compileSequence(self, sequence):
         for atom in sequence.value:
@@ -553,12 +562,12 @@ class Compiler:
             if i + 1 == len(choices):
                 compFunc(c)
                 break
-            pos = self.emit(Instructions.OP_CHOICE) -1
+            pos = self.emit("choice") -1
             size = compFunc(c)
-            self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 2)
-            commits.append(self.emit(Instructions.OP_COMMIT) - 1)
+            self.code[pos] = gen("choice", size + 2)
+            commits.append(self.emit("commit") - 1)
         for i in commits:       # Rewrite the locations for commits
-            self.code[i] = self.gen(Instructions.OP_COMMIT, self.pos - i)
+            self.code[i] = gen("commit", self.pos - i)
 
     def compileExpression(self, expr):
         self._compileChoices(expr.value, self.cc)
@@ -566,16 +575,16 @@ class Compiler:
     def compileIdentifier(self, atom):
         # Emit an OP_CALL as a placeholder to be patched at the end of
         # the code generation
-        pos = self.emit(Instructions.OP_CALL) -1
+        pos = self.emit("call") -1
         if atom.value not in self.callsites:
             self.callsites[atom.value] = []
         self.callsites[atom.value].append(pos)
 
     def compileStar(self, atom):
-        pos = self.emit(Instructions.OP_CHOICE) -1
+        pos = self.emit("choice") -1
         size = self.cc(atom.value)
-        self.code[pos] = self.gen(Instructions.OP_CHOICE, size + 2)
-        self.emit(Instructions.OP_COMMIT, -(size + 1))
+        self.code[pos] = gen("choice", size + 2)
+        self.emit("commit", -(size + 1))
 
     def compilePlus(self, atom):
         self.cc(atom.value)
@@ -584,7 +593,7 @@ class Compiler:
     def compileRange(self, theRange):
         currentPos = self.pos
         left, right = theRange
-        self.emit(Instructions.OP_SPAN, ord(left), ord(right))
+        self.emit("span", ord(left), ord(right))
         return self.pos - currentPos
 
     def compileClass(self, atom):
@@ -604,7 +613,7 @@ class Compiler:
 
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
-        elif isinstance(atom, Dot): self.emit(Instructions.OP_ANY)
+        elif isinstance(atom, Dot): self.emit("any")
         elif isinstance(atom, Not): self.compileNot(atom)
         elif isinstance(atom, And): self.compileAnd(atom)
         elif isinstance(atom, Star): self.compileStar(atom)
@@ -617,40 +626,40 @@ class Compiler:
 
     def run(self):
         # It's always 2 because invariant contains two instructions
-        self.emit(Instructions.OP_CALL, 2)
-        pos = self.emit(Instructions.OP_JUMP)
+        self.emit("call", 2)
+        pos = self.emit("jump")
         size = 0
         addresses = {}
         for nt in self.ga:
             [[name, rule]] = nt.items()
             addresses[name] = self.pos
             size += self.cc(rule)
-            self.emit(Instructions.OP_RETURN)
+            self.emit("return")
             size += 1           # This accounts for the above return
-        self.code[pos-1] = self.gen(Instructions.OP_JUMP, size + 2)
-        self.emit(Instructions.OP_HALT)
+        self.code[pos-1] = gen("jump", size + 2)
+        self.emit("halt")
 
         # Patch all OP_CALL instructions generated with final
         # addresses
         for identifier, callsites in self.callsites.items():
             for cs in callsites:
-                self.code[cs] = self.gen(Instructions.OP_CALL, addresses[identifier] - cs)
+                self.code[cs] = gen("call", addresses[identifier] - cs)
         return struct.pack('>' + ('I' * len(self.code)), *self.code)
 
 ## --- Utilities ---
 
+OP_MASK = lambda c: (((c) & 0xf8000000) >> OPERATOR_OFFSET)
+UOPERAND0 = lambda c: ((c) & 0x7ffffff)
+
 def dbgcc(c, bc):
     print('\033[92m{}\033[0m'.format(c), end=':\n')
-    for x in range(0, len(bc), 4):
-        instruction = Instructions(ord(bc[x]) >> 4)
-        chars = [bc[x+y] for y in range(4)]
-        value = ord(bc[x+3])
-        print('   {:02x} {} [{:>10}{}]'.format(
-            x / 4,
-            ''.join(chars).encode('hex'),
-            instruction.name,
-            value and ' {:02x}'.format(value) or '   ',
-        ))
+    unpacked = struct.unpack('>' + ('I' * (len(bc)/4)), bc)
+    for i, instr in enumerate(unpacked):
+        name = Instructions(OP_MASK(instr)).name
+        value = UOPERAND0(instr)
+        print('   {:02x} {:08x} [{:>10}{}]'.format(
+            i, instr, name,
+            value and ' {:02x}'.format(value) or '   '))
     return bc
 
 ## --- tests ---
@@ -952,150 +961,150 @@ C <- [a-z]+
     assert(e.matchAtom(Identifier('C')) == (True, '\t'))
 
 
-def test_compiler():
-    compiler = Compiler(Parser("S <- 'a'").run())
+def test_instruction():
     # No arguments
     assert(
-        compiler.gen(Instructions.OP_ANY) ==
-        0b00100000000000000000000000000000
+        gen("any") == 0b00010000000000000000000000000000
     )
     # One Argument
     assert(
-        compiler.gen(Instructions.OP_CHAR, ord('a')) ==
-        0b00010000000000000000000001100001
+        gen("char", ord('a')) == 0b00001000000000000000000001100001
     )
-
+    # Two Arguments
+    assert(
+        gen("span", ord('a'), ord('e')) == 0b01110000011000010000000001100101
+    )
 
 def test_compile():
     cc = lambda c: dbgcc(c, Compiler(Parser(c).run()).run())
-    bn = lambda *bc: struct.pack('B' * len(bc), *bc)
+    bn = lambda *bc: struct.pack('>' + ('I' * len(bc)), *bc)
 
     # Char 'c'
     assert(cc("S <- 'a'") == bn(
-        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x04,   # 0x4: Jump 0x4
-        0x10, 0x0, 0x0, 0x61,   # 0x3: Char 'a'
-        0xd0, 0x0, 0x0, 0x00,   # 0x4: Return
-        0x00, 0x0, 0x0, 0x00,   # 0x5: Halt
+        gen("call", 2),
+        gen("jump", 4),
+        gen("char", ord('a')),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Any
     assert(cc("S <- .") == bn(
-        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x04,   # 0x2: Jump 0x4
-        0x20, 0x0, 0x0, 0x00,   # 0x3: Any
-        0xd0, 0x0, 0x0, 0x00,   # 0x4: Return
-        0x00, 0x0, 0x0, 0x00,   # 0x5: Halt
+        gen("call", 2),
+        gen("jump", 4),
+        gen("any"),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Not
     assert(cc("S <- !'a'") == bn(
-        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x07,   # 0x2: Jump 0x7
-        0x30, 0x0, 0x0, 0x04,   # 0x3: Choice 0x04 [0x6]
-        0x10, 0x0, 0x0, 0x61,   # 0x4: Char 'a'
-        0x40, 0x0, 0x0, 0x01,   # 0x5: Commit 1 [0x6]
-        0x50, 0x0, 0x0, 0x00,   # 0x6: Fail
-        0xd0, 0x0, 0x0, 0x00,   # 0x7: Return
-        0x00, 0x0, 0x0, 0x00,   # 0x8: Halt
+        gen("call", 2),
+        gen("jump", 7),
+        gen("choice", 4),
+        gen("char", ord('a')),
+        gen("commit", 1),
+        gen("fail"),
+        gen("return"),
+        gen("halt"),
     ))
 
     # And
     assert(cc("S <- &'a'") == bn(
-        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x0a,   # 0x2: Jump 0xa
-        0x30, 0x0, 0x0, 0x07,   # 0x3: Choice 0x07
-        0x30, 0x0, 0x0, 0x04,   # 0x4: Choice 0x04
-        0x10, 0x0, 0x0, 0x61,   # 0x5: Char 'a'
-        0x40, 0x0, 0x0, 0x01,   # 0x6: Commit 1
-        0x50, 0x0, 0x0, 0x00,   # 0x7: Fail
-        0x40, 0x0, 0x0, 0x01,   # 0x8: Commit 1
-        0x50, 0x0, 0x0, 0x00,   # 0x9: Fail
-        0xd0, 0x0, 0x0, 0x00,   # 0xa: Return
-        0x00, 0x0, 0x0, 0x00,   # 0xb: Halt
+        gen("call", 2),
+        gen("jump", 10),
+        gen("choice", 7),
+        gen("choice", 4),
+        gen("char", ord('a')),
+        gen("commit", 1),
+        gen("fail"),
+        gen("commit", 1),
+        gen("fail"),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Concatenation
     assert(cc("S <- 'a' . 'c'") == bn(
-        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x06,   # 0x2: Jump 0x6
-        0x10, 0x0, 0x0, 0x61,   # 0x3: Char 'a'
-        0x20, 0x0, 0x0, 0x00,   # 0x4: Any
-        0x10, 0x0, 0x0, 0x63,   # 0x5: Char 'c'
-        0xd0, 0x0, 0x0, 0x00,   # 0x6: Return
-        0x00, 0x0, 0x0, 0x00,   # 0x7: Halt
+        gen("call", 2),
+        gen("jump", 6),
+        gen("char", ord('a')),
+        gen("any"),
+        gen("char", ord('c')),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Ordered Choice
     assert(cc("S <- 'a' / 'b'") == bn(
-        0xc0, 0x0, 0x0, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x07,   # 0x2: Jump 0x7
-        0x30, 0x0, 0x0, 0x03,   # 0x3: Choice 0x03
-        0x10, 0x0, 0x0, 0x61,   # 0x4: Char 'a'
-        0x40, 0x0, 0x0, 0x02,   # 0x5: Commit 0x02
-        0x10, 0x0, 0x0, 0x62,   # 0x6: Char 'b'
-        0xd0, 0x0, 0x0, 0x00,   # 0x7: Return
-        0x00, 0x0, 0x0, 0x00,   # 0x8: Halt
+        gen("call", 2),
+        gen("jump", 7),
+        gen("choice", 3),
+        gen("char", ord('a')),
+        gen("commit", 2),
+        gen("char", ord('b')),
+        gen("return"),
+        gen("halt"),
     ))
 
     assert(cc("S <- 'a' / 'b' / 'c' / 'd'") == bn(
-        0xc0, 0x0, 0x0, 0x02,   # 0x0: Call 0x2 [0x3]
-        0xb0, 0x0, 0x0, 0x0d,   # 0x1: Jump 0xd
-        0x30, 0x0, 0x0, 0x03,   # 0x2: Choice 0x03
-        0x10, 0x0, 0x0, 0x61,   # 0x3: Char 'a'
-        0x40, 0x0, 0x0, 0x08,   # 0x4: Commit 0x08
-        0x30, 0x0, 0x0, 0x03,   # 0x5: Choice 0x03
-        0x10, 0x0, 0x0, 0x62,   # 0x6: Char 'b'
-        0x40, 0x0, 0x0, 0x05,   # 0x7: Commit 0x05
-        0x30, 0x0, 0x0, 0x03,   # 0x8: Choice 0x03
-        0x10, 0x0, 0x0, 0x63,   # 0x9: Char 'c'
-        0x40, 0x0, 0x0, 0x02,   # 0xa: Commit 0x02
-        0x10, 0x0, 0x0, 0x64,   # 0xb: Char 'd'
-        0xd0, 0x0, 0x0, 0x00,   # 0xc: Return
-        0x00, 0x0, 0x0, 0x00,   # 0xd: Halt
+        gen("call", 2),
+        gen("jump", 13),
+        gen("choice", 3),
+        gen("char", ord('a')),
+        gen("commit", 8),
+        gen("choice", 3),
+        gen("char", ord('b')),
+        gen("commit", 5),
+        gen("choice", 3),
+        gen("char", ord('c')),
+        gen("commit", 2),
+        gen("char", ord('d')),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Repetition (Star)
     assert(cc("S <- 'a'*") == bn(
-        0xc0, 0x00, 0x00, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x00, 0x00, 0x06,   # 0x2: Jump 0x6
-        0x30, 0x00, 0x00, 0x03,   # 0x3: Choice 0x03
-        0x10, 0x00, 0x00, 0x61,   # 0x4: Char 'a'
-        0x4f, 0xff, 0xff, 0xfe,   # 0x5: Commit 0xffe (-2)
-        0xd0, 0x00, 0x00, 0x00,   # 0x6: Return
-        0x00, 0x00, 0x00, 0x00,   # 0x7: Halt
+        gen("call", 2),
+        gen("jump", 6),
+        gen("choice", 3),
+        gen("char", ord('a')),
+        gen("commit", -2),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Plus
     assert(cc("S <- 'a'+") == bn(
-        0xc0, 0x00, 0x00, 0x02,   # 0x1: Call 0x2 [0x3]
-        0xb0, 0x00, 0x00, 0x07,   # 0x2: Jump 0x7
-        0x10, 0x00, 0x00, 0x61,   # 0x3: Char 'a'
-        0x30, 0x00, 0x00, 0x03,   # 0x4: Choice 0x03
-        0x10, 0x00, 0x00, 0x61,   # 0x5: Char 'a'
-        0x4f, 0xff, 0xff, 0xfe,   # 0x6: Commit 0xffe (-2)
-        0xd0, 0x00, 0x00, 0x00,   # 0x7: Return
-        0x00, 0x00, 0x00, 0x00,   # 0x8: Halt
+        gen("call", 2),
+        gen("jump", 7),
+        gen("char", ord('a')),
+        gen("choice", 3),
+        gen("char", ord('a')),
+        gen("commit", -2),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Class -> Span
     assert(cc("S <- [a-e]") == bn(
-        0xc0, 0x00, 0x00, 0x02,   # 0x0: Call 0x2
-        0xb0, 0x00, 0x00, 0x04,   # 0x1: Jump 0x4
-        0xe0, 0x18, 0x40, 0x65,   # 0x2: Span a-e
-        0xd0, 0x00, 0x00, 0x00,   # 0x3: Return
-        0x00, 0x00, 0x00, 0x00,   # 0x4: Halt
+        gen("call", 2),
+        gen("jump", 4),
+        gen("span", ord('a'), ord('e')),
+        gen("return"),
+        gen("halt"),
     ))
 
     assert(cc("S <- [a-zA-Z]") == bn(
-        0xc0, 0x00, 0x00, 0x02,   # 0x0: Call 0x2
-        0xb0, 0x00, 0x00, 0x07,   # 0x1: Jump 0x7
-        0x30, 0x00, 0x00, 0x03,   # 0x2: Choice 0x03
-        0xe0, 0x18, 0x40, 0x7a,   # 0x2: Span a-z
-        0x40, 0x00, 0x00, 0x02,   # 0x4: Commit 0x02
-        0xe0, 0x10, 0x40, 0x5a,   # 0x2: Span a-z
-        0xd0, 0x00, 0x00, 0x00,   # 0x6: Return
-        0x00, 0x00, 0x00, 0x00,   # 0x7: Halt
+        gen("call", 2),
+        gen("jump", 7),
+        gen("choice", 3),
+        gen("span", ord('a'), ord('z')),
+        gen("commit", 2),
+        gen("span", ord('A'), ord('Z')),
+        gen("return"),
+        gen("halt"),
     ))
 
     # Class -> Set
@@ -1104,23 +1113,18 @@ def test_compile():
 
     # Grammar/Variables (Call/Return)
     assert(cc("S <- D '+'D\nD <- '0' / '1'") == bn(
-        0xc0, 0x0, 0x0, 0x02,       #/* 0x1: Call 0x2 [0x3]     */
-        0xb0, 0x0, 0x0, 0x0b,       #/* 0x2: Jump 0xb           */
-
-        # /* S <- D '+' D */
-        0xc0, 0x0, 0x0, 0x04,       #/* 0x3: Call 0x5 [0x7]     */
-        0x10, 0x0, 0x0, 0x2b,       #/* 0x4: Char '+'           */
-        0xc0, 0x0, 0x0, 0x02,       #/* 0x5: Call 0x2 [0x7]     */
-        0xd0, 0x0, 0x0, 0x00,       #/* 0x6: Return             */
-
-        # /* D <- '0' / '1' */
-        0x30, 0x0, 0x0, 0x03,       #/* 0x7: Choice 0x3 [0x8]   */
-        0x10, 0x0, 0x0, 0x30,       #/* 0x8: Char '0'           */
-        0x40, 0x0, 0x0, 0x02,       #/* 0x9: Commit 0x03 [0xa]  */
-        0x10, 0x0, 0x0, 0x31,       #/* 0xa: Char '1'           */
-        0xd0, 0x0, 0x0, 0x00,       #/* 0xb: Return             */
-
-        0x00, 0x0, 0x0, 0x00,       #/* 0xc: Halt               */
+        gen("call", 2),
+        gen("jump", 11),
+        gen("call", 4),
+        gen("char", ord('+')),
+        gen("call", 2),
+        gen("return"),
+        gen("choice", 3),
+        gen("char", ord('0')),
+        gen("commit", 2),
+        gen("char", ord('1')),
+        gen("return"),
+        gen("halt"),
     ))
 
 
@@ -1129,7 +1133,7 @@ def test():
     test_parser()
     # test_parse_errors()
     test_match()
-    test_compiler()
+    test_instruction()
     test_compile()
 
 

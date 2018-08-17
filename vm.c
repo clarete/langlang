@@ -256,11 +256,10 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       PUSH (NULL, pc + 1);
       pc += SOPERAND0 (pc);
       continue;
-    case OP_RETURN: {
+    case OP_RETURN:
       assert (sp > m->stack);
       pc = POP ()->pc;
       continue;
-    }
     case OP_FAIL_TWICE:
       POP ();                   /* Drop top of stack & Fall through */
     case OP_FAIL:

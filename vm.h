@@ -59,8 +59,8 @@ typedef uint8_t Bytecode;
 
 /* Instruction following the format of 4b operator and 12b operand */
 typedef struct {
-  unsigned short rator: 4;
-  uint32_t rand: 28;
+  unsigned short rator: 5;
+  uint32_t rand: 27;
 } Instruction;
 
 /* Entry that's stored in the Machine's stack for supporting backtrack

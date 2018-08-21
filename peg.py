@@ -492,6 +492,24 @@ class Instructions(enum.Enum):
      OP_END,
     ) = range(16)
 
+InstructionParams = {
+    Instructions.OP_HALT: 0,
+    Instructions.OP_CHAR: 1,
+    Instructions.OP_ANY: 0,
+    Instructions.OP_CHOICE: 1,
+    Instructions.OP_COMMIT: 1,
+    Instructions.OP_FAIL: 0,
+    Instructions.OP_FAIL_TWICE: 1,
+    Instructions.OP_PARTIAL_COMMIT: 1,
+    Instructions.OP_BACK_COMMIT: 1,
+    Instructions.OP_TEST_CHAR: 2,
+    Instructions.OP_TEST_ANY: 2,
+    Instructions.OP_JUMP: 1,
+    Instructions.OP_CALL: 1,
+    Instructions.OP_RETURN: 0,
+    Instructions.OP_SPAN: 2,
+    Instructions.OP_END: 0,
+}
 
 INSTRUCTION_SIZE =  32
 OPERATOR_SIZE    =  5
@@ -649,18 +667,29 @@ class Compiler:
 
 ## --- Utilities ---
 
-OP_MASK = lambda c: (((c) & 0xf8000000) >> OPERATOR_OFFSET)
+OP_MASK   = lambda c: (((c) & 0xf8000000) >> OPERATOR_OFFSET)
 UOPERAND0 = lambda c: ((c) & 0x7ffffff)
+UOPERAND1 = lambda c: (UOPERAND0(c) >> S2_OPERAND_SIZE)
+UOPERAND2 = lambda c: (UOPERAND0(c) & ((1 << S2_OPERAND_SIZE) - 1))
+
 
 def dbgcc(c, bc):
+    if c[-1] == '\n': c = c[:-1]
     print('\033[92m{}\033[0m'.format(c), end=':\n')
     unpacked = struct.unpack('>' + ('I' * (len(bc)/4)), bc)
     for i, instr in enumerate(unpacked):
-        name = Instructions(OP_MASK(instr)).name
-        value = UOPERAND0(instr)
-        print('   {:02x} {:08x} [{:>10}{}]'.format(
-            i, instr, name,
-            value and ' {:02x}'.format(value) or '   '))
+        obj = Instructions(OP_MASK(instr))
+        name = obj.name
+        argc = InstructionParams[obj]
+        if argc == 1:
+            val = '      0x{:02x}'.format(UOPERAND0(instr))
+        elif argc == 2:
+            val = ' 0x{:02x} 0x{:02x}'.format(
+                UOPERAND1(instr), UOPERAND2(instr))
+        else:
+            val = '          '
+        print('   0x{:02x} 0x{:08x} [{:>17}{}]'.format(i, instr, obj.name, val))
+
     return bc
 
 ## --- tests ---

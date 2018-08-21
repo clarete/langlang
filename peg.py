@@ -500,10 +500,11 @@ SL_OPERAND_SIZE  =  OPERATOR_OFFSET
 S1_OPERAND_SIZE  =  11
 S2_OPERAND_SIZE  =  16
 
+
 def gen(instruction_name, arg0=None, arg1=None):
     instruction = Instructions["OP_{}".format(instruction_name.upper())]
     if arg0 is not None and arg1 is not None: # Two args, 1) 10b 2) 16b
-        return ((arg1 | (arg0 << 16)) | 0xe << OPERATOR_OFFSET)
+        return ((arg1 | (arg0 << S2_OPERAND_SIZE)) | (instruction.value << OPERATOR_OFFSET))
     elif arg0 is not None and arg1 is None: # Single 27bits arg
         return (arg0 & 0x07ffffff) | (instruction.value << OPERATOR_OFFSET)
     elif arg0 is None and arg1 is not None: # Not supported

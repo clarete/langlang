@@ -535,10 +535,18 @@ class Compiler:
 
     def __init__(self, grammar):
         self.ga = grammar
+        # The grammar as a dictionary. Since we lose the order, that's
+        # why the same data as above but with a different format.
         self.g = {x: y for di in grammar for x, y in di.items()}
+        # The start rule is just the first one for now
         self.start = list(grammar[0].keys())[0]
+        # Write cursor for `self.code'
         self.pos = 0
+        # Store the binary code that will be packed in the end of the
+        # process. Each entry is a uint32_t generated with `gen()'
         self.code = []
+        # Save all the call instructions that need to be updated with
+        # the final address of where they want to call to.
         self.callsites = {}
 
     def emit(self, *args):
@@ -663,6 +671,7 @@ class Compiler:
         for identifier, callsites in self.callsites.items():
             for cs in callsites:
                 self.code[cs] = gen("call", addresses[identifier] - cs)
+        # Pack the integers as binary data
         return struct.pack('>' + ('I' * len(self.code)), *self.code)
 
 ## --- Utilities ---

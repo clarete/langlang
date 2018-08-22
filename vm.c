@@ -73,6 +73,8 @@ Machine Instructions
 * [x] Return
 * [ ] Set
 * [x] Span
+* [ ] CapOpen
+* [ ] CapClose
 
 Bytecode Format
 ===============
@@ -122,6 +124,45 @@ Instruction with 2 parameters (Eg.: TestChar 4 97)
     * u1operand() Read first operand as unsigned values
     * s2operand() Read second operand as signed value
     * u2operand() Read second operand as unsigned value
+
+Other Design Choices
+====================
+
+The core of this module tries to follow as close as possible the
+design established by "A Parsing Machine for PEGs" (R. Ierusalimschy &
+S. Medeiros -- 2008). However, the design doesn't really specify the
+implementation details of features that aren't related to matching the
+input, like the implementation of SET, SPAN and how to capture the
+matches.
+
+Features that open must provide well defined functionality but don't
+have an implementation specification are documented in this section.
+
+SPAN
+----
+
+  This is way to allow the implementation to match a range of
+  characters like =a-z= instead of just expanding it to an ordered
+  choice that is as big as the range E.g.: =a / b / ... / z=.
+
+  The =OP_SPAN a b= instruction is the current way of implementing the
+  semantics of =SPAN=. It takes two arguments =a= and =b= and compare
+  them to the next char in the input stream =i= as follows:
+
+    =(a >\= i) && (i <\= b)=
+
+  This improves on the simplest case of a single range. To represent
+  classes with multiple ranges e.g.: =[a-zA-Z]= the compiler currently
+  has to produce an ordered choice with one choice per range.
+
+SET
+---
+
+  This feature isn't implemented yet. It's probably going to be
+  implemented as a new instruction =OP_SET l= where =l= is the
+  location of a set of chars stored in a soon to be implemented string
+  table.
+
 */
 
 /* -- Error control & report utilities -- */

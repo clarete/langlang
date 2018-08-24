@@ -1,17 +1,28 @@
-* Parsing Machine for PEGs
+* langlang
 
-** Bootstrap
+  As a Language Toolkit, =langlang= aims to provide tools interpreting
+  and transforming data in lots of different formats. In the very
+  likely case of a format that =langlang= is unaware of, it should be
+  simple to add support to it.
 
-   #+begin_src sh
-   ./pegc -i peg.g -o peg.bin           # Not really working yet
-   ./vm --grammar peg.bin --input peg.g # --transform pegc --output peg2.bin
-   # [ "$(md5sum peg.bin)" -eq "$(md5sum peg2.bin)" ] && echo "(:" || echo "):"
-   #+end_src
+  =langlang= currently provides a parsing system based on PEGs
+  implemented as a virtual machine inspired by the style the great
+  lpeg from the Lua developers is designed.
 
-** Heavily based on
+  The first feature on the way is the =llmatch= command line tool that
+  can be used to match text from input using either a built in grammar
+  or a user provided one. Example:
 
-   * Parsing Expression Grammars: A Recognition-Based Syntactic
-     Foundation (Bryan Ford, 2004)
-   * A Parsing Machine for PEGs (Sérgio Medeiros & Roberto
-     Ierusalimschy, 2008)
-   * An Efficient Parsing Machine for PEGs (Jos Craaijo, 2018)
+  #+begin_src shell
+  $ llmatch -g 'll:csv' -i tiny.csv
+  ((col0 col1 col2)
+   (lin0 lin1 lin2))
+  #+end_src
+
+** Parse a custom format with a new grammar
+
+   Grammars are conventionally written in files with the =.peg= so
+   it's explicit that it isn't a grammar file with different semantics
+   like from =yacc= or =antlr=. That's just the standard chosen for
+   this project, the compiler and virtual machine don't care about the
+   file name.

@@ -489,8 +489,11 @@ class Instructions(enum.Enum):
      OP_CALL,
      OP_RETURN,
      OP_SPAN,
+     OP_SET,
+     OP_CAP_OPEN,
+     OP_CAP_CLOSE,
      OP_END,
-    ) = range(16)
+    ) = range(19)
 
 InstructionParams = {
     Instructions.OP_HALT: 0,
@@ -508,6 +511,9 @@ InstructionParams = {
     Instructions.OP_CALL: 1,
     Instructions.OP_RETURN: 0,
     Instructions.OP_SPAN: 2,
+    Instructions.OP_SET: 0,
+    Instructions.OP_CAP_OPEN: 2,
+    Instructions.OP_CAP_CLOSE: 2,
     Instructions.OP_END: 0,
 }
 
@@ -531,9 +537,30 @@ def gen(instruction_name, arg0=None, arg1=None):
         return (instruction.value << OPERATOR_OFFSET)
 
 
+class Capture:
+
+    def __init__(self, compiler, capture, isTerminal, capId=None):
+        self.capture = capture
+        self.compiler = compiler
+        self.isTerminal = isTerminal
+        if capId is None and capture:
+            capId = self.compiler._nextCaptureId()
+        self.capId = capId
+
+    def __enter__(self):
+        if self.capture:
+            self.compiler.emit(
+                "cap_open", self.isTerminal, self.capId)
+        return self
+
+    def __exit__(self, _type, value, traceback):
+        if self.capture:
+            self.compiler.emit(
+                "cap_close", self.isTerminal, self.capId)
+
 class Compiler:
 
-    def __init__(self, grammar):
+    def __init__(self, grammar, capture=False):
         self.ga = grammar
         # The grammar as a dictionary. Since we lose the order, that's
         # why the same data as above but with a different format.
@@ -548,6 +575,10 @@ class Compiler:
         # Save all the call instructions that need to be updated with
         # the final address of where they want to call to.
         self.callsites = {}
+        # If we're going to generate capture opcodes or not.
+        self.capture = capture
+        # Capture id
+        self.captureId = 0
 
     def emit(self, *args):
         self.code.append(gen(*args))
@@ -560,9 +591,29 @@ class Compiler:
         programSize = self.pos - currentPos
         return programSize
 
+    def _nextCaptureId(self):
+        nextValue = self.captureId
+        self.captureId += 1
+        return nextValue
+
+    def _capture(self, isTerminal):
+        return Capture(self, self.capture, isTerminal)
+
+    def _disableCapture(self):
+        class DisableCapture:
+            def __init__(self, c):
+                self.c = c
+                self.backup = c.capture
+            def __enter__(self):
+                self.c.capture = False
+            def __exit__(self, _type, value, traceback):
+                self.c.capture = self.backup
+        return DisableCapture(self)
+
     def compileNot(self, atom):
         pos = self.emit("choice") -1
-        size = self.cc(atom.value)
+        with self._disableCapture():
+            size = self.cc(atom.value)
         self.code[pos] = gen("choice", size + 3)
         self.emit("commit", 1)
         self.emit("fail")
@@ -577,11 +628,23 @@ class Compiler:
 
     def compileLiteral(self, literal):
         for i in literal.value:
-            self.emit("char", ord(i))
+            with self._capture(1):
+                self.emit("char", ord(i))
+
+    def compileAny(self, atom):
+        with self._capture(1):
+            self.emit("any")
+
+    def compileRange(self, theRange):
+        currentPos = self.pos
+        left, right = theRange
+        self.emit("span", ord(left), ord(right))
+        return self.pos - currentPos
 
     def compileSequence(self, sequence):
-        for atom in sequence.value:
-            self.compileAtom(atom)
+        with self._capture(0):
+            for atom in sequence.value:
+                self.compileAtom(atom)
 
     def _compileChoices(self, choices, compFunc):
         commits = []     # List of positions that need to be rewritten
@@ -617,12 +680,6 @@ class Compiler:
         self.cc(atom.value)
         self.compileStar(atom)
 
-    def compileRange(self, theRange):
-        currentPos = self.pos
-        left, right = theRange
-        self.emit("span", ord(left), ord(right))
-        return self.pos - currentPos
-
     def compileClass(self, atom):
         """Generate code for matching classes of characters
 
@@ -633,14 +690,15 @@ class Compiler:
         instruction is generated.
         """
         if isinstance(atom.value, list):
-            if len(atom.value) == 1:
-                self.compileRange(atom.value[0])
-            else:
-                self._compileChoices(atom.value, self.compileRange)
+            with self._capture(1):
+                if len(atom.value) == 1:
+                    self.compileRange(atom.value[0])
+                else:
+                    self._compileChoices(atom.value, self.compileRange)
 
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
-        elif isinstance(atom, Dot): self.emit("any")
+        elif isinstance(atom, Dot): self.compileAny(atom)
         elif isinstance(atom, Not): self.compileNot(atom)
         elif isinstance(atom, And): self.compileAnd(atom)
         elif isinstance(atom, Star): self.compileStar(atom)
@@ -660,9 +718,9 @@ class Compiler:
         for nt in self.ga:
             [[name, rule]] = nt.items()
             addresses[name] = self.pos
-            size += self.cc(rule)
+            with self._capture(0): self.cc(rule)
             self.emit("return")
-            size += 1           # This accounts for the above return
+            size += self.pos - addresses[name]
         self.code[pos-1] = gen("jump", size + 2)
         self.emit("halt")
 
@@ -1014,8 +1072,9 @@ def test_instruction():
         gen("span", ord('a'), ord('e')) == 0b01110000011000010000000001100101
     )
 
+
 def test_compile():
-    cc = lambda c: dbgcc(c, Compiler(Parser(c).run()).run())
+    cc = lambda c, **f: dbgcc(c, Compiler(Parser(c).run(), **f).run())
     bn = lambda *bc: struct.pack('>' + ('I' * len(bc)), *bc)
 
     # Char 'c'
@@ -1164,6 +1223,42 @@ def test_compile():
         gen("char", ord('1')),
         gen("return"),
         gen("halt"),
+    ))
+
+    ## Captures
+
+    assert(cc("S <- 'a'", capture=True) == bn(
+        gen("call", 0x02),      # 0x00: Call 0x02
+        gen("jump", 0x08),      # 0x01: Jump 0x08
+        gen("cap_open", 0, 0),  # 0x02: CapOpen 0 (Main)
+        gen("cap_open", 1, 1),  # 0x03: CapOpen 1
+        gen("char", ord('a')),  # 0x04: Char 'a'
+        gen("cap_close", 1, 1), # 0x05: CapOpen 1
+        gen("cap_close", 0, 0), # 0x06: CapClose (Main)
+        gen("return"),          # 0x07: Return
+        gen("halt"),            # 0x08: Halt
+    ))
+
+    assert(cc("S <- 'a' 'b'", capture=True) == bn(
+        gen("call", 0x02),      # 0x01: Call 0x02
+        gen("jump", 0x0d),      # 0x02: Jump 0x0d
+
+        gen("cap_open", 0, 0),  # 0x03: CapOpen 0 (Main)
+        gen("cap_open", 0, 1),  # 0x04: CapOpen 1 (Seq)
+
+        gen("cap_open", 1, 2),  # 0x05: CapOpen 2 (Seq#0)
+        gen("char", ord('a')),  # 0x06: Char 'a'
+        gen("cap_close", 1, 2), # 0x07: CapClose 2 (Seq#0)
+
+        gen("cap_open", 1, 3),  # 0x08: CapOpen 3 (Seq#1)
+        gen("char", ord('b')),  # 0x09: Char 'a'
+        gen("cap_close", 1, 3), # 0x0a: CapClose 3 (Seq#1)
+
+        gen("cap_close", 0, 1), # 0x0b: CapClose 1 (Seq)
+        gen("cap_close", 0, 0), # 0x0c: CapClose 0 (Main)
+
+        gen("return"),          # 0x0d: Return
+        gen("halt"),            # 0x0e: Halt
     ))
 
 

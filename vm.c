@@ -24,8 +24,10 @@
 #include <string.h>
 #include <assert.h>
 
-#include "vm.h"
 #include "debug.h"
+
+#include "vm.h"
+#include "value.h"
 
 /*
 
@@ -73,8 +75,8 @@ Machine Instructions
 * [x] Return
 * [ ] Set
 * [x] Span
-* [ ] CapOpen
-* [ ] CapClose
+* [x] CapOpen
+* [x] CapClose
 
 Bytecode Format
 ===============
@@ -163,6 +165,44 @@ SET
   location of a set of chars stored in a soon to be implemented string
   table.
 
+Captures
+--------
+
+  Besides being able to tell if an input matches PEG, the parsing
+  machine should also be able to extract the matched values as a tree
+  where the nodes are tagged with the pieces of the grammar they
+  matched.
+
+  Two instructions were added in order to support this feature:
+  =OP_CAP_OPEN t l= and =OP_CAP_CLOSE t l=. In both instructions, =t=
+  is a boolean flag where false means the capture is non terminal and
+  true means it's a terminal. And =l= is the location of the
+  identifier of the capture in the soon to be implemented string
+  table.
+
+  The =OP_CAP_{OPEN,CLOSE}= instructions are supposed to be used in
+  tandem and the compiler must generate capture pairs accounting for
+  the execution model of the VM where some instructions (e.g.: Fail,
+  Call, Jump, Return) can move the program counter of the virtual
+  machine in non linear ways.
+
+  To achieve the above goal, each semantic operation establishes their
+  own capture rules. The predicates are the easiest ones, they never
+  capture any values as they're only boolean match operators and don't
+  really move the input cursor.
+
+  Sequences require one pair of capture instructions around the whole
+  set of expressions. Then each item of the expression will have their
+  own capture rules applied.
+
+  If a program doesn't match the input, the machine will get into the
+  Fail state and the program counter will backtrack before the
+  =OP_CAP_CLOSE= instruction can be executed. Which leads to a
+  dangling =OP_CAP_OPEN= on top of the capture stack. To avoid that
+  problem, the field =cap= was added to the =BacktrackEntry= struct,
+  which is the format of stack entries. When the machine gets into
+  fail state for backtracking, it also restores the top of the capture
+  stack.
 */
 
 /* -- Error control & report utilities -- */
@@ -170,13 +210,8 @@ SET
 /** Retrieve name of opcode */
 #define OP_NAME(o) opNames[o]
 
-typedef struct {
-  const char *pos;
-  long len;
-} CaptureEntry;
-
 /* Helps debugging */
-static const char *opNames[OP_HALT] = {
+static const char *opNames[OP_END] = {
   [OP_CHAR] = "OP_CHAR",
   [OP_ANY] = "OP_ANY",
   [OP_CHOICE] = "OP_CHOICE",
@@ -190,19 +225,27 @@ static const char *opNames[OP_HALT] = {
   [OP_JUMP] = "OP_JUMP",
   [OP_CALL] = "OP_CALL",
   [OP_SPAN] = "OP_SPAN",
+  [OP_SET] = "OP_SET",
+  [OP_CAP_OPEN] = "OP_CAP_OPEN",
+  [OP_CAP_CLOSE] = "OP_CAP_CLOSE",
   [OP_RETURN] = "OP_RETURN",
 };
 
 /* Set initial values for the machine */
 void mInit (Machine *m)
 {
-  memset (m->stack, 0, STACK_SIZE * sizeof (void *));
+  m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
+  m->captures = calloc (STACK_SIZE, sizeof (CaptureEntry *));
+  /* memset (m->stack, 0, STACK_SIZE * sizeof (void *)); */
+  /* memset (m->captures, 0, STACK_SIZE * sizeof (void *)); */
   m->code = NULL;               /* Will be set by mLoad() */
+  m->cap = m->captures;
 }
 
 void mFree (Machine *m)
 {
   free (m->code);
+  m->cap = NULL;
   m->code = NULL;
 }
 
@@ -244,6 +287,15 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       the input string. */
 #define THE_END (input + input_size)
 
+  /** Push data to the capture buffer  */
+#define PUSH_CAP(_p,_ty,_id,_tr) do {                                   \
+    m->cap->pos = _p;                                                 \
+    m->cap->type = _ty;                                               \
+    m->cap->term = _id;                                               \
+    m->cap->idx = _tr;                                                \
+    m->cap++;                                                         \
+  } while (0)
+
   DEBUGLN ("   Run");
 
   while (true) {
@@ -253,10 +305,18 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 
     switch (pc->rator) {
     case 0: return i;
+    case OP_CAP_OPEN:
+      PUSH_CAP (i, CapOpen, UOPERAND1 (pc), UOPERAND2 (pc));
+      pc++;
+      continue;
+    case OP_CAP_CLOSE:
+      PUSH_CAP (i, CapClose, UOPERAND0 (pc), UOPERAND2 (pc));
+      pc++;
+      continue;
     case OP_CHAR:
       DEBUGLN ("       OP_CHAR: `%c' == `%c' ? %d", *i,
                UOPERAND0 (pc), *i == UOPERAND0 (pc));
-      if (*i == UOPERAND0 (pc)) { i++; pc++; }
+      if (i < THE_END && *i == UOPERAND0 (pc)) { i++; pc++; }
       else goto fail;
       continue;
     case OP_ANY:
@@ -272,6 +332,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       else goto fail;
       continue;
     case OP_CHOICE:
+      sp->cap = m->cap;
       PUSH (i, pc + UOPERAND0 (pc));
       pc++;
       continue;
@@ -313,6 +374,8 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
         do i = POP ()->i;
         while (i == NULL && sp > m->stack);
         pc = sp->pc;            /* Restore the program counter */
+        /* Non-Terminals can't produce errors */
+        m->cap = sp->cap;
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
         return NULL;
@@ -322,8 +385,72 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       FATAL ("Unknown Instruction 0x%04x [%s]", pc->rator, OP_NAME (pc->rator));
     }
   }
+}
 
-#undef PUSH
-#undef POP
-#undef THE_END
+const char *cap_type[2] = { " Open", "Close" };
+
+void printCaptures (Machine *m)
+{
+  CaptureEntry match, *cp = m->cap;
+
+  (void) match;                 /* In case TEST isn't set */
+
+  while (cp > m->captures) {
+    match = *--cp;              /* POP () */
+    DEBUGLN ("     CAP: %s[%d]", cap_type[match.type], match.idx);
+  }
+}
+
+Object *mExtract (Machine *m, const char *input)
+{
+  uint16_t start, end;
+  CaptureEntry close, match, *stack;
+  CaptureEntry *cp, *sp;
+  Object *item = NULL, *out = NULL; /* Output list to be filled in bottom-up */
+
+  printCaptures (m);
+
+  stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
+
+  sp = stack;
+  cp = m->cap;
+
+  DEBUGLN ("  Extract: %p %p", (void*) cp, (void*) m->captures);
+
+  while (cp > m->captures) {
+    match = *--cp;              /* POP () */
+
+    DEBUGLN ("     MATCH: %s[%d]", cap_type[match.type], match.idx);
+
+    if (match.type == CapClose) {
+      *sp++ = match;
+      continue;
+    }
+
+    /* Pop the last entry from capture stack */
+    close = *--sp;
+
+    if (match.idx != close.idx) {
+      DEBUGLN ("Closing on the wrong capture %d:%d", close.idx, match.idx);
+    }
+
+    char key[256];
+    sprintf (key, "%d", match.idx);
+
+    if (match.term) {
+      /* Terminal */
+      start = match.pos - input;
+      end = close.pos - input;
+      item = makeAtom (input + start, end - start);
+      out = makeCons (makeCons (makeAtom (key, strlen (key)), item), out);
+    } else {
+      /* Non-Terminal */
+      out = makeCons (makeCons (makeAtom (key, strlen (key)), out), NULL);
+    }
+
+    printObj (out);
+    printf ("\n\n");
+  }
+
+  return out;
 }

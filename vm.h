@@ -23,14 +23,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "error.h"
+#include "value.h"
+
 /** Arbitrary value for the stack size */
 #define STACK_SIZE 512
-
-/** Report errors that stop the execution of the VM right away */
-#define FATAL(f, ...)                                                  \
-  do { fprintf (stderr, f "\n", ##__VA_ARGS__); exit (EXIT_FAILURE); } \
-  while (0)
-
 
 /* Instruction Offsets - All sizes are in bits */
 #define INSTRUCTION_SIZE   32   /* Instruction size */
@@ -63,21 +60,37 @@ typedef struct {
   uint32_t rand: 27;
 } Instruction;
 
+typedef enum {
+  CapOpen,
+  CapClose,
+} CaptureType;
+
+typedef struct {
+  CaptureType type;
+  const char *pos;
+  uint16_t idx;
+  uint16_t term;
+} CaptureEntry;
+
 /* Entry that's stored in the Machine's stack for supporting backtrack
    on the ordered choice operator */
 typedef struct {
   const char *i;
   Instruction *pc;
+  CaptureEntry *cap;
 } BacktrackEntry;
 
 /* Virtual Machine */
 typedef struct {
   Instruction *code;
-  BacktrackEntry stack[STACK_SIZE];
+  BacktrackEntry *stack;
+  CaptureEntry *captures;
+  CaptureEntry *cap;            /* Top of the capture stack */
 } Machine;
 
 /* opcodes */
 typedef enum {
+  OP_HALT = 0x0,
   OP_CHAR = 0x1,
   OP_ANY,
   OP_CHOICE,
@@ -92,7 +105,10 @@ typedef enum {
   OP_CALL,
   OP_RETURN,
   OP_SPAN,
-  OP_HALT,
+  OP_SET,
+  OP_CAP_OPEN,
+  OP_CAP_CLOSE,
+  OP_END,
 } OpCode;
 
 /* Initialize the state of the machine. */
@@ -103,5 +119,7 @@ void mFree (Machine *m);
 void mLoad (Machine *m, Bytecode *code, size_t code_size);
 /* Try to match input against the pattern loaded into the machine. */
 const char *mMatch (Machine *m, const char *input, size_t input_size);
+/* Extract matches from the machine's capture stack */
+Object *mExtract (Machine *m, const char *input);
 
 #endif  /* VM_GUARD */

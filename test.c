@@ -716,6 +716,156 @@ void test_span1 ()
   assert (o - i == 5);          /* Matched chars */
 }
 
+void test_cap1 ()
+{
+  Machine m;
+  uint32_t b[9];
+  const char *i = "a";
+  Object *out = NULL;
+  DEBUGLN (" * t:cap.1");
+
+  /* S <- 'a' */
+  b[0x0] = GEN1 (OP_CALL, 0x2);
+  b[0x1] = GEN1 (OP_JUMP, 0x8);
+  b[0x2] = GEN2 (OP_CAP_OPEN, 0x0, 0x0); /* CapOpen 0 (Main) */
+  b[0x3] = GEN2 (OP_CAP_OPEN, 0x1, 0x1);
+  b[0x4] = GEN1 (OP_CHAR, 0x61);
+  b[0x5] = GEN2 (OP_CAP_CLOSE, 0x1, 0x1);
+  b[0x6] = GEN2 (OP_CAP_CLOSE, 0x0, 0x0); /* CapClose 0 (Main) */
+  b[0x7] = GEN0 (OP_RETURN);
+  b[0x8] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+  assert (mMatch (&m, i, strlen (i)));
+  out = mExtract (&m, i);
+
+  printObj (out);
+  printf ("\n");
+
+  assert (out);                 /* Isn't empty */
+  assert (CONSP (out));         /* Is a list */
+  /* assert (CONSP (CAR (out))); */
+  /* assert (ATOMP (CAR (CAR (out))));   /\* Has an atom within it *\/ */
+  /* assert (strcmp (ATOM (CAR (CAR (out)))->name, "a") == 0); /\* Has the right value *\/ */
+
+  mFree (&m);
+}
+
+void test_cap2 ()
+{
+  Machine m;
+  uint32_t b[14];
+  const char *i = "ab";
+  Object *out = NULL;
+  DEBUGLN (" * t:cap.2");
+
+  /* S <- 'a' 'b' / 'ab' */
+  b[0x0] = GEN1 (OP_CALL, 0x2);
+  b[0x1] = GEN1 (OP_JUMP, 0x0d);
+  b[0x2] = GEN2 (OP_CAP_OPEN, 0x0, 0x0); /* CapOpen NT 0 (Main) */
+  b[0x3] = GEN2 (OP_CAP_OPEN, 0x0, 0x1); /* CapOpen NT 1 (Seq) */
+  b[0x4] = GEN2 (OP_CAP_OPEN, 0x1, 0x2); /* CapOpen YT 2 */
+  b[0x5] = GEN1 (OP_CHAR, 0x61);
+  b[0x6] = GEN2 (OP_CAP_CLOSE, 0x1, 0x2); /* CapClose YT 2 */
+  b[0x7] = GEN2 (OP_CAP_OPEN, 0x1, 0x3);
+  b[0x8] = GEN1 (OP_CHAR, 0x62);
+  b[0x9] = GEN2 (OP_CAP_CLOSE, 0x1, 0x3);
+  b[0xa] = GEN2 (OP_CAP_CLOSE, 0x0, 0x1); /* CapClose 0 (Seq) */
+  b[0xb] = GEN2 (OP_CAP_CLOSE, 0x0, 0x0); /* CapClose 0 (Main) */
+  b[0xc] = GEN0 (OP_RETURN);
+  b[0xd] = OP_HALT;
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+  assert (mMatch (&m, i, strlen (i)));
+  out = mExtract (&m, i);
+
+  printObj (out);
+  printf ("\n");
+
+  assert (out);                 /* Isn't empty */
+  assert (CONSP (out));         /* Is a list */
+  /* assert (CONSP (CAR (out))); */
+  /* assert (CONSP (CAR (CAR (out)))); */
+  /* assert (ATOMP (CAR (CAR (CAR (out))))); */
+  /* assert (strcmp (ATOM (CAR (CAR (CAR (out))))->name, "a") == 0); */
+  /* assert (ATOMP (CAR (CDR (CAR (CAR (out)))))); */
+  /* assert (strcmp (ATOM (CAR (CDR (CAR (CAR (out)))))->name, "b") == 0); */
+
+  mFree (&m);
+}
+
+void test_cap3 ()
+{
+  Machine m;
+  uint32_t b[16];
+  const char *i = "b";
+  Object *out = NULL;
+  DEBUGLN (" * t:cap.3");
+
+  /* S <- !'a' . */
+  b[0x00] = GEN1 (     OP_CALL,       0x02);
+  b[0x01] = GEN1 (     OP_JUMP,       0x0e);
+  b[0x02] = GEN2 ( OP_CAP_OPEN, 0x00, 0x00);
+  b[0x03] = GEN2 ( OP_CAP_OPEN, 0x00, 0x01);
+  b[0x04] = GEN1 (   OP_CHOICE,       0x04);
+  b[0x05] = GEN1 (     OP_CHAR,       0x61);
+  b[0x06] = GEN1 (   OP_COMMIT,       0x01);
+  b[0x07] = GEN0 (     OP_FAIL            );
+  b[0x08] = GEN2 ( OP_CAP_OPEN, 0x01, 0x02);
+  b[0x09] = GEN0 (      OP_ANY            );
+  b[0x0a] = GEN2 (OP_CAP_CLOSE, 0x01, 0x02);
+  b[0x0b] = GEN2 (OP_CAP_CLOSE, 0x00, 0x01);
+  b[0x0c] = GEN2 (OP_CAP_CLOSE, 0x00, 0x00);
+  b[0x0d] = GEN0 (   OP_RETURN            );
+  b[0x0e] = GEN0 (     OP_HALT            );
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+  assert (mMatch (&m, i, strlen (i)));
+  out = mExtract (&m, i);
+
+  printObj (out);
+  printf ("\n");
+}
+
+void test_cap4 ()
+{
+  Machine m;
+  uint32_t b[17];
+  const char *i = "bcde";
+  Object *out = NULL;
+  DEBUGLN (" * t:cap.4");
+
+  /* S <- (!'a' .)* */
+  b[0x00] = GEN1 (     OP_CALL,       0x02);
+  b[0x01] = GEN1 (     OP_JUMP,       0x10);
+  b[0x02] = GEN2 ( OP_CAP_OPEN, 0x00, 0x00);
+  b[0x03] = GEN1 (   OP_CHOICE,       0x0b);
+  b[0x04] = GEN2 ( OP_CAP_OPEN, 0x00, 0x01);
+  b[0x05] = GEN1 (   OP_CHOICE,       0x04);
+  b[0x06] = GEN1 (     OP_CHAR,       0x61);
+  b[0x07] = GEN1 (   OP_COMMIT,       0x01);
+  b[0x08] = GEN0 (     OP_FAIL            );
+  b[0x09] = GEN2 ( OP_CAP_OPEN, 0x01, 0x02);
+  b[0x0a] = GEN0 (      OP_ANY            );
+  b[0x0b] = GEN2 (OP_CAP_CLOSE, 0x01, 0x02);
+  b[0x0c] = GEN2 (OP_CAP_CLOSE, 0x00, 0x01);
+  b[0x0d] = GEN1 (   OP_COMMIT,  0x7fffff6);
+  b[0x0e] = GEN2 (OP_CAP_CLOSE, 0x00, 0x00);
+  b[0x0f] = GEN0 (   OP_RETURN            );
+  b[0x10] = GEN0 (     OP_HALT            );
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+  assert (mMatch (&m, i, strlen (i)));
+  out = mExtract (&m, i);
+
+  printObj (out);
+  printf ("\n");
+}
+
 int main ()
 {
   test_gen_args ();
@@ -744,5 +894,11 @@ int main ()
   test_var1 ();
   test_var2 ();
   test_span1 ();
+
+  test_cap1 ();
+  test_cap2 ();
+  test_cap3 ();
+  test_cap4 ();
+
   return 0;
 }

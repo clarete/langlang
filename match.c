@@ -1,6 +1,6 @@
 /* -*- coding: utf-8; -*-
  *
- * main.c - Implementation of Parsing Machine for PEGs
+ * match.c - Implementation of Parsing Machine for PEGs
  *
  * Copyright (C) 2018  Lincoln Clarete
  *
@@ -20,6 +20,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+
+#include "debug.h"
 #include "vm.h"
 
 /* Reads the entire content of the file under `path' into `buffer' */
@@ -60,9 +62,10 @@ int run (const char *grammar_file, const char *input_file)
   mInit (&m);
   mLoad (&m, grammar, grammar_size);
   output = mMatch (&m, input, input_size);
+  if (output) printObj (mExtract (&m, input));
   mFree (&m);
 
-  printf ("FOO: s:%p i:%p i-s:%ld\n", input, output, output - input);
+  DEBUGLN ("\n\ns:%p i:%p i-s:%ld", input, output, output - input);
 
   free (grammar);
   free (input);

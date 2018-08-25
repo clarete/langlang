@@ -1298,13 +1298,15 @@ def main():
         exit(0)
 
     with io.open(os.path.abspath(args.grammar), 'r') as grammarFile:
-        grammar = Parser(grammarFile.read()).run()
+        grammarSrc = grammarFile.read()
+        grammar = Parser(grammarSrc).run()
 
     if args.compile:
         name, _ = os.path.splitext(args.grammar)
         with io.open('%s.bin' % name, 'wb') as out:
             compiled = Compiler(grammar).run()
             out.write(compiled)
+            dbgcc(grammarSrc, compiled)
     else:
         with io.open(os.path.abspath(args.data), 'r') as dataFile:
             output = Match(grammar, args.start, dataFile.read()).run()

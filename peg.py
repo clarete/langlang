@@ -206,7 +206,7 @@ class Parser:
             if self.matchc('-'): ranges.append([left, self.lexChar()])
             else: chars.append(left)
         if not self.matchc(']'): raise SyntaxError("Expected end of class")
-        return self.t(TokenTypes.CLASS, ranges or ''.join(chars))
+        return self.t(TokenTypes.CLASS, ranges + chars)
 
     def lexChar(self):
         # Char <- '\\' [nrt'"\[\]\\]
@@ -366,18 +366,18 @@ class Match:
         value = atom.value
         if not self.current(): return False, None
 
-        if isinstance(value, list):
-            for [left, right] in value:
+        for c in value:
+            if isinstance(c, list):
+                left, right = c
                 if left <= self.current() <= right:
-                    value = self.current()
+                    result = self.current()
                     self.advance()
-                    return True, value
-        else:
-            for char in value:
-                if self.current() == char:
-                    value = self.current()
+                    return True, result
+            else:
+                if self.current() == c:
+                    result = self.current()
                     self.advance();
-                    return True, value
+                    return True, result
         return False, None
 
     def matchLiteral(self, atom):
@@ -558,6 +558,12 @@ class Capture:
             self.compiler.emit(
                 "cap_close", self.isTerminal, self.capId)
 
+class Wrap:
+    "Utility to wrap a value around a thing that has a .value attr"
+    def __init__(self, v):
+        self.value = v
+
+
 class Compiler:
 
     def __init__(self, grammar, capture=False):
@@ -627,9 +633,11 @@ class Compiler:
         self.emit("fail")
 
     def compileLiteral(self, literal):
-        for i in literal.value:
-            with self._capture(1):
+        currentPos = self.pos
+        with self._capture(1):
+            for i in literal.value:
                 self.emit("char", ord(i))
+        return self.pos - currentPos
 
     def compileAny(self, atom):
         with self._capture(1):
@@ -680,6 +688,11 @@ class Compiler:
         self.cc(atom.value)
         self.compileStar(atom)
 
+    def compileRangeOrLiteral(self, thing):
+        if isinstance(thing, list):
+            return self.compileRange(thing)
+        return self.compileLiteral(Wrap(thing))
+
     def compileClass(self, atom):
         """Generate code for matching classes of characters
 
@@ -689,12 +702,11 @@ class Compiler:
         If `atom' describes only one interval, a single `Span'
         instruction is generated.
         """
-        if isinstance(atom.value, list):
-            with self._capture(1):
-                if len(atom.value) == 1:
-                    self.compileRange(atom.value[0])
-                else:
-                    self._compileChoices(atom.value, self.compileRange)
+        with self._capture(1):
+            if len(atom.value) == 1:
+                return self.compileRangeOrLiteral(atom.value[0])
+            else:
+                return self._compileChoices(atom.value, self.compileRangeOrLiteral)
 
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
@@ -731,6 +743,7 @@ class Compiler:
                 self.code[cs] = gen("call", addresses[identifier] - cs)
         # Pack the integers as binary data
         return struct.pack('>' + ('I' * len(self.code)), *self.code)
+
 
 ## --- Utilities ---
 
@@ -826,7 +839,7 @@ def test_tokenizer():
         Token(TokenTypes.ARROW,           line=0, pos=2),
         Token(TokenTypes.OPEN,            line=0, pos=5),
         Token(TokenTypes.NOT,             line=0, pos=6),
-        Token(TokenTypes.CLASS, ',\n',    line=0, pos=7),
+        Token(TokenTypes.CLASS, [',', '\n'], line=0, pos=7),
         Token(TokenTypes.DOT,             line=0, pos=13),
         Token(TokenTypes.CLOSE,           line=0, pos=14),
         Token(TokenTypes.STAR,            line=0, pos=15),
@@ -842,6 +855,15 @@ def test_tokenizer():
         Token(TokenTypes.END, line=0, pos=18),
     ])
 
+    test('Hex <- [a-fA-F_]', [
+        Token(TokenTypes.IDENTIFIER, 'Hex', line=0, pos=0),
+        Token(TokenTypes.ARROW,             line=0, pos=4),
+        Token(TokenTypes.CLASS,
+              [['a', 'f'], ['A', 'F'], '_'],
+              line=0, pos=7),
+        Token(TokenTypes.END, line=0, pos=16),
+    ])
+
 
 def test_parser():
     test = functools.partial(test_runner, lambda x: Parser(x).parse)
@@ -851,7 +873,7 @@ def test_parser():
     test('#foo\r\nR0 <- "a"', [{'R0': Literal('a')}])
 
     test(r"R0 <- '\\' [nrt'\"\[\]]", [
-        {'R0': Sequence([Literal('\\'), Class('nrt\'"[]')])}])
+        {'R0': Sequence([Literal('\\'), Class(['n', 'r', 't', "'", '"', '[', ']'])])}])
 
     test("R <- '\r\n' / '\n' / '\r'\\n", [
         {'R': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')])}])
@@ -863,6 +885,8 @@ def test_parser():
     test('Definition1 <- "tx"', [{'Definition1': Literal('tx')}])
 
     test('Int <- [0-9]+', [{'Int': Plus(Class([['0', '9']]))}])
+
+    test('Foo <- [a-z_]', [{'Foo': Class([['a', 'z'], '_'])}])
 
     test('EndOfFile <- !.', [{'EndOfFile': Not(Dot())}])
 
@@ -912,7 +936,7 @@ EndOfFile  <- !.
             Identifier('Val'),
             Star(Sequence([Literal(','), Identifier('Val')])),
             Literal('\n')])},
-        {'Val': Star(Sequence([Not(Class(',\n')), Dot()]))}])
+        {'Val': Star(Sequence([Not(Class([',', '\n'])), Dot()]))}])
 
     test(arith, [
         {'Add': Expression([Sequence([Identifier('Mul'),
@@ -969,7 +993,7 @@ EOF \x1b[31m\x1b[0m !.
 
 def test_match():
     e = Match({}, '', "affbcdea&2")
-    assert(e.matchAtom(Class('af'))         == (True, 'a'));   assert(e.pos == 1)
+    assert(e.matchAtom(Class(['a', 'f']))   == (True, 'a'));   assert(e.pos == 1)
     assert(e.matchAtom(Class('gd'))         == (False, None)); assert(e.pos == 1)
     assert(e.matchAtom(Class('xyf'))        == (True, 'f'));   assert(e.pos == 2)
     assert(e.matchAtom(Class([['a', 'f']])) == (True, 'f'));   assert(e.pos == 3)
@@ -1074,7 +1098,7 @@ def test_instruction():
 
 
 def test_compile():
-    cc = lambda c, **f: dbgcc(c, Compiler(Parser(c).run(), **f).run())
+    cc = lambda c, **f: dbgcc(c, Compiler(Parser(c).run(), **f).genCode())
     bn = lambda *bc: struct.pack('>' + ('I' * len(bc)), *bc)
 
     # Char 'c'
@@ -1185,15 +1209,28 @@ def test_compile():
         gen("halt"),
     ))
 
-    # Class -> Span
-    assert(cc("S <- [a-e]") == bn(
+    # Class -> Char
+    assert(cc("S <- [a]") == bn(
         gen("call", 2),
         gen("jump", 4),
-        gen("span", ord('a'), ord('e')),
+        gen("char", ord('a')),
         gen("return"),
         gen("halt"),
     ))
 
+    # O0: Class -> Char / Char
+    assert(cc("S <- [ab]") == bn(
+        gen("call", 2),
+        gen("jump", 7),
+        gen("choice", 3),
+        gen("char", ord('a')),
+        gen("commit", 2),
+        gen("char", ord('b')),
+        gen("return"),
+        gen("halt"),
+    ))
+
+    # O0: Class -> Span / Span
     assert(cc("S <- [a-zA-Z]") == bn(
         gen("call", 2),
         gen("jump", 7),
@@ -1205,7 +1242,34 @@ def test_compile():
         gen("halt"),
     ))
 
-    # Class -> Set
+    # Class -> Span / Char
+    assert(cc("S <- [a-z_]") == bn(
+        gen("call", 2),
+        gen("jump", 7),
+        gen("choice", 3),
+        gen("span", ord('a'), ord('z')),
+        gen("commit", 2),
+        gen("char", ord('_')),
+        gen("return"),
+        gen("halt"),
+    ))
+
+    # Class -> Span / Span / Char
+    assert(cc("S <- [a-zA-Z_]") == bn(
+        gen("call", 2),
+        gen("jump", 10),
+        gen("choice", 3),
+        gen("span", ord('a'), ord('z')),
+        gen("commit", 5),
+        gen("choice", 3),
+        gen("span", ord('A'), ord('Z')),
+        gen("commit", 2),
+        gen("char", ord('_')),
+        gen("return"),
+        gen("halt"),
+    ))
+
+    # O1: Class -> Set
     # assert(cc("S <- [']") == bn(
     # ))
 

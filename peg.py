@@ -1345,6 +1345,9 @@ def main():
         '-c', '--compile', dest='compile', action='store_true', default=False,
         help='Compile grammar')
     parser.add_argument(
+        '-q', '--quiet', dest='quiet', action='store_true', default=False,
+        help='Quiet')
+    parser.add_argument(
         '-d', '--data', dest='data', action='store',
         help='Data File')
     parser.add_argument(
@@ -1370,7 +1373,7 @@ def main():
         with io.open('%s.bin' % name, 'wb') as out:
             compiled = Compiler(grammar).run()
             out.write(compiled)
-            dbgcc(grammarSrc, compiled)
+            if not args.quiet: dbgcc(grammarSrc, compiled)
     else:
         with io.open(os.path.abspath(args.data), 'r') as dataFile:
             output = Match(grammar, args.start, dataFile.read()).run()

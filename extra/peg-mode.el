@@ -1,0 +1,56 @@
+;;; peg-mode.el --- Syntax highlight for Parsing Expression Grammars
+;;
+;; Copyright (C) 2018  Lincoln Clarete
+;;
+;; Author: Lincoln de Sousa <lincoln@clarete.li>
+;; Version: 0.0.1
+;; Homepage: https://github.com/clarete/emacs.d
+;;
+;;; Commentary:
+;;
+;; Didn't really find any mode for PEGs that I liked.  Here's what I
+;; put together to edit files that follow the syntax that Bryan Ford
+;; defined in the paper he introduced PEGs.
+;;
+;;; Code:
+
+(defconst peg-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    ;; ' is a string delimiter
+    (modify-syntax-entry ?' "\"" table)
+    ;; " is a string delimiter too
+    (modify-syntax-entry ?\" "\"" table)
+    ;; [] should also look like strings
+    (modify-syntax-entry ?\[ "|" table)
+    (modify-syntax-entry ?\] "|" table)
+    ;; Comments start with #
+    (modify-syntax-entry ?# "< b" table)
+    ;; \n is a comment ender
+    (modify-syntax-entry ?\n "> b" table)
+    table))
+
+(defvar peg-font-lock-defaults
+  `((
+     ;; Color the name of the rule
+     ("^\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*<-" 1 'font-lock-function-name-face)
+     ;; Color for the little assignment arrow
+     ("<-" . font-lock-type-face)
+     ;; ! & * + ? ( ) / are operators
+     ("!\\|&\\|*\\|+\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
+     ;; Collor for assignment of a name to a piece of the expression.
+     ("\\(:[^\s]+\\)" 1 'font-lock-variable-name-face))))
+
+;;;###autoload
+(define-derived-mode peg-mode prog-mode "PEG Mode"
+  :syntax-table peg-mode-syntax-table
+  (set (make-local-variable 'comment-start) "#")
+  (set (make-local-variable 'comment-end) "")
+  (set (make-local-variable 'font-lock-defaults)
+       peg-font-lock-defaults)
+  (font-lock-ensure))
+
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.peg\\'" . peg-mode))
+
+(provide 'peg-mode)
+;;; peg-mode.el ends here

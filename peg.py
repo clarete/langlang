@@ -688,6 +688,12 @@ class Compiler:
         self.cc(atom.value)
         self.compileStar(atom)
 
+    def compileQuestion(self, atom):
+        pos = self.emit('choice')-1
+        size = self.cc(atom.value)
+        self.code[pos] = gen('choice', size+2)
+        self.emit('commit', 1)
+
     def compileRangeOrLiteral(self, thing):
         if isinstance(thing, list):
             return self.compileRange(thing)
@@ -715,13 +721,14 @@ class Compiler:
         elif isinstance(atom, And): self.compileAnd(atom)
         elif isinstance(atom, Star): self.compileStar(atom)
         elif isinstance(atom, Plus): self.compilePlus(atom)
+        elif isinstance(atom, Question): self.compileQuestion(atom)
         elif isinstance(atom, Class): self.compileClass(atom)
         elif isinstance(atom, Identifier): self.compileIdentifier(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
         else: raise Exception("Unknown atom %s" % atom)
 
-    def run(self):
+    def genCode(self):
         # It's always 2 because invariant contains two instructions
         self.emit("call", 2)
         pos = self.emit("jump")
@@ -1205,6 +1212,18 @@ def test_compile():
         gen("choice", 3),
         gen("char", ord('a')),
         gen("commit", -2),
+        gen("return"),
+        gen("halt"),
+    ))
+
+    # Question
+    assert(cc("S <- 'a' 'b'?") == bn(
+        gen("call", 2),
+        gen("jump", 7),
+        gen("char", ord('a')),
+        gen("choice", 3),
+        gen("char", ord('b')),
+        gen("commit", 1),
         gen("return"),
         gen("halt"),
     ))

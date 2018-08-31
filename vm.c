@@ -256,7 +256,8 @@ void mFree (Machine *m)
 }
 
 #define READ_UINT8(c)  (*c++)
-#define READ_UINT16(c) (c+=2, (c[-2] << 8) | c[-1])
+#define READ_UINT16(c) (c+=2, c[-2] << 8 | c[-1])
+#define READ_UINT32(c) (c+=4, c[-4] << 24 | c[-3] << 16 | c[-2] << 8 | c[-1])
 
 void mLoad (Machine *m, Bytecode *code, size_t total_size)
 {
@@ -272,26 +273,22 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
      and then the actual string. */
   headerSize = READ_UINT8 (code);
   DEBUGLN ("   Header(%d)", headerSize);
-  for (uint8_t ii = 0; ii < headerSize; ii++) {
+  for (i = 0; i < headerSize; i++) {
     size_t ssize = READ_UINT8 (code);
     Object *atom = makeAtom ((const char *) code, ssize);
     oTableInsert (m->atoms, atom);
-    DEBUGLN ("     0x%0x: String(%ld) %s", ii, ssize, ATOM (atom)->name);
+    DEBUGLN ("     0x%0x: String(%ld) %s", i, ssize, ATOM (atom)->name);
     code += ssize; /* Push the cursor to after the string just read */
   }
 
+  /* Code size a 16bit integer and and each instruction is
+     32bits. That's why code_size gets divided by 4 */
   code_size = READ_UINT16 (code);
-
-  /* Code size is in uint8_t and each instruction is 16bits */
-  DEBUGLN ("   Load");
-  if ((tmp = m->code = calloc (sizeof (Instruction), code_size / 4 + 2)) == NULL)
+  DEBUGLN ("   Code(%d)", code_size);
+  if ((tmp = m->code = calloc (sizeof (Instruction), code_size / 4)) == NULL)
     FATAL ("Can't allocate %s", "memory");
   for (i = 0; i < code_size; i += 4) {
-    instr  = *code++ << 24;
-    instr |= *code++ << 16;
-    instr |= *code++ << 8;
-    instr |= *code++;
-
+    instr = READ_UINT32 (code);
     tmp->rator = OP_MASK (instr);
     tmp->rand = instr;          /* Use SOPERAND* to access this */
     DEBUG_INSTRUCTION_LOAD ();

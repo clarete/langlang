@@ -539,24 +539,22 @@ def gen(instruction_name, arg0=None, arg1=None):
 
 class Capture:
 
-    def __init__(self, compiler, capture, isTerminal, capId=None):
+    def __init__(self, compiler, capture, isTerminal, capId):
         self.capture = capture
         self.compiler = compiler
         self.isTerminal = isTerminal
-        if capId is None and capture:
-            capId = self.compiler._nextCaptureId()
         self.capId = capId
 
     def __enter__(self):
         if self.capture:
             self.compiler.emit(
-                "cap_open", self.isTerminal, self.capId)
+                "cap_open", self.isTerminal, self.compiler._str(self.capId))
         return self
 
     def __exit__(self, _type, value, traceback):
         if self.capture:
             self.compiler.emit(
-                "cap_close", self.isTerminal, self.capId)
+                "cap_close", self.isTerminal, self.compiler._str(self.capId))
 
 class Wrap:
     "Utility to wrap a value around a thing that has a .value attr"
@@ -585,6 +583,9 @@ class Compiler:
         self.capture = capture
         # Capture id
         self.captureId = 0
+        # All strings that couldn't fit within an instruction
+        # parameter.
+        self.strings = []
 
     def emit(self, *args):
         self.code.append(gen(*args))
@@ -597,13 +598,13 @@ class Compiler:
         programSize = self.pos - currentPos
         return programSize
 
-    def _nextCaptureId(self):
-        nextValue = self.captureId
-        self.captureId += 1
-        return nextValue
+    def _str(self, value):
+        if value not in self.strings:
+            self.strings.append(value)
+        return self.strings.index(value)
 
-    def _capture(self, isTerminal):
-        return Capture(self, self.capture, isTerminal)
+    def _capture(self, isTerminal, capid):
+        return Capture(self, self.capture, isTerminal, capid)
 
     def _disableCapture(self):
         class DisableCapture:
@@ -634,25 +635,25 @@ class Compiler:
 
     def compileLiteral(self, literal):
         currentPos = self.pos
-        with self._capture(1):
+        with self._capture(1, literal.value):
             for i in literal.value:
                 self.emit("char", ord(i))
         return self.pos - currentPos
 
     def compileAny(self, atom):
-        with self._capture(1):
+        with self._capture(1, 'Any'):
             self.emit("any")
 
     def compileRange(self, theRange):
         currentPos = self.pos
         left, right = theRange
-        self.emit("span", ord(left), ord(right))
+        with self._capture(1, '{}-{}'.format(left, right)):
+            self.emit("span", ord(left), ord(right))
         return self.pos - currentPos
 
     def compileSequence(self, sequence):
-        with self._capture(0):
-            for atom in sequence.value:
-                self.compileAtom(atom)
+        for atom in sequence.value:
+            self.compileAtom(atom)
 
     def _compileChoices(self, choices, compFunc):
         commits = []     # List of positions that need to be rewritten
@@ -708,11 +709,10 @@ class Compiler:
         If `atom' describes only one interval, a single `Span'
         instruction is generated.
         """
-        with self._capture(1):
-            if len(atom.value) == 1:
-                return self.compileRangeOrLiteral(atom.value[0])
-            else:
-                return self._compileChoices(atom.value, self.compileRangeOrLiteral)
+        if len(atom.value) == 1:
+            return self.compileRangeOrLiteral(atom.value[0])
+        else:
+            return self._compileChoices(atom.value, self.compileRangeOrLiteral)
 
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
@@ -737,7 +737,8 @@ class Compiler:
         for nt in self.ga:
             [[name, rule]] = nt.items()
             addresses[name] = self.pos
-            with self._capture(0): self.cc(rule)
+            self._str(name)
+            with self._capture(0, name): self.cc(rule)
             self.emit("return")
             size += self.pos - addresses[name]
         self.code[pos-1] = gen("jump", size + 2)
@@ -751,6 +752,22 @@ class Compiler:
         # Pack the integers as binary data
         return struct.pack('>' + ('I' * len(self.code)), *self.code)
 
+    def assemble(self):
+        code = self.genCode()   # has to run before the rest
+        # Write string table size & string table entries
+        assembled = uint8(len(self.strings))
+        for i in self.strings:
+            assembled += uint8(len(i))
+            s = i.encode('ascii')
+            assembled += struct.pack('>' + ('s'*len(s)), *s)
+        # Write code size & code
+        assembled += uint16(len(code))
+        assembled += code
+        return assembled
+
+
+def uint8(v): return struct.pack('>B', v)
+def uint16(v): return struct.pack('>H', v)
 
 ## --- Utilities ---
 
@@ -762,21 +779,37 @@ UOPERAND2 = lambda c: (UOPERAND0(c) & ((1 << S2_OPERAND_SIZE) - 1))
 
 def dbgcc(c, bc):
     if c[-1] == '\n': c = c[:-1]
-    print('\033[92m{}\033[0m'.format(c), end=':\n')
-    unpacked = struct.unpack('>' + ('I' * (len(bc)/4)), bc)
+    print('\033[92m{}\033[0m'.format(c.encode('utf-8')), end=':\n')
+    # Reading facilities
+    cursor = 0
+    readuint8 = lambda: struct.unpack('>B', bc[cursor])[0]
+    readuint16 = lambda: struct.unpack('>H', bc[cursor:cursor+2])[0]
+    readstring = lambda n: ''.join(struct.unpack('>' + 's'*n, bc[cursor:cursor+n]))
+    # Parse header
+    headerSize = readuint8(); cursor += 1
+    print('Header(%s)' % headerSize)
+    for i in range(headerSize):
+        ssize = readuint8(); cursor += 1
+        content = readstring(ssize);
+        print("   0x%02x: String(%2ld) %s" % (i, ssize, repr(content)))
+        cursor += ssize
+    # Parse body
+    codeSize = readuint16(); cursor += 2
+    codeStart = len(bc)-codeSize
+    print('Code(%d)' % codeSize)
+    unpacked = struct.unpack('>' + ('I' * (codeSize/4)), bc[codeStart:])
     for i, instr in enumerate(unpacked):
         obj = Instructions(OP_MASK(instr))
         name = obj.name
         argc = InstructionParams[obj]
         if argc == 1:
-            val = '      0x{:02x}'.format(UOPERAND0(instr))
+            val = '      0x{:03x}'.format(UOPERAND0(instr))
         elif argc == 2:
-            val = ' 0x{:02x} 0x{:02x}'.format(
+            val = ' 0x{:02x} 0x{:03x}'.format(
                 UOPERAND1(instr), UOPERAND2(instr))
         else:
-            val = '          '
-        print('   0x{:02x} 0x{:08x} [{:>17}{}]'.format(i, instr, obj.name, val))
-
+            val = '           '
+        print('   0x{:03x} 0x{:08x} [{:>17}{}]'.format(i, instr, obj.name, val))
     return bc
 
 ## --- tests ---
@@ -1105,8 +1138,11 @@ def test_instruction():
 
 
 def test_compile():
-    cc = lambda c, **f: dbgcc(c, Compiler(Parser(c).run(), **f).genCode())
     bn = lambda *bc: struct.pack('>' + ('I' * len(bc)), *bc)
+    ccc = lambda co, **f: Compiler(Parser(co).run(), **f)
+    def cc(code, **f):
+        dbgcc(code, ccc(code, **f).assemble())
+        return ccc(code, **f).genCode()
 
     # Char 'c'
     assert(cc("S <- 'a'") == bn(
@@ -1324,25 +1360,45 @@ def test_compile():
 
     assert(cc("S <- 'a' 'b'", capture=True) == bn(
         gen("call", 0x02),      # 0x01: Call 0x02
-        gen("jump", 0x0d),      # 0x02: Jump 0x0d
+        gen("jump", 0x0b),      # 0x02: Jump 0x0b
 
         gen("cap_open", 0, 0),  # 0x03: CapOpen 0 (Main)
-        gen("cap_open", 0, 1),  # 0x04: CapOpen 1 (Seq)
 
-        gen("cap_open", 1, 2),  # 0x05: CapOpen 2 (Seq#0)
-        gen("char", ord('a')),  # 0x06: Char 'a'
-        gen("cap_close", 1, 2), # 0x07: CapClose 2 (Seq#0)
+        gen("cap_open", 1, 1),  # 0x04: CapOpen 1 (Seq#0)
+        gen("char", ord('a')),  # 0x05: Char 'a'
+        gen("cap_close", 1, 1), # 0x06: CapClose 1 (Seq#0)
 
-        gen("cap_open", 1, 3),  # 0x08: CapOpen 3 (Seq#1)
-        gen("char", ord('b')),  # 0x09: Char 'a'
-        gen("cap_close", 1, 3), # 0x0a: CapClose 3 (Seq#1)
+        gen("cap_open", 1, 2),  # 0x07: CapOpen 2 (Seq#1)
+        gen("char", ord('b')),  # 0x08: Char 'a'
+        gen("cap_close", 1, 2), # 0x09: CapClose 2 (Seq#1)
 
-        gen("cap_close", 0, 1), # 0x0b: CapClose 1 (Seq)
-        gen("cap_close", 0, 0), # 0x0c: CapClose 0 (Main)
+        gen("cap_close", 0, 0), # 0x0a: CapClose 0 (Main)
 
-        gen("return"),          # 0x0d: Return
-        gen("halt"),            # 0x0e: Halt
+        gen("return"),          # 0x0b: Return
+        gen("halt"),            # 0x0c: Halt
     ))
+
+
+def test_compile_header():
+    def cc(src, **f):
+        c = Compiler(Parser(src).run(), capture=True, **f)
+        c.genCode()
+        return c.strings
+
+    # Name of the rule
+    assert(cc("S <- 'a'") == ['S', 'a'])
+    # Name of the rules and set of chars
+    assert(cc("S <- D [%?!~#$&+]\nD <- [0-9]+") == [
+        'S',
+        '%', '?', '!', '~', '#', '$', '&', '+',
+        'D',
+        '0-9',
+    ])
+    # Name of the rules and set of chars without dups
+    assert(cc("S <- [ai sim hein]") == [
+        'S',
+        'a', 'i', ' ', 's', 'm', 'h', 'e', 'n',
+    ])
 
 
 def test():
@@ -1352,6 +1408,7 @@ def test():
     test_match()
     test_instruction()
     test_compile()
+    test_compile_header()
 
 
 def main():
@@ -1383,14 +1440,14 @@ def main():
         parser.print_help()
         exit(0)
 
-    with io.open(os.path.abspath(args.grammar), 'r') as grammarFile:
+    with io.open(os.path.abspath(args.grammar), 'r', encoding='utf-8') as grammarFile:
         grammarSrc = grammarFile.read()
         grammar = Parser(grammarSrc).run()
 
     if args.compile:
         name, _ = os.path.splitext(args.grammar)
         with io.open('%s.bin' % name, 'wb') as out:
-            compiled = Compiler(grammar).run()
+            compiled = Compiler(grammar, capture=True).assemble()
             out.write(compiled)
             if not args.quiet: dbgcc(grammarSrc, compiled)
     else:

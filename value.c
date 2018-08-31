@@ -50,7 +50,6 @@ Object *makeAtom (const char *p, size_t len)
   return (Object *) atom;
 }
 
-
 static void printCons (Cons *obj)
 {
   Cons *tmp;
@@ -70,13 +69,32 @@ static void printCons (Cons *obj)
   printf (")");
 }
 
+static void rawPrint (const char *s, size_t len)
+{
+  const char *escape[256] = { NULL }; /* Only good for ascii. */
+  int c;
+  escape['\0'] = "\\0";
+  escape['\r'] = "\\r";
+  escape['\n'] = "\\n";
+  for (size_t i = 0; i < len; i++) {
+    c = s[i];
+    if (escape[c] == NULL) printf("%c", c);
+    else printf("%s", escape[c]);
+  }
+}
+
+static void printAtom (const Object *atom)
+{
+  rawPrint (ATOM (atom)->name, ATOM (atom)->len);
+}
+
 void printObj (const Object *obj)
 {
   if (!obj) {
     printf ("NULL");
   } else {
     switch (obj->type) {
-    case TYPE_ATOM: printf ("%s", ATOM (obj)->name); break;
+    case TYPE_ATOM: printAtom (obj); break;
     case TYPE_NIL: printf ("nil"); break;
     case TYPE_CONS: printCons (CONS (obj)); break;
     default: FATAL ("Unknown type passed to printObj: %d\n", obj->type);

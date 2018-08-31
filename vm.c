@@ -55,7 +55,7 @@ Predicates
  * [x] &a (syntax suggar)
 Suffixes
  * [x] a*
- * [ ] a? (syntax suggar)
+ * [x] a? (syntax suggar)
 
 Machine Instructions
 ====================
@@ -235,24 +235,52 @@ static const char *opNames[OP_END] = {
 void mInit (Machine *m)
 {
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
-  m->captures = calloc (STACK_SIZE, sizeof (CaptureEntry *));
-  /* memset (m->stack, 0, STACK_SIZE * sizeof (void *)); */
-  /* memset (m->captures, 0, STACK_SIZE * sizeof (void *)); */
+  m->captures = calloc (STACK_SIZE*1024, sizeof (CaptureEntry *));
+  m->atoms = calloc (STACK_SIZE, sizeof (Object *));
   m->code = NULL;               /* Will be set by mLoad() */
   m->cap = m->captures;
 }
 
+/* Release the resources used by the machine */
 void mFree (Machine *m)
 {
+  oTableFree (m->atoms);
+  free (m->atoms);
   free (m->code);
+  free (m->stack);
+  free (m->captures);
   m->cap = NULL;
+  m->captures = NULL;
   m->code = NULL;
+  m->stack = NULL;
 }
 
-void mLoad (Machine *m, Bytecode *code, size_t code_size)
+#define READ_UINT8(c)  (*c++)
+#define READ_UINT16(c) (c+=2, (c[-2] << 8) | c[-1])
+
+void mLoad (Machine *m, Bytecode *code, size_t total_size)
 {
   Instruction *tmp;
   uint32_t instr, i;
+  uint8_t headerSize;
+  uint16_t code_size;
+
+  (void) total_size;
+
+  /* Header starts with number (in uint8) of entries in the string
+     table. For each string in the string table we first read its size
+     and then the actual string. */
+  headerSize = READ_UINT8 (code);
+  DEBUGLN ("   Header(%d)", headerSize);
+  for (uint8_t ii = 0; ii < headerSize; ii++) {
+    size_t ssize = READ_UINT8 (code);
+    Object *atom = makeAtom ((const char *) code, ssize);
+    oTableInsert (m->atoms, atom);
+    DEBUGLN ("     0x%0x: String(%ld) %s", ii, ssize, ATOM (atom)->name);
+    code += ssize; /* Push the cursor to after the string just read */
+  }
+
+  code_size = READ_UINT16 (code);
 
   /* Code size is in uint8_t and each instruction is 16bits */
   DEBUGLN ("   Load");
@@ -288,7 +316,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 #define THE_END (input + input_size)
 
   /** Push data to the capture buffer  */
-#define PUSH_CAP(_p,_ty,_id,_tr) do {                                   \
+#define PUSH_CAP(_p,_ty,_id,_tr) do {                                 \
     m->cap->pos = _p;                                                 \
     m->cap->type = _ty;                                               \
     m->cap->term = _id;                                               \
@@ -387,19 +415,9 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
   }
 }
 
-const char *cap_type[2] = { " Open", "Close" };
-
-void printCaptures (Machine *m)
-{
-  CaptureEntry match, *cp = m->cap;
-
-  (void) match;                 /* In case TEST isn't set */
-
-  while (cp > m->captures) {
-    match = *--cp;              /* POP () */
-    DEBUGLN ("     CAP: %s[%d]", cap_type[match.type], match.idx);
-  }
-}
+#ifdef TEST
+const char *cap_type[2] = { "Open", "Close" };
+#endif  /* TEST */
 
 Object *mExtract (Machine *m, const char *input)
 {
@@ -407,8 +425,7 @@ Object *mExtract (Machine *m, const char *input)
   CaptureEntry close, match, *stack;
   CaptureEntry *cp, *sp;
   Object *item = NULL, *out = NULL; /* Output list to be filled in bottom-up */
-
-  printCaptures (m);
+  Object *key;
 
   stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
 
@@ -420,7 +437,11 @@ Object *mExtract (Machine *m, const char *input)
   while (cp > m->captures) {
     match = *--cp;              /* POP () */
 
-    DEBUGLN ("     MATCH: %s[%d]", cap_type[match.type], match.idx);
+    key = m->atoms->items[match.idx];
+    DEBUGLN ("     MATCH: [%s %s][%d]",
+             cap_type[match.type],
+             ATOM (key)->name,
+             match.idx);
 
     if (match.type == CapClose) {
       *sp++ = match;
@@ -431,26 +452,28 @@ Object *mExtract (Machine *m, const char *input)
     close = *--sp;
 
     if (match.idx != close.idx) {
-      DEBUGLN ("Closing on the wrong capture %d:%d", close.idx, match.idx);
+      FATAL ("Closing on the wrong capture %d:%d", close.idx, match.idx);
     }
-
-    char key[256];
-    sprintf (key, "%d", match.idx);
 
     if (match.term) {
       /* Terminal */
       start = match.pos - input;
       end = close.pos - input;
+
       item = makeAtom (input + start, end - start);
-      out = makeCons (makeCons (makeAtom (key, strlen (key)), item), out);
+      out = makeCons (makeCons (key, item), out);
+      DEBUGLN ("      ATOM: %s", ATOM (item)->name);
+      DEBUG ("      OBJ: ");
+      printObj (out);
+      printf ("\n");
     } else {
       /* Non-Terminal */
-      out = makeCons (makeCons (makeAtom (key, strlen (key)), out), NULL);
+      out = makeCons (makeCons (key, out), NULL);
+      DEBUGLN ("      Close(%s)", ATOM (key)->name);
     }
-
-    printObj (out);
-    printf ("\n\n");
   }
+
+  free (stack);
 
   return out;
 }

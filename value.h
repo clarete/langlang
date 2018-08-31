@@ -63,9 +63,19 @@ typedef struct {
   char name[MAX_ATOM_SIZE];
 } Atom;
 
+typedef struct {
+  Object **items;
+  uint32_t used;
+  uint32_t capacity;
+} ObjectTable;
+
 void printObj (const Object *o);
 Object *makeCons (Object *car, Object *cdr);
 Object *makeAtom (const char *p, size_t len);
+
+void oTableInit (ObjectTable *ot);
+void oTableFree (ObjectTable *ot);
+uint32_t oTableInsert (ObjectTable *ot, Object *o);
 
 /* Static object */
 #define Nil (&(Object) { TYPE_NIL, 0 })

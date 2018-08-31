@@ -21,6 +21,8 @@
 #include "error.h"
 #include "value.h"
 
+/* ---- Object Factories ---- */
+
 Object *makeObject (Type type, size_t size)
 {
   Object *obj = malloc (size);
@@ -49,6 +51,38 @@ Object *makeAtom (const char *p, size_t len)
   atom->len = len;
   return (Object *) atom;
 }
+
+/* ---- Object Table ---- */
+
+void oTableInit (ObjectTable *ot)
+{
+  ot->items = NULL;
+  ot->capacity = 0;
+  ot->used = 0;
+}
+
+void oTableFree (ObjectTable *ot)
+{
+  free (ot->items);
+  oTableInit (ot);
+}
+
+uint32_t oTableInsert (ObjectTable *ot, Object *o)
+{
+  Object **tmp;
+  if (ot->used == ot->capacity) {
+    ot->capacity = ot->capacity == 0 ? 32 : ot->capacity * 2;
+    if ((tmp = realloc (ot->items, ot->capacity * sizeof (Object *))) == NULL) {
+      free (ot->items);
+      FATAL ("Can't allocate memory");
+    }
+    ot->items = tmp;
+  }
+  ot->items[ot->used++] = o;
+  return ot->used;
+}
+
+/* Print facilities */
 
 static void printCons (Cons *obj)
 {

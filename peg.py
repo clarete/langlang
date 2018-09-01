@@ -235,7 +235,7 @@ class Parser:
     def spacing(self):
         self.cleanspaces()
         # ’#’ (!EndOfLine .)* EndOfLine
-        if self.matchc('#'):
+        while self.matchc('#'):
             while not self.testc('\n') and self.peekc():
                 self.nextc()
             self.cleanspaces()

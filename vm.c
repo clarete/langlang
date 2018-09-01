@@ -412,10 +412,6 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
   }
 }
 
-#ifdef TEST
-const char *cap_type[2] = { "Open", "Close" };
-#endif  /* TEST */
-
 Object *mExtract (Machine *m, const char *input)
 {
   uint16_t start, end;

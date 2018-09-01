@@ -59,6 +59,7 @@
   } while (0)
 
 #  define DEBUG_CAP_ENTRY_IN() do {                                     \
+    const char *cap_type[2] = { "Open", "Close" };                      \
     DEBUGLN ("     * [%d][%d] %s %s", match.idx, match.term,            \
              cap_type[match.type], ATOM (key)->name);                   \
   } while(0)

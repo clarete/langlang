@@ -313,11 +313,11 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 #define THE_END (input + input_size)
 
   /** Push data to the capture buffer  */
-#define PUSH_CAP(_p,_ty,_id,_tr) do {                                 \
+#define PUSH_CAP(_p,_ty,_tr,_id) do {                                 \
     m->cap->pos = _p;                                                 \
     m->cap->type = _ty;                                               \
-    m->cap->term = _id;                                               \
-    m->cap->idx = _tr;                                                \
+    m->cap->term = _tr;                                               \
+    m->cap->idx = _id;                                                \
     m->cap++;                                                         \
   } while (0)
 
@@ -335,7 +335,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       pc++;
       continue;
     case OP_CAP_CLOSE:
-      PUSH_CAP (i, CapClose, UOPERAND0 (pc), UOPERAND2 (pc));
+      PUSH_CAP (i, CapClose, UOPERAND1 (pc), UOPERAND2 (pc));
       pc++;
       continue;
     case OP_CHAR:

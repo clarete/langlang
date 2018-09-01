@@ -904,6 +904,13 @@ def test_tokenizer():
         Token(TokenTypes.END, line=0, pos=16),
     ])
 
+    test("# multiple\n#lines\n#with\n#comments\nS <- 'a'", [
+        Token(TokenTypes.IDENTIFIER, 'S', line=4, pos=34),
+        Token(TokenTypes.ARROW, line=4, pos=36),
+        Token(TokenTypes.LITERAL, 'a', line=4, pos=39),
+        Token(TokenTypes.END, line=4, pos=42),
+    ])
+
 
 def test_parser():
     test = functools.partial(test_runner, lambda x: Parser(x).parse)

@@ -1417,6 +1417,40 @@ def test():
     test_compile_header()
 
 
+# ---- Run the thing ----
+
+
+def parseG(args):
+    with io.open(os.path.abspath(args.grammar), 'r', encoding='utf-8') as grammarFile:
+        grammarSrc = grammarFile.read()
+        grammar = Parser(grammarSrc).run()
+    return grammarSrc, grammar
+
+
+def compileG(args, grammarSrc, grammar):
+    name, _ = os.path.splitext(args.grammar)
+    with io.open('%s.bin' % name, 'wb') as out:
+        compiled = Compiler(grammar, capture=True).assemble()
+        out.write(compiled)
+        if not args.quiet: dbgcc(grammarSrc, compiled)
+
+
+def matchG(args, grammarSrc, grammar):
+    with io.open(os.path.abspath(args.data), 'r') as dataFile:
+        output = Match(grammar, args.start, dataFile.read()).run()
+        pprint.pprint(output)
+
+
+def run(args):
+    try:
+        grammarSrc, grammar = parseG(args)
+        if args.compile: compileG(args, grammarSrc, grammar)
+        else: matchG(args, grammarSrc, grammar)
+    except Exception as exc:
+        print(exc.message)
+        exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Parse structured data with Parsing Expression Grammars')
@@ -1446,20 +1480,7 @@ def main():
         parser.print_help()
         exit(0)
 
-    with io.open(os.path.abspath(args.grammar), 'r', encoding='utf-8') as grammarFile:
-        grammarSrc = grammarFile.read()
-        grammar = Parser(grammarSrc).run()
-
-    if args.compile:
-        name, _ = os.path.splitext(args.grammar)
-        with io.open('%s.bin' % name, 'wb') as out:
-            compiled = Compiler(grammar, capture=True).assemble()
-            out.write(compiled)
-            if not args.quiet: dbgcc(grammarSrc, compiled)
-    else:
-        with io.open(os.path.abspath(args.data), 'r') as dataFile:
-            output = Match(grammar, args.start, dataFile.read()).run()
-            pprint.pprint(output)
+    run(args)
 
 
 if __name__ == '__main__':

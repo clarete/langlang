@@ -67,17 +67,35 @@ void oTableFree (ObjectTable *ot)
   oTableInit (ot);
 }
 
-uint32_t oTableInsert (ObjectTable *ot, Object *o)
+void *memAlloc (uint32_t used, uint32_t capacity, uint32_t elsize, void *items)
 {
-  Object **tmp;
-  if (ot->used == ot->capacity) {
-    ot->capacity = ot->capacity == 0 ? 32 : ot->capacity * 2;
-    if ((tmp = realloc (ot->items, ot->capacity * sizeof (Object *))) == NULL) {
-      free (ot->items);
+  void *tmp;
+  if (used == capacity) {
+    capacity = capacity == 0 ? 32 : capacity * 2;
+    if ((tmp = realloc (items, capacity * elsize)) == NULL) {
+      free (items);
       FATAL ("Can't allocate memory");
     }
-    ot->items = tmp;
+    return tmp;
   }
+  return items;
+}
+
+void oTableAdjust (ObjectTable *ot, size_t osz)
+{
+  ot->items = memAlloc (ot->used, ot->capacity, osz, ot->items);
+}
+
+uint32_t oTableInsertObject (ObjectTable *ot, Object *o)
+{
+  oTableAdjust (ot, sizeof (Object *));
+  ot->items[ot->used++] = o;
+  return ot->used;
+}
+
+uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz)
+{
+  oTableAdjust (ot, osz);
   ot->items[ot->used++] = o;
   return ot->used;
 }

@@ -234,9 +234,9 @@ static const char *opNames[OP_END] = {
 /* Set initial values for the machine */
 void mInit (Machine *m)
 {
+  oTableInit (&m->atoms);
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
   m->captures = calloc (STACK_SIZE*1024, sizeof (CaptureEntry *));
-  m->atoms = calloc (STACK_SIZE, sizeof (Object *));
   m->code = NULL;               /* Will be set by mLoad() */
   m->cap = m->captures;
 }
@@ -244,8 +244,7 @@ void mInit (Machine *m)
 /* Release the resources used by the machine */
 void mFree (Machine *m)
 {
-  oTableFree (m->atoms);
-  free (m->atoms);
+  oTableFree (&m->atoms);
   free (m->code);
   free (m->stack);
   free (m->captures);
@@ -276,7 +275,7 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
   for (i = 0; i < headerSize; i++) {
     size_t ssize = READ_UINT8 (code);
     Object *atom = makeAtom ((const char *) code, ssize);
-    oTableInsert (m->atoms, atom);
+    oTableInsertObject (&m->atoms, atom);
     DEBUGLN ("     0x%0x: String(%ld) %s", i, ssize, ATOM (atom)->name);
     code += ssize; /* Push the cursor to after the string just read */
   }
@@ -415,13 +414,12 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 Object *mExtract (Machine *m, const char *input)
 {
   uint16_t start, end;
-  CaptureEntry match, match2, *stack;
-  CaptureEntry *cp, *sp;
+  CaptureEntry *cp;
+  CaptureEntry match, match2;
   Object *key, *out = NULL, *current = NULL, *item = NULL;
+  ObjectTable stack;
 
-  stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
-
-  sp = stack;
+  oTableInit (&stack);
   cp = m->cap;
 
   DEBUGLN ("  Extract: %p %p", (void*) cp, (void*) m->captures);
@@ -430,19 +428,21 @@ Object *mExtract (Machine *m, const char *input)
     match = *--cp;              /* POP () */
 
     if (match.type == CapClose) {
-      *sp++ = match;
+      /* Push to the stack */
+      oTableInsert (&stack, &match, sizeof (CaptureEntry *));
+
       /* Doesn't clean up current if it's a terminal since we need
          them in the same cons list. */
       if (!match.term) current = NULL;
       continue;
     }
-    match2 = *--sp;
+    match2 = *(CaptureEntry *) oTableItem (&stack, --stack.used);
 
     if (match2.idx != match.idx)
       FATAL ("Capture closed at wrong element %d:%d",
              match2.idx, match.idx);
 
-    key = oTableItem (m->atoms, match.idx);
+    key = oTableItem (&m->atoms, match.idx);
 
     DEBUG_CAP_ENTRY_IN ();
 
@@ -462,7 +462,7 @@ Object *mExtract (Machine *m, const char *input)
     DEBUG_CAP_ENTRY_OUT ();
   }
 
-  free (stack);
+  oTableFree (&stack);
 
   return out;
 }

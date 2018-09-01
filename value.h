@@ -64,7 +64,7 @@ typedef struct {
 } Atom;
 
 typedef struct {
-  Object **items;
+  void **items;
   uint32_t used;
   uint32_t capacity;
 } ObjectTable;
@@ -75,8 +75,13 @@ Object *makeAtom (const char *p, size_t len);
 
 void oTableInit (ObjectTable *ot);
 void oTableFree (ObjectTable *ot);
-uint32_t oTableInsert (ObjectTable *ot, Object *o);
+void oTableAdjust (ObjectTable *ot, size_t osz);
+uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz);
+uint32_t oTableInsertObject (ObjectTable *ot, Object *o);
 #define oTableItem(o,i) ((o)->items[i])
+
+/* Temporary API */
+void *memAlloc (uint32_t used, uint32_t capacity, uint32_t elsize, void *items);
 
 /* Static object */
 #define Nil (&(Object) { TYPE_NIL, 0 })

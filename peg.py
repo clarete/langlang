@@ -921,7 +921,7 @@ def test_parser():
     test(r"R0 <- '\\' [nrt'\"\[\]]", [
         {'R0': Sequence([Literal('\\'), Class(['n', 'r', 't', "'", '"', '[', ']'])])}])
 
-    test("R <- '\r\n' / '\n' / '\r'\\n", [
+    test("R <- '\\r\\n' / '\\n' / '\\r'", [
         {'R': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')])}])
 
     test('# foo\n R1 <- "a"\nR2 <- \'b\'', [
@@ -940,11 +940,11 @@ def test_parser():
 
     test('Foo <- ("a" / "b")+', [{'Foo': Plus(Expression([Literal('a'), Literal('b')]))}])
 
-    test('R0 <- "a"\\n      / "b"\\nR1 <- "c"', [
+    test('R0 <- "a"\n      / "b"\nR1 <- "c"', [
         {'R0': Expression([Literal('a'), Literal('b')])},
         {'R1': Literal('c')}])
 
-    test('R0 <- R1 ("," R1)*\\nR1 <- [0-9]+', [
+    test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', [
         {'R0': Sequence([
             Identifier('R1'),
             Star(Sequence([Literal(','), Identifier('R1')]))])},
@@ -1027,7 +1027,7 @@ def test_parse_errors():
     assert(p.token == Token(TokenTypes.IDENTIFIER, 'X', line=0, pos=0))
 
 
-    value = Parser('AtoC <- [a-c]\\nNoAtoC <- !AtoC .\\nEOF < !.\\n').run()
+    value = Parser('AtoC <- [a-c]\nNoAtoC <- !AtoC .\nEOF < !.\n').run()
     expected = r'''Missing the dash in the arrow at line 2
 
 AtoC <- [a-c]
@@ -1071,7 +1071,7 @@ def test_match():
     e = Match(Parser('Digit <- [0-9]*').parse(), 'Digit', '2048')
     assert(e.matchAtom(Identifier('Digit')) == (True, ['2', '0', '4', '8']))
 
-    e = Match(Parser('AtoC <- [a-c]\\nNoAtoC <- !AtoC .\\nEOF <- !.\\n').parse(), '', 'abcdef')
+    e = Match(Parser('AtoC <- [a-c]\nNoAtoC <- !AtoC .\nEOF <- !.\n').parse(), '', 'abcdef')
     assert(e.matchAtom(Identifier('NoAtoC')) == (False, None))  ; assert(e.pos == 0)
     assert(e.matchAtom(Identifier('AtoC'))   == (True, 'a'))    ; assert(e.pos == 1)
     assert(e.matchAtom(Identifier('NoAtoC')) == (False, None))  ; assert(e.pos == 1)
@@ -1088,7 +1088,7 @@ def test_match():
     assert(e.matchAtom(Identifier('AtoC'))   == (False, None))  ; assert(e.pos == 6)
     assert(e.matchAtom(Identifier('EOF'))    == (True, None))   ; assert(e.pos == 6)
 
-    e = Match(Parser('EOF <- !.\\nALL <- [a-f]').parse(), 'EOF', 'f')
+    e = Match(Parser('EOF <- !.\nALL <- [a-f]').parse(), 'EOF', 'f')
     assert(e.matchAtom(Identifier('EOF')) == (False, None))
     assert(e.matchAtom(Identifier('ALL')) == (True, 'f'))
     e = Match(Parser(arith).parse(), 'Add', "12+34*56")

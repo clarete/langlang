@@ -242,10 +242,9 @@ class Parser:
 
     def cleanspaces(self):
         while True:
-            if self.matchc('\\'):
-                if self.matchc('n'):
-                    self.line += 1
-            elif self.peekc() and self.peekc().isspace(): self.nextc()
+            if self.peekc() and self.peekc().isspace():
+                if self.matchc('\n'): self.line += 1
+                else: self.nextc()
             else: break
 
     def parseDefinitions(self):

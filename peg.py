@@ -20,12 +20,18 @@
 from __future__ import print_function
 
 import argparse
-import enum
 import functools
 import io
 import os
 import pprint
 import struct
+
+# Python 2 & 3 support
+try:
+    import enum
+except ImportError:
+    import aenum as enum
+
 
 class TokenTypes(enum.Enum):
     (IDENTIFIER,

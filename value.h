@@ -76,6 +76,7 @@ Object *makeAtom (const char *p, size_t len);
 void oTableInit (ObjectTable *ot);
 void oTableFree (ObjectTable *ot);
 uint32_t oTableInsert (ObjectTable *ot, Object *o);
+#define oTableItem(o,i) ((o)->items[i])
 
 /* Static object */
 #define Nil (&(Object) { TYPE_NIL, 0 })

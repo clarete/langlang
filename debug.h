@@ -58,6 +58,21 @@
     }                                                                   \
   } while (0)
 
+#  define DEBUG_CAP_ENTRY_IN() do {                                     \
+    DEBUGLN ("     * [%d][%d] %s %s", match.idx, match.term,            \
+             cap_type[match.type], ATOM (key)->name);                   \
+  } while(0)
+
+#  define DEBUG_CAP_ENTRY_OUT() do {                                    \
+    DEBUG ("       :current { %p ", (void *) current);                  \
+    printObj (current);                                                 \
+    printf ("}\n");                                                     \
+    DEBUG ("       :out { %p ", (void *) out);                          \
+    printObj (out);                                                     \
+    printf ("}\n");                                                     \
+  } while (0)
+
+
 # else  /* TEST */
 #  define DEBUG(...)
 #  define DEBUGLN(f, ...)
@@ -65,6 +80,8 @@
 #  define DEBUG_INSTRUCTION_LOAD()
 #  define DEBUG_FAILSTATE()
 #  define DEBUG_STACK()
+#  define DEBUG_CAP_ENTRY_IN()
+#  define DEBUG_CAP_ENTRY_OUT()
 # endif  /* TEST */
 
 static inline char *debug_byte (uint32_t a, char *buffer, int size) {

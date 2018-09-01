@@ -419,10 +419,9 @@ const char *cap_type[2] = { "Open", "Close" };
 Object *mExtract (Machine *m, const char *input)
 {
   uint16_t start, end;
-  CaptureEntry close, match, *stack;
+  CaptureEntry match, match2, *stack;
   CaptureEntry *cp, *sp;
-  Object *item = NULL, *out = NULL; /* Output list to be filled in bottom-up */
-  Object *key;
+  Object *key, *out = NULL, *current = NULL, *item = NULL;
 
   stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
 
@@ -434,40 +433,37 @@ Object *mExtract (Machine *m, const char *input)
   while (cp > m->captures) {
     match = *--cp;              /* POP () */
 
-    key = m->atoms->items[match.idx];
-    DEBUGLN ("     MATCH: [%s %s][%d]",
-             cap_type[match.type],
-             ATOM (key)->name,
-             match.idx);
-
     if (match.type == CapClose) {
       *sp++ = match;
+      /* Doesn't clean up current if it's a terminal since we need
+         them in the same cons list. */
+      if (!match.term) current = NULL;
       continue;
     }
+    match2 = *--sp;
 
-    /* Pop the last entry from capture stack */
-    close = *--sp;
+    if (match2.idx != match.idx)
+      FATAL ("Capture closed at wrong element %d:%d",
+             match2.idx, match.idx);
 
-    if (match.idx != close.idx) {
-      FATAL ("Closing on the wrong capture %d:%d", close.idx, match.idx);
-    }
+    key = oTableItem (m->atoms, match.idx);
+
+    DEBUG_CAP_ENTRY_IN ();
 
     if (match.term) {
       /* Terminal */
       start = match.pos - input;
-      end = close.pos - input;
-
+      end = match2.pos - input;
       item = makeAtom (input + start, end - start);
-      out = makeCons (makeCons (key, item), out);
-      DEBUGLN ("      ATOM: %s", ATOM (item)->name);
-      DEBUG ("      OBJ: ");
-      printObj (out);
-      printf ("\n");
+      current = makeCons (makeCons (key, item), current);
     } else {
       /* Non-Terminal */
-      out = makeCons (makeCons (key, out), NULL);
-      DEBUGLN ("      Close(%s)", ATOM (key)->name);
+      if (current) out = makeCons (makeCons (key, current), out);
+      else out = makeCons (makeCons (key, out), NULL);
+      current = NULL;
     }
+
+    DEBUG_CAP_ENTRY_OUT ();
   }
 
   free (stack);

@@ -100,6 +100,8 @@ def fio(thing):
         return thing[0]
     return thing
 
+class FormattedException(Exception): pass
+
 class Parser:
 
     def __init__(self, code):
@@ -321,19 +323,21 @@ class Parser:
     def run(self):
         try: return self.parse()
         except SyntaxError as exc:
-            output = ['%s at line %d' % (str(exc), self.line)]
-            output.append('')
+            output = []
             code = self.code
             mark = self.token_start
             output.append(
                 code[:mark] +
-                '\u001b[41m' +
+                '\033[41m' +
                 code[mark] +
-                '\u001b[0m' +
+                '\033[0m' +
+                '\033[91m <----- HERE!!\033[0m' +
                 code[mark+1:]
             )
-            exc.msg = '\n'.join(output);
-            raise exc
+            lines = '\n'.join(output).split('\n')
+            numbered = ['{:02d}: {}'.format(i+1, x) for i, x in enumerate(lines)]
+            message = ['%s at line %d' % (str(exc), self.line+1), ''] + numbered
+            raise FormattedException('\n'.join(message))
 
 
 def mergeDicts(dicts):
@@ -1446,7 +1450,7 @@ def run(args):
         grammarSrc, grammar = parseG(args)
         if args.compile: compileG(args, grammarSrc, grammar)
         else: matchG(args, grammarSrc, grammar)
-    except Exception as exc:
+    except FormattedException as exc:
         print(exc.message)
         exit(1)
 

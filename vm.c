@@ -414,55 +414,51 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 Object *mExtract (Machine *m, const char *input)
 {
   uint16_t start, end;
-  CaptureEntry *cp;
+  uint32_t sp = 0, spo = 0;
+  CaptureEntry *cp, *stack;
   CaptureEntry match, match2;
-  Object *key, *out = NULL, *current = NULL, *item = NULL;
-  ObjectTable stack;
+  Object *key, **ostack;
 
-  oTableInit (&stack);
-  cp = m->cap;
+  stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
+  ostack = calloc (STACK_SIZE, sizeof (Object **));
+  cp = m->captures;
 
   DEBUGLN ("  Extract: %p %p", (void*) cp, (void*) m->captures);
 
-  while (cp > m->captures) {
-    match = *--cp;              /* POP () */
-
-    if (match.type == CapClose) {
-      /* Push to the stack */
-      oTableInsert (&stack, &match, sizeof (CaptureEntry *));
-
-      /* Doesn't clean up current if it's a terminal since we need
-         them in the same cons list. */
-      if (!match.term) current = NULL;
-      continue;
-    }
-    match2 = *(CaptureEntry *) oTableItem (&stack, --stack.used);
-
-    if (match2.idx != match.idx)
-      FATAL ("Capture closed at wrong element %d:%d",
-             match2.idx, match.idx);
-
+  while (cp < m->cap) {
+    match = *cp++;              /* POP () */
     key = oTableItem (&m->atoms, match.idx);
 
-    DEBUG_CAP_ENTRY_IN ();
+    if (match.type == CapOpen) {
+      if (!match.term) ostack[spo++] = key;
+      stack[sp++] = match;
+      continue;
+    }
+
+    if (sp == 0) {
+      FATAL ("Didn't find any match for capture %d", match.idx);
+    }
+
+    match2 = stack[--sp];
+
+    if (match2.idx != match.idx) {
+      FATAL ("Capture closed at wrong element %d:%d", match2.idx, match.idx);
+    }
 
     if (match.term) {
       /* Terminal */
-      start = match.pos - input;
-      end = match2.pos - input;
-      item = makeAtom (input + start, end - start);
-      current = makeCons (makeCons (key, item), current);
+      start = match2.pos - input;
+      end = match.pos - input;
+      ostack[spo++] = makeCons (key, makeAtom (input + start, end - start));
     } else {
       /* Non-Terminal */
-      if (current) out = makeCons (makeCons (key, current), out);
-      else out = makeCons (makeCons (key, out), NULL);
-      current = NULL;
+      Object *l = NULL;
+      while (!ATOMP (ostack[spo-1])) {
+        l = makeCons (ostack[--spo], l);
+      }
+      --spo;                    /* Get rid of key */
+      ostack[spo++] = makeCons(key, l);
     }
-
-    DEBUG_CAP_ENTRY_OUT ();
   }
-
-  oTableFree (&stack);
-
-  return out;
+  return ostack[0];
 }

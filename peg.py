@@ -764,7 +764,7 @@ class Compiler:
     def assemble(self):
         code = self.genCode()   # has to run before the rest
         # Write string table size & string table entries
-        assembled = uint8(len(self.strings))
+        assembled = uint16(len(self.strings))
         for i in self.strings:
             assembled += uint8(len(i))
             s = i.encode('ascii')
@@ -795,7 +795,7 @@ def dbgcc(c, bc):
     readuint16 = lambda: struct.unpack('>H', bc[cursor:cursor+2])[0]
     readstring = lambda n: ''.join(struct.unpack('>' + 's'*n, bc[cursor:cursor+n]))
     # Parse header
-    headerSize = readuint8(); cursor += 1
+    headerSize = readuint16(); cursor += 2
     print('Header(%s)' % headerSize)
     for i in range(headerSize):
         ssize = readuint8(); cursor += 1

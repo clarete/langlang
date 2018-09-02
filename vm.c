@@ -267,10 +267,10 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
 
   (void) total_size;
 
-  /* Header starts with number (in uint8) of entries in the string
+  /* Header starts with number (in uint16) of entries in the string
      table. For each string in the string table we first read its size
      and then the actual string. */
-  headerSize = READ_UINT8 (code);
+  headerSize = READ_UINT16 (code);
   DEBUGLN ("   Header(%d)", headerSize);
   for (i = 0; i < headerSize; i++) {
     size_t ssize = READ_UINT8 (code);

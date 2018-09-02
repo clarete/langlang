@@ -1,0 +1,229 @@
+* Parsing Machine
+** Introduction
+
+   This document describes the design and implementation of the
+   parsing machine in the file =vm.c=.
+
+   The original idea and design came from the paper [[https://dl.acm.org/citation.cfm?id=1408683][A Parsing Machine
+   for PEGs]] by Sérgio Medeiros & Roberto Ierusalimschy PUC-Rio, Rio de
+   Janeiro, Brazil.
+
+** Features
+*** Matching
+    * [X] Patterns
+    * [X] Expressions
+    * [ ] Lists
+*** Extraction
+    * [x] Lists
+** Semantic Operations
+*** Character
+    * ~‘c’~: Matches a character
+    * ~. (Any)~: Matches any element and fails if it's the end of
+      the input
+*** Concatenation
+    * ~a b~: Concatenates two expressions to compose more complex
+      ones
+*** Ordered Choice
+    * ~a / b~: Tries to match each pattern, backtracking the input
+      before the next pattern.
+*** Predicates
+    * ~!a~: Predicate that fails if =a= succeeds and succeed if =a=
+      fail.
+    * ~&a~: Syntax sugar for ~!!a~.
+*** Suffixes
+    * ~a*~: Matches the pattern =a= zero or more times.
+    * ~a?~: Syntax sugar for ~&ee / !e~.
+** Machine Instructions
+*** General & Chars
+    * [X] Char c
+    * [X] Any
+    * [X] Choice l [o]
+    * [X] Commit l
+    * [X] Fail
+    * [X] FailTwice l
+    * [X] Jump l
+    * [X] Call l
+    * [X] Return
+*** Optimizations
+    * [X] PartialCommit
+    * [X] BackCommit l
+    * [ ] TestChar l o
+    * [ ] TestAny n o
+    * [ ] Set i
+    * [X] Span x y
+*** Lists
+    * [ ] Atom
+    * [ ] Open
+    * [ ] Close
+*** Captures
+    * [X] CapOpen
+    * [X] CapClose
+** Bytecode Format
+
+   The bytecode file is comprised of the following sections:
+
+   #+begin_src text
+   A     B     C     D
+   +-----+-----+-----+-----+
+   + 16b | ... | 16b | ... |
+   +-----+-----+-----+-----+
+   ^     ^     ^     ^
+   |     |     |     |--> D. Beginning of Code section. It ends at D+*C
+   |     |     |--------> C. Length of Code section (range 0-65,535)
+   |     |--------------> B. Begining of String Table
+   +--------------------> A. Number of items in String Table (range 0-65,535)
+   #+end_src
+*** Strings
+    #+begin_src text
+    A     B    C     D    E
+    +-----+----+-----+----+-----+
+    + 16b | 8b | ... | 8b | ... |
+    +-----+----+-----+----+-----+
+    ^     ^    ^     ^    ^
+    |     |    |     |    |--> E. 2nd string in the table
+    |     |    |     |-------> D. Length of 2nd string in the table
+    |     |    |-------------> C. 1st string in the table
+    |     |------------------> B. Length of 1st string in the table
+    |------------------------> A. Number of elements in the table
+    #+end_src
+
+    This section stores all the strings declared within the grammar as
+    identifiers and literals.
+
+    The first =16b= of the section contain the number of strings
+    within the table. Each string within the table is comprised of its
+    length within the first =8b= and the rest of the string
+    follows. Because of the size of the length attribute (=uint8_t=),
+    strings cannot be longer than 255 chars.
+
+*** Code
+
+    The first =16b= of the code section store the size of the rest of
+    the section. The rest of the section is filled with compiled
+    patterns. The patterns are represented as sequences of
+    instructions. Each instruction is =32b= long.
+
+    #+begin_src text
+    A     B     C     D
+    +-----+-----+-----+-----+
+    + 16b | 32b | 32b | ... |
+    +-----+-----+-----+-----+
+    ^     ^     ^     ^  
+    |     |     |     |----> D. Nth instruction
+    |     |     |----------> C. 2nd Instruction
+    |     |----------------> B. 1st Instruction
+    |----------------------> A. Size of code section.
+    #+end_src
+
+*** Instruction Format
+
+    Each instruction is 32 bit long. The first 4 bits are reserved for
+    the opcode and the other 28 bits store parameters for the
+    instruction.  We have instructions that take 0, 1 or 2
+    parameters. Since there are only 4 bits for instructions, we can
+    have at most 31 of them.
+
+    The utility =OP_MASK()= can be used to read the opcode from a 32bit
+    instruction data. Each argument size introduces different
+    functions.  They're Here are the types of arguments:
+
+**** Instruction with 1 parameter (Eg.: Char x)
+
+     #+begin_src text
+     opcode    |Parameter #1
+     ----------|------------------------------------------------------
+     |0|0|0|0|1|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
+     ----------|------------------------------------------------------
+     [   0 - 5 |                                              6 - 32 ]
+     [       5 |                                                  27 ]
+     #+end_src
+
+      * =soperand()= Read signed value
+      * =uoperand()= Read unsigned value
+
+**** Instruction with 2 parameters (Eg.: TestChar 4 97)
+
+     #+begin_src text
+     opcode    | Parameter #1        | Parameter #2
+     ----------|---------------------|--------------------------------
+     |0|0|0|0|1|0|0|0|0|0|0|0|0|0|0|1|0|0|0|0|0|0|0|0|0|1|1|0|0|0|0|1|
+     ----------|---------------------|--------------------------------
+     [   0 - 5 |              6 - 16 |                       17 - 32 ]
+     [       5 |                  11 |                            16 ]
+     #+end_src
+
+      * =s1operand()= Read first operand as signed value
+      * =u1operand()= Read first operand as unsigned values
+      * =s2operand()= Read second operand as signed value
+      * =u2operand()= Read second operand as unsigned value
+** Other Design Choices
+
+   The core of this module tries to follow as close as possible the
+   design established the article referenced in the introduction.
+   However, the design doesn't specify the implementation details of
+   features that aren't related to text matching, like the
+   implementation of SET, SPAN and how to capture the matches.
+
+   Features that open must provide well defined functionality but
+   don't have an implementation specification are documented in this
+   section.
+
+*** SPAN
+
+    This is way to allow the implementation to match a range of
+    characters like =a-z= instead of just expanding it to an ordered
+    choice that is as big as the range E.g.: =a / b / ... / z=.
+
+    The =OP_SPAN a b= instruction is the current way of implementing
+    the semantics of =SPAN=. It takes two arguments =a= and =b= and
+    compare them to the next char in the input stream =i= as follows:
+    ~(a >= i) && (i <= b)~
+
+    This improves on the simplest case of a single range. To represent
+    classes with multiple ranges e.g.: =[a-zA-Z]= the compiler
+    currently has to produce an ordered choice with one choice per
+    range.
+
+*** SET
+
+    This feature isn't implemented yet. It's probably going to be
+    implemented as a new instruction =OP_SET l= where =l= is the
+    location of a set of chars stored in the string table.
+
+*** Captures
+
+    Besides being able to tell if an input matches PEG, the parsing
+    machine should also be able to extract the matched values as a
+    tree where the nodes are tagged with the pieces of the grammar
+    they matched.
+
+    Two instructions were added in order to support this feature:
+    =OP_CAP_OPEN t l= and =OP_CAP_CLOSE t l=. In both instructions,
+    =t= is a boolean flag where false means the capture is non
+    terminal and true means it's a terminal. And =l= is the location
+    of the identifier of the capture in the soon to be implemented
+    string table.
+
+    The =OP_CAP_{OPEN,CLOSE}= instructions are supposed to be used in
+    tandem and the compiler must generate capture pairs accounting for
+    the execution model of the VM where some instructions (e.g.: Fail,
+    Call, Jump, Return) can move the program counter of the virtual
+    machine in non linear ways.
+
+    To achieve the above goal, each semantic operation establishes
+    their own capture rules. The predicates are the easiest ones, they
+    never capture any values as they're only boolean match operators
+    and don't really move the input cursor.
+
+    Sequences require one pair of capture instructions around the
+    whole set of expressions. Then each item of the expression will
+    have their own capture rules applied.
+
+    If a program doesn't match the input, the machine will get into
+    the =Fail= state and the program counter will backtrack before the
+    =OP_CAP_CLOSE= instruction can be executed. Which leads to a
+    dangling =OP_CAP_OPEN= on top of the capture stack. To avoid that
+    problem, the field =cap= was added to the =BacktrackEntry= struct,
+    which is the format of stack entries. When the machine gets into
+    fail state for backtracking, it also restores the top of the
+    capture stack.

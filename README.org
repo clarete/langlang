@@ -26,3 +26,6 @@
    like from =yacc= or =antlr=. That's just the standard chosen for
    this project, the compiler and virtual machine don't care about the
    file name.
+
+** Design Documentation
+   * [[./docs/parsingvm.org][Parsing Machine]]

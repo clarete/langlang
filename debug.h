@@ -33,7 +33,7 @@
            B (tmp->rator),                                              \
            opname ? opname : "HALT",                                    \
            B (tmp->rand),                                               \
-           UOPERAND0 (tmp));                                               \
+           UOPERAND0 (tmp));                                            \
   } while (0)
 
 #  define DEBUG_INSTRUCTION_NEXT() do {                                 \
@@ -43,13 +43,13 @@
              B (pc->rand),  UOPERAND0 (pc));                            \
   } while (0)
 
-#  define DEBUG_FAILSTATE() do {                                        \
-    DEBUGLN ("       FAIL[%s]", i);                                     \
-    DEBUGLN ("         NEXT: %s", OP_NAME ((*(pc)).rator));             \
+#  define DEBUG_FAILSTATE() do {                                \
+    DEBUGLN ("       FAIL[%s]", i);                             \
+    DEBUGLN ("         NEXT: %s", OP_NAME ((*(pc)).rator));     \
   } while (0)
 
 #  define DEBUG_STACK() do {                                            \
-    DEBUGLN ("         STACK: %p %p", (void *) sp, (void *) m->stack);    \
+    DEBUGLN ("         STACK: %p %p", (void *) sp, (void *) m->stack);  \
     for (BacktrackEntry *_tmp_bt = sp; _tmp_bt > m->stack; _tmp_bt--) { \
       DEBUGLN ("           [I]: %p %p `%s'",                            \
                (void *) _tmp_bt,                                        \

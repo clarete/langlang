@@ -25,7 +25,8 @@
 
 Object *makeObject (Type type, size_t size)
 {
-  Object *obj = malloc (size);
+  Object *obj;
+  if ((obj = malloc (size)) == NULL) FATAL ("Can't make new object: OOM");
   obj->type = type;
 
   /* TODO: Receive context to associate object */

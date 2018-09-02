@@ -16,10 +16,10 @@
   (byte & 0x02 ? '1' : '0'), \
   (byte & 0x01 ? '1' : '0')
 #  define DEBUG(...)                                            \
-  do { fprintf (stderr, ##__VA_ARGS__); }                       \
+  do { fprintf (stdout, ##__VA_ARGS__); }                       \
   while (0)
 #  define DEBUGLN(f, ...)                                       \
-  do { fprintf (stderr, f "\n", ##__VA_ARGS__); }               \
+  do { fprintf (stdout, f "\n", ##__VA_ARGS__); }               \
   while (0)
 
 #  define DEBUG_INSTRUCTION_LOAD() do {                                 \

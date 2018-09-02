@@ -417,10 +417,10 @@ Object *mExtract (Machine *m, const char *input)
   uint32_t sp = 0, spo = 0;
   CaptureEntry *cp, *stack;
   CaptureEntry match, match2;
-  Object *key, **ostack;
+  Object *key, *result, **ostack;
 
   stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
-  ostack = calloc (STACK_SIZE, sizeof (Object **));
+  ostack = calloc (STACK_SIZE, sizeof (Object *));
   cp = m->captures;
 
   DEBUGLN ("  Extract: %p %p", (void*) cp, (void*) m->captures);
@@ -457,8 +457,10 @@ Object *mExtract (Machine *m, const char *input)
         l = makeCons (ostack[--spo], l);
       }
       --spo;                    /* Get rid of key */
-      ostack[spo++] = makeCons(key, l);
+      ostack[spo++] = makeCons (key, l);
     }
   }
-  return ostack[0];
+  result = *ostack;
+  free (ostack);
+  return result;
 }

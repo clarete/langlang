@@ -4,9 +4,13 @@
    This document describes the design and implementation of the
    parsing machine in the file =vm.c=.
 
-   The original idea and design came from the paper [[https://dl.acm.org/citation.cfm?id=1408683][A Parsing Machine
-   for PEGs]] by Sérgio Medeiros & Roberto Ierusalimschy PUC-Rio, Rio de
-   Janeiro, Brazil.
+   The original idea and design of the virtual machine came from the
+   paper [[https://dl.acm.org/citation.cfm?id=1408683][A Parsing Machine for PEGs]] by Sérgio Medeiros & Roberto
+   Ierusalimschy PUC-Rio, Rio de Janeiro, Brazil.
+
+   The text matching semantics implemented in the machine were
+   introduced in [[https://dl.acm.org/citation.cfm?id=964011][Parsing expression grammars: a recognition-based
+   syntactic foundation]] by Bryan Ford, MIT, Cambridge, MA, USA.
 
 ** Features
 *** Matching

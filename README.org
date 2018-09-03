@@ -1,31 +1,53 @@
 * langlang
 
   As a Language Toolkit, =langlang= aims to provide tools interpreting
-  and transforming data in lots of different formats. In the very
-  likely case of a format that =langlang= is unaware of, it should be
-  simple to add support to it.
+  and transforming data in lots of different formats.
 
-  =langlang= currently provides a parsing system based on PEGs
-  implemented as a virtual machine inspired by the style the great
-  lpeg from the Lua developers is designed.
+  =langlang= currently provides a parsing system based on Parsing
+  Expression Grammars implemented as a virtual machine inspired by
+  =lpeg= from the Lua developers.
 
   The first feature on the way is the =llmatch= command line tool that
   can be used to match text from input using either a built in grammar
   or a user provided one. Example:
 
   #+begin_src shell
-  $ llmatch -g 'll:csv' -i tiny.csv
-  ((col0 col1 col2)
-   (lin0 lin1 lin2))
+  $ ./match -g csv.bin -i tiny.csv
+  (File
+   (Line (Val col0) (Val col1))
+   (Line (Val 1) (Val 2))
+   (Line (Val 3) (Val 4)))
   #+end_src
 
-** Parse a custom format with a new grammar
+** Build the project
 
-   Grammars are conventionally written in files with the =.peg= so
-   it's explicit that it isn't a grammar file with different semantics
-   like from =yacc= or =antlr=. That's just the standard chosen for
-   this project, the compiler and virtual machine don't care about the
-   file name.
+   If you have the usual tools for compiling ~C~ programs, just type
+   ~make~ within the root of the project and you're good to go. Run
+   ~make test~ to generate the test binary.
+
+** Grammar files
+
+   Grammars must be compiled into bytecode before executed by the
+   machine. This will be automated in the future, but for now, we need
+   to execute the following command:
+
+   #+begin_src
+   python3 peg.py -c -g grammar.peg
+   #+end_src
+
+   The above step will generate the file =grammar.bin=. Use that file
+   with the parsing machine to parse input:
+
+   #+begin_src
+   ./match -g grammar.bin -i inputfile.txt
+   #+end_src
+
+** New Grammar Files
+
+   Each grammar file contains a set of rules composed by an identifier
+   and an expression. Expressions can refer to rules recursively. The
+   first rule declared is also the first one executed by the parsing
+   machine.
 
 ** Design Documentation
    * [[./docs/parsingvm.org][Parsing Machine]]

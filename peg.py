@@ -166,7 +166,7 @@ class Parser:
         if self.peekc() is None: return self.t(TokenTypes.END)
 
         # Identifier <- IdentStart IdentCont* Spacing
-        if self.peekc().isalpha():
+        if self.peekc().isalpha() or self.testc('_'):
             d = self.pos
             while self.peekc() and (self.peekc().isalnum() or self.testc('_')):
                 self.pos += 1
@@ -918,6 +918,13 @@ def test_tokenizer():
         Token(TokenTypes.ARROW, line=4, pos=36),
         Token(TokenTypes.LITERAL, 'a', line=4, pos=39),
         Token(TokenTypes.END, line=4, pos=42),
+    ])
+
+    test("_ <- 'a'", [
+        Token(TokenTypes.IDENTIFIER, '_', line=0, pos=0),
+        Token(TokenTypes.ARROW, line=0, pos=2),
+        Token(TokenTypes.LITERAL, 'a', line=0, pos=5),
+        Token(TokenTypes.END, line=0, pos=8),
     ])
 
     test("S_ <- 'a'", [

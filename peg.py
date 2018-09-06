@@ -227,11 +227,24 @@ class Parser:
             elif self.matchc('['): return '['
             elif self.matchc(']'): return ']'
             elif self.matchc('\\'): return '\\'
+            elif self.matchc('x'): return self.lexHex()
             elif self.peekc() is None: SyntaxError('Unexpected end of input')
             else: raise SyntaxError('Unknown escape char `{}`'.format(self.peekc()))
         value = self.peekc()
         self.nextc()
         return value
+
+    def isHex(self):
+        return (self.peekc() and
+                (self.peekc().isdigit() or
+                 ord(self.peekc().lower()) in range(ord('a'), ord('g'))))
+
+    def lexHex(self):
+        digits = []
+        while self.isHex():
+            digits.append(self.peekc())
+            self.nextc()
+        return chr(int(''.join(digits), 16))
 
     def lexLiteral(self, end):
         output = []
@@ -932,6 +945,14 @@ def test_tokenizer():
         Token(TokenTypes.ARROW, line=0, pos=3),
         Token(TokenTypes.LITERAL, 'a', line=0, pos=6),
         Token(TokenTypes.END, line=0, pos=9),
+    ])
+
+    # Hex
+    test("S <- '\\x30'", [
+        Token(TokenTypes.IDENTIFIER, 'S', line=0, pos=0),
+        Token(TokenTypes.ARROW, line=0, pos=2),
+        Token(TokenTypes.LITERAL, '0', line=0, pos=5),
+        Token(TokenTypes.END, line=0, pos=11),
     ])
 
 

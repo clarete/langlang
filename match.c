@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "debug.h"
-#include "vm.h"
+#include "peg.h"
 
 /* Reads the entire content of the file under `path' into `buffer' */
 void readFile (const char *path, uint8_t **buffer, size_t *size)

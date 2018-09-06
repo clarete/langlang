@@ -7,7 +7,7 @@ CFLAGS   ?= -Wall -Werror -Wpedantic $(DBGFLAGS)
 
 # Source and output files
 MATCH	:= match
-SRCS	:= vm.c value.c
+SRCS	:= peg.c value.c
 DEPDIR	:= .d
 
 # Source and output files for test target

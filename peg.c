@@ -1,6 +1,6 @@
 /* -*- coding: utf-8; -*-
  *
- * vm.c - Implementation of Parsing Machine for PEGs
+ * peg.c - Implementation of Parsing Machine for PEGs
  *
  * Copyright (C) 2018  Lincoln Clarete
  *
@@ -25,7 +25,7 @@
 #include <assert.h>
 
 #include "debug.h"
-#include "vm.h"
+#include "peg.h"
 #include "value.h"
 
 /* -- Error control & report utilities -- */

@@ -23,7 +23,7 @@
 #include <string.h>
 
 #include "debug.h"
-#include "vm.h"
+#include "peg.h"
 
 /* Utilities to write bytecode for testing */
 

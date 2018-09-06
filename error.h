@@ -1,6 +1,6 @@
 /* -*- coding: utf-8; -*-
  *
- * vm.h - Implementation of Parsing Machine for PEGs
+ * error.h - Macro for error reporting
  *
  * Copyright (C) 2018  Lincoln Clarete
  *

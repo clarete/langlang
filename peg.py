@@ -226,6 +226,7 @@ class Parser:
             elif self.matchc('"'): return '"'
             elif self.matchc('['): return '['
             elif self.matchc(']'): return ']'
+            elif self.matchc('-'): return '-'
             elif self.matchc('\\'): return '\\'
             elif self.matchc('x'): return self.lexHex()
             elif self.peekc() is None: SyntaxError('Unexpected end of input')

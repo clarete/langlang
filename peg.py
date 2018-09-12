@@ -579,11 +579,6 @@ class Capture:
             self.compiler.emit(
                 "cap_close", self.isTerminal, self.compiler._str(self.capId))
 
-class Wrap:
-    "Utility to wrap a value around a thing that has a .value attr"
-    def __init__(self, v):
-        self.value = v
-
 
 class Compiler:
 
@@ -721,7 +716,7 @@ class Compiler:
     def compileRangeOrLiteral(self, thing):
         if isinstance(thing, list):
             return self.compileRange(thing)
-        return self.compileLiteral(Wrap(thing))
+        return self.compileLiteral(Literal(thing))
 
     def compileClass(self, atom):
         """Generate code for matching classes of characters

@@ -30,8 +30,9 @@
      | optional       | =e?=      | (sugar for =&ee / !e=) |
 *** PEGx
     This is the Grammar that implements the extensions provided by
-    ~LangLang~. The first
-
+    ~LangLang~.
+     |-------+------+----------------------------------------------------|
+     | Quiet | =;e= | Match =e= but doesn't include it on the parse tree |
 ** Compilers
 *** peg.py
     This is the compiler that takes ~PEG~ strings and outputs the

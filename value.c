@@ -123,6 +123,7 @@ static void rawPrint (const char *s, size_t len)
   escape['\0'] = "\\0";
   escape['\r'] = "\\r";
   escape['\n'] = "\\n";
+  escape['\\'] = "\\\\";
   for (size_t i = 0; i < len; i++) {
     c = s[i];
     if (escape[c] == NULL) printf("%c", c);

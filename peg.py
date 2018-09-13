@@ -44,11 +44,12 @@ class TokenTypes(enum.Enum):
      AND,
      DOT,
      NOT,
+     QUIET,
      CLASS,
      OPEN,
      CLOSE,
      END,
-    ) = range(14)
+    ) = range(15)
 
 class Token:
     def __init__(self, _type, value=None, line=0, pos=0):
@@ -81,6 +82,8 @@ class Node:
 class And(Node): pass
 
 class Not(Node): pass
+
+class Quiet(Node): pass
 
 class Question(Node): pass
 
@@ -206,6 +209,8 @@ class Parser:
             return self.t(TokenTypes.AND)
         elif self.matchc('?'):
             return self.t(TokenTypes.QUESTION)
+        elif self.matchc(';'):
+            return self.t(TokenTypes.QUIET)
         else:
             raise SyntaxError("Unexpected char `{}'".format(self.peekc()))
 
@@ -303,6 +308,7 @@ class Parser:
             prefix = lambda x: x
             if self.matcht(TokenTypes.AND): prefix = And
             elif self.matcht(TokenTypes.NOT): prefix = Not
+            elif self.matcht(TokenTypes.QUIET): prefix = Quiet
             suffix = self.parseSuffix()
             if suffix is None: break
             output.append(prefix(suffix))
@@ -620,8 +626,8 @@ class Compiler:
             self.strings.append(value)
         return self.strings.index(value)
 
-    def _capture(self, isTerminal, capid):
-        return Capture(self, self.capture, isTerminal, capid)
+    def _capture(self, isTerminal, capid, disable=False):
+        return Capture(self, self.capture and not disable, isTerminal, capid)
 
     def _disableCapture(self):
         class DisableCapture:
@@ -633,6 +639,10 @@ class Compiler:
             def __exit__(self, _type, value, traceback):
                 self.c.capture = self.backup
         return DisableCapture(self)
+
+    def compileQuiet(self, atom):
+        with self._disableCapture():
+            self.compileAtom(atom.value)
 
     def compileNot(self, atom):
         pos = self.emit("choice") -1
@@ -691,10 +701,12 @@ class Compiler:
     def compileIdentifier(self, atom):
         # Emit an OP_CALL as a placeholder to be patched at the end of
         # the code generation
-        pos = self.emit("call") -1
-        if atom.value not in self.callsites:
-            self.callsites[atom.value] = []
-        self.callsites[atom.value].append(pos)
+        self._str(atom.value)
+        with self._capture(0, atom.value):
+            pos = self.emit("call") -1
+            if atom.value not in self.callsites:
+                self.callsites[atom.value] = []
+            self.callsites[atom.value].append(pos)
 
     def compileStar(self, atom):
         pos = self.emit("choice") -1
@@ -743,22 +755,25 @@ class Compiler:
         elif isinstance(atom, Identifier): self.compileIdentifier(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
+        elif isinstance(atom, Quiet): self.compileQuiet(atom)
         else: raise Exception("Unknown atom %s" % atom)
 
     def genCode(self):
         # It's always 2 because invariant contains two instructions
         self.emit("call", 2)
         pos = self.emit("jump")
+        distance = self.capture and 3 or 2
         size = 0
         addresses = {}
-        for definition in self.ga.value:
-            identifier, expression = definition.value
-            addresses[identifier] = self.pos
-            self._str(name)
-            with self._capture(0, name): self.cc(rule)
-            self.emit("return")
-            size += self.pos - addresses[identifier]
-        self.code[pos-1] = gen("jump", size + 2)
+        self._str(self.start)
+        with self._capture(0, self.start):
+            for definition in self.ga.value:
+                identifier, expression = definition.value
+                addresses[identifier] = self.pos
+                self.cc(expression)
+                self.emit("return")
+                size += self.pos - addresses[identifier]
+        self.code[pos-1] = gen("jump", size + distance)
         self.emit("halt")
 
         # Patch all OP_CALL instructions generated with final
@@ -798,22 +813,26 @@ UOPERAND1 = lambda c: (UOPERAND0(c) >> S2_OPERAND_SIZE)
 UOPERAND2 = lambda c: (UOPERAND0(c) & ((1 << S2_OPERAND_SIZE) - 1))
 
 
-def dbgcc(c, bc):
+def dbgcc(c, bc, header):
     if c[-1] == '\n': c = c[:-1]
     print('\033[92m{}\033[0m'.format(c.encode('utf-8')), end=':\n')
-    # Parse header
     cursor = 0
-    headerSize = readuint16(bc[cursor:cursor+2]); cursor += 2
-    print('Header(%s)' % headerSize)
-    for i in range(headerSize):
-        ssize = readuint8(bc[cursor]); cursor += 1
-        content = readstring(bc[cursor:cursor+ssize]);
-        print("   0x%02x: String(%2ld) %s" % (i, ssize, repr(content)))
-        cursor += ssize
+    # Parse header
+    if header:
+        headerSize = readuint16(bc[cursor:cursor+2]); cursor += 2
+        print('Header(%s)' % headerSize)
+        for i in range(headerSize):
+            ssize = readuint8(bc[cursor]); cursor += 1
+            content = readstring(bc[cursor:cursor+ssize]);
+            print("   0x%02x: String(%2ld) %s" % (i, ssize, repr(content)))
+            cursor += ssize
     # Parse body
-    codeSize = readuint16(bc[cursor:cursor+2]); cursor += 2
-    codeStart = len(bc)-codeSize
-    print('Code(%d)' % codeSize)
+        codeSize = readuint16(bc[cursor:cursor+2]); cursor += 2
+        codeStart = len(bc)-codeSize
+        print('Code(%d)' % codeSize)
+    else:
+        codeSize = len(bc)
+        codeStart = 0
     unpacked = struct.unpack('>' + ('I' * (codeSize/4)), bc[codeStart:])
     for i, instr in enumerate(unpacked):
         obj = Instructions(OP_MASK(instr))
@@ -948,6 +967,15 @@ def test_tokenizer():
         Token(TokenTypes.ARROW, line=0, pos=2),
         Token(TokenTypes.LITERAL, '0', line=0, pos=5),
         Token(TokenTypes.END, line=0, pos=11),
+    ])
+
+    # Quiet
+    test("S <- ;'a'", [
+        Token(TokenTypes.IDENTIFIER, 'S', line=0, pos=0),
+        Token(TokenTypes.ARROW, line=0, pos=2),
+        Token(TokenTypes.QUIET, line=0, pos=5),
+        Token(TokenTypes.LITERAL, 'a', line=0, pos=6),
+        Token(TokenTypes.END, line=0, pos=9),
     ])
 
 
@@ -1206,10 +1234,11 @@ def test_instruction():
 
 def test_compile():
     bn = lambda *bc: struct.pack('>' + ('I' * len(bc)), *bc)
-    ccc = lambda co, **f: Compiler(Parser(co).run(), **f)
     def cc(code, **f):
-        dbgcc(code, ccc(code, **f).assemble())
-        return ccc(code, **f).genCode()
+        parsed = Parser(code).run()
+        genCode = lambda: Compiler(parsed, **f).genCode()
+        dbgcc(code, genCode(), header=False)
+        return genCode()
 
     # Char 'c'
     assert(cc("S <- 'a'") == bn(
@@ -1411,24 +1440,22 @@ def test_compile():
         gen("halt"),
     ))
 
-    ## Captures
-
+    # Captures
     assert(cc("S <- 'a'", capture=True) == bn(
-        gen("call", 0x02),      # 0x00: Call 0x02
-        gen("jump", 0x08),      # 0x01: Jump 0x08
-        gen("cap_open", 0, 0),  # 0x02: CapOpen 0 (Main)
-        gen("cap_open", 1, 1),  # 0x03: CapOpen 1
-        gen("char", ord('a')),  # 0x04: Char 'a'
-        gen("cap_close", 1, 1), # 0x05: CapOpen 1
-        gen("cap_close", 0, 0), # 0x06: CapClose (Main)
+        gen("call", 0x02),      # 0x01: Call 0x02
+        gen("jump", 0x07),      # 0x03: Jump 0x07
+        gen("cap_open", 0, 0),  # 0x00: CapOpen 0 (Main)
+        gen("cap_open", 1, 1),  # 0x04: CapOpen 1
+        gen("char", ord('a')),  # 0x05: Char 'a'
+        gen("cap_close", 1, 1), # 0x06: CapOpen 1
         gen("return"),          # 0x07: Return
+        gen("cap_close", 0, 0), # 0x02: CapClose (Main)
         gen("halt"),            # 0x08: Halt
     ))
 
     assert(cc("S <- 'a' 'b'", capture=True) == bn(
         gen("call", 0x02),      # 0x01: Call 0x02
-        gen("jump", 0x0b),      # 0x02: Jump 0x0b
-
+        gen("jump", 0x0a),      # 0x02: Jump 0x0a
         gen("cap_open", 0, 0),  # 0x03: CapOpen 0 (Main)
 
         gen("cap_open", 1, 1),  # 0x04: CapOpen 1 (Seq#0)
@@ -1439,11 +1466,28 @@ def test_compile():
         gen("char", ord('b')),  # 0x08: Char 'a'
         gen("cap_close", 1, 2), # 0x09: CapClose 2 (Seq#1)
 
-        gen("cap_close", 0, 0), # 0x0a: CapClose 0 (Main)
-
-        gen("return"),          # 0x0b: Return
+        gen("return"),          # 0x0a: Return
+        gen("cap_close", 0, 0), # 0x0b: CapClose 0 (Main)
         gen("halt"),            # 0x0c: Halt
     ))
+
+    assert(cc("S <- 'a' ;'b'", capture=True) == bn(
+        gen("call", 0x02),      # 0x01: Call 0x02
+        gen("jump", 0x08),      # 0x02: Jump 0x08
+
+        gen("cap_open", 0, 0),  # 0x03: CapOpen 0 (Main)
+        gen("cap_open", 1, 1),  # 0x04: CapOpen 1 (Seq#0)
+        gen("char", ord('a')),  # 0x05: Char 'a'
+        gen("cap_close", 1, 1), # 0x06: CapClose 1 (Seq#0)
+
+        #  No captures for this
+        gen("char", ord('b')),  # 0x07: Char 'b'
+
+        gen("return"),          # 0x08: Return
+        gen("cap_close", 0, 0), # 0x09: CapClose 0 (Main)
+        gen("halt"),            # 0x0a: Halt
+    ))
+
 
 
 def test_compile_header():
@@ -1452,13 +1496,13 @@ def test_compile_header():
         c.genCode()
         return c.strings
 
-    # Name of the rule
+    # Name of the rule and char
     assert(cc("S <- 'a'") == ['S', 'a'])
     # Name of the rules and set of chars
     assert(cc("S <- D [%?!~#$&+]\nD <- [0-9]+") == [
         'S',
-        '%', '?', '!', '~', '#', '$', '&', '+',
         'D',
+        '%', '?', '!', '~', '#', '$', '&', '+',
         '0-9',
     ])
     # Name of the rules and set of chars without dups
@@ -1493,7 +1537,7 @@ def compileG(args, grammarSrc, grammar):
     with io.open('%s.bin' % name, 'wb') as out:
         compiled = Compiler(grammar, capture=True).assemble()
         out.write(compiled)
-        if not args.quiet: dbgcc(grammarSrc, compiled)
+        if not args.quiet: dbgcc(grammarSrc, compiled, header=True)
 
 
 def matchG(args, grammarSrc, grammar):

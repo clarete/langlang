@@ -88,6 +88,10 @@ class Star(Node): pass
 
 class Plus(Node): pass
 
+class Grammar(Node): pass
+
+class Definition(Node): pass
+
 class Expression(Node): pass
 
 class Sequence(Node): pass
@@ -276,23 +280,20 @@ class Parser:
             definition = self.parseDefinition()
             if not definition: break
             definitions.append(definition)
-        return definitions
+        return Grammar(definitions)
 
     def parseDefinition(self):
         # Definition <- Identifier LEFTARROW Expression
         identifier = self.consumet(TokenTypes.IDENTIFIER)
         self.consumet(TokenTypes.ARROW)
-        return {identifier.value: self.parseExpression()}
+        return Definition([identifier.value, self.parseExpression()])
 
     def parseExpression(self):
         # Expression <- Sequence (SLASH Sequence)*
         output = [self.parseSequence()]
         while self.matcht(TokenTypes.PRIORITY):
             output.append(self.parseSequence())
-        # We don't need to create a new expression when there's only
-        # one element so we save a lil recursion here and there
-        if len(output) > 1: return Expression(output)
-        else: return fio(output)
+        return Expression(output)
 
     def parseSequence(self):
         # Sequence <- Prefix*
@@ -360,14 +361,15 @@ class Parser:
             raise FormattedException('\n'.join(message))
 
 
-def mergeDicts(dicts):
+def grammarAsDict(grammar):
+    dicts = [{x.value[0]: x.value[1]} for x in grammar.value]
     return {x: y for di in dicts for x, y in di.items()}
 
 
 class Match:
 
     def __init__(self, grammar, start, data):
-        self.g = mergeDicts(grammar)
+        self.g = grammarAsDict(grammar)
         self.start = start
         self.data = data
         self.pos = 0
@@ -584,11 +586,8 @@ class Compiler:
 
     def __init__(self, grammar, capture=False):
         self.ga = grammar
-        # The grammar as a dictionary. Since we lose the order, that's
-        # why the same data as above but with a different format.
-        self.g = {x: y for di in grammar for x, y in di.items()}
         # The start rule is just the first one for now
-        self.start = list(grammar[0].keys())[0]
+        self.start = grammar.value[0].value[0]
         # Write cursor for `self.code'
         self.pos = 0
         # Store the binary code that will be packed in the end of the
@@ -752,13 +751,13 @@ class Compiler:
         pos = self.emit("jump")
         size = 0
         addresses = {}
-        for nt in self.ga:
-            [[name, rule]] = nt.items()
-            addresses[name] = self.pos
+        for definition in self.ga.value:
+            identifier, expression = definition.value
+            addresses[identifier] = self.pos
             self._str(name)
             with self._capture(0, name): self.cc(rule)
             self.emit("return")
-            size += self.pos - addresses[name]
+            size += self.pos - addresses[identifier]
         self.code[pos-1] = gen("jump", size + 2)
         self.emit("halt")
 
@@ -955,41 +954,59 @@ def test_tokenizer():
 def test_parser():
     test = functools.partial(test_runner, lambda x: Parser(x).parse)
 
-    test('# ', [])
+    test('# ', Grammar([]))
 
-    test('#foo\r\nR0 <- "a"', [{'R0': Literal('a')}])
+    test('#foo\r\nR0 <- "a"', Grammar([
+        Definition([
+            'R0', Expression([Literal('a')])])]))
 
-    test(r"R0 <- '\\' [nrt'\"\[\]]", [
-        {'R0': Sequence([Literal('\\'), Class(['n', 'r', 't', "'", '"', '[', ']'])])}])
+    test(r"R0 <- '\\' [nrt'\"\[\]]", Grammar([
+        Definition([
+            'R0', Expression([
+                Sequence([
+                    Literal('\\'),
+                    Class(['n', 'r', 't', "'", '"', '[', ']'])])])])]))
 
-    test("R <- '\\r\\n' / '\\n' / '\\r'", [
-        {'R': Expression([Literal('\r\n'), Literal('\n'), Literal('\r')])}])
+    test("R <- '\\r\\n' / '\\n' / '\\r'", Grammar([
+        Definition([
+            'R', Expression([
+                Literal('\r\n'),
+                Literal('\n'),
+                Literal('\r')])])]))
 
-    test('# foo\n R1 <- "a"\nR2 <- \'b\'', [
-        {'R1': Literal('a')},
-        {'R2': Literal('b')}])
+    test('# foo\n R1 <- "a"\nR2 <- \'b\'', Grammar([
+        Definition(['R1', Expression([Literal('a')])]),
+        Definition(['R2', Expression([Literal('b')])])]))
 
-    test('Definition1 <- "tx"', [{'Definition1': Literal('tx')}])
+    test('Definition1 <- "tx"',
+         Grammar([Definition(['Definition1', Expression([Literal('tx')])])]))
 
-    test('Int <- [0-9]+', [{'Int': Plus(Class([['0', '9']]))}])
+    test('Int <- [0-9]+', Grammar([
+        Definition(['Int', Expression([Plus(Class([['0', '9']]))])])]))
 
-    test('Foo <- [a-z_]', [{'Foo': Class([['a', 'z'], '_'])}])
+    test('Foo <- [a-z_]', Grammar([
+        Definition(['Foo', Expression([Class([['a', 'z'], '_'])])])]))
 
-    test('EndOfFile <- !.', [{'EndOfFile': Not(Dot())}])
+    test('EndOfFile <- !.', Grammar([
+        Definition(['EndOfFile', Expression([Not(Dot())])])]))
 
-    test('R0 <- "oi" "tenta"?', [{'R0': Sequence([Literal('oi'), Question(Literal("tenta"))])}])
+    test('R0 <- "oi" "tenta"?', Grammar([
+        Definition(['R0', Expression([
+            Sequence([Literal('oi'), Question(Literal("tenta"))])])])]))
 
-    test('Foo <- ("a" / "b")+', [{'Foo': Plus(Expression([Literal('a'), Literal('b')]))}])
+    test('Foo <- ("a" / "b")+', Grammar([
+        Definition(['Foo', Expression([
+            Plus(Expression([Literal('a'), Literal('b')]))])])]))
 
-    test('R0 <- "a"\n      / "b"\nR1 <- "c"', [
-        {'R0': Expression([Literal('a'), Literal('b')])},
-        {'R1': Literal('c')}])
+    test('R0 <- "a"\n      / "b"\nR1 <- "c"', Grammar([
+        Definition(['R0', Expression([Literal('a'), Literal('b')])]),
+        Definition(['R1', Expression([Literal('c')])])]))
 
-    test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', [
-        {'R0': Sequence([
+    test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', Grammar([
+        Definition(['R0', Expression([Sequence([
             Identifier('R1'),
-            Star(Sequence([Literal(','), Identifier('R1')]))])},
-        {'R1': Plus(Class([['0', '9']]))}])
+            Star(Expression([Sequence([Literal(','), Identifier('R1')])]))])])]),
+        Definition(['R1', Expression([Plus(Class([['0', '9']]))])])]))
 
     test(r"""# first line with comment
 Spacing    <- (Space / Comment)*
@@ -997,48 +1014,51 @@ Comment    <- '#' (!EndOfLine .)* EndOfLine
 Space      <- ' ' / '\t' / EndOfLine
 EndOfLine  <- '\r\n' / '\n' / '\r'
 EndOfFile  <- !.
-    """, [
-        {'Spacing': Star(Expression([
-            Identifier('Space'),
-            Identifier('Comment')]))},
-        {'Comment': Sequence([
-            Literal('#'),
-            Star(Sequence([Not(Identifier('EndOfLine')), Dot()])),
-            Identifier('EndOfLine')])},
-        {'Space': Expression([
+    """, Grammar([
+        Definition(['Spacing', Expression([
+            Star(Expression([
+                Identifier('Space'),
+                Identifier('Comment')]))])]),
+        Definition(['Comment', Expression([
+            Sequence([
+                Literal('#'),
+                Star(Expression([Sequence([Not(Identifier('EndOfLine')), Dot()])])),
+                Identifier('EndOfLine')])])]),
+        Definition(['Space', Expression([
             Literal(' '),
             Literal('\t'),
-            Identifier('EndOfLine')])},
-        {'EndOfLine': Expression([
+            Identifier('EndOfLine')])]),
+        Definition(['EndOfLine', Expression([
             Literal('\r\n'),
             Literal('\n'),
-            Literal('\r')])},
-        {'EndOfFile': Not(Dot())}])
+            Literal('\r')])]),
+        Definition(['EndOfFile', Expression([Not(Dot())])])]))
 
     # Some real stuff
 
-    test(csv, [
-        {'File': Star(Identifier('CSV'))},
-        {'CSV': Sequence([
+    test(csv, Grammar([
+        Definition(['File', Expression([Star(Identifier('CSV'))])]),
+        Definition(['CSV', Expression([Sequence([
             Identifier('Val'),
-            Star(Sequence([Literal(','), Identifier('Val')])),
-            Literal('\n')])},
-        {'Val': Star(Sequence([Not(Class([',', '\n'])), Dot()]))}])
+            Star(Expression([Sequence([Literal(','), Identifier('Val')])])),
+            Literal('\n')])])]),
+        Definition(['Val', Expression([
+            Star(Expression([Sequence([Not(Class([',', '\n'])), Dot()])]))])])]))
 
-    test(arith, [
-        {'Add': Expression([Sequence([Identifier('Mul'),
+    test(arith, Grammar([
+        Definition(['Add', Expression([Sequence([Identifier('Mul'),
                                       Literal('+'),
                                       Identifier('Add')]),
-                            Identifier('Mul')])},
-        {'Mul': Expression([Sequence([Identifier('Pri'),
+                            Identifier('Mul')])]),
+        Definition(['Mul', Expression([Sequence([Identifier('Pri'),
                                       Literal('*'),
                                       Identifier('Mul')]),
-                            Identifier('Pri')])},
-        {'Pri': Expression([Sequence([Literal('('),
+                            Identifier('Pri')])]),
+        Definition(['Pri', Expression([Sequence([Literal('('),
                                       Identifier('Add'),
                                       Literal(')')]),
-                            Identifier('Num')])},
-        {'Num': Plus(Class([['0', '9']]))}])
+                            Identifier('Num')])]),
+        Definition(['Num', Expression([Plus(Class([['0', '9']]))])])]))
 
 
 def _safe_from_error(p):
@@ -1079,7 +1099,7 @@ EOF \x1b[31m\x1b[0m !.
 
 
 def test_match():
-    e = Match({}, '', "affbcdea&2")
+    e = Match(Grammar([]), '', "affbcdea&2")
     assert(e.matchAtom(Class(['a', 'f']))   == (True, 'a'));   assert(e.pos == 1)
     assert(e.matchAtom(Class('gd'))         == (False, None)); assert(e.pos == 1)
     assert(e.matchAtom(Class('xyf'))        == (True, 'f'));   assert(e.pos == 2)

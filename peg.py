@@ -784,8 +784,12 @@ class Compiler:
         return assembled
 
 
-def uint8(v): return struct.pack('>B', v)
-def uint16(v): return struct.pack('>H', v)
+uint8 = lambda v: struct.pack('>B', v)
+uint16 = lambda v: struct.pack('>H', v)
+readuint8 = lambda chunk: struct.unpack('>B', chunk)[0]
+readuint16 = lambda chunk: struct.unpack('>H', chunk)[0]
+readstring = lambda chunk: ''.join(struct.unpack('>' + 's'*len(chunk), chunk))
+
 
 ## --- Utilities ---
 
@@ -798,21 +802,17 @@ UOPERAND2 = lambda c: (UOPERAND0(c) & ((1 << S2_OPERAND_SIZE) - 1))
 def dbgcc(c, bc):
     if c[-1] == '\n': c = c[:-1]
     print('\033[92m{}\033[0m'.format(c.encode('utf-8')), end=':\n')
-    # Reading facilities
-    cursor = 0
-    readuint8 = lambda: struct.unpack('>B', bc[cursor])[0]
-    readuint16 = lambda: struct.unpack('>H', bc[cursor:cursor+2])[0]
-    readstring = lambda n: ''.join(struct.unpack('>' + 's'*n, bc[cursor:cursor+n]))
     # Parse header
-    headerSize = readuint16(); cursor += 2
+    cursor = 0
+    headerSize = readuint16(bc[cursor:cursor+2]); cursor += 2
     print('Header(%s)' % headerSize)
     for i in range(headerSize):
-        ssize = readuint8(); cursor += 1
-        content = readstring(ssize);
+        ssize = readuint8(bc[cursor]); cursor += 1
+        content = readstring(bc[cursor:cursor+ssize]);
         print("   0x%02x: String(%2ld) %s" % (i, ssize, repr(content)))
         cursor += ssize
     # Parse body
-    codeSize = readuint16(); cursor += 2
+    codeSize = readuint16(bc[cursor:cursor+2]); cursor += 2
     codeStart = len(bc)-codeSize
     print('Code(%d)' % codeSize)
     unpacked = struct.unpack('>' + ('I' * (codeSize/4)), bc[codeStart:])

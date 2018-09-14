@@ -64,6 +64,7 @@
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.peg\\'" . peg-mode))
+(add-to-list 'auto-mode-alist '("\\.pegx\\'" . peg-mode))
 
 (provide 'peg-mode)
 ;;; peg-mode.el ends here

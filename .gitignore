@@ -7,3 +7,4 @@ gmon.out
 vm
 test
 *.bin
+*.binx

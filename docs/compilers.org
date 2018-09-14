@@ -31,8 +31,9 @@
 *** PEGx
     This is the Grammar that implements the extensions provided by
     ~LangLang~.
-     |-------+------+----------------------------------------------------|
-     | Quiet | =;e= | Match =e= but doesn't include it on the parse tree |
+     |-------+----------+----------------------------------------------------|
+     | Quiet | =;e=     | Match =e= but doesn't include it on the parse tree |
+     | Hex   | =\x0000= | Hex-Chars allow users define non printable chars   |
 ** Compilers
 *** peg.py
     This is the compiler that takes ~PEG~ strings and outputs the

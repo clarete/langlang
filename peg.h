@@ -77,7 +77,7 @@ typedef struct {
 typedef struct {
   const char *i;
   Instruction *pc;
-  CaptureEntry *cap;
+  uint32_t cap;
 } BacktrackEntry;
 
 /* Virtual Machine */
@@ -85,7 +85,7 @@ typedef struct {
   Instruction *code;
   BacktrackEntry *stack;
   CaptureEntry *captures;
-  CaptureEntry *cap;            /* Top of the capture stack */
+  uint32_t cap;                 /* Top of the capture stack */
   ObjectTable atoms;            /* Store unique atoms within the VM */
 } Machine;
 

@@ -59,9 +59,9 @@ void mInit (Machine *m)
 {
   oTableInit (&m->atoms);
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
-  m->captures = calloc (STACK_SIZE*1024, sizeof (CaptureEntry *));
+  m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
-  m->cap = m->captures;
+  m->cap = 0;
 }
 
 /* Release the resources used by the machine */
@@ -71,7 +71,7 @@ void mFree (Machine *m)
   free (m->code);
   free (m->stack);
   free (m->captures);
-  m->cap = NULL;
+  m->cap = 0;
   m->captures = NULL;
   m->code = NULL;
   m->stack = NULL;
@@ -118,12 +118,27 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
   }
 }
 
+static void *adjustArray (void *ot, size_t osz, uint32_t used, uint32_t *capacity)
+{
+  void *tmp;
+  if (used == *capacity) {
+    *capacity = *capacity == 0 ? STACK_SIZE : *capacity * 2;
+    if ((tmp = realloc (ot, *capacity * osz)) == NULL) {
+      free (ot);
+      FATAL ("Can't allocate memory");
+    }
+    return tmp;
+  }
+  return ot;
+}
+
 /* Run the matching machine */
 const char *mMatch (Machine *m, const char *input, size_t input_size)
 {
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
   const char *i = input;
+  uint32_t maxcap = 0;
 
   /** Push data onto the machine's stack  */
 #define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
@@ -135,12 +150,13 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 #define THE_END (input + input_size)
 
   /** Push data to the capture buffer  */
-#define PUSH_CAP(_p,_ty,_tr,_id) do {                                 \
-    m->cap->pos = _p;                                                 \
-    m->cap->type = _ty;                                               \
-    m->cap->term = _tr;                                               \
-    m->cap->idx = _id;                                                \
-    m->cap++;                                                         \
+#define PUSH_CAP(_p,_ty,_tr,_id) do {                                   \
+    m->captures = adjustArray (m->captures, sizeof (CaptureEntry), m->cap, &maxcap); \
+    m->captures[m->cap].pos = _p;                                       \
+    m->captures[m->cap].type = _ty;                                     \
+    m->captures[m->cap].term = _tr;                                     \
+    m->captures[m->cap].idx = _id;                                      \
+    m->cap++;                                                           \
   } while (0)
 
   DEBUGLN ("   Run");
@@ -237,24 +253,23 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 Object *mExtract (Machine *m, const char *input)
 {
   uint16_t start, end;
-  uint32_t sp = 0, spo = 0;
-  CaptureEntry *cp, *stack;
+  uint32_t sp = 0, maxsp = 0, spo = 0, maxspo = 0, cp = 0;
+  CaptureEntry *stack = NULL;
   CaptureEntry match, match2;
-  Object *key, *result, **ostack;
+  Object *key, *result, **ostack = NULL;
 
-  stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
-  ostack = calloc (STACK_SIZE, sizeof (Object *));
-  cp = m->captures;
+#define PUSH_S(i)  (stack = adjustArray (stack, sizeof (CaptureEntry), sp, &maxsp), stack[sp++] = i)
+#define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (CaptureEntry), spo, &maxspo), ostack[spo++] = i)
 
   DEBUGLN ("  Extract: %p %p", (void*) cp, (void*) m->captures);
 
   while (cp < m->cap) {
-    match = *cp++;              /* POP () */
+    match = m->captures[cp++];              /* POP () */
     key = oTableItem (&m->atoms, match.idx);
 
     if (match.type == CapOpen) {
-      if (!match.term) ostack[spo++] = key;
-      stack[sp++] = match;
+      if (!match.term) PUSH_SO (key);
+      PUSH_S (match);
       continue;
     }
 
@@ -272,7 +287,7 @@ Object *mExtract (Machine *m, const char *input)
       /* Terminal */
       start = match2.pos - input;
       end = match.pos - input;
-      ostack[spo++] = makeCons (key, makeAtom (input + start, end - start));
+      PUSH_SO (makeCons (key, makeAtom (input + start, end - start)));
     } else {
       /* Non-Terminal */
       Object *l = NULL;
@@ -280,7 +295,7 @@ Object *mExtract (Machine *m, const char *input)
         l = makeCons (ostack[--spo], l);
       }
       --spo;                    /* Get rid of key */
-      ostack[spo++] = makeCons (key, l);
+      PUSH_SO (makeCons (key, l));
     }
   }
   result = *ostack;

@@ -1534,7 +1534,8 @@ def parseG(args):
 
 def compileG(args, grammarSrc, grammar):
     name, _ = os.path.splitext(args.grammar)
-    with io.open('%s.bin' % name, 'wb') as out:
+    file_name = args.output or '%s.bin' % name
+    with io.open(file_name, 'wb') as out:
         compiled = Compiler(grammar, capture=True).assemble()
         out.write(compiled)
         if not args.quiet: dbgcc(grammarSrc, compiled, header=True)
@@ -1565,6 +1566,9 @@ def main():
     parser.add_argument(
         '-c', '--compile', dest='compile', action='store_true', default=False,
         help='Compile grammar')
+    parser.add_argument(
+        '-o', '--output', dest='output', action='store',
+        help='Output of the compiled Grammar')
     parser.add_argument(
         '-q', '--quiet', dest='quiet', action='store_true', default=False,
         help='Quiet')

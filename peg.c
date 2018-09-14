@@ -259,7 +259,7 @@ Object *mExtract (Machine *m, const char *input)
   Object *key, *result, **ostack = NULL;
 
 #define PUSH_S(i)  (stack = adjustArray (stack, sizeof (CaptureEntry), sp, &maxsp), stack[sp++] = i)
-#define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (CaptureEntry), spo, &maxspo), ostack[spo++] = i)
+#define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (Object*), spo, &maxspo), ostack[spo++] = i)
 
   DEBUGLN ("  Extract: %p %p", (void*) cp, (void*) m->captures);
 

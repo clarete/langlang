@@ -4,7 +4,7 @@
 # include <stdint.h>
 # include <stdlib.h>
 
-# ifdef TEST
+# ifdef DEBUG
 #  define BFMT "%c%c%c%c%c%c%c%c"
 #  define B(byte)        \
   (byte & 0x80 ? '1' : '0'), \
@@ -15,9 +15,6 @@
   (byte & 0x04 ? '1' : '0'), \
   (byte & 0x02 ? '1' : '0'), \
   (byte & 0x01 ? '1' : '0')
-#  define DEBUG(...)                                            \
-  do { fprintf (stdout, ##__VA_ARGS__); }                       \
-  while (0)
 #  define DEBUGLN(f, ...)                                       \
   do { fprintf (stdout, f "\n", ##__VA_ARGS__); }               \
   while (0)
@@ -59,7 +56,6 @@
   } while (0)
 
 # else  /* TEST */
-#  define DEBUG(...)
 #  define DEBUGLN(f, ...)
 #  define DEBUG_INSTRUCTION_NEXT()
 #  define DEBUG_INSTRUCTION_LOAD()

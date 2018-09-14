@@ -1,7 +1,12 @@
 all: bin
 
+ifeq ("$(origin DEBUG)", "command line")
+  DBGFLAGS ?= -g -O0 -DDEBUG
+else
+  DBGFLAGS :=
+endif
+
 # Configurable
-DBGFLAGS ?= -g -O0 -DTEST
 CPPFLAGS ?=
 CFLAGS   ?= -Wall -Werror -Wpedantic $(DBGFLAGS)
 

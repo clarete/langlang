@@ -103,7 +103,7 @@ static void test_ch2 ()
 {
   Machine m;
   uint32_t b[2];
-  DEBUG (" * t:ch.2");
+  DEBUGLN (" * t:ch.2");
 
   /* Start <- 'a' */
   b[0] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */

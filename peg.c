@@ -146,7 +146,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
   DEBUGLN ("   Run");
 
   while (true) {
-    /* No-op if TEST isn't defined */
+    /* No-op if DEBUG isn't defined */
     DEBUG_INSTRUCTION_NEXT ();
     DEBUG_STACK ();
 
@@ -213,7 +213,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       POP ();                   /* Drop top of stack & Fall through */
     case OP_FAIL:
     fail:
-      /* No-op if TEST isn't defined */
+      /* No-op if DEBUG isn't defined */
       DEBUG_FAILSTATE ();
 
       if (sp > m->stack) {

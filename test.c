@@ -76,14 +76,15 @@ static void test_gen_args ()
 static void test_ch1 ()
 {
   Machine m;
-  uint32_t b[2];
+  uint32_t b[6];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:ch.1");
 
+  b[0] = enc (2*2);             /* Code Size */
   /* Start <- 'a' */
-  b[0] = GEN1 (OP_CHAR, 'a'); /* 0x0: Char 'a' */
-  b[1] = 0;                   /* 0x1: Halt */
+  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
+  b[2] = 0;                     /* 0x1: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -102,12 +103,13 @@ static void test_ch1 ()
 static void test_ch2 ()
 {
   Machine m;
-  uint32_t b[2];
+  uint32_t b[3];
   DEBUGLN (" * t:ch.2");
 
+  b[0] = enc (2*2);             /* Code Size */
   /* Start <- 'a' */
-  b[0] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
-  b[1] = 0;                     /* 0x1: Halt */
+  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
+  b[2] = 0;                     /* 0x1: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -123,14 +125,15 @@ static void test_ch2 ()
 static void test_any1 ()
 {
   Machine m;
-  uint32_t b[2];
+  uint32_t b[3];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:any.1");
 
+  b[0] = enc (2*2);             /* Code Size */
   /* . */
-  b[0] = GEN0 (OP_ANY);         /* 0x0: Any */
-  b[1] = 0;                     /* 0x1: Halt */
+  b[1] = GEN0 (OP_ANY);         /* 0x0: Any */
+  b[2] = 0;                     /* 0x1: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -149,12 +152,13 @@ static void test_any1 ()
 static void test_any2 ()
 {
   Machine m;
-  uint32_t b[2];
+  uint32_t b[3];
   DEBUGLN (" * t:any.2");
 
+  b[0] = enc (2*2);             /* Code Size */
   /* . */
-  b[0] = GEN0 (OP_ANY);         /* 0x0: Any */
-  b[1] = 0;                     /* 0x1: Halt */
+  b[1] = GEN0 (OP_ANY);         /* 0x0: Any */
+  b[2] = 0;                     /* 0x1: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -170,17 +174,18 @@ static void test_any2 ()
 static void test_not1 ()
 {
   Machine m;
-  uint32_t b[5];
+  uint32_t b[6];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:not.1");
 
+  b[0] = enc (5*4);             /* Code Size */
   /* !'a' */
-  b[0] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_COMMIT, 1);   /* 0x1: Commit 1 */
-  b[3] = GEN0 (OP_FAIL);        /* 0x2: Fail */
-  b[4] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_COMMIT, 1);   /* 0x2: Commit 1 */
+  b[4] = GEN0 (OP_FAIL);        /* 0x3: Fail */
+  b[5] = 0;                     /* 0x4: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -194,16 +199,17 @@ static void test_not1 ()
 void test_not1_fail_twice ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:not.1 (fail-twice)");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* !'a' */
-  b[0] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN0 (OP_FAIL_TWICE);  /* 0x2: FailTwice */
-  b[3] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN0 (OP_FAIL_TWICE);  /* 0x2: FailTwice */
+  b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -222,15 +228,16 @@ void test_not1_fail_twice ()
 void test_not2 ()
 {
   Machine m;
-  uint32_t b[5];
+  uint32_t b[6];
   DEBUGLN (" * t:not.2");
 
+  b[0] = enc (5*4);             /* Code Size */
   /* !'a' */
-  b[0] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_COMMIT, 1);   /* 0x2: Commit 1 */
-  b[3] = GEN0 (OP_FAIL);        /* 0x3: Fail */
-  b[4] = 0;                     /* 0x4: Halt */
+  b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_COMMIT, 1);   /* 0x2: Commit 1 */
+  b[4] = GEN0 (OP_FAIL);        /* 0x3: Fail */
+  b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -241,14 +248,15 @@ void test_not2 ()
 void test_not2_fail_twice ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   DEBUGLN (" * t:not.2 (fail-twice)");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* !'a' */
-  b[0] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN0 (OP_FAIL_TWICE);  /* 0x2: FailTwice */
-  b[3] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN0 (OP_FAIL_TWICE);  /* 0x2: FailTwice */
+  b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -264,20 +272,21 @@ void test_not2_fail_twice ()
 void test_and1 ()
 {
   Machine m;
-  uint32_t b[8];
+  uint32_t b[9];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:and.1");
 
+  b[0] = enc (8*4);             /* Code Size */
   /* &'a' */
-  b[0] = GEN1 (OP_CHOICE, 7);   /* 0x0: Choice 0x7 */
-  b[1] = GEN1 (OP_CHOICE, 4);   /* 0x1: Choice 0x4 */
-  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x2: Char 'a' */
-  b[3] = GEN1 (OP_COMMIT, 1);   /* 0x3: Commit 1 */
-  b[4] = GEN0 (OP_FAIL);        /* 0x4: Fail */
-  b[5] = GEN1 (OP_COMMIT, 1);   /* 0x5: Commit 1 */
-  b[6] = GEN0 (OP_FAIL);        /* 0x6: Fail */
-  b[7] = 0;                     /* 0x7: Halt */
+  b[1] = GEN1 (OP_CHOICE, 7);   /* 0x0: Choice 0x7 */
+  b[2] = GEN1 (OP_CHOICE, 4);   /* 0x1: Choice 0x4 */
+  b[3] = GEN1 (OP_CHAR, 'a');   /* 0x2: Char 'a' */
+  b[4] = GEN1 (OP_COMMIT, 1);   /* 0x3: Commit 1 */
+  b[5] = GEN0 (OP_FAIL);        /* 0x4: Fail */
+  b[6] = GEN1 (OP_COMMIT, 1);   /* 0x5: Commit 1 */
+  b[7] = GEN0 (OP_FAIL);        /* 0x6: Fail */
+  b[8] = GEN0 (OP_HALT);        /* 0x7: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -291,17 +300,18 @@ void test_and1 ()
 void test_and1_back_commit ()
 {
   Machine m;
-  uint32_t b[5];
+  uint32_t b[6];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:and.1 (back-commit)");
 
+  b[0] = enc (8*4);                /* Code Size */
   /* &'a' */
-  b[0] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
-  b[1] = GEN1 (OP_CHAR, 'a');      /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_BACK_COMMIT, 2); /* 0x2: BackCommit 2 */
-  b[3] = GEN0 (OP_FAIL);           /* 0x3: Fail */
-  b[4] = 0;                        /* 0x4: Halt */
+  b[1] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
+  b[2] = GEN1 (OP_CHAR, 'a');      /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_BACK_COMMIT, 2); /* 0x2: BackCommit 2 */
+  b[4] = GEN0 (OP_FAIL);           /* 0x3: Fail */
+  b[5] = GEN0 (OP_HALT);           /* 0x4: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -320,18 +330,19 @@ match g &p s i = nil (and.2)
 void test_and2 ()
 {
   Machine m;
-  uint32_t b[8];
+  uint32_t b[9];
   DEBUGLN (" * t:and.2");
 
+  b[0] = enc (8*4);             /* Code Size */
   /* &'a' */
-  b[0] = GEN1 (OP_CHOICE, 7);   /* 0x0: Choice 0x7 */
-  b[1] = GEN1 (OP_CHOICE, 4);   /* 0x1: Choice 0x4 */
-  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x2: Char 'a' */
-  b[3] = GEN1 (OP_COMMIT, 1);   /* 0x3: Commit 1 */
-  b[4] = GEN0 (OP_FAIL);        /* 0x4: Fail */
-  b[5] = GEN1 (OP_COMMIT, 1);   /* 0x5: Commit 1 */
-  b[6] = GEN0 (OP_FAIL);        /* 0x6: Fail */
-  b[7] = 0;                     /* 0x7: Halt */
+  b[1] = GEN1 (OP_CHOICE, 7);   /* 0x0: Choice 0x7 */
+  b[2] = GEN1 (OP_CHOICE, 4);   /* 0x1: Choice 0x4 */
+  b[3] = GEN1 (OP_CHAR, 'a');   /* 0x2: Char 'a' */
+  b[4] = GEN1 (OP_COMMIT, 1);   /* 0x3: Commit 1 */
+  b[5] = GEN0 (OP_FAIL);        /* 0x4: Fail */
+  b[6] = GEN1 (OP_COMMIT, 1);   /* 0x5: Commit 1 */
+  b[7] = GEN0 (OP_FAIL);        /* 0x6: Fail */
+  b[8] = GEN0 (OP_HALT);        /* 0x7: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -342,15 +353,16 @@ void test_and2 ()
 void test_and2_back_commit ()
 {
   Machine m;
-  uint32_t b[5];
+  uint32_t b[6];
   DEBUGLN (" * t:and.2 (back-commit)");
 
+  b[0] = enc (5*4);                /* Code Size */
   /* &'a' */
-  b[0] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
-  b[1] = GEN1 (OP_CHAR, 'a');      /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_BACK_COMMIT, 2); /* 0x2: BackCommit 2 */
-  b[3] = GEN0 (OP_FAIL);           /* 0x3: Fail */
-  b[4] = 0;                        /* 0x4: Halt */
+  b[1] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
+  b[2] = GEN1 (OP_CHAR, 'a');      /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_BACK_COMMIT, 2); /* 0x2: BackCommit 2 */
+  b[4] = GEN0 (OP_FAIL);           /* 0x3: Fail */
+  b[5] = GEN0 (OP_HALT);           /* 0x4: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -366,16 +378,17 @@ void test_and2_back_commit ()
 void test_con1 ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   const char *i = "abc";
   const char *o = NULL;
   DEBUGLN (" * t:con.1");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* 'a' . 'c' */
-  b[0] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
-  b[1] = GEN0 (OP_ANY);         /* 0x1: Any */
-  b[2] = GEN1 (OP_CHAR, 'c');   /* 0x2: Char 'c' */
-  b[3] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
+  b[2] = GEN0 (OP_ANY);         /* 0x1: Any */
+  b[3] = GEN1 (OP_CHAR, 'c');   /* 0x2: Char 'c' */
+  b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -394,14 +407,15 @@ void test_con1 ()
 void test_con2 ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   DEBUGLN (" * t:con.2");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* 'a' 'c' . */
-  b[0] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
-  b[1] = GEN1 (OP_CHAR, 'c');   /* 0x1: Char 'c' */
-  b[2] = GEN0 (OP_ANY);         /* 0x2: Any */
-  b[3] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
+  b[2] = GEN1 (OP_CHAR, 'c');   /* 0x1: Char 'c' */
+  b[3] = GEN0 (OP_ANY);         /* 0x2: Any */
+  b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -417,14 +431,15 @@ void test_con2 ()
 void test_con3 ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   DEBUGLN (" * t:con.3");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* 'a' 'c' . */
-  b[0] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
-  b[1] = GEN1 (OP_CHAR, 'c');   /* 0x1: Char 'c' */
-  b[2] = GEN0 (OP_ANY);         /* 0x2: Any */
-  b[3] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
+  b[2] = GEN1 (OP_CHAR, 'c');   /* 0x1: Char 'c' */
+  b[3] = GEN0 (OP_ANY);         /* 0x2: Any */
+  b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -464,17 +479,18 @@ void test_ord1 ()
 void test_ord2 ()
 {
   Machine m;
-  uint32_t b[5];
+  uint32_t b[6];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:ord.2");
 
+  b[0] = enc (5*4);             /* Code Size */
   /* 'a' / 'b' */
-  b[0] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_COMMIT, 2);   /* 0x2: Commit 0x2 */
-  b[3] = GEN1 (OP_CHAR, 'b');   /* 0x3: Char 'c' */
-  b[4] = 0;                     /* 0x4: Halt */
+  b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_COMMIT, 2);   /* 0x2: Commit 0x2 */
+  b[4] = GEN1 (OP_CHAR, 'b');   /* 0x3: Char 'c' */
+  b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -493,17 +509,18 @@ void test_ord2 ()
 void test_ord3 ()
 {
   Machine m;
-  uint32_t b[5];
+  uint32_t b[6];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:ord.3");
 
+  b[0] = enc (5*4);             /* Code Size */
   /* 'a' / 'b' */
-  b[0] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_COMMIT, 2);   /* 0x2: Commit 0x2 */
-  b[3] = GEN1 (OP_CHAR, 'b');   /* 0x3: Char 'c' */
-  b[4] = 0;                     /* 0x4: Halt */
+  b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_COMMIT, 2);   /* 0x2: Commit 0x2 */
+  b[4] = GEN1 (OP_CHAR, 'b');   /* 0x3: Char 'c' */
+  b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -522,16 +539,17 @@ void test_ord3 ()
 void test_rep1 ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   const char *i = "aab";
   const char *o = NULL;
   DEBUGLN (" * t:rep.1");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* 'a*' */
-  b[0] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 3 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_COMMIT, -2);  /* 0x2: Commit -2 */
-  b[3] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 3 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_COMMIT, -2);  /* 0x2: Commit -2 */
+  b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -545,16 +563,17 @@ void test_rep1 ()
 void test_rep1_partial_commit ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   const char *i = "aab";
   const char *o = NULL;
   DEBUGLN (" * t:rep.1 (partial-commit)");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* 'a*' */
-  b[0] = GEN1 (OP_CHOICE, 3);          /* 0x0: Choice 3 */
-  b[1] = GEN1 (OP_CHAR, 'a');          /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_PARTIAL_COMMIT, -1); /* 0x3: PartialCommit -1 */
-  b[3] = 0;
+  b[1] = GEN1 (OP_CHOICE, 3);          /* 0x0: Choice 3 */
+  b[2] = GEN1 (OP_CHAR, 'a');          /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_PARTIAL_COMMIT, -1); /* 0x3: PartialCommit -1 */
+  b[4] = GEN0 (OP_HALT);
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -573,16 +592,17 @@ void test_rep1_partial_commit ()
 void test_rep2 ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:rep.2");
 
+  b[0] = enc (4*4);             /* Code Size */
   /* 'a*' */
-  b[0] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 3 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_COMMIT, -2);  /* 0x2: Commit -2 */
-  b[3] = 0;                     /* 0x3: Halt */
+  b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 3 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_COMMIT, -2);  /* 0x2: Commit -2 */
+  b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -596,16 +616,17 @@ void test_rep2 ()
 void test_rep2_partial_commit ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:rep.2 (partial-commit)");
 
+  b[0] = enc (4*4);                    /* Code Size */
   /* 'a*' */
-  b[0] = GEN1 (OP_CHOICE, 3);          /* 0x0: Choice 3 */
-  b[1] = GEN1 (OP_CHAR, 'a');          /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_PARTIAL_COMMIT, -1); /* 0x3: PartialCommit -1 */
-  b[3] = 0;
+  b[1] = GEN1 (OP_CHOICE, 3);          /* 0x0: Choice 3 */
+  b[2] = GEN1 (OP_CHAR, 'a');          /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_PARTIAL_COMMIT, -1); /* 0x3: PartialCommit -1 */
+  b[4] = GEN0 (OP_HALT);
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -624,29 +645,28 @@ void test_rep2_partial_commit ()
 void test_var1 ()
 {
   Machine m;
-  uint32_t b[12];
+  uint32_t b[13];
   const char *i = "1+1";
   const char *o = NULL;
   DEBUGLN (" * t:var.1");
 
-  /* 'a*' */
-
+  b[0x0] = enc (12*4);          /* Code Size */
   /* Start */
-  b[0x0] = GEN1 (OP_CALL, 0x2); /* 0x0: Call 0x2 */
-  b[0x1] = GEN1 (OP_JUMP, 0xb); /* 0x1: Jump 0xb */
+  b[0x1] = GEN1 (OP_CALL, 0x2); /* 0x0: Call 0x2 */
+  b[0x2] = GEN1 (OP_JUMP, 0xb); /* 0x1: Jump 0xb */
   /* S <- D '+' D */
-  b[0x2] = GEN1 (OP_CALL, 0x4); /* 0x2: Call 0x4 */
-  b[0x3] = GEN1 (OP_CHAR, '+'); /* 0x3: Char '+' */
-  b[0x4] = GEN1 (OP_CALL, 0x2); /* 0x4: Call 0x2 */
-  b[0x5] = GEN0 (OP_RETURN);    /* 0x5: Return */
+  b[0x3] = GEN1 (OP_CALL, 0x4); /* 0x2: Call 0x4 */
+  b[0x4] = GEN1 (OP_CHAR, '+'); /* 0x3: Char '+' */
+  b[0x5] = GEN1 (OP_CALL, 0x2); /* 0x4: Call 0x2 */
+  b[0x6] = GEN0 (OP_RETURN);    /* 0x5: Return */
   /* D <- '0' / '1' */
-  b[0x6] = GEN1 (OP_CHOICE, 3); /* 0x6: Choice 0x3 */
-  b[0x7] = GEN1 (OP_CHAR, '0'); /* 0x7: Char '0' */
-  b[0x8] = GEN1 (OP_COMMIT, 2); /* 0x8: Commit 0x2 */
-  b[0x9] = GEN1 (OP_CHAR, '1'); /* 0x9: Char '1' */
-  b[0xa] = GEN0 (OP_RETURN);    /* 0xa: Return */
+  b[0x7] = GEN1 (OP_CHOICE, 3); /* 0x6: Choice 0x3 */
+  b[0x8] = GEN1 (OP_CHAR, '0'); /* 0x7: Char '0' */
+  b[0x9] = GEN1 (OP_COMMIT, 2); /* 0x8: Commit 0x2 */
+  b[0xa] = GEN1 (OP_CHAR, '1'); /* 0x9: Char '1' */
+  b[0xb] = GEN0 (OP_RETURN);    /* 0xa: Return */
   /* End */
-  b[0xb] = 0;                   /* 0xb: Halt */
+  b[0xc] = GEN0 (OP_HALT);      /* 0xb: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -665,27 +685,26 @@ void test_var1 ()
 void test_var2 ()
 {
   Machine m;
-  uint32_t b[12];
+  uint32_t b[13];
   DEBUGLN (" * t:var.2");
 
-  /* 'a*' */
-
+  b[0x0] = enc (12*4);          /* Code Size */
   /* Start */
-  b[0x0] = GEN1 (OP_CALL, 0x2); /* 0x0: Call 0x2 */
-  b[0x1] = GEN1 (OP_JUMP, 0xb); /* 0x1: Jump 0xb */
+  b[0x1] = GEN1 (OP_CALL, 0x2); /* 0x0: Call 0x2 */
+  b[0x2] = GEN1 (OP_JUMP, 0xb); /* 0x1: Jump 0xb */
   /* S <- D '+' D */
-  b[0x2] = GEN1 (OP_CALL, 0x4); /* 0x2: Call 0x4 */
-  b[0x3] = GEN1 (OP_CHAR, '+'); /* 0x3: Char '+' */
-  b[0x4] = GEN1 (OP_CALL, 0x2); /* 0x4: Call 0x2 */
-  b[0x5] = GEN0 (OP_RETURN);    /* 0x5: Return */
+  b[0x3] = GEN1 (OP_CALL, 0x4); /* 0x2: Call 0x4 */
+  b[0x4] = GEN1 (OP_CHAR, '+'); /* 0x3: Char '+' */
+  b[0x5] = GEN1 (OP_CALL, 0x2); /* 0x4: Call 0x2 */
+  b[0x6] = GEN0 (OP_RETURN);    /* 0x5: Return */
   /* D <- '0' / '1' */
-  b[0x6] = GEN1 (OP_CHOICE, 3); /* 0x6: Choice 0x3 */
-  b[0x7] = GEN1 (OP_CHAR, '0'); /* 0x7: Char '0' */
-  b[0x8] = GEN1 (OP_COMMIT, 2); /* 0x8: Commit 0x2 */
-  b[0x9] = GEN1 (OP_CHAR, '1'); /* 0x9: Char '1' */
-  b[0xa] = GEN0 (OP_RETURN);    /* 0xa: Return */
+  b[0x7] = GEN1 (OP_CHOICE, 3); /* 0x6: Choice 0x3 */
+  b[0x8] = GEN1 (OP_CHAR, '0'); /* 0x7: Char '0' */
+  b[0x9] = GEN1 (OP_COMMIT, 2); /* 0x8: Commit 0x2 */
+  b[0xa] = GEN1 (OP_CHAR, '1'); /* 0x9: Char '1' */
+  b[0xb] = GEN0 (OP_RETURN);    /* 0xa: Return */
   /* End */
-  b[0xb] = 0;                   /* 0xb: Halt */
+  b[0xc] = GEN0 (OP_HALT);      /* 0xb: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -696,16 +715,17 @@ void test_var2 ()
 void test_span1 ()
 {
   Machine m;
-  uint32_t b[4];
+  uint32_t b[5];
   const char *i = "abcdefgh";
   const char *o = NULL;
   DEBUGLN (" * t:span.1");
 
+  b[0x0] = enc (4*4);                /* Code Size */
   /* '[a-e]*' */
-  b[0x0] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
-  b[0x1] = GEN2 (OP_SPAN, 'a', 'e'); /* 0x1: Span 'a'-'e' */
-  b[0x2] = GEN1 (OP_COMMIT, -2);     /* 0x2: Commit -0x2 */
-  b[0x3] = 0;
+  b[0x1] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
+  b[0x2] = GEN2 (OP_SPAN, 'a', 'e'); /* 0x1: Span 'a'-'e' */
+  b[0x3] = GEN1 (OP_COMMIT, -2);     /* 0x2: Commit -0x2 */
+  b[0x4] = GEN0 (OP_HALT);           /* 0x3: Halt */
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b, sizeof (b));
@@ -719,23 +739,26 @@ void test_span1 ()
 void test_cap1 ()
 {
   Machine m;
-  uint32_t b[9];
+  uint32_t b[10];
   const char *i = "a";
   Object *out = NULL;
   DEBUGLN (" * t:cap.1");
 
+  b[0x0] = enc (9*4);           /* Code Size */
   /* S <- 'a' */
-  b[0x0] = GEN1 (OP_CALL, 0x2);
-  b[0x1] = GEN1 (OP_JUMP, 0x8);
-  b[0x2] = GEN2 (OP_CAP_OPEN, 0x0, 0x0); /* CapOpen 0 (Main) */
-  b[0x3] = GEN2 (OP_CAP_OPEN, 0x1, 0x1);
-  b[0x4] = GEN1 (OP_CHAR, 0x61);
-  b[0x5] = GEN2 (OP_CAP_CLOSE, 0x1, 0x1);
-  b[0x6] = GEN2 (OP_CAP_CLOSE, 0x0, 0x0); /* CapClose 0 (Main) */
-  b[0x7] = GEN0 (OP_RETURN);
-  b[0x8] = GEN0 (OP_HALT);
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x8);
+  b[0x3] = GEN2 (OP_CAP_OPEN, 0x0, 0x0); /* CapOpen 0 (Main) */
+  b[0x4] = GEN2 (OP_CAP_OPEN, 0x1, 0x1);
+  b[0x5] = GEN1 (OP_CHAR, 0x61);
+  b[0x6] = GEN2 (OP_CAP_CLOSE, 0x1, 0x1);
+  b[0x7] = GEN2 (OP_CAP_CLOSE, 0x0, 0x0); /* CapClose 0 (Main) */
+  b[0x8] = GEN0 (OP_RETURN);
+  b[0x9] = GEN0 (OP_HALT);
 
   mInit (&m);
+  oTableInsertObject (&m.atoms, makeAtom ("Main", 4));
+  oTableInsertObject (&m.atoms, makeAtom ("Char", 4));
   mLoad (&m, (Bytecode *) b, sizeof (b));
   assert (mMatch (&m, i, strlen (i)));
   out = mExtract (&m, i);
@@ -750,120 +773,6 @@ void test_cap1 ()
   /* assert (strcmp (ATOM (CAR (CAR (out)))->name, "a") == 0); /\* Has the right value *\/ */
 
   mFree (&m);
-}
-
-void test_cap2 ()
-{
-  Machine m;
-  uint32_t b[14];
-  const char *i = "ab";
-  Object *out = NULL;
-  DEBUGLN (" * t:cap.2");
-
-  /* S <- 'a' 'b' / 'ab' */
-  b[0x0] = GEN1 (OP_CALL, 0x2);
-  b[0x1] = GEN1 (OP_JUMP, 0x0d);
-  b[0x2] = GEN2 (OP_CAP_OPEN, 0x0, 0x0); /* CapOpen NT 0 (Main) */
-  b[0x3] = GEN2 (OP_CAP_OPEN, 0x0, 0x1); /* CapOpen NT 1 (Seq) */
-  b[0x4] = GEN2 (OP_CAP_OPEN, 0x1, 0x2); /* CapOpen YT 2 */
-  b[0x5] = GEN1 (OP_CHAR, 0x61);
-  b[0x6] = GEN2 (OP_CAP_CLOSE, 0x1, 0x2); /* CapClose YT 2 */
-  b[0x7] = GEN2 (OP_CAP_OPEN, 0x1, 0x3);
-  b[0x8] = GEN1 (OP_CHAR, 0x62);
-  b[0x9] = GEN2 (OP_CAP_CLOSE, 0x1, 0x3);
-  b[0xa] = GEN2 (OP_CAP_CLOSE, 0x0, 0x1); /* CapClose 0 (Seq) */
-  b[0xb] = GEN2 (OP_CAP_CLOSE, 0x0, 0x0); /* CapClose 0 (Main) */
-  b[0xc] = GEN0 (OP_RETURN);
-  b[0xd] = OP_HALT;
-
-  mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
-  assert (mMatch (&m, i, strlen (i)));
-  out = mExtract (&m, i);
-
-  printObj (out);
-  printf ("\n");
-
-  assert (out);                 /* Isn't empty */
-  assert (CONSP (out));         /* Is a list */
-  /* assert (CONSP (CAR (out))); */
-  /* assert (CONSP (CAR (CAR (out)))); */
-  /* assert (ATOMP (CAR (CAR (CAR (out))))); */
-  /* assert (strcmp (ATOM (CAR (CAR (CAR (out))))->name, "a") == 0); */
-  /* assert (ATOMP (CAR (CDR (CAR (CAR (out)))))); */
-  /* assert (strcmp (ATOM (CAR (CDR (CAR (CAR (out)))))->name, "b") == 0); */
-
-  mFree (&m);
-}
-
-void test_cap3 ()
-{
-  Machine m;
-  uint32_t b[16];
-  const char *i = "b";
-  Object *out = NULL;
-  DEBUGLN (" * t:cap.3");
-
-  /* S <- !'a' . */
-  b[0x00] = GEN1 (     OP_CALL,       0x02);
-  b[0x01] = GEN1 (     OP_JUMP,       0x0e);
-  b[0x02] = GEN2 ( OP_CAP_OPEN, 0x00, 0x00);
-  b[0x03] = GEN2 ( OP_CAP_OPEN, 0x00, 0x01);
-  b[0x04] = GEN1 (   OP_CHOICE,       0x04);
-  b[0x05] = GEN1 (     OP_CHAR,       0x61);
-  b[0x06] = GEN1 (   OP_COMMIT,       0x01);
-  b[0x07] = GEN0 (     OP_FAIL            );
-  b[0x08] = GEN2 ( OP_CAP_OPEN, 0x01, 0x02);
-  b[0x09] = GEN0 (      OP_ANY            );
-  b[0x0a] = GEN2 (OP_CAP_CLOSE, 0x01, 0x02);
-  b[0x0b] = GEN2 (OP_CAP_CLOSE, 0x00, 0x01);
-  b[0x0c] = GEN2 (OP_CAP_CLOSE, 0x00, 0x00);
-  b[0x0d] = GEN0 (   OP_RETURN            );
-  b[0x0e] = GEN0 (     OP_HALT            );
-
-  mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
-  assert (mMatch (&m, i, strlen (i)));
-  out = mExtract (&m, i);
-
-  printObj (out);
-  printf ("\n");
-}
-
-void test_cap4 ()
-{
-  Machine m;
-  uint32_t b[17];
-  const char *i = "bcde";
-  Object *out = NULL;
-  DEBUGLN (" * t:cap.4");
-
-  /* S <- (!'a' .)* */
-  b[0x00] = GEN1 (     OP_CALL,       0x02);
-  b[0x01] = GEN1 (     OP_JUMP,       0x10);
-  b[0x02] = GEN2 ( OP_CAP_OPEN, 0x00, 0x00);
-  b[0x03] = GEN1 (   OP_CHOICE,       0x0b);
-  b[0x04] = GEN2 ( OP_CAP_OPEN, 0x00, 0x01);
-  b[0x05] = GEN1 (   OP_CHOICE,       0x04);
-  b[0x06] = GEN1 (     OP_CHAR,       0x61);
-  b[0x07] = GEN1 (   OP_COMMIT,       0x01);
-  b[0x08] = GEN0 (     OP_FAIL            );
-  b[0x09] = GEN2 ( OP_CAP_OPEN, 0x01, 0x02);
-  b[0x0a] = GEN0 (      OP_ANY            );
-  b[0x0b] = GEN2 (OP_CAP_CLOSE, 0x01, 0x02);
-  b[0x0c] = GEN2 (OP_CAP_CLOSE, 0x00, 0x01);
-  b[0x0d] = GEN1 (   OP_COMMIT,  0x7fffff6);
-  b[0x0e] = GEN2 (OP_CAP_CLOSE, 0x00, 0x00);
-  b[0x0f] = GEN0 (   OP_RETURN            );
-  b[0x10] = GEN0 (     OP_HALT            );
-
-  mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
-  assert (mMatch (&m, i, strlen (i)));
-  out = mExtract (&m, i);
-
-  printObj (out);
-  printf ("\n");
 }
 
 int main ()
@@ -894,11 +803,7 @@ int main ()
   test_var1 ();
   test_var2 ();
   test_span1 ();
-
   test_cap1 ();
-  test_cap2 ();
-  test_cap3 ();
-  test_cap4 ();
 
   return 0;
 }

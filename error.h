@@ -20,6 +20,8 @@
 #ifndef ERROR_GUARD
 #define ERROR_GUARD
 
+#include <stdio.h>              /* for fprintf(), stderr */
+
 /** Report errors that stop the execution of the VM right away */
 #define FATAL(f, ...)                                                  \
   do { fprintf (stderr, f "\n", ##__VA_ARGS__); exit (EXIT_FAILURE); } \

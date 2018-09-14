@@ -1,13 +1,16 @@
 all: bin
 
 ifeq ("$(origin DEBUG)", "command line")
-  DBGFLAGS ?= -g -O0 -DDEBUG
+  OPTFLAGS ?= -g -O0
 else
-  DBGFLAGS :=
+  OPTFLAGS ?= -O1 -flto
+endif
+ifeq ("$(origin VERBOSE)", "command line")
+  OPTFLAGS = $(OPTFLAGS) -DDEBUG
 endif
 
 # Configurable
-CPPFLAGS ?=
+CPPFLAGS ?= $(OPTFLAGS)
 CFLAGS   ?= -Wall -Werror -Wpedantic $(DBGFLAGS)
 
 # Source and output files

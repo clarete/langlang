@@ -57,7 +57,7 @@ static const char *opNames[OP_END] = {
 /* Set initial values for the machine */
 void mInit (Machine *m)
 {
-  oTableInit (&m->atoms);
+  oTableInit (&m->symbols);
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
   m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
@@ -67,7 +67,7 @@ void mInit (Machine *m)
 /* Release the resources used by the machine */
 void mFree (Machine *m)
 {
-  oTableFree (&m->atoms);
+  oTableFree (&m->symbols);
   free (m->code);
   free (m->stack);
   free (m->captures);
@@ -97,9 +97,9 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
   DEBUGLN ("   Header(%d)", headerSize);
   for (i = 0; i < headerSize; i++) {
     size_t ssize = READ_UINT8 (code);
-    Object *atom = makeAtom ((const char *) code, ssize);
-    oTableInsertObject (&m->atoms, atom);
-    DEBUGLN ("     0x%0x: String(%ld) %s", i, ssize, ATOM (atom)->name);
+    Object *symbol = makeSymbol ((const char *) code, ssize);
+    oTableInsertObject (&m->symbols, symbol);
+    DEBUGLN ("     0x%0x: String(%ld) %s", i, ssize, SYMBOL (symbol)->name);
     code += ssize; /* Push the cursor to after the string just read */
   }
 
@@ -265,7 +265,7 @@ Object *mExtract (Machine *m, const char *input)
 
   while (cp < m->cap) {
     match = m->captures[cp++];              /* POP () */
-    key = oTableItem (&m->atoms, match.idx);
+    key = oTableItem (&m->symbols, match.idx);
 
     if (match.type == CapOpen) {
       if (!match.term) PUSH_SO (key);
@@ -287,11 +287,11 @@ Object *mExtract (Machine *m, const char *input)
       /* Terminal */
       start = match2.pos - input;
       end = match.pos - input;
-      PUSH_SO (makeCons (key, makeAtom (input + start, end - start)));
+      PUSH_SO (makeCons (key, makeSymbol (input + start, end - start)));
     } else {
       /* Non-Terminal */
       Object *l = NULL;
-      while (!ATOMP (ostack[spo-1])) {
+      while (!SYMBOLP (ostack[spo-1])) {
         l = makeCons (ostack[--spo], l);
       }
       --spo;                    /* Get rid of key */

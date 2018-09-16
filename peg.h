@@ -86,7 +86,7 @@ typedef struct {
   BacktrackEntry *stack;
   CaptureEntry *captures;
   uint32_t cap;                 /* Top of the capture stack */
-  ObjectTable atoms;            /* Store unique atoms within the VM */
+  ObjectTable symbols;          /* Store unique symbols within the VM */
 } Machine;
 
 /* opcodes */

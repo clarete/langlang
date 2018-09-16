@@ -43,14 +43,14 @@ Object *makeCons (Object *car, Object *cdr)
   return (Object *) cons;
 }
 
-Object *makeAtom (const char *p, size_t len)
+Object *makeSymbol (const char *p, size_t len)
 {
-  Atom *atom;
-  atom = ATOM (makeObject (TYPE_ATOM, sizeof (Atom)));
-  memcpy (atom->name, p, len);
-  atom->name[len] = '\0';
-  atom->len = len;
-  return (Object *) atom;
+  Symbol *symbol;
+  symbol = SYMBOL (makeObject (TYPE_SYMBOL, sizeof (Symbol)));
+  memcpy (symbol->name, p, len);
+  symbol->name[len] = '\0';
+  symbol->len = len;
+  return (Object *) symbol;
 }
 
 /* ---- Object Table ---- */
@@ -131,9 +131,9 @@ static void rawPrint (const char *s, size_t len)
   }
 }
 
-static void printAtom (const Object *atom)
+static void printSymbol (const Object *symbol)
 {
-  rawPrint (ATOM (atom)->name, ATOM (atom)->len);
+  rawPrint (SYMBOL (symbol)->name, SYMBOL (symbol)->len);
 }
 
 void printObj (const Object *obj)
@@ -142,7 +142,7 @@ void printObj (const Object *obj)
     printf ("NULL");
   } else {
     switch (obj->type) {
-    case TYPE_ATOM: printAtom (obj); break;
+    case TYPE_SYMBOL: printSymbol (obj); break;
     case TYPE_NIL: printf ("nil"); break;
     case TYPE_CONS: printCons (CONS (obj)); break;
     default: FATAL ("Unknown type passed to printObj: %d\n", obj->type);

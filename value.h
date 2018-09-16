@@ -23,16 +23,16 @@
 #include <stdbool.h>
 
 /* Constants */
-#define MAX_ATOM_SIZE      128
+#define MAX_SYMBOL_SIZE    128
 #define INIT_OTABLE_SIZE   32
 
 /* Type cast shortcuts */
 #define OBJ(x)      ((Object *) x)
-#define ATOM(x)     ((Atom *) x)
+#define SYMBOL(x)   ((Symbol *) x)
 #define CONS(x)     ((Cons *) x)
 
 /* Predicates used in the C environment. */
-#define ATOMP(o)    (OBJ (o)->type == TYPE_ATOM)
+#define SYMBOLP(o)  (OBJ (o)->type == TYPE_SYMBOL)
 #define CONSP(o)    (OBJ (o)->type == TYPE_CONS)
 #define NILP(o)     (OBJ (o)->type == TYPE_NIL)
 
@@ -41,7 +41,7 @@
 #define CDR(o) (CONS (o)->cdr)
 
 typedef enum {
-  TYPE_ATOM = 1,
+  TYPE_SYMBOL = 1,
   TYPE_CONS,
   TYPE_NIL,
   TYPE_END
@@ -61,8 +61,8 @@ typedef struct {
 typedef struct {
   Object o;
   int8_t len;
-  char name[MAX_ATOM_SIZE];
-} Atom;
+  char name[MAX_SYMBOL_SIZE];
+} Symbol;
 
 typedef struct {
   void **items;
@@ -72,7 +72,7 @@ typedef struct {
 
 void printObj (const Object *o);
 Object *makeCons (Object *car, Object *cdr);
-Object *makeAtom (const char *p, size_t len);
+Object *makeSymbol (const char *p, size_t len);
 
 void oTableInit (ObjectTable *ot);
 void oTableFree (ObjectTable *ot);

@@ -124,6 +124,7 @@ static void rawPrint (const char *s, size_t len)
   escape['\r'] = "\\r";
   escape['\n'] = "\\n";
   escape['\\'] = "\\\\";
+  escape['"'] = "\\\"";
   for (size_t i = 0; i < len; i++) {
     c = s[i];
     if (escape[c] == NULL) printf("%c", c);
@@ -133,7 +134,9 @@ static void rawPrint (const char *s, size_t len)
 
 static void printSymbol (const Object *symbol)
 {
+  printf ("\"");
   rawPrint (SYMBOL (symbol)->name, SYMBOL (symbol)->len);
+  printf ("\"");
 }
 
 void printObj (const Object *obj)

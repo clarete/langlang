@@ -29,7 +29,7 @@ IdentCont  <- ;IdentStart / [0-9]
 Literal    <- ;['] (!['] Char)* ;['] ;Spacing
             / ;["] (!["] Char)* ;["] ;Spacing
 Class      <- ;'[' (!']' Range)* ;']' ;Spacing
-Range      <- Char '-' Char / Char
+Range      <- Char ;'-' Char / Char
 Char       <- '\\' [nrt'"\[\]\\]
             / '\\' [0-2][0-7][0-7]
             / '\\' [0-7][0-7]?

@@ -7,6 +7,9 @@
 #
 # * [X] Quiet Operator: Mark items to not be included in the parse
 #       tree. Doesn't influence the match at all.
+#
+# * [X] Capture Block: Manually mark Capture blocks. Useful for
+#       capturing Non-Terminals together.
 
 # Hierarchical syntax
 Grammar    <- Spacing Definition+ EndOfFile
@@ -18,7 +21,9 @@ Prefix     <- (AND / NOT / QUIET)? Suffix
 Suffix     <- Primary (QUESTION / STAR / PLUS)?
 Primary    <- Identifier !LEFTARROW
             / OPEN Expression CLOSE
+            / Capture           # Capture Block Extension
             / Literal / Class / DOT
+Capture    <- OPCB Expression CLCB
 
 # Lexical syntax
 Identifier <- IdentStart IdentCont* Spacing
@@ -48,6 +53,10 @@ CLOSE      <- ')' Spacing
 DOT        <- '.' Spacing
 ## Quiet Operator Extension
 QUIET      <- ';' Spacing
+## Capture Block Extension
+OPCB       <- '%C{' Spacing
+CLCB       <- '}' Spacing
+
 
 Spacing    <- (Space / Comment)*
 Comment    <- '#' (!EndOfLine .)* EndOfLine

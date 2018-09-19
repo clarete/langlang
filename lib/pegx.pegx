@@ -10,13 +10,15 @@ Sequence   <- Prefix*
 Prefix     <- (AND / NOT / QUIET)? Suffix
 Suffix     <- Primary (QUESTION / STAR / PLUS)?
 Primary    <- Identifier !LEFTARROW
-            / OPEN Expression CLOSE
+            / ;OPEN Expression ;CLOSE
+            / Capture
             / Literal / Class / DOT
+Capture    <- ;OPCB Expression ;CLCB
 
 # Lexical syntax
-Identifier <- ;IdentStart ;IdentCont* ;Spacing
-IdentStart <- [a-zA-Z_]
-IdentCont  <- ;IdentStart / [0-9]
+Identifier <- %C{ IdentStart IdentCont* } ;Spacing
+IdentStart <- ;[a-zA-Z_]
+IdentCont  <- ;IdentStart / ;[0-9]
 
 Literal    <- ;['] (!['] Char)* ;['] ;Spacing
             / ;["] (!["] Char)* ;["] ;Spacing
@@ -41,9 +43,11 @@ CLOSE      <- ;')' ;Spacing
 DOT        <- ;'.' ;Spacing
 ## Extensions
 QUIET      <- ;';' ;Spacing
+OPCB       <- ;'%C{' ;Spacing
+CLCB       <- ;'}' ;Spacing
 
 Spacing    <- (;Space / Comment)*
-Comment    <- ;'#' (!EndOfLine .)* ;EndOfLine
+Comment    <- ;'#' %C{ (!EndOfLine .)* } ;EndOfLine
 Space      <- ;' ' / ;'\t' / ;EndOfLine
 EndOfLine  <- ;'\r\n' / ;'\n' / ;'\r'
 EndOfFile  <- !.

@@ -34,10 +34,11 @@ Min = 41
 Max = 42
   #+end_src
 
-** All Terminals & Non-Terminals are captured by default.
+** All Terminals & Non-Terminals are captured by default
 
-   Non-Terminals are ~cons~'ed with their identifiers. Here's the
-   parse tree of the above example:
+   Non-Terminals are ~cons~'ed with their identifiers and Terminals
+   are ~cons~'ed with other identifiers and here's the parse tree
+   generated from the above example:
 
    #+begin_src lisp
  ("Assignments"
@@ -75,12 +76,12 @@ Max = 42
 
    Very noisy right? Let's remove some unnecessary data from it.
 
-** The Quiet Operator (~;~) can be used to skip captures
+** The Quiet Operator (~;~) can be used to skip single matches
 
    As a quick example, the token ~=~ is important during the lexical
    analysis but it's just noise in the parse tree. To use it in the
    match but prevent the parsing machine from capturing its value, we
-   just need to prefix the Non-terminal with the **Quiet Operator**:
+   just need to prefix the Non-terminal with the *Quiet* Operator:
 
    #+begin_src peg
 Assignment  <- _ Identifier _ ;'=' _ Number
@@ -136,9 +137,10 @@ _           <- ;Space*
 ...
    #+end_src
 
-   Once again, the Quiet Operator isn't recursive, so although ~_~ and
-   ~Space~ were removed, the Terminals contained within ~Space~ are
-   still being captured. Let's change that with the following change:
+   Once again, the *Quiet* Operator isn't recursive, so although ~_~
+   and ~Space~ were removed, the Terminals contained within ~Space~
+   are still being captured. Let's change that with the following
+   change:
 
    #+begin_src peg
 Space       <- ;[ \n\r\t]
@@ -181,7 +183,7 @@ IdentCont   <- ;IdentStart / [0-9]
 
 ** Capture Block Operator (~%C{ Expr }~)
 
-   The Capture Block Operator disables the capture of everything
+   The *Capture Block* Operator disables the capture of everything
    within it and surounds all the matches with a single capture. Its
    first purpose is to aggregate Terminals together. The example we've
    been using have two situations where it could be useful:
@@ -196,18 +198,18 @@ Number      <- %C{ [0-9]+ }
       The output of the ~Number~ rule now looks like this:
 
       #+begin_src peg
-("Number" "4" "1")
+("Number" "41")
       #+end_src
    2. The ~Assignment~ rule could aggregate all the matches under
       ~IdentStart~ and ~IdentCont~. This is a tad bit more annoying to
-      achieve because the Capture Block Operator isn't recursive
-      either. So besides adding the Capture Block Operator to
-      ~Assignment~ we need to use the Quiet Operator in the matches
+      achieve because the *Capture Block* Operator isn't recursive
+      either. So besides adding the *Capture Block* Operator to
+      ~Assignment~ we need to use the *Quiet Operator* in the matches
       within ~IdentStart~ and ~IdentCont~:
 
       #+begin_src peg
 Assignments <- ;_ Assignment* !.
-Assignment  <- ;_ Identifier ;_ ;'='; _ Number
+Assignment  <- ;_ Identifier ;_ ;'=' ;_ Number
 Identifier  <- %C{ IdentStart IdentCont* }
 IdentStart  <- ;[a-zA-Z_]
 IdentCont   <- IdentStart / ;[0-9]
@@ -215,12 +217,12 @@ IdentCont   <- IdentStart / ;[0-9]
 
 ** Example Rewritten
 
-   Here's the full Grammar with Quiet and Capture Block Operators in
-   their proper places:
+   Here's the full Grammar with *Quiet* and *Capture Block* Operators
+   in their proper places:
 
    #+begin_src peg
 Assignments <- ;_ Assignment* !.
-Assignment  <- ;_ Identifier ;_ ;'='; _ Number
+Assignment  <- ;_ Identifier ;_ ;'=' ;_ Number
 Identifier  <- %C{ IdentStart IdentCont* }
 IdentStart  <- ;[a-zA-Z_]
 IdentCont   <- ;IdentStart / ;[0-9]

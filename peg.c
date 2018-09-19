@@ -261,7 +261,7 @@ Object *mExtract (Machine *m, const char *input)
 #define PUSH_S(i)  (stack = adjustArray (stack, sizeof (CaptureEntry), sp, &maxsp), stack[sp++] = i)
 #define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (Object*), spo, &maxspo), ostack[spo++] = i)
 
-  DEBUGLN ("  Extract: %p %p", (void*) cp, (void*) m->captures);
+  DEBUGLN ("  Extract: %d", m->cap);
 
   while (cp < m->cap) {
     match = m->captures[cp++];              /* POP () */

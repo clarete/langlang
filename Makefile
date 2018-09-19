@@ -6,7 +6,7 @@ else
   OPTFLAGS ?= -O1 -flto
 endif
 ifeq ("$(origin VERBOSE)", "command line")
-  OPTFLAGS = $(OPTFLAGS) -DDEBUG
+  OPTFLAGS := $(OPTFLAGS) -DDEBUG
 endif
 
 # Configurable

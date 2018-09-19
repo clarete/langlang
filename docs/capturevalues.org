@@ -75,7 +75,7 @@ Max = 42
 
    Very noisy right? Let's remove some unnecessary data from it.
 
-** The **Quiet Operator** (~;~) can be used to skip captures
+** The Quiet Operator (~;~) can be used to skip captures
 
    As a quick example, the token ~=~ is important during the lexical
    analysis but it's just noise in the parse tree. To use it in the
@@ -89,7 +89,7 @@ Assignment  <- _ Identifier _ ;'=' _ Number
    All the equal signs from the previous output will be gone after
    this change.
 
-** The **Quiet Operator** is not recursive
+** The Quiet Operator is not recursive
 
    The previous example shown how to skip the capture of Terminals. If
    you want to skip the capture of Non-Terminals, beware they're not
@@ -136,9 +136,9 @@ _           <- ;Space*
 ...
    #+end_src
 
-   Once again, the **Quiet Operator** isn't recursive, so although ~_~
-   and ~Space~ were removed, the Terminals contained within ~Space~
-   are still being captured. Let's change that with the following change:
+   Once again, the Quiet Operator isn't recursive, so although ~_~ and
+   ~Space~ were removed, the Terminals contained within ~Space~ are
+   still being captured. Let's change that with the following change:
 
    #+begin_src peg
 Space       <- ;[ \n\r\t]
@@ -179,8 +179,8 @@ IdentCont   <- ;IdentStart / [0-9]
  ("Number" "4" "1"))
    #+end_src
 
-   Here's the full grammar with the **Quiet Operators** in their
-   proper places:
+   Here's the full grammar with the Quiet Operators in their proper
+   places:
 
    #+begin_src peg
 Assignments <- _ Assignment* !.

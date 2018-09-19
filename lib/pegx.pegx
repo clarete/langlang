@@ -42,7 +42,7 @@ DOT        <- ;'.' ;Spacing
 ## Extensions
 QUIET      <- ;';' ;Spacing
 
-Spacing    <- ;(Space / Comment)*
+Spacing    <- (;Space / Comment)*
 Comment    <- ;'#' (!EndOfLine .)* ;EndOfLine
 Space      <- ;' ' / ;'\t' / ;EndOfLine
 EndOfLine  <- ;'\r\n' / ;'\n' / ;'\r'

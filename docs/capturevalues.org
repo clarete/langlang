@@ -179,16 +179,52 @@ IdentCont   <- ;IdentStart / [0-9]
  ("Number" "4" "1"))
    #+end_src
 
-   Here's the full grammar with the Quiet Operators in their proper
-   places:
+** Capture Block Operator (~%C{ Expr }~)
+
+   The Capture Block Operator disables the capture of everything
+   within it and surounds all the matches with a single capture. Its
+   first purpose is to aggregate Terminals together. The example we've
+   been using have two situations where it could be useful:
+
+   1. The ~Number~ rule could aggregate all its matches under one
+      capture instead of one per character:
+
+      #+begin_src peg
+Number      <- %C{ [0-9]+ }
+      #+end_src
+
+      The output of the ~Number~ rule now looks like this:
+
+      #+begin_src peg
+("Number" "4" "1")
+      #+end_src
+   2. The ~Assignment~ rule could aggregate all the matches under
+      ~IdentStart~ and ~IdentCont~. This is a tad bit more annoying to
+      achieve because the Capture Block Operator isn't recursive
+      either. So besides adding the Capture Block Operator to
+      ~Assignment~ we need to use the Quiet Operator in the matches
+      within ~IdentStart~ and ~IdentCont~:
+
+      #+begin_src peg
+Assignments <- ;_ Assignment* !.
+Assignment  <- ;_ Identifier ;_ ;'='; _ Number
+Identifier  <- %C{ IdentStart IdentCont* }
+IdentStart  <- ;[a-zA-Z_]
+IdentCont   <- IdentStart / ;[0-9]
+     #+end_src
+
+** Example Rewritten
+
+   Here's the full Grammar with Quiet and Capture Block Operators in
+   their proper places:
 
    #+begin_src peg
-Assignments <- _ Assignment* !.
+Assignments <- ;_ Assignment* !.
 Assignment  <- ;_ Identifier ;_ ;'='; _ Number
-Identifier  <- ;IdentStart ;IdentCont*
-IdentStart  <- [a-zA-Z_]
-IdentCont   <- ;IdentStart / [0-9]
-Number      <- [0-9]+
+Identifier  <- %C{ IdentStart IdentCont* }
+IdentStart  <- ;[a-zA-Z_]
+IdentCont   <- ;IdentStart / ;[0-9]
+Number      <- %C{ [0-9]+ }
 _           <- ;Space*
 Space       <- ;[ \n\r\t]
    #+end_src
@@ -198,9 +234,9 @@ Space       <- ;[ \n\r\t]
    #+begin_src lisp
 ("Assignments"
  ("Assignment"
-  ("Identifier" "M" "i" "n")
-  ("Number" "4" "1"))
+  ("Identifier" "Min")
+  ("Number" "41"))
  ("Assignment"
-  ("Identifier" "M" "a" "x")
-  ("Number" "4" "2")))
+  ("Identifier" "Max")
+  ("Number" "42")))
    #+end_src

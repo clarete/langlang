@@ -9,7 +9,7 @@
 #       tree. Doesn't influence the match at all.
 #
 # * [X] Capture Block: Manually mark Capture blocks. Useful for
-#       capturing Non-Terminals together.
+#       capturing Terminals together and ignore Non-Terminals.
 
 # Hierarchical syntax
 Grammar    <- Spacing Definition+ EndOfFile

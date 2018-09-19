@@ -757,8 +757,8 @@ void test_cap1 ()
   b[0x9] = GEN0 (OP_HALT);
 
   mInit (&m);
-  oTableInsertObject (&m.atoms, makeAtom ("Main", 4));
-  oTableInsertObject (&m.atoms, makeAtom ("Char", 4));
+  oTableInsertObject (&m.symbols, makeSymbol ("Main", 4));
+  oTableInsertObject (&m.symbols, makeSymbol ("Char", 4));
   mLoad (&m, (Bytecode *) b, sizeof (b));
   assert (mMatch (&m, i, strlen (i)));
   out = mExtract (&m, i);
@@ -769,8 +769,8 @@ void test_cap1 ()
   assert (out);                 /* Isn't empty */
   assert (CONSP (out));         /* Is a list */
   /* assert (CONSP (CAR (out))); */
-  /* assert (ATOMP (CAR (CAR (out))));   /\* Has an atom within it *\/ */
-  /* assert (strcmp (ATOM (CAR (CAR (out)))->name, "a") == 0); /\* Has the right value *\/ */
+  /* assert (SYMBOLP (CAR (CAR (out))));   /\* Has an symbol within it *\/ */
+  /* assert (strcmp (SYMBOL (CAR (CAR (out)))->name, "a") == 0); /\* Has the right value *\/ */
 
   mFree (&m);
 }

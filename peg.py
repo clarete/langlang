@@ -48,8 +48,10 @@ class TokenTypes(enum.Enum):
      CLASS,
      OPEN,
      CLOSE,
+     OPCB,
+     CLCB,
      END,
-    ) = range(15)
+    ) = range(17)
 
 class Token:
     def __init__(self, _type, value=None, line=0, pos=0):
@@ -96,6 +98,8 @@ class Grammar(Node): pass
 class Definition(Node): pass
 
 class Expression(Node): pass
+
+class CaptureBlock(Node): pass
 
 class Sequence(Node): pass
 
@@ -211,6 +215,10 @@ class Parser:
             return self.t(TokenTypes.QUESTION)
         elif self.matchc(';'):
             return self.t(TokenTypes.QUIET)
+        elif self.matchc('}'):
+            return self.t(TokenTypes.CLCB)
+        elif self.matchc('%') and self.matchc('C') and self.matchc('{'):
+            return self.t(TokenTypes.OPCB)
         else:
             raise SyntaxError("Unexpected char `{}'".format(self.peekc()))
 
@@ -327,6 +335,7 @@ class Parser:
     def parsePrimary(self):
         # Primary <- Identifier !LEFTARROW
         #          / OPEN Expression CLOSE
+        #          / Capture   # Extension
         #          / Literal / Class / DOT
         if self.testt(TokenTypes.IDENTIFIER) and self.peekt()._type != TokenTypes.ARROW:
             return Identifier(self.consumet(TokenTypes.IDENTIFIER).value)
@@ -340,6 +349,11 @@ class Parser:
             if self.matcht(TokenTypes.CLOSE): return []
             value = self.parseExpression()
             self.consumet(TokenTypes.CLOSE)
+            return value
+        elif self.matcht(TokenTypes.OPCB):
+            if self.matcht(TokenTypes.CLCB): return []
+            value = CaptureBlock(self.parseExpression())
+            self.consumet(TokenTypes.CLCB)
             return value
         return None
 
@@ -644,6 +658,11 @@ class Compiler:
         with self._disableCapture():
             self.compileAtom(atom.value)
 
+    def compileCaptureBlock(self, atom):
+        self._str("")
+        with self._capture(1, ""):
+            self.compileQuiet(atom)
+
     def compileNot(self, atom):
         pos = self.emit("choice") -1
         with self._disableCapture():
@@ -756,6 +775,7 @@ class Compiler:
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
         elif isinstance(atom, Quiet): self.compileQuiet(atom)
+        elif isinstance(atom, CaptureBlock): self.compileCaptureBlock(atom)
         else: raise Exception("Unknown atom %s" % atom)
 
     def genCode(self):

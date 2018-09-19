@@ -1,0 +1,206 @@
+* Capture Values
+
+  The Parsing Machine design proposed in the paper by S. Medeiros and
+  R. Ierusalimschy cover the matching strategy. Capturing values
+  wasn't part of their publication.
+
+  In order to access the values matched by the matching, the machine
+  collects Capture Entries within a stack that is handed to
+  ~mExtract()~, which is responsible to go through that stack and
+  build cons lists out of it.
+
+  There are some decisions that are worth mentioning. Let's use an
+  example to illustrate them:
+
+  Here's a tiny Grammar for simple assignment expressions that require
+  identifiers that start with letters or underscore and the other
+  letters can be either letters, underscores or numbers:
+
+  #+begin_src peg
+Assignment  <- _ Identifier _ '=' _ Number
+Identifier  <- IdentStart IdentCont*
+IdentStart  <- [a-zA-Z_]
+IdentCont   <- IdentStart / [0-9]
+Number      <- [0-9]+
+_           <- Space*
+Space       <- [ \n\r\t]
+  #+end_src
+
+  Here's an example of an input that can be parsed with the above
+  Grammar:
+
+  #+begin_src
+Min = 41
+Max = 42
+  #+end_src
+
+** All Terminals & Non-Terminals are captured by default.
+
+   Non-Terminals are ~cons~'ed with their identifiers. Here's the
+   parse tree of the above example:
+
+   #+begin_src lisp
+ ("Assignments"
+  ("_")
+  ("Assignment"
+   ("_")
+   ("Identifier"
+    ("IdentStart" "M")
+    ("IdentCont"
+     ("IdentStart" "i"))
+    ("IdentCont"
+     ("IdentStart" "n")))
+   ("_"
+    ("Space" " "))
+   "="
+   ("_"
+    ("Space" " "))
+   ("Number" "4" "1"))
+  ("Assignment"
+   ("_"
+    ("Space" "\n"))
+   ("Identifier"
+    ("IdentStart" "M")
+    ("IdentCont"
+     ("IdentStart" "a"))
+    ("IdentCont"
+     ("IdentStart" "x")))
+   ("_"
+    ("Space" " "))
+   "="
+   ("_"
+    ("Space" " "))
+   ("Number" "4" "2")))
+     #+end_src
+
+   Very noisy right? Let's remove some unnecessary data from it.
+
+** The **Quiet Operator** (~;~) can be used to skip captures
+
+   As a quick example, the token ~=~ is important during the lexical
+   analysis but it's just noise in the parse tree. To use it in the
+   match but prevent the parsing machine from capturing its value, we
+   just need to prefix the Non-terminal with the **Quiet Operator**:
+
+   #+begin_src peg
+Assignment  <- _ Identifier _ ;'=' _ Number
+   #+end_src
+
+   All the equal signs from the previous output will be gone after
+   this change.
+
+** The **Quiet Operator** is not recursive
+
+   The previous example shown how to skip the capture of Terminals. If
+   you want to skip the capture of Non-Terminals, beware they're not
+   recursive. This gives us flexibility but can lead to confusing
+   outputs, so let's get it right.
+
+   If we try to silence the ~_~ Non-Terminal int he ~Assignment~ role
+   like this:
+
+   #+begin_src peg
+Assignment  <- ;_ Identifier ;_ ;'=' ;_ Number
+   #+end_src
+
+   We'll see something like this in the output:
+
+   #+begin_src lisp
+...
+("Assignment"
+ ("Identifier" ("IdentStart" "M") ("IdentCont" ("IdentStart" "i")) ("IdentCont" ("IdentStart" "n")))
+ ("Space" " ")
+ ("Space" " ")
+ ("Number" "4" "1"))
+...
+   #+end_src
+
+   The role ~_~ is indeed gone from the parse tree, however the
+   captures within its call were not silenced. In order to truly get
+   rid of spaces, we'll need to silence the Non-Terminal ~Space~ as
+   well. Let's do it:
+
+   #+begin_src peg
+_           <- ;Space*
+   #+end_src
+
+   Here's the parse tree after silencing ~Space~ as well:
+
+   #+begin_src lisp
+...
+("Assignment"
+ ("Identifier" ("IdentStart" "M") ("IdentCont" ("IdentStart" "i")) ("IdentCont" ("IdentStart" "n")))
+ " "
+ " "
+ ("Number" "4" "1"))
+...
+   #+end_src
+
+   Once again, the **Quiet Operator** isn't recursive, so although ~_~
+   and ~Space~ were removed, the Terminals contained within ~Space~
+   are still being captured. Let's change that with the following change:
+
+   #+begin_src peg
+Space       <- ;[ \n\r\t]
+   #+end_src
+
+   The spaces are finally removed from the ~Assignment~ role:
+
+   #+begin_src lisp
+...
+("Assignment"
+ ("Identifier" ("IdentStart" "M") ("IdentCont" ("IdentStart" "i")) ("IdentCont" ("IdentStart" "n")))
+ ("Number" "4" "1"))
+...
+   #+end_src
+
+   So, that's a lot of silencing to get rid of all the garbage we
+   don't care about. However, such flexibility (for such a cheap
+   implementation) pays off.
+
+   Let's silence nodes ~IdentStart~ & ~IdentCont~ in ~Identifier~, and
+   silence ~IdentStart~ in ~IdentCont~. Notice this time we're not
+   going to silence the Terminals, only the Non-Terminals mentioned
+   will be removed. That's how it looks like:
+
+   #+begin_src peg
+...
+Identifier  <- ;IdentStart ;IdentCont*
+IdentStart  <- [a-zA-Z_]
+IdentCont   <- ;IdentStart / [0-9]
+...
+   #+end_src
+
+   Here's the relevant chunk of the parse tree after the above change:
+
+   #+begin_src lisp
+("Assignment"
+ ("Identifier" "M" "i" "n")
+ ("Number" "4" "1"))
+   #+end_src
+
+   Here's the full grammar with the **Quiet Operators** in their
+   proper places:
+
+   #+begin_src peg
+Assignments <- _ Assignment* !.
+Assignment  <- ;_ Identifier ;_ ;'='; _ Number
+Identifier  <- ;IdentStart ;IdentCont*
+IdentStart  <- [a-zA-Z_]
+IdentCont   <- ;IdentStart / [0-9]
+Number      <- [0-9]+
+_           <- ;Space*
+Space       <- ;[ \n\r\t]
+   #+end_src
+
+   And here's the final parse tree:
+
+   #+begin_src lisp
+("Assignments"
+ ("Assignment"
+  ("Identifier" "M" "i" "n")
+  ("Number" "4" "1"))
+ ("Assignment"
+  ("Identifier" "M" "a" "x")
+  ("Number" "4" "2")))
+   #+end_src

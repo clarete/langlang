@@ -1,7 +1,7 @@
 all: build
 
-BIN	:= peg.bin
-BINX	:= peg.binx abnf.binx csv.binx
+BIN	:= peg.bin pegx.bin
+BINX	:= peg.binx pegx.binx abnf.binx csv.binx
 PYTHON	?= /usr/bin/python
 
 %.bin:   %.peg; $(PYTHON) ../peg.py -q -c -o $@ -g $<

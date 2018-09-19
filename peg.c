@@ -256,7 +256,7 @@ Object *mExtract (Machine *m, const char *input)
   uint32_t sp = 0, maxsp = 0, spo = 0, maxspo = 0, cp = 0;
   CaptureEntry *stack = NULL;
   CaptureEntry match, match2;
-  Object *key, *result, **ostack = NULL;
+  Object *key, *result = NULL, **ostack = NULL;
 
 #define PUSH_S(i)  (stack = adjustArray (stack, sizeof (CaptureEntry), sp, &maxsp), stack[sp++] = i)
 #define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (Object*), spo, &maxspo), ostack[spo++] = i)
@@ -298,7 +298,9 @@ Object *mExtract (Machine *m, const char *input)
       PUSH_SO (makeCons (key, l));
     }
   }
-  result = *ostack;
-  free (ostack);
+  if (spo > 0) {
+    result = *ostack;
+    free (ostack);
+  }
   return result;
 }

@@ -268,7 +268,7 @@ Object *mExtract (Machine *m, const char *input)
     key = oTableItem (&m->symbols, match.idx);
 
     if (match.type == CapOpen) {
-      if (!match.term) PUSH_SO (key);
+      if (!match.term) PUSH_SO (Nil);
       PUSH_S (match);
       continue;
     }
@@ -287,14 +287,14 @@ Object *mExtract (Machine *m, const char *input)
       /* Terminal */
       start = match2.pos - input;
       end = match.pos - input;
-      PUSH_SO (makeCons (key, makeSymbol (input + start, end - start)));
+      PUSH_SO (makeSymbol (input + start, end - start));
     } else {
       /* Non-Terminal */
       Object *l = NULL;
-      while (!SYMBOLP (ostack[spo-1])) {
+      while (!NILP (ostack[spo-1])) {
         l = makeCons (ostack[--spo], l);
       }
-      --spo;                    /* Get rid of key */
+      --spo;      /* Get rid of Nil that marked end of non-terminal */
       PUSH_SO (makeCons (key, l));
     }
   }

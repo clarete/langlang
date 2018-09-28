@@ -1,49 +1,20 @@
 all: bin
 
-ifeq ("$(origin DEBUG)", "command line")
-  OPTFLAGS ?= -g -O0
-else
-  OPTFLAGS ?= -O1 -flto
-endif
-ifeq ("$(origin VERBOSE)", "command line")
-  OPTFLAGS := $(OPTFLAGS) -DDEBUG
-endif
+SUBDIRS = lib
 
-# Configurable
-CPPFLAGS ?= $(OPTFLAGS)
-CFLAGS   ?= -Wall -Werror -Wpedantic $(DBGFLAGS)
+include common.mk
 
-# Source and output files
 MATCH	:= match
-SRCS	:= peg.c value.c
-DEPDIR	:= .d
-
-# Source and output files for test target
 TEST	:= test
-$(TEST): $(patsubst %.c,%.o,$(SRCS) test.c); $(CC) $(DBGFLAGS) -o $@ $^
+SRCS	:= peg.c value.c
+MOBJS	:= $(patsubst %.c,%.o,$(SRCS) match.c)
+TOBJS	:= $(patsubst %.c,%.o,$(SRCS) test.c)
 
-# Handle header dependency. Huge thanks to the following article:
-# http://make.mad-scientist.net/papers/advanced-auto-dependency-generation/
-$(shell mkdir -p $(DEPDIR) >/dev/null)
-DEPFLAGS    = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
-COMPILE.c   = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
-POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
-
-# How to compile each source file taking care of updating dependency
-# files.
-$(DEPDIR)/%.d:;
-.PRECIOUS: $(DEPDIR)/%.d
-%.o: %.c
-%.o: %.c $(DEPDIR)/%.d
-	$(COMPILE.c) $(OUTPUT_OPTION) $<
-	$(POSTCOMPILE)
-
-# Generate objects and match binary
-bin: $(MATCH)
-$(MATCH): $(patsubst %.c,%.o,$(SRCS) match.c); $(CC) -o $@ $^ $(DBGFLAGS)
-
-# Get rid of garbage
+bin: $(MATCH) $(SUBDIRS)
 clean:; -rm $(MATCH) $(TEST) *.o
+$(MATCH): $(MOBJS); $(CCC) -o $@ $^
+$(TEST): $(TOBJS); $(CCC) -o $@ $^
+$(call $(COMPILE_WITH_DEPS),$(SRCS))
 
-# Include the dependency rules for each source file
-include $(wildcard $(patsubst %,$(DEPDIR)/%.d,$(basename $(SRCS))))
+$(SUBDIRS):; $(MAKE) -C $@
+.PHONY: $(SUBDIRS)

@@ -97,16 +97,25 @@ uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz)
 
 /* Print facilities */
 
-static void printCons (Cons *obj)
+#define INDENTED(n, s)                                          \
+  do {                                                          \
+    for (int i = 0; i < n; i++) printf (" ");                   \
+    printf (s);                                                 \
+  } while (0)
+
+static void printObjIndent (const Object *obj, int level);
+
+static void printCons (Cons *obj, int level)
 {
   Cons *tmp;
-  printf ("(");
+  if (level > 0) printf ("\n");
+  INDENTED (level, "(");
   for (tmp = obj; tmp && tmp->car; tmp = CONS (tmp->cdr)) {
-    printObj (tmp->car);
+    printObjIndent (tmp->car, level+1);
     if (tmp->cdr) {
       if (!CONSP (tmp->cdr)) {
         printf (" . ");
-        printObj (tmp->cdr);
+        printObjIndent (tmp->cdr, level+1);
         break;
       } else {
         printf (" ");
@@ -139,7 +148,7 @@ static void printSymbol (const Object *symbol)
   printf ("\"");
 }
 
-void printObj (const Object *obj)
+static void printObjIndent (const Object *obj, int level)
 {
   if (!obj) {
     printf ("NULL");
@@ -147,8 +156,13 @@ void printObj (const Object *obj)
     switch (obj->type) {
     case TYPE_SYMBOL: printSymbol (obj); break;
     case TYPE_NIL: printf ("nil"); break;
-    case TYPE_CONS: printCons (CONS (obj)); break;
+    case TYPE_CONS: printCons (CONS (obj), level); break;
     default: FATAL ("Unknown type passed to printObj: %d\n", obj->type);
     }
   }
+}
+
+void printObj (const Object *obj)
+{
+  printObjIndent (obj, 0);
 }

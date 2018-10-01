@@ -15,6 +15,7 @@ PYTHON		?= $(shell which python)
 
 # Constants
 ROOTDIR		:= $(shell git rev-parse --show-toplevel)
+PEGC		:= $(PYTHON) peg.py
 
 # Relative to the current directory
 DEPDIR		:= .d
@@ -35,4 +36,3 @@ define COMPILE_WITH_DEPS
 	$(POSTCOMPILE)
  include $$(wildcard $(patsubst %,$$(DEPDIR)/%.d,$$(basename $(1))))
 endef
-

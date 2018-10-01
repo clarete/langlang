@@ -3,13 +3,13 @@
 # 2.2. Rule Form
 rulelist      <- (rule / ;c_wsp* ;c_nl)+
 rule          <- rulename defined_as elements ;c_nl
-rulename      <- [a-zA-Z][0-9a-zA-Z\-]*
+rulename      <- %C{ [a-zA-Z][0-9a-zA-Z\-]* }
 defined_as    <- ;c_wsp* ('=' / '=/') ;c_wsp*
 elements      <- ;c_wsp* alternation ;c_wsp*
 
 c_wsp         <- ;c_nl* ;WSP
 c_nl          <- comment / ;CRLF
-comment       <- ;';' (;WSP / ;VCHAR)* ;CRLF
+comment       <- ;';' %C{ (WSP / VCHAR)* } ;CRLF
 
 alternation   <- concatenation (;c_wsp* ;'/' ;c_wsp* concatenation)*
 concatenation <- repetition (;c_wsp+ repetition)*

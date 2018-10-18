@@ -61,6 +61,7 @@ void mInit (Machine *m)
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
   m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
+  m->li = NULL;                 /* Set by Fail */
   m->cap = 0;
 }
 
@@ -167,7 +168,9 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
     DEBUG_STACK ();
 
     switch (pc->rator) {
-    case 0: return i;
+    case 0:
+      if (m->li && !i) printf ("Match failed at pos %ld\n", m->li - input + 1);
+      return i;
     case OP_CAP_OPEN:
       PUSH_CAP (i, CapOpen, UOPERAND1 (pc), UOPERAND2 (pc));
       pc++;
@@ -239,6 +242,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
         pc = sp->pc;            /* Restore the program counter */
         /* Non-Terminals can't produce errors */
         m->cap = sp->cap;
+        if (i) m->li = i;
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
         return NULL;

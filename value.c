@@ -53,6 +53,13 @@ Object *makeSymbol (const char *p, size_t len)
   return (Object *) symbol;
 }
 
+Object *makeInt (long int v)
+{
+  Int *o = INT (makeObject (TYPE_INT, sizeof (Int)));
+  o->value = v;
+  return (Object *) o;
+}
+
 /* ---- Object Table ---- */
 
 void oTableInit (ObjectTable *ot)
@@ -157,6 +164,7 @@ static void printObjIndent (const Object *obj, int level)
     case TYPE_SYMBOL: printSymbol (obj); break;
     case TYPE_NIL: printf ("nil"); break;
     case TYPE_CONS: printCons (CONS (obj), level); break;
+    case TYPE_INT: printf ("%ld", INT (obj)->value); break;
     default: FATAL ("Unknown type passed to printObj: %d\n", obj->type);
     }
   }

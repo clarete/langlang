@@ -30,11 +30,13 @@
 #define OBJ(x)      ((Object *) x)
 #define SYMBOL(x)   ((Symbol *) x)
 #define CONS(x)     ((Cons *) x)
+#define INT(x)      ((Int *) x)
 
 /* Predicates used in the C environment. */
 #define SYMBOLP(o)  (OBJ (o)->type == TYPE_SYMBOL)
 #define CONSP(o)    (OBJ (o)->type == TYPE_CONS)
 #define NILP(o)     (OBJ (o)->type == TYPE_NIL)
+#define INTP(o)     (OBJ (o)->type == TYPE_INT)
 
 /* Utilities */
 #define CAR(o) (CONS (o)->car)
@@ -44,6 +46,7 @@ typedef enum {
   TYPE_SYMBOL = 1,
   TYPE_CONS,
   TYPE_NIL,
+  TYPE_INT,
   TYPE_END
 } Type;
 
@@ -65,6 +68,11 @@ typedef struct {
 } Symbol;
 
 typedef struct {
+  Object o;
+  long int value;
+} Int;
+
+typedef struct {
   void **items;
   uint32_t used;
   uint32_t capacity;
@@ -73,6 +81,7 @@ typedef struct {
 void printObj (const Object *o);
 Object *makeCons (Object *car, Object *cdr);
 Object *makeSymbol (const char *p, size_t len);
+Object *makeInt (long int v);
 
 void oTableInit (ObjectTable *ot);
 void oTableFree (ObjectTable *ot);

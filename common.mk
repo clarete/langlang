@@ -26,7 +26,15 @@ CCC		= $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH)
 COMPILE.c	= $(CCC) -c
 POSTCOMPILE	= @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
-define COMPILE_WITH_DEPS
+define GEN_BIN
+ %.bin: %.peg; $(PEGC) -q -c -o $$@ -g $$<
+endef
+
+define GEN_BINX
+ %.binx: %.pegx; $(PEGC) -q -c -o $$@ -g $$<
+endef
+
+define GEN_CC_DEPS
  $(shell mkdir -p $(DEPDIR) >/dev/null)
  $(DEPDIR)/%.d:;
  .PRECIOUS: $(DEPDIR)/%.d

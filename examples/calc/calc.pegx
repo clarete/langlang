@@ -1,0 +1,32 @@
+Calculator      <- ;_ Expression !.
+
+Expression      <- Term
+Term            <- Factor ((PLUS / MINUS) Term)*
+Factor          <- Power ((STAR / SLASH) Factor)*
+Power           <- Unary ((POWER / MOD)  Power)*
+Unary           <- (PLUS / MINUS)? Primary
+Primary         <- ;PROP Expression ;PRCL / Number
+Number          <- BIN / HEX / FLOAT / DEC
+
+# Terminals
+DEC             <- %C{ [0-9]+ }                   ;_
+FLOAT           <- %C{ [0-9]* '.' [0-9]+ }        ;_
+BIN             <- ;'0b' %C{ [0-1]+ }             ;_
+HEX             <- ;'0x' %C{ [0-9a-fA-F]+ }       ;_
+
+# Arithmetic
+PLUS            <- ;'+'   ;_
+MINUS           <- ;'-'   ;_
+STAR            <- ;'*'   ;_
+SLASH           <- ;'/'   ;_
+MOD             <- ;'%'   ;_
+POWER           <- ;'**'  ;_
+PROP            <- ;'('   ;_
+PRCL            <- ;')'   ;_
+
+## Whitespace Handling
+_               <- ;(Space / Comment)*
+Comment         <- ;'#' ;(!EndOfLine .)* ;EndOfLine
+Space           <- ;' ' / ;'\t' / ;EndOfLine
+EndOfLine       <- ;'\r\n' / ;'\n' / ;'\r'
+EndOfFile       <- !.

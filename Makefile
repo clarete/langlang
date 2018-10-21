@@ -1,6 +1,6 @@
 all: bin
 
-SUBDIRS = lib
+SUBDIRS = lib examples/calc
 
 include common.mk
 

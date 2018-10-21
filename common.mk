@@ -15,7 +15,7 @@ PYTHON		?= $(shell which python)
 
 # Constants
 ROOTDIR		:= $(shell git rev-parse --show-toplevel)
-PEGC		:= $(PYTHON) peg.py
+PEGC		:= $(PYTHON) $(ROOTDIR)/peg.py
 
 # Relative to the current directory
 DEPDIR		:= .d

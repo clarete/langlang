@@ -62,7 +62,10 @@ int run (const char *grammar_file, const char *input_file)
   mInit (&m);
   mLoad (&m, grammar, grammar_size);
   output = mMatch (&m, input, input_size);
-  if (output) printObj (mExtract (&m, input));
+  if (output) {
+    Object *out = mExtract (&m, input);
+    printObj (out); printf ("\n");
+  }
   mFree (&m);
 
   DEBUGLN ("\n\ns:%p i:%p i-s:%ld", input, output, output - input);

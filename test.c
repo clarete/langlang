@@ -775,6 +775,39 @@ void test_cap1 ()
   mFree (&m);
 }
 
+void test_obj_equal_int ()
+{
+  Object *o1 = makeInt (2);
+  Object *o2 = makeInt (3);
+  Object *o3 = makeInt (2);
+
+  assert (!objEqual (o1, o2));
+  assert (!objEqual (o2, o3));
+  assert (objEqual (o1, o3));
+}
+
+void test_obj_equal_symbol ()
+{
+  Object *o1 = makeSymbol ("Hi!", 3);
+  Object *o2 = makeSymbol ("Oi!", 3);
+  Object *o3 = makeSymbol ("Hi!", 3);
+
+  assert (!objEqual (o1, o2));
+  assert (!objEqual (o2, o3));
+  assert (objEqual (o1, o3));
+}
+
+void test_obj_equal_cons ()
+{
+  Object *o1 = makeCons (makeSymbol ("Hi!", 3), makeCons (makeInt (5), NULL));
+  Object *o2 = makeCons (makeSymbol ("Hi!", 3), makeInt (5));
+  Object *o3 = makeCons (makeSymbol ("Hi!", 3), makeCons (makeInt (5), NULL));
+
+  assert (!objEqual (o1, o2));
+  assert (!objEqual (o2, o3));
+  assert (objEqual (o1, o3));
+}
+
 int main ()
 {
   test_gen_args ();
@@ -805,5 +838,8 @@ int main ()
   test_span1 ();
   test_cap1 ();
 
+  test_obj_equal_int ();
+  test_obj_equal_symbol ();
+  test_obj_equal_cons ();
   return 0;
 }

@@ -82,6 +82,7 @@ void printObj (const Object *o);
 Object *makeCons (Object *car, Object *cdr);
 Object *makeSymbol (const char *p, size_t len);
 Object *makeInt (long int v);
+bool objEqual (const Object *o1, const Object *o2);
 
 void oTableInit (ObjectTable *ot);
 void oTableFree (ObjectTable *ot);

@@ -102,6 +102,64 @@ uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz)
   return ot->used;
 }
 
+bool objConsEqual (const Object *o1, const Object *o2)
+{
+  /* TODO: Add dynamically allocated stack */
+  const Cons *stack[1048] = { 0 };
+  const Cons **stack_top = stack;
+  const Cons *current;
+  Object *tmp1, *tmp2;
+
+  if (!CONSP (o1) || !CONSP (o2)) return false;
+
+  /* Add the root of the tree to the top of the stack */
+  *stack_top++ = &(Cons){
+    .o = { .type = TYPE_CONS },
+    .car = OBJ (o1),
+    .cdr = OBJ (o2)
+  };
+
+  /* Loop til the stack is empty */
+  while (stack_top > stack) {
+    current = *--stack_top;
+    /* If current pair in the stack has different type, bail */
+    if (OBJ (CAR (current))->type != OBJ (CDR (current))->type)
+      return false;
+    /* If current pair isn't a Cons and isn't equal, bail */
+    if (!CONSP (CAR (current)) && !objEqual (CAR (current), CDR (current)))
+      return false;
+    /* Iterate over Cons items */
+    for (tmp1 = CAR (current), tmp2 = CDR (current); ;
+         tmp1 = CDR (tmp1), tmp2 = CDR (tmp2)) {
+      /* If both are null, they're equal, if just one is null they're
+         different */
+      if (!tmp1 && !tmp2) return true;
+      else if (!tmp1 || !tmp2) return false;
+      /* Push the new pair into the stack */
+      *stack_top++ = &(Cons){
+        .o = { .type = TYPE_CONS },
+        .car = CAR (tmp1),
+        .cdr = CAR (tmp2)
+      };
+    }
+  }
+  return true;
+}
+
+bool objEqual (const Object *o1, const Object *o2)
+{
+  if (o1->type != o2->type) return false;
+  switch (o1->type) {
+  case TYPE_NIL: return true;
+  case TYPE_INT: return INT (o1)->value == INT (o2)->value;
+  /* TODO: Should compare pointer, will fix after adding lookup to
+     symbol factory */
+  case TYPE_SYMBOL: return strcmp (SYMBOL (o1)->name, SYMBOL (o2)->name) == 0;
+  case TYPE_CONS: return objConsEqual (o1, o2);
+  default: FATAL ("Unknown type passed to printObj: %d\n", o1->type);
+  }
+}
+
 /* Print facilities */
 
 #define INDENTED(n, s)                                          \

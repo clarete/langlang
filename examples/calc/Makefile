@@ -14,7 +14,7 @@ BINX := calc.binx
 # Build vars
 SRCS := calc.c
 OBJS := $(patsubst %.c,%.o,$(SRCS))
-PEGO := ../../peg.o ../../value.o
+PEGO := ../../peg.o ../../value.o ../../io.o
 ALLB := $(PEGO) $(OBJS)
 
 $(call GEN_BINX)

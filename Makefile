@@ -6,7 +6,7 @@ include common.mk
 
 MATCH	:= match
 TEST	:= test
-SRCS	:= peg.c value.c
+SRCS	:= peg.c value.c io.c
 MOBJS	:= $(patsubst %.c,%.o,$(SRCS) match.c)
 TOBJS	:= $(patsubst %.c,%.o,$(SRCS) test.c)
 

@@ -71,6 +71,8 @@ void oTableInit (ObjectTable *ot)
 
 void oTableFree (ObjectTable *ot)
 {
+  for (size_t i = 0; i < ot->used; i++)
+    free (ot->items[i]);
   free (ot->items);
   oTableInit (ot);
 }

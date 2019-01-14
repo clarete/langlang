@@ -319,7 +319,11 @@ Object *mExtract (Machine *m, const char *input)
   }
   if (spo > 0) {
     result = *ostack;
-    free (ostack);
+    for (uint32_t i = 1; i < spo; i--)
+      objFree (ostack[i]);
   }
+
+  free (ostack);
+  free (stack);
   return result;
 }

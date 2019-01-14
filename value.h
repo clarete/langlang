@@ -23,7 +23,7 @@
 #include <stdbool.h>
 
 /* Constants */
-#define MAX_SYMBOL_SIZE    128
+#define MAX_SYMBOL_SIZE    256
 #define INIT_OTABLE_SIZE   32
 
 /* Type cast shortcuts */
@@ -63,7 +63,7 @@ typedef struct {
 
 typedef struct {
   Object o;
-  int8_t len;
+  uint32_t len;
   char name[MAX_SYMBOL_SIZE];
 } Symbol;
 

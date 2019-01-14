@@ -271,7 +271,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 
 Object *mExtract (Machine *m, const char *input)
 {
-  uint16_t start, end;
+  uint32_t start, end;
   uint32_t sp = 0, maxsp = 0, spo = 0, maxspo = 0, cp = 0;
   CaptureEntry *stack = NULL;
   CaptureEntry match, match2;

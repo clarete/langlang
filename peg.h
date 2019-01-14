@@ -123,5 +123,7 @@ void mLoad (Machine *m, Bytecode *code, size_t code_size);
 const char *mMatch (Machine *m, const char *input, size_t input_size);
 /* Extract matches from the machine's capture stack */
 Object *mExtract (Machine *m, const char *input);
+/* Run grammar file on input file and extract output */
+Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file);
 
 #endif  /* VM_GUARD */

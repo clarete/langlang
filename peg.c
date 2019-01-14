@@ -27,6 +27,7 @@
 #include "debug.h"
 #include "peg.h"
 #include "value.h"
+#include "io.h"
 
 /* -- Error control & report utilities -- */
 
@@ -326,4 +327,23 @@ Object *mExtract (Machine *m, const char *input)
   free (ostack);
   free (stack);
   return result;
+}
+
+Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file)
+{
+  size_t grammar_size = 0, input_size = 0;
+  Bytecode *grammar = NULL;
+  char *input = NULL;
+  Object *output = NULL;
+
+  readFile (grammar_file, &grammar, &grammar_size);
+  readFile (input_file, (uint8_t **) &input, &input_size);
+
+  mLoad (m, grammar, grammar_size);
+  if (mMatch (m, input, input_size))
+    output = mExtract (m, input);
+
+  free (grammar);
+  free (input);
+  return output;
 }

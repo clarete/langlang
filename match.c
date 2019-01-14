@@ -29,28 +29,16 @@
 int run (const char *grammar_file, const char *input_file)
 {
   Machine m;
-  size_t grammar_size = 0, input_size = 0;
-  Bytecode *grammar = NULL;
-  char *input = NULL;
-  const char *output;
-
-  readFile (grammar_file, &grammar, &grammar_size);
-  readFile (input_file, (uint8_t **) &input, &input_size);
+  Object *output;
 
   mInit (&m);
-  mLoad (&m, grammar, grammar_size);
-  output = mMatch (&m, input, input_size);
+  output = mRunFile (&m, grammar_file, input_file);
   if (output) {
-    Object *out = mExtract (&m, input);
-    printObj (out); printf ("\n");
-    objFree (out);
+    printObj (output); printf ("\n");
+    objFree (output);
   }
   mFree (&m);
 
-  DEBUGLN ("\n\ns:%p i:%p i-s:%ld", input, output, output - input);
-
-  free (grammar);
-  free (input);
   return EXIT_SUCCESS;
 }
 

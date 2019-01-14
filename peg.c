@@ -78,6 +78,21 @@ void mFree (Machine *m)
   m->stack = NULL;
 }
 
+Object *mSymbol (Machine *m, const char *sym, size_t size) {
+  uint32_t i;
+  Object *symbol;
+
+  for (i = 0; i < m->symbols.used; i++) {
+    symbol = oTableItem (&m->symbols, i);
+    if (strncmp (SYMBOL (symbol)->name, sym, size) == 0)
+      return symbol;
+  }
+
+  symbol = makeSymbol (sym, size);
+  oTableInsertObject (&m->symbols, symbol);
+  return symbol;
+}
+
 #define READ_UINT8(c)  (*c++)
 #define READ_UINT16(c) (c+=2, c[-2] << 8 | c[-1])
 #define READ_UINT32(c) (c+=4, c[-4] << 24 | c[-3] << 16 | c[-2] << 8 | c[-1])
@@ -98,8 +113,8 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
   DEBUGLN ("   Header(%d)", headerSize);
   for (i = 0; i < headerSize; i++) {
     size_t ssize = READ_UINT8 (code);
-    Object *symbol = makeSymbol ((const char *) code, ssize);
-    oTableInsertObject (&m->symbols, symbol);
+    Object *symbol = mSymbol (m, (const char *) code, ssize);
+    (void) symbol; /* Next line may not be included in output */
     DEBUGLN ("     0x%0x: String(%ld) %s", i, ssize, SYMBOL (symbol)->name);
     code += ssize; /* Push the cursor to after the string just read */
   }
@@ -291,7 +306,7 @@ Object *mExtract (Machine *m, const char *input)
       /* Terminal */
       start = match2.pos - input;
       end = match.pos - input;
-      PUSH_SO (makeSymbol (input + start, end - start));
+      PUSH_SO (mSymbol (m, input + start, end - start));
     } else {
       /* Non-Terminal */
       Object *l = NULL;

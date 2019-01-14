@@ -43,6 +43,7 @@ int run (const char *grammar_file, const char *input_file)
   if (output) {
     Object *out = mExtract (&m, input);
     printObj (out); printf ("\n");
+    objFree (out);
   }
   mFree (&m);
 

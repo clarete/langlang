@@ -60,6 +60,29 @@ Object *makeInt (long int v)
   return (Object *) o;
 }
 
+void objFree (Object *o)
+{
+  switch (o->type) {
+    /* Statically allocated, don't free it! */
+  case TYPE_NIL: break;
+    /* Won't be freed til the end when symbol table is freed */
+  case TYPE_SYMBOL: break;
+    /* Leaf-node, just free it */
+  case TYPE_INT: free (INT (o)); break;
+    /* Recursive case */
+  case TYPE_CONS:
+    if (CAR (o))
+      objFree (CAR (o));
+    if (CDR (o))
+      objFree (CDR (o));
+    free (CONS (o));
+    break;
+  default:
+    fprintf (stderr, "Invalid Object Type");
+    break;
+  }
+}
+
 /* ---- Object Table ---- */
 
 void oTableInit (ObjectTable *ot)

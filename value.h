@@ -83,6 +83,7 @@ Object *makeCons (Object *car, Object *cdr);
 Object *makeSymbol (const char *p, size_t len);
 Object *makeInt (long int v);
 bool objEqual (const Object *o1, const Object *o2);
+void objFree (Object *o);
 
 void oTableInit (ObjectTable *ot);
 void oTableFree (ObjectTable *ot);

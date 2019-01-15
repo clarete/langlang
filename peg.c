@@ -85,6 +85,8 @@ Object *mSymbol (Machine *m, const char *sym, size_t len) {
 
   for (i = 0; i < m->symbols.used; i++) {
     symbol = oTableItem (&m->symbols, i);
+    if (SYMBOL (symbol)->len != len)
+      continue;
     if (strncmp (SYMBOL (symbol)->name, sym, len) == 0)
       return symbol;
   }

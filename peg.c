@@ -79,17 +79,17 @@ void mFree (Machine *m)
   m->stack = NULL;
 }
 
-Object *mSymbol (Machine *m, const char *sym, size_t size) {
+Object *mSymbol (Machine *m, const char *sym, size_t len) {
   uint32_t i;
   Object *symbol;
 
   for (i = 0; i < m->symbols.used; i++) {
     symbol = oTableItem (&m->symbols, i);
-    if (strncmp (SYMBOL (symbol)->name, sym, size) == 0)
+    if (strncmp (SYMBOL (symbol)->name, sym, len) == 0)
       return symbol;
   }
 
-  symbol = makeSymbol (sym, size);
+  symbol = makeSymbol (sym, len);
   oTableInsertObject (&m->symbols, symbol);
   return symbol;
 }

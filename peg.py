@@ -51,8 +51,9 @@ class TokenTypes(enum.Enum):
      CLOSE,
      OPCB,
      CLCB,
+     OPLS,                      # Closed with CLCB
      END,
-    ) = range(18)
+    ) = range(19)
 
 class Token:
     def __init__(self, _type, value=None, line=0, pos=0):
@@ -113,6 +114,8 @@ class String(Node): pass
 class Class(Node): pass
 
 class Dot(Node): pass
+
+class List(Node): pass
 
 def fio(thing):
     "first if only"
@@ -218,6 +221,8 @@ class Parser:
             return self.t(TokenTypes.QUESTION)
         elif self.matchc(';'):
             return self.t(TokenTypes.QUIET)
+        elif self.matchc('{'):
+            return self.t(TokenTypes.OPLS)
         elif self.matchc('}'):
             return self.t(TokenTypes.CLCB)
         elif self.matchc('%') and self.matchc('C') and self.matchc('{'):
@@ -360,6 +365,12 @@ class Parser:
             value = CaptureBlock(self.parseExpression())
             self.consumet(TokenTypes.CLCB)
             return value
+        elif self.matcht(TokenTypes.OPLS):
+            if self.matcht(TokenTypes.CLCB): return List([])
+            output = []
+            while not self.matcht(TokenTypes.CLCB):
+                output.append(self.parseExpression())
+            return List(output)
         return None
 
     def parse(self):
@@ -543,8 +554,10 @@ class Instructions(enum.Enum):
      OP_CAP_OPEN,
      OP_CAP_CLOSE,
      OP_ATOM,
+     OP_OPEN,
+     OP_CLOSE,
      OP_END,
-    ) = range(20)
+    ) = range(22)
 
 InstructionParams = {
     Instructions.OP_HALT: 0,
@@ -566,6 +579,8 @@ InstructionParams = {
     Instructions.OP_CAP_OPEN: 2,
     Instructions.OP_CAP_CLOSE: 2,
     Instructions.OP_ATOM: 1,
+    Instructions.OP_OPEN: 0,
+    Instructions.OP_CLOSE: 0,
     Instructions.OP_END: 0,
 }
 
@@ -776,6 +791,11 @@ class Compiler:
         else:
             return self._compileChoices(atom.value, self.compileRangeOrLiteral)
 
+    def compileList(self, lst):
+        self.emit('open')
+        for i in lst.value: self.compileAtom(i)
+        self.emit('close')
+
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
         elif isinstance(atom, String): self.compileString(atom)
@@ -791,6 +811,7 @@ class Compiler:
         elif isinstance(atom, Expression): self.compileExpression(atom)
         elif isinstance(atom, Quiet): self.compileQuiet(atom)
         elif isinstance(atom, CaptureBlock): self.compileCaptureBlock(atom)
+        elif isinstance(atom, List): self.compileList(atom)
         else: raise Exception("Unknown atom %s" % atom)
 
     def genCode(self):
@@ -1013,6 +1034,19 @@ def test_tokenizer():
         Token(TokenTypes.END, line=0, pos=9),
     ])
 
+    # Lists
+    test("A <- !{ .* } .", [
+        Token(TokenTypes.IDENTIFIER, 'A', line=0, pos=0),
+        Token(TokenTypes.ARROW,           line=0, pos=2),
+        Token(TokenTypes.NOT,             line=0, pos=5),
+        Token(TokenTypes.OPLS,            line=0, pos=6),
+        Token(TokenTypes.DOT,             line=0, pos=8),
+        Token(TokenTypes.STAR,            line=0, pos=9),
+        Token(TokenTypes.CLCB,            line=0, pos=11),
+        Token(TokenTypes.DOT,             line=0, pos=13),
+        Token(TokenTypes.END,             line=0, pos=14),
+    ])
+
     # Atom Literals
     test('A <- { "atom" }', [
         Token(TokenTypes.IDENTIFIER, 'A', line=0, pos=0),
@@ -1080,6 +1114,15 @@ def test_parser():
             Identifier('R1'),
             Star(Expression([Sequence([Literal(','), Identifier('R1')])]))])])]),
         Definition(['R1', Expression([Plus(Class([['0', '9']]))])])]))
+
+    test('A <- !{ .* } .', Grammar([
+        Definition(['A', Expression([
+            Sequence([
+                Not(List([Expression([Star(Dot())])])),
+                Dot(),
+            ])
+        ])])
+    ]))
 
     test(r"""# first line with comment
 Spacing    <- (Space / Comment)*
@@ -1533,6 +1576,35 @@ def test_compile():
         gen("halt"),            # 0x0a: Halt
     ))
 
+    assert(cc("A <- !{ .* } .", capture=False) == bn(
+        gen("call",   0x02),    # 0x00: Call 0x02
+        gen("jump",   0x0c),    # 0x01: Jump 0x0c
+        gen("choice", 0x08),    # 0x02: Choice 0x08
+
+        gen("open"),            # 0x03: Open
+        gen("choice", 0x03),    # 0x04: Choice 0x03
+        gen("any"),             # 0x05: Any
+        gen("commit", -2),      # 0x06: Commit 0x7fffffe
+        gen("close"),           # 0x07: Close
+
+        gen("commit", 1),       # 0x08: Commit 0x01
+        gen("fail"),            # 0x09: Fail
+
+        gen("any"),             # 0x0a: Any
+
+        gen("return"),          # 0x0b: Return
+        gen("halt"),            # 0x0c: Halt
+    ))
+
+    assert(cc('A <- { "test" }\n', capture=False) == bn(
+        gen("call",   0x02),    # 0x00: Call 0x02
+        gen("jump",   0x06),    # 0x01: Jump 0x06
+        gen("open"),            # 0x02: Open
+        gen("atom",   0x01),    # 0x03: Atom 0x01
+        gen("close"),           # 0x04: Close
+        gen("return"),          # 0x05: Return
+        gen("halt"),            # 0x06: Halt
+    ))
 
 
 def test_compile_header():

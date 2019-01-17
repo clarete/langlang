@@ -1034,6 +1034,17 @@ def test_tokenizer():
         Token(TokenTypes.END, line=0, pos=9),
     ])
 
+    # Capture Operator
+    test("S <- %C{ [a-z]* }", [
+        Token(TokenTypes.IDENTIFIER, 'S', line=0, pos=0),
+        Token(TokenTypes.ARROW, line=0, pos=2),
+        Token(TokenTypes.OPCB, line=0, pos=5),
+        Token(TokenTypes.CLASS, [['a', 'z']], line=0, pos=9),
+        Token(TokenTypes.STAR, line=0, pos=14),
+        Token(TokenTypes.CLCB, line=0, pos=16),
+        Token(TokenTypes.END, line=0, pos=17),
+    ])
+
     # Lists
     test("A <- !{ .* } .", [
         Token(TokenTypes.IDENTIFIER, 'A', line=0, pos=0),

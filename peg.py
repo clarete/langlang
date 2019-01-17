@@ -46,12 +46,13 @@ class TokenTypes(enum.Enum):
      NOT,
      QUIET,
      CLASS,
+     STRING,
      OPEN,
      CLOSE,
      OPCB,
      CLCB,
      END,
-    ) = range(17)
+    ) = range(18)
 
 class Token:
     def __init__(self, _type, value=None, line=0, pos=0):
@@ -106,6 +107,8 @@ class Sequence(Node): pass
 class Identifier(Node): pass
 
 class Literal(Node): pass
+
+class String(Node): pass
 
 class Class(Node): pass
 
@@ -184,10 +187,10 @@ class Parser:
             return self.t(TokenTypes.IDENTIFIER, self.code[d:self.pos])
         # Literal <- ['] (!['] Char)* ['] Spacing
         elif self.matchc("'"):
-            return self.lexLiteral("'")
+            return self.lexLiteral(TokenTypes.LITERAL, "'")
         # / ["] (!["] Char)* ["] Spacing
         elif self.matchc('"'):
-            return self.lexLiteral('"')
+            return self.lexLiteral(TokenTypes.STRING, '"')
         # Range <- ’[’ (!’]’ Range)* ’]’ Spacing
         elif self.matchc('['):
             return self.lexRange()
@@ -264,12 +267,12 @@ class Parser:
             self.nextc()
         return chr(int(''.join(digits), 16))
 
-    def lexLiteral(self, end):
+    def lexLiteral(self, typ, end):
         output = []
         while self.peekc() and not self.testc(end):
             output.append(self.lexChar())
         if not self.matchc(end): raise SyntaxError("Expected end of string")
-        return self.t(TokenTypes.LITERAL, ''.join(output))
+        return self.t(typ, ''.join(output))
 
     def spacing(self):
         self.cleanspaces()
@@ -339,8 +342,10 @@ class Parser:
         #          / Literal / Class / DOT
         if self.testt(TokenTypes.IDENTIFIER) and self.peekt()._type != TokenTypes.ARROW:
             return Identifier(self.consumet(TokenTypes.IDENTIFIER).value)
-        if self.testt(TokenTypes.LITERAL):
+        elif self.testt(TokenTypes.LITERAL):
             return Literal(self.consumet(TokenTypes.LITERAL).value)
+        elif self.testt(TokenTypes.STRING):
+            return String(self.consumet(TokenTypes.STRING).value)
         elif self.testt(TokenTypes.CLASS):
             return Class(self.consumet(TokenTypes.CLASS).value)
         elif self.matcht(TokenTypes.DOT):
@@ -537,8 +542,9 @@ class Instructions(enum.Enum):
      OP_SET,
      OP_CAP_OPEN,
      OP_CAP_CLOSE,
+     OP_ATOM,
      OP_END,
-    ) = range(19)
+    ) = range(20)
 
 InstructionParams = {
     Instructions.OP_HALT: 0,
@@ -559,6 +565,7 @@ InstructionParams = {
     Instructions.OP_SET: 0,
     Instructions.OP_CAP_OPEN: 2,
     Instructions.OP_CAP_CLOSE: 2,
+    Instructions.OP_ATOM: 1,
     Instructions.OP_END: 0,
 }
 
@@ -686,6 +693,13 @@ class Compiler:
                 self.emit("char", ord(i))
         return self.pos - currentPos
 
+    def compileString(self, string):
+        currentPos = self.pos
+        idx = self._str(string)
+        with self._capture(1, string.value):
+            self.emit("atom", idx)
+        return self.pos - currentPos
+
     def compileAny(self, atom):
         with self._capture(1, 'Any'):
             self.emit("any")
@@ -764,6 +778,7 @@ class Compiler:
 
     def compileAtom(self, atom):
         if isinstance(atom, Literal): self.compileLiteral(atom)
+        elif isinstance(atom, String): self.compileString(atom)
         elif isinstance(atom, Dot): self.compileAny(atom)
         elif isinstance(atom, Not): self.compileNot(atom)
         elif isinstance(atom, And): self.compileAnd(atom)
@@ -923,7 +938,7 @@ def expand_tokenizer(x):
 def test_tokenizer():
     test = functools.partial(test_runner, expand_tokenizer)
 
-    test('Rule1 <- "tx"', [
+    test("Rule1 <- 'tx'", [
         Token(TokenTypes.IDENTIFIER, 'Rule1', line=0, pos=0),
         Token(TokenTypes.ARROW,               line=0, pos=6),
         Token(TokenTypes.LITERAL,    'tx',    line=0, pos=9),
@@ -998,13 +1013,23 @@ def test_tokenizer():
         Token(TokenTypes.END, line=0, pos=9),
     ])
 
+    # Atom Literals
+    test('A <- { "atom" }', [
+        Token(TokenTypes.IDENTIFIER, 'A', line=0, pos=0),
+        Token(TokenTypes.ARROW,           line=0, pos=2),
+        Token(TokenTypes.OPLS,            line=0, pos=5),
+        Token(TokenTypes.STRING, 'atom',  line=0, pos=7),
+        Token(TokenTypes.CLCB,            line=0, pos=14),
+        Token(TokenTypes.END,             line=0, pos=15),
+    ])
+
 
 def test_parser():
     test = functools.partial(test_runner, lambda x: Parser(x).parse)
 
     test('# ', Grammar([]))
 
-    test('#foo\r\nR0 <- "a"', Grammar([
+    test("#foo\r\nR0 <- 'a'", Grammar([
         Definition([
             'R0', Expression([Literal('a')])])]))
 
@@ -1023,10 +1048,10 @@ def test_parser():
                 Literal('\r')])])]))
 
     test('# foo\n R1 <- "a"\nR2 <- \'b\'', Grammar([
-        Definition(['R1', Expression([Literal('a')])]),
+        Definition(['R1', Expression([String('a')])]),
         Definition(['R2', Expression([Literal('b')])])]))
 
-    test('Definition1 <- "tx"',
+    test("Definition1 <- 'tx'",
          Grammar([Definition(['Definition1', Expression([Literal('tx')])])]))
 
     test('Int <- [0-9]+', Grammar([
@@ -1038,19 +1063,19 @@ def test_parser():
     test('EndOfFile <- !.', Grammar([
         Definition(['EndOfFile', Expression([Not(Dot())])])]))
 
-    test('R0 <- "oi" "tenta"?', Grammar([
+    test("R0 <- 'oi' 'tenta'?", Grammar([
         Definition(['R0', Expression([
             Sequence([Literal('oi'), Question(Literal("tenta"))])])])]))
 
-    test('Foo <- ("a" / "b")+', Grammar([
+    test("Foo <- ('a' / 'b')+", Grammar([
         Definition(['Foo', Expression([
             Plus(Expression([Literal('a'), Literal('b')]))])])]))
 
-    test('R0 <- "a"\n      / "b"\nR1 <- "c"', Grammar([
+    test("R0 <- 'a'\n      / 'b'\nR1 <- 'c'", Grammar([
         Definition(['R0', Expression([Literal('a'), Literal('b')])]),
         Definition(['R1', Expression([Literal('c')])])]))
 
-    test('R0 <- R1 ("," R1)*\nR1 <- [0-9]+', Grammar([
+    test("R0 <- R1 (',' R1)*\nR1 <- [0-9]+", Grammar([
         Definition(['R0', Expression([Sequence([
             Identifier('R1'),
             Star(Expression([Sequence([Literal(','), Identifier('R1')])]))])])]),
@@ -1164,7 +1189,7 @@ def test_match():
     assert(e.matchAtom(Dot())               == (True, '2'));   assert(e.pos == 10)
     assert(e.matchAtom(Dot())               == (False, None)); assert(e.pos == 10)
 
-    e = Match(Parser('Lit <- "test"').parse(), 'Lit', "testando")
+    e = Match(Parser("Lit <- 'test'").parse(), 'Lit', "testando")
     assert(e.matchAtom(Identifier('Lit')) == (True, "test"))
 
     e = Match(Parser('Digit <- [0-9]').parse(), 'Digit', "42f")

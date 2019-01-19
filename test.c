@@ -305,7 +305,7 @@ void test_and1_back_commit ()
   const char *o = NULL;
   DEBUGLN (" * t:and.1 (back-commit)");
 
-  b[0] = enc (8*4);                /* Code Size */
+  b[0] = enc (5*4);                /* Code Size */
   /* &'a' */
   b[1] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
   b[2] = GEN1 (OP_CHAR, 'a');      /* 0x1: Char 'a' */
@@ -757,8 +757,8 @@ void test_cap1 ()
   b[0x9] = GEN0 (OP_HALT);
 
   mInit (&m);
-  oTableInsertObject (&m.symbols, makeSymbol ("Main", 4));
-  oTableInsertObject (&m.symbols, makeSymbol ("Char", 4));
+  mSymbol (&m, "Main", 4);
+  mSymbol (&m, "Char", 4);
   mLoad (&m, (Bytecode *) b, sizeof (b));
   assert (mMatch (&m, i, strlen (i)));
   out = mExtract (&m, i);
@@ -772,6 +772,7 @@ void test_cap1 ()
   /* assert (SYMBOLP (CAR (CAR (out))));   /\* Has an symbol within it *\/ */
   /* assert (strcmp (SYMBOL (CAR (CAR (out)))->name, "a") == 0); /\* Has the right value *\/ */
 
+  objFree (out);
   mFree (&m);
 }
 
@@ -784,28 +785,47 @@ void test_obj_equal_int ()
   assert (!objEqual (o1, o2));
   assert (!objEqual (o2, o3));
   assert (objEqual (o1, o3));
+
+  objFree (o1);
+  objFree (o2);
+  objFree (o3);
 }
 
 void test_obj_equal_symbol ()
 {
-  Object *o1 = makeSymbol ("Hi!", 3);
-  Object *o2 = makeSymbol ("Oi!", 3);
-  Object *o3 = makeSymbol ("Hi!", 3);
+  Machine m;
+  Object *o1, *o2, *o3;
+
+  mInit (&m);
+  o1 = mSymbol (&m, "Hi!", 3);
+  o2 = mSymbol (&m, "Oi!", 3);
+  o3 = mSymbol (&m, "Hi!", 3);
 
   assert (!objEqual (o1, o2));
   assert (!objEqual (o2, o3));
   assert (objEqual (o1, o3));
+
+  mFree (&m);
 }
 
 void test_obj_equal_cons ()
 {
-  Object *o1 = makeCons (makeSymbol ("Hi!", 3), makeCons (makeInt (5), NULL));
-  Object *o2 = makeCons (makeSymbol ("Hi!", 3), makeInt (5));
-  Object *o3 = makeCons (makeSymbol ("Hi!", 3), makeCons (makeInt (5), NULL));
+  Machine m;
+  Object *o1, *o2, *o3;
+
+  mInit (&m);
+  o1 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), NULL));
+  o2 = makeCons (mSymbol (&m, "Hi!", 3), makeInt (5));
+  o3 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), NULL));
 
   assert (!objEqual (o1, o2));
   assert (!objEqual (o2, o3));
   assert (objEqual (o1, o3));
+
+  objFree (o1);
+  objFree (o2);
+  objFree (o3);
+  mFree (&m);
 }
 
 int main ()

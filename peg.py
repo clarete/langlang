@@ -710,7 +710,7 @@ class Compiler:
 
     def compileString(self, string):
         currentPos = self.pos
-        idx = self._str(string)
+        idx = self._str(string.value)
         with self._capture(1, string.value):
             self.emit("atom", idx)
         return self.pos - currentPos

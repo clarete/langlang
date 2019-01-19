@@ -63,6 +63,8 @@ Object *makeInt (long int v)
   return (Object *) o;
 }
 
+static void printSymbol (const Object *symbol);
+
 void objFree (Object *o)
 {
   switch (o->type) {
@@ -81,7 +83,7 @@ void objFree (Object *o)
     free (CONS (o));
     break;
   default:
-    fprintf (stderr, "Invalid Object Type");
+    fprintf (stderr, "Invalid Object Type\n");
     break;
   }
 }
@@ -135,7 +137,7 @@ bool objConsEqual (const Object *o1, const Object *o2)
   /* TODO: Add dynamically allocated stack */
   const Cons *stack[1048] = { 0 };
   const Cons **stack_top = stack;
-  const Cons *current;
+  const Cons *current = NULL;
   Object *tmp1, *tmp2;
 
   if (!CONSP (o1) || !CONSP (o2)) return false;
@@ -206,6 +208,8 @@ static void printCons (Cons *obj, int level)
   for (tmp = obj; tmp && tmp->car; tmp = CONS (tmp->cdr)) {
     printObjIndent (tmp->car, level+1);
     if (tmp->cdr) {
+      if (NILP (tmp->cdr))
+        break;
       if (!CONSP (tmp->cdr)) {
         printf (" . ");
         printObjIndent (tmp->cdr, level+1);

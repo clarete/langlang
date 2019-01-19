@@ -776,6 +776,388 @@ void test_cap1 ()
   mFree (&m);
 }
 
+/*
+         PEG
+  G[ε] l ---> l (empty.1)
+*/
+static void test_lst_empty1 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input = NULL;
+  DEBUGLN (" * t:empty.1");
+
+  b[0x0] = enc (4*4);           /* Code Size */
+  /* *Empty* */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x4);
+  b[0x3] = GEN0 (OP_RETURN);
+  b[0x4] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  input = makeCons (mSymbol (&m, "a", 1), OBJ (Nil));
+  assert (mMatchList (&m, input) == input);
+
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+           PEG
+  G[.] x:l ---> l (any.1)
+*/
+static void test_lst_any1 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input, *output;
+  DEBUGLN (" * t:lst.any.1");
+
+  b[0x0] = enc (5*4);           /* Code Size */
+  /* S <- . */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x3] = GEN0 (OP_ANY);
+  b[0x4] = GEN0 (OP_RETURN);
+  b[0x5] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  input = makeCons (mSymbol (&m, "a", 1), (Object*) Nil);
+  output = mMatchList (&m, input);
+  assert (output == Nil);
+
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+         PEG
+  G[.] ε ---> fail (any.2)
+*/
+static void test_lst_any2 ()
+{
+  Machine m;
+  uint32_t b[10];
+  DEBUGLN (" * t:lst.any.2");
+
+  b[0x0] = enc (5*4);           /* Code Size */
+  /* S <- . */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x3] = GEN0 (OP_ANY);
+  b[0x4] = GEN0 (OP_RETURN);
+  b[0x5] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  assert (!mMatchList (&m, NULL));
+
+  mFree (&m);
+}
+
+/*
+           PEG
+  G[a] a:l ---> l (term.1)
+*/
+static void test_lst_term1 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input, *output;
+  DEBUGLN (" * t:lst.term.1");
+
+  b[0x0] = enc (5*4);           /* Code Size */
+  /* S <- "MyTerm" */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x3] = GEN1 (OP_ATOM, 0x0);
+  b[0x4] = GEN0 (OP_RETURN);
+  b[0x5] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  input = makeCons (mSymbol (&m, "MyTerm", 6), OBJ (Nil));
+  output = mMatchList (&m, input);
+  assert (output == Nil);
+
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+           PEG
+  G[a] b:l ---> fail (term.2)
+*/
+static void test_lst_term2 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input;
+  DEBUGLN (" * t:lst.term.2");
+
+  b[0x0] = enc (5*4);           /* Code Size */
+  /* S <- "aTerm" */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x3] = GEN1 (OP_ATOM, 0x0);
+  b[0x4] = GEN0 (OP_RETURN);
+  b[0x5] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  /* Create the 0th term in the symbol table */
+  mSymbol (&m, "aTerm", 5);
+
+  /* Create the input with another symbol */
+  input = makeCons (mSymbol (&m, "myTerm", 6), OBJ (Nil));
+  assert (!mMatchList (&m, input));
+
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+         PEG
+  G[a] ε ---> fail (term.3)
+*/
+static void test_lst_term3 ()
+{
+  Machine m;
+  uint32_t b[10];
+  DEBUGLN (" * t:lst.term.3");
+
+  b[0x0] = enc (5*4);           /* Code Size */
+  /* S <- "aTerm" */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x3] = GEN1 (OP_ATOM, 0x0);
+  b[0x4] = GEN0 (OP_RETURN);
+  b[0x5] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  /* Create the 0th term referenced in the bytecode grammar within the
+   * symbol table */
+  mSymbol (&m, "aTerm", 5);
+
+  /* Run the above grammar on an empty input */
+  assert (!mMatchList (&m, OBJ (Nil)));
+
+  /* Cleanup */
+  mFree (&m);
+}
+
+/*
+             PEG
+  G[a] l1:l2 ---> fail (term.4)
+*/
+static void test_lst_term4 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input;
+  DEBUGLN (" * t:lst.term.4");
+
+  b[0x0] = enc (5*4);           /* Code Size */
+  /* S <- "aTerm" */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x3] = GEN1 (OP_ATOM, 0x0);
+  b[0x4] = GEN0 (OP_RETURN);
+  b[0x5] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  /* Create the 0th term referenced in the bytecode grammar within the
+   * symbol table */
+  mSymbol (&m, "aTerm", 5);
+
+  /* Run the above grammar on an input with a list within a list as
+   * the first element */
+  input = makeCons (makeCons (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  assert (!mMatchList (&m, input));
+
+  /* Cleanup */
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+           PEG
+   G[p] l1 ---> ε
+--------------------- (list.1)
+             PEG
+G[{p}] l1:l2 ---> l2
+*/
+static void test_lst_list1 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input, *output;
+  DEBUGLN (" * t:lst.list.1");
+
+  b[0x0] = enc (7*4);           /* Code Size */
+  /* S <- { "test" } */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x3] = GEN0 (OP_OPEN);
+  b[0x4] = GEN1 (OP_ATOM, 0x0);
+  b[0x5] = GEN0 (OP_CLOSE);
+  b[0x6] = GEN0 (OP_RETURN);
+  b[0x7] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  /* Create the 0th term referenced in the bytecode grammar within the
+   * symbol table */
+  mSymbol (&m, "test", 4);
+
+  /* Run the above grammar on an input with "test" as the first (and
+   * only) element of a list */
+  input = makeCons (makeCons (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  output = mMatchList (&m, input);
+
+  /* It does match! */
+  assert (output);
+
+  /* Cleanup */
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+           PEG
+   G[p] l1 ---> X
+----------------------, X != ε (list.2)
+             PEG
+G[{p}] l1:l2 ---> fail
+  */
+static void test_lst_list2 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input, *output;
+  DEBUGLN (" * t:lst.list.2");
+
+  b[0x0] = enc (7*4);           /* Code Size */
+  /* S <- { "foo" } */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x3] = GEN0 (OP_OPEN);
+  b[0x4] = GEN1 (OP_ATOM, 0x0);
+  b[0x5] = GEN0 (OP_CLOSE);
+  b[0x6] = GEN0 (OP_RETURN);
+  b[0x7] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  /* Create the 0th term referenced in the bytecode grammar within the
+   * symbol table */
+  mSymbol (&m, "foo", 3);
+
+  /* Run the above grammar on an input with "test" as the first (and
+   * only) element of a list */
+  input = makeCons (makeCons (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  output = mMatchList (&m, input);
+
+  /* It DOES NOT match! */
+  assert (!output);
+
+  /* Cleanup */
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+             PEG
+  G[{p}] a:l ---> fail (list.3)
+*/
+static void test_lst_list3 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *input, *output;
+  DEBUGLN (" * t:lst.list.3");
+
+  b[0x0] = enc (7*4);           /* Code Size */
+  /* S <- { "foo" } */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x3] = GEN0 (OP_OPEN);
+  b[0x4] = GEN1 (OP_ATOM, 0x0);
+  b[0x5] = GEN0 (OP_CLOSE);
+  b[0x6] = GEN0 (OP_RETURN);
+  b[0x7] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  /* Create the 0th term referenced in the bytecode grammar within the
+   * symbol table */
+  mSymbol (&m, "foo", 3);
+
+  /* Run the above grammar on an input with "test" as the first (and
+   * only) element of a list */
+  input = makeCons (mSymbol (&m, "test", 4), OBJ (Nil));
+  output = mMatchList (&m, input);
+
+  /* It DOES NOT match! */
+  assert (!output);
+
+  /* Cleanup */
+  objFree (input);
+  mFree (&m);
+}
+
+/*
+           PEG
+  G[{p}] ε ---> fail
+*/
+static void test_lst_list4 ()
+{
+  Machine m;
+  uint32_t b[10];
+  Object *output;
+  DEBUGLN (" * t:lst.list.4");
+
+  b[0x0] = enc (7*4);           /* Code Size */
+  /* S <- { "foo" } */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x3] = GEN0 (OP_OPEN);
+  b[0x4] = GEN1 (OP_ATOM, 0x0);
+  b[0x5] = GEN0 (OP_CLOSE);
+  b[0x6] = GEN0 (OP_RETURN);
+  b[0x7] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b, sizeof (b));
+
+  /* Create the 0th term referenced in the bytecode grammar within the
+   * symbol table */
+  mSymbol (&m, "foo", 3);
+
+  /* Run the above grammar on a empty input */
+  output = mMatchList (&m, OBJ (Nil));
+
+  /* It DOES NOT match! */
+  assert (!output);
+
+  /* Cleanup */
+  mFree (&m);
+}
+
 void test_obj_equal_int ()
 {
   Object *o1 = makeInt (2);
@@ -857,6 +1239,29 @@ int main ()
   test_var2 ();
   test_span1 ();
   test_cap1 ();
+
+  test_lst_empty1 ();
+  test_lst_any1 ();
+  test_lst_any2 ();
+  /* test_lst_var1 (); */
+  test_lst_term1 ();
+  test_lst_term2 ();
+  test_lst_term3 ();
+  test_lst_term4 ();
+
+  /* test_lst_con1 (); */
+  /* test_lst_con2 (); */
+  /* test_lst_ord1 (); */
+  /* test_lst_ord2 (); */
+  /* test_lst_not1 (); */
+  /* test_lst_not2 (); */
+  /* test_lst_rep1 (); */
+  /* test_lst_rep2 (); */
+
+  test_lst_list1 ();
+  test_lst_list2 ();
+  test_lst_list3 ();
+  test_lst_list4 ();
 
   test_obj_equal_int ();
   test_obj_equal_symbol ();

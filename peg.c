@@ -53,6 +53,9 @@ static const char *opNames[OP_END] = {
   [OP_CAP_OPEN] = "OP_CAP_OPEN",
   [OP_CAP_CLOSE] = "OP_CAP_CLOSE",
   [OP_RETURN] = "OP_RETURN",
+  [OP_ATOM] = "OP_ATOM",
+  [OP_OPEN] = "OP_OPEN",
+  [OP_CLOSE] = "OP_CLOSE",
 };
 
 /* Set initial values for the machine */
@@ -270,6 +273,126 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
       FATAL ("Unknown Instruction 0x%04x [%s]", pc->rator, OP_NAME (pc->rator));
     }
   }
+
+#undef POP
+#undef PUSH
+#undef PUSH_CAP
+}
+
+Object *mMatchList (Machine *m, Object *input)
+{
+  BacktrackEntry *sp = m->stack;
+  Instruction *pc = m->code;
+  Object *l = input;
+  Symbol *sym;
+
+  /** Push data onto the machine's stack  */
+#define PUSH(ll,pp) do { sp->l = ll; sp->pc = pp; sp++; } while (0)
+  /** Pop data from the machine's stack. Notice it doesn't dereference
+      the pointer, callers are supposed to do that when needed. */
+#define POP() (--sp)
+
+  DEBUGLN ("   Run");
+
+  while (true) {
+    /* No-op if DEBUG isn't defined */
+    DEBUG_INSTRUCTION_NEXT ();
+    DEBUG_STACK ();
+
+    switch (pc->rator) {
+    case 0:
+      /* if (m->li && !i) printf ("Match failed at pos %ld\n", m->li - input + 1); */
+      return l;
+    case OP_OPEN:
+      if (!CONSP (l) || !CONSP (CAR (l))) goto fail;
+      else { PUSH (CDR (l), pc++); l = CAR (l); }
+      continue;
+    case OP_CLOSE:
+      if (!NILP (l)) goto fail;
+      l = POP ()->l;
+      pc++;
+      continue;
+    case OP_ATOM:
+      DEBUGL ("OP_ATOM");
+      sym = SYMBOL (oTableItem (&m->symbols, UOPERAND0 (pc)));
+      if (!sym) goto fail;
+      if (!CONSP (l)) goto fail;
+      if (CONSP (CAR (l))) goto fail;
+      if (strncmp (SYMBOL (CAR (l))->name, sym->name, sym->len)) goto fail;
+      DEBUGLN ("       OP_ATOM: `%s' == `%s'",
+               sym->name, SYMBOL (CAR (l))->name);
+      l = CDR (l); pc++;
+      continue;
+    case OP_ANY:
+      DEBUGLN ("       OP_ANY: %d", l != NULL && l != Nil);
+      if (l && !NILP (l)) { l = CDR (l); pc++; }
+      else goto fail;
+      continue;
+    case OP_SPAN:
+      /* DEBUGLN ("       OP_SPAN: `%c' in [%c(%d)-%c(%d)]", *i, */
+      /*          UOPERAND1 (pc), UOPERAND1 (pc), */
+      /*          UOPERAND2 (pc), UOPERAND2 (pc)); */
+      /* if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) { i++; pc++; } */
+      /* else goto fail; */
+      continue;
+    case OP_CHOICE:
+      sp->cap = m->cap;
+      PUSH (l, pc + UOPERAND0 (pc));
+      pc++;
+      continue;
+    case OP_COMMIT:
+      assert (sp > m->stack);
+      POP ();                   /* Discard backtrack entry */
+      pc += SOPERAND0 (pc);     /* Jump to the given position */
+      continue;
+    case OP_PARTIAL_COMMIT:
+      assert (sp > m->stack);
+      pc += SOPERAND0 (pc);
+      (sp - 1)->l = l;
+      continue;
+    case OP_BACK_COMMIT:
+      assert (sp > m->stack);
+      l = POP ()->l;
+      pc += SOPERAND0 (pc);
+      continue;
+    case OP_JUMP:
+      pc = m->code + SOPERAND0 (pc);
+      continue;
+    case OP_CALL:
+      PUSH (NULL, pc + 1);
+      pc += SOPERAND0 (pc);
+      continue;
+    case OP_RETURN:
+      assert (sp > m->stack);
+      pc = POP ()->pc;
+      continue;
+    case OP_FAIL_TWICE:
+      POP ();                   /* Drop top of stack & Fall through */
+    case OP_FAIL:
+    fail:
+      /* No-op if DEBUG isn't defined */
+      DEBUG_FAILSTATE2 ();
+
+      if (sp > m->stack) {
+        /* Fail〈(pc,i1):e〉 ----> 〈pc,i1,e〉 */
+        do l = POP ()->l;
+        while (l == NULL && sp > m->stack);
+        pc = sp->pc;            /* Restore the program counter */
+        /* Non-Terminals can't produce errors */
+        /* m->cap = sp->cap; */
+        /* if (l) m->li = l; */
+      } else {
+        /* 〈pc,i,e〉 ----> Fail〈e〉 */
+        return NULL;
+      }
+      continue;
+    default:
+      FATAL ("Unknown Instruction 0x%04x [%s]", pc->rator, OP_NAME (pc->rator));
+    }
+  }
+#undef POP
+#undef PUSH
+#undef PUSH_CAP
 }
 
 Object *mExtract (Machine *m, const char *input)

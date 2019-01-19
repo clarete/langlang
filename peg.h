@@ -76,6 +76,7 @@ typedef struct {
    on the ordered choice operator */
 typedef struct {
   const char *i;
+  Object *l;
   Instruction *pc;
   uint32_t cap;
 } BacktrackEntry;
@@ -110,6 +111,9 @@ typedef enum {
   OP_SET,
   OP_CAP_OPEN,
   OP_CAP_CLOSE,
+  OP_ATOM,
+  OP_OPEN,
+  OP_CLOSE,
   OP_END,
 } OpCode;
 
@@ -119,8 +123,12 @@ void mInit (Machine *m);
 void mFree (Machine *m);
 /* Load bytecode into the machine. */
 void mLoad (Machine *m, Bytecode *code, size_t code_size);
+/* Create a new symbol & store it within the machine's symbol table */
+Object *mSymbol (Machine *m, const char *sym, size_t len);
 /* Try to match input against the pattern loaded into the machine. */
 const char *mMatch (Machine *m, const char *input, size_t input_size);
+/* Try to match input list against pattern loaded into the VM */
+Object *mMatchList (Machine *m, Object *input);
 /* Extract matches from the machine's capture stack */
 Object *mExtract (Machine *m, const char *input);
 /* Run grammar file on input file and extract output */

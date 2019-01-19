@@ -45,6 +45,17 @@
     DEBUGLN ("         NEXT: %s", OP_NAME ((*(pc)).rator));     \
   } while (0)
 
+#  define DEBUG_FAILSTATE2() do {                               \
+    printf ("       FAIL["); printObj (l); printf ("]");        \
+    DEBUGLN ("         NEXT: %s", OP_NAME ((*(pc)).rator));     \
+  } while (0)
+
+#  define DEBUGL(m) do {                        \
+    printf ("         %s[", m);                 \
+    printObj(l);                                \
+    printf ("]\n");                             \
+  } while (0)
+
 #  define DEBUG_STACK() do {                                            \
     DEBUGLN ("         STACK: %p %p", (void *) sp, (void *) m->stack);  \
     for (BacktrackEntry *_tmp_bt = sp; _tmp_bt > m->stack; _tmp_bt--) { \
@@ -60,6 +71,8 @@
 #  define DEBUG_INSTRUCTION_NEXT()
 #  define DEBUG_INSTRUCTION_LOAD()
 #  define DEBUG_FAILSTATE()
+#  define DEBUG_FAILSTATE2()
+#  define DEBUGL(m)
 #  define DEBUG_STACK()
 # endif  /* TEST */
 

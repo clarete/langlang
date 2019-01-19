@@ -21,6 +21,9 @@
 #include "error.h"
 #include "value.h"
 
+/* Static object */
+const Object *Nil = (&(Object) { TYPE_NIL, 0 });
+
 /* ---- Object Factories ---- */
 
 Object *makeObject (Type type, size_t size)

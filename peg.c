@@ -290,7 +290,7 @@ Object *mExtract (Machine *m, const char *input)
     key = oTableItem (&m->symbols, match.idx);
 
     if (match.type == CapOpen) {
-      if (!match.term) PUSH_SO (Nil);
+      if (!match.term) PUSH_SO (OBJ (Nil));
       PUSH_S (match);
       continue;
     }
@@ -312,7 +312,7 @@ Object *mExtract (Machine *m, const char *input)
       PUSH_SO (mSymbol (m, input + start, end - start));
     } else {
       /* Non-Terminal */
-      Object *l = NULL;
+      Object *l = OBJ (Nil);
       while (!NILP (ostack[spo-1])) {
         l = makeCons (ostack[--spo], l);
       }

@@ -78,6 +78,8 @@ typedef struct {
   uint32_t capacity;
 } ObjectTable;
 
+extern const Object *Nil;
+
 void printObj (const Object *o);
 Object *makeCons (Object *car, Object *cdr);
 Object *makeSymbol (const char *p, size_t len);
@@ -91,8 +93,5 @@ void oTableAdjust (ObjectTable *ot, size_t osz);
 uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz);
 uint32_t oTableInsertObject (ObjectTable *ot, Object *o);
 #define oTableItem(o,i) ((o)->items[i])
-
-/* Static object */
-#define Nil (&(Object) { TYPE_NIL, 0 })
 
 #endif  /* VALUE_GUARD */

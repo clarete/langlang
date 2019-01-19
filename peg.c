@@ -126,7 +126,7 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
      32bits. That's why code_size gets divided by 4 */
   code_size = READ_UINT16 (code);
   DEBUGLN ("   Code(%d)", code_size);
-  if ((tmp = m->code = calloc (sizeof (Instruction), code_size / 4)) == NULL)
+  if ((tmp = m->code = calloc (code_size, sizeof (Instruction))) == NULL)
     FATAL ("Can't allocate %s", "memory");
   for (i = 0; i < code_size; i += 4) {
     instr = READ_UINT32 (code);

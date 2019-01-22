@@ -279,6 +279,13 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
 #undef PUSH_CAP
 }
 
+static void append (Object *l, Object *i)
+{
+  Object *tmp = NULL;
+  for (tmp = l; !NILP (tmp) && !NILP (CDR (tmp)); tmp = CDR (tmp));
+  CDR (tmp) = makeCons (i, OBJ (Nil));
+}
+
 Object *mMatchList (Machine *m, Object *input)
 {
   BacktrackEntry *sp = m->stack;
@@ -291,8 +298,14 @@ Object *mMatchList (Machine *m, Object *input)
   /** Pop data from the machine's stack. Notice it doesn't dereference
       the pointer, callers are supposed to do that when needed. */
 #define POP() (--sp)
+  /** Parent node stack item starts from top */
+#define PARENT(n) (*(p-n))
 
   DEBUGLN ("   Run");
+
+  Object *parents[2000];
+  Object **p = parents;
+  memset (parents, 0, sizeof (Object*) * 2000);
 
   while (true) {
     /* No-op if DEBUG isn't defined */
@@ -301,39 +314,43 @@ Object *mMatchList (Machine *m, Object *input)
 
     switch (pc->rator) {
     case 0:
-      /* if (m->li && !i) printf ("Match failed at pos %ld\n", m->li - input + 1); */
       return l;
     case OP_OPEN:
       if (!CONSP (l) || !CONSP (CAR (l))) goto fail;
-      else { PUSH (CDR (l), pc++); l = CAR (l); }
+      else { PUSH (CDR (l), pc++); l = CAR (l); *++p = NULL; }
       continue;
     case OP_CLOSE:
       if (!NILP (l)) goto fail;
-      l = POP ()->l;
-      pc++;
+      l = POP ()->l; pc++;
+      if (PARENT (1)) append (PARENT (1), PARENT (0));
+      if (&PARENT (1) == parents) l = *p;
+      p--;
       continue;
     case OP_ATOM:
-      DEBUGL ("OP_ATOM");
       sym = SYMBOL (oTableItem (&m->symbols, UOPERAND0 (pc)));
       if (!sym) goto fail;
+      DEBUGLN ("       OP_ATOM: `%s' == `%s'",
+               sym->name, SYMBOL (CAR (l))->name);
+
       if (!CONSP (l)) goto fail;
       if (CONSP (CAR (l))) goto fail;
       if (strncmp (SYMBOL (CAR (l))->name, sym->name, sym->len)) goto fail;
-      DEBUGLN ("       OP_ATOM: `%s' == `%s'",
-               sym->name, SYMBOL (CAR (l))->name);
+
+      if (PARENT (0)) append (PARENT (0), CAR (l));
+      else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
       l = CDR (l); pc++;
       continue;
     case OP_ANY:
       DEBUGLN ("       OP_ANY: %d", l != NULL && l != Nil);
-      if (l && !NILP (l)) { l = CDR (l); pc++; }
+      if (l && !NILP (l)) {
+        if (PARENT (0)) append (PARENT (0), CAR (l));
+        else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
+        l = CDR (l); pc++;
+      }
       else goto fail;
       continue;
     case OP_SPAN:
-      /* DEBUGLN ("       OP_SPAN: `%c' in [%c(%d)-%c(%d)]", *i, */
-      /*          UOPERAND1 (pc), UOPERAND1 (pc), */
-      /*          UOPERAND2 (pc), UOPERAND2 (pc)); */
-      /* if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) { i++; pc++; } */
-      /* else goto fail; */
+      WARN ("SPAN instruction is noop for lists");
       continue;
     case OP_CHOICE:
       sp->cap = m->cap;
@@ -378,9 +395,7 @@ Object *mMatchList (Machine *m, Object *input)
         do l = POP ()->l;
         while (l == NULL && sp > m->stack);
         pc = sp->pc;            /* Restore the program counter */
-        /* Non-Terminals can't produce errors */
-        /* m->cap = sp->cap; */
-        /* if (l) m->li = l; */
+        while (!PARENT (0)) p--;  /* Clean garbage created by OPEN */
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
         return NULL;
@@ -392,7 +407,7 @@ Object *mMatchList (Machine *m, Object *input)
   }
 #undef POP
 #undef PUSH
-#undef PUSH_CAP
+#undef PARENT
 }
 
 Object *mExtract (Machine *m, const char *input)

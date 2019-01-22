@@ -27,4 +27,9 @@
   do { fprintf (stderr, f "\n", ##__VA_ARGS__); exit (EXIT_FAILURE); } \
   while (0)
 
+/** Complain about something and move on */
+#define WARN(f, ...)                                                   \
+  do { fprintf (stderr, f "\n", ##__VA_ARGS__); }                      \
+  while (0)
+
 #endif  /* ERROR_GUARD */

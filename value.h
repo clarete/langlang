@@ -93,5 +93,7 @@ void oTableAdjust (ObjectTable *ot, size_t osz);
 uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz);
 uint32_t oTableInsertObject (ObjectTable *ot, Object *o);
 #define oTableItem(o,i) ((o)->items[i])
+#define oTableEmpty(o) ((o)->used == 0)
+#define oTableSize(o) ((o)->used)
 
 #endif  /* VALUE_GUARD */

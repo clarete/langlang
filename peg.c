@@ -291,6 +291,7 @@ Object *mMatchList (Machine *m, Object *input)
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
   Object *l = input;
+  ObjectTable parents;
   Symbol *sym;
 
   /** Push data onto the machine's stack  */
@@ -299,13 +300,11 @@ Object *mMatchList (Machine *m, Object *input)
       the pointer, callers are supposed to do that when needed. */
 #define POP() (--sp)
   /** Parent node stack item starts from top */
-#define PARENT(n) (*(p-n))
+#define PARENT(n) (oTableItem (&parents, oTableSize (&parents)-1-n))
 
   DEBUGLN ("   Run");
 
-  Object *parents[2000];
-  Object **p = parents;
-  memset (parents, 0, sizeof (Object*) * 2000);
+  oTableInit (&parents);
 
   while (true) {
     /* No-op if DEBUG isn't defined */
@@ -314,40 +313,45 @@ Object *mMatchList (Machine *m, Object *input)
 
     switch (pc->rator) {
     case 0:
+      oTableFree (&parents);
       return l;
     case OP_OPEN:
       if (!CONSP (l) || !CONSP (CAR (l))) goto fail;
-      else { PUSH (CDR (l), pc++); l = CAR (l); *++p = NULL; }
+      PUSH (CDR (l), pc++); l = CAR (l);
+      oTableInsertObject (&parents, NULL);
       continue;
     case OP_CLOSE:
       if (!NILP (l)) goto fail;
       l = POP ()->l; pc++;
-      if (PARENT (1)) append (PARENT (1), PARENT (0));
-      if (&PARENT (1) == parents) l = *p;
-      p--;
+      if (oTableSize (&parents) > 1 && PARENT (0))
+        append (PARENT (1), PARENT (0));
+      if (oTableSize (&parents) == 1)
+        l = oTableItem (&parents, 0);
+      parents.used--;
       continue;
     case OP_ATOM:
+      /* Did the machine receive the right parameter? */
       sym = SYMBOL (oTableItem (&m->symbols, UOPERAND0 (pc)));
       if (!sym) goto fail;
       DEBUGLN ("       OP_ATOM: `%s' == `%s'",
                sym->name, SYMBOL (CAR (l))->name);
-
+      /* Is it a valid subject? */
       if (!CONSP (l)) goto fail;
       if (CONSP (CAR (l))) goto fail;
+      /* Does it match with the atom we're looking for? */
       if (strncmp (SYMBOL (CAR (l))->name, sym->name, sym->len)) goto fail;
-
+      /* Append match to the output list */
       if (PARENT (0)) append (PARENT (0), CAR (l));
       else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
+      /* Crank the machine to go to the next element & instruction */
       l = CDR (l); pc++;
       continue;
     case OP_ANY:
       DEBUGLN ("       OP_ANY: %d", l != NULL && l != Nil);
-      if (l && !NILP (l)) {
-        if (PARENT (0)) append (PARENT (0), CAR (l));
-        else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
-        l = CDR (l); pc++;
-      }
-      else goto fail;
+      if (!l || NILP (l)) goto fail;
+      if (PARENT (0)) append (PARENT (0), CAR (l));
+      else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
+      l = CDR (l); pc++;
       continue;
     case OP_SPAN:
       WARN ("SPAN instruction is noop for lists");
@@ -395,9 +399,10 @@ Object *mMatchList (Machine *m, Object *input)
         do l = POP ()->l;
         while (l == NULL && sp > m->stack);
         pc = sp->pc;            /* Restore the program counter */
-        while (!PARENT (0)) p--;  /* Clean garbage created by OPEN */
+        while (!PARENT (0)) parents.used--;  /* Clean garbage created by OPEN */
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
+        oTableFree (&parents);
         return NULL;
       }
       continue;

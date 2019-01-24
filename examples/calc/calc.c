@@ -142,23 +142,26 @@ int main ()
   char *input = NULL;
   const char *output;
   bool running = true;
-  Object *result;
+  Object *result, *tree;
 
   readFile ("calc.binx", &grammar, &grammar_size);
 
   while (running) {
     if ((input = readline ("calc% ")) == NULL) break;
     input_size = strlen (input);
-    if (input_size > 0) add_history (input);
+    if (input_size > 0) {
+      add_history (input);
 
-    mInit (&m);
-    mLoad (&m, grammar, grammar_size);
-    if ((output = mMatch (&m, input, input_size)) != NULL) {
-      result = calculate (mExtract (&m, input));
-      printObj (result); printf ("\n");
+      mInit (&m);
+      mLoad (&m, grammar, grammar_size);
+      if ((output = mMatch (&m, input, input_size)) != NULL) {
+        tree = mExtract (&m, input);
+        result = calculate (tree);
+        printObj (result); printf ("\n");
+      }
+      mFree (&m);
     }
     free (input);
-    mFree (&m);
   }
 
   return 0;

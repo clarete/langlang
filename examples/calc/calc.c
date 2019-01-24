@@ -57,7 +57,7 @@ Object *evUnary (Object *input)
 {
   Object *v;
   /* If the operator isn't present */
-  if (!CDR (CDR (input))) return evPrimary (FIRST (input));
+  if (NILP (CDR (CDR (input)))) return evPrimary (FIRST (input));
 
   v = evPrimary (CAR (SECOND (input)));
 
@@ -74,7 +74,7 @@ Object *evPower (Object *input)
   Object *left, *right;
   left = evUnary (FIRST (input));
 
-  if (SECOND (input)) {
+  if (!NILP (SECOND (input))) {
     right = evPower (FIRST (SECOND (input)));
     if (HASKEY (CAR (SECOND (input)), "POWER")) {
       return makeInt (pow (INT (left)->value, INT (right)->value));
@@ -92,14 +92,14 @@ Object *evFactor (Object *input)
   Object *left, *right;
   left = evPower (FIRST (input));
 
-  if (SECOND (input)) {
+  if (!NILP (SECOND (input))) {
     right = evFactor (FIRST (SECOND (input)));
     if (HASKEY (CAR (SECOND (input)), "STAR")) {
       return makeInt (INT (left)->value * INT (right)->value);
     } else if (HASKEY (CAR (SECOND (input)), "SLASH")) {
       return makeInt (INT (left)->value / INT (right)->value);
     }
-    return Nil;
+    return OBJ (Nil);
   } else {
     return left;
   }
@@ -110,14 +110,14 @@ Object *evTerm (Object *input)
   Object *left, *right;
   left = evFactor (FIRST (input));
 
-  if (SECOND (input)) {
+  if (!NILP (SECOND (input))) {
     right = evTerm (FIRST (SECOND (input)));
     if (HASKEY (CAR (SECOND (input)), "PLUS")) {
       return makeInt (INT (left)->value + INT (right)->value);
     } else if (HASKEY (CAR (SECOND (input)), "MINUS")) {
       return makeInt (INT (left)->value - INT (right)->value);
     }
-    return Nil;
+    return OBJ (Nil);
   } else {
     return left;
   }

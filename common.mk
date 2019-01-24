@@ -27,11 +27,11 @@ COMPILE.c	= $(CCC) -c
 POSTCOMPILE	= @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
 define GEN_BIN
- %.bin: %.peg; $(PEGC) -q -c -o $$@ -g $$<
+ %.bin: %.peg; $(PEGC) -q -c -p -o $$@ -g $$<
 endef
 
 define GEN_BINX
- %.binx: %.pegx; $(PEGC) -q -c -o $$@ -g $$<
+ %.binx: %.pegx; $(PEGC) -q -c -p -o $$@ -g $$<
 endef
 
 define GEN_CC_DEPS

@@ -341,16 +341,20 @@ Object *mMatchList (Machine *m, Object *input)
       /* Does it match with the atom we're looking for? */
       if (strncmp (SYMBOL (CAR (l))->name, sym->name, sym->len)) goto fail;
       /* Append match to the output list */
-      if (PARENT (0)) append (PARENT (0), CAR (l));
-      else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
+      if (oTableSize (&parents)) {
+        if (PARENT (0)) append (PARENT (0), CAR (l));
+        else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
+      }
       /* Crank the machine to go to the next element & instruction */
       l = CDR (l); pc++;
       continue;
     case OP_ANY:
       DEBUGLN ("       OP_ANY: %d", l != NULL && l != Nil);
       if (!l || NILP (l)) goto fail;
-      if (PARENT (0)) append (PARENT (0), CAR (l));
-      else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
+      if (oTableSize (&parents)) {
+        if (PARENT (0)) append (PARENT (0), CAR (l));
+        else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
+      }
       l = CDR (l); pc++;
       continue;
     case OP_SPAN:
@@ -399,7 +403,11 @@ Object *mMatchList (Machine *m, Object *input)
         do l = POP ()->l;
         while (l == NULL && sp > m->stack);
         pc = sp->pc;            /* Restore the program counter */
-        while (!PARENT (0)) parents.used--;  /* Clean garbage created by OPEN */
+        if (oTableSize (&parents) > 1) {
+          /* Clean entries created by OPEN and not used because of
+             backtracking */
+          while (!PARENT (0)) parents.used--;
+        }
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
         oTableFree (&parents);

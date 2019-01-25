@@ -1,0 +1,3 @@
+File <- Line*
+Line <- Val (;',' Val)* ;'\n'
+Val  <- %C{ (![,\n] .)* }

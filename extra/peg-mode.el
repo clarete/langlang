@@ -1,6 +1,6 @@
 ;;; peg-mode.el --- Syntax highlight for Parsing Expression Grammars
 ;;
-;; Copyright (C) 2018  Lincoln Clarete
+;; Copyright (C) 2018-2019  Lincoln Clarete
 ;;
 ;; Author: Lincoln de Sousa <lincoln@clarete.li>
 ;; Version: 0.0.1

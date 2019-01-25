@@ -122,7 +122,7 @@ void mInit (Machine *m);
 /* Free allocated resources. */
 void mFree (Machine *m);
 /* Load bytecode into the machine. */
-void mLoad (Machine *m, Bytecode *code, size_t code_size);
+void mLoad (Machine *m, Bytecode *code);
 /* Create a new symbol & store it within the machine's symbol table */
 Object *mSymbol (Machine *m, const char *sym, size_t len);
 /* Try to match input against the pattern loaded into the machine. */

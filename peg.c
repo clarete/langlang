@@ -103,14 +103,12 @@ Object *mSymbol (Machine *m, const char *sym, size_t len) {
 #define READ_UINT16(c) (c+=2, c[-2] << 8 | c[-1])
 #define READ_UINT32(c) (c+=4, c[-4] << 24 | c[-3] << 16 | c[-2] << 8 | c[-1])
 
-void mLoad (Machine *m, Bytecode *code, size_t total_size)
+void mLoad (Machine *m, Bytecode *code)
 {
   Instruction *tmp;
   uint32_t instr, i;
   uint8_t headerSize;
   uint16_t code_size;
-
-  (void) total_size;
 
   /* Header starts with number (in uint16) of entries in the string
      table. For each string in the string table we first read its size
@@ -125,13 +123,13 @@ void mLoad (Machine *m, Bytecode *code, size_t total_size)
     code += ssize; /* Push the cursor to after the string just read */
   }
 
-  /* Code size a 16bit integer and and each instruction is
-     32bits. That's why code_size gets divided by 4 */
+  /* Code size is a 16bit integer and contains how many instructions
+     the program body contains. */
   code_size = READ_UINT16 (code);
   DEBUGLN ("   Code(%d)", code_size);
   if ((tmp = m->code = calloc (code_size, sizeof (Instruction))) == NULL)
     FATAL ("Can't allocate %s", "memory");
-  for (i = 0; i < code_size; i += 4) {
+  for (i = 0; i < code_size; i++) {
     instr = READ_UINT32 (code);
     tmp->rator = OP_MASK (instr);
     tmp->rand = instr;          /* Use SOPERAND* to access this */
@@ -492,7 +490,7 @@ Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file)
   readFile (grammar_file, &grammar, &grammar_size);
   readFile (input_file, (uint8_t **) &input, &input_size);
 
-  mLoad (m, grammar, grammar_size);
+  mLoad (m, grammar);
   if (mMatch (m, input, input_size))
     output = mExtract (m, input);
 

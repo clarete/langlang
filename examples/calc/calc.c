@@ -153,7 +153,7 @@ int main ()
       add_history (input);
 
       mInit (&m);
-      mLoad (&m, grammar, grammar_size);
+      mLoad (&m, grammar);
       if ((output = mMatch (&m, input, input_size)) != NULL) {
         tree = mExtract (&m, input);
         result = calculate (tree);

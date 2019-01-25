@@ -47,7 +47,7 @@ void run (const char *name,
 
   for (i = 0; i < NUM_RUNS; i++) {
     mInit (&m);
-    mLoad (&m, grammar, grammar_size);
+    mLoad (&m, grammar);
 
     clock_gettime (CLOCK_MONOTONIC, &start);
     assert (mMatch (&m, (const char *) input, input_size));

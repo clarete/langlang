@@ -52,8 +52,23 @@ static inline uint32_t enc (uint32_t in)
     ((in >> 24) & 0x000000ff) ;
 }
 
-/* ---- TESTS ---- */
+static inline size_t progSize (size_t nInstructions)
+{
+  /* An empty header contains two 16bit fields, one for the number of
+     symbols within the header and the other one for the number of
+     instructions within the code. */
+  return 32 + (nInstructions * INSTRUCTION_SIZE);
+}
 
+static inline void writeHeader (uint32_t *prog, size_t nInstructions)
+{
+  union { uint32_t hh; uint16_t h[2]; } header;
+  header.h[0] = 0;
+  header.h[1] = nInstructions << 8;
+  prog[0] = header.hh;
+}
+
+/* ---- TESTS ---- */
 
 static void test_gen_args ()
 {
@@ -76,22 +91,22 @@ static void test_gen_args ()
 static void test_ch1 ()
 {
   Machine m;
-  uint32_t b[6];
+  int instructions = 2;
+  uint32_t b[progSize (instructions)];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:ch.1");
 
-  b[0] = enc (2*2);             /* Code Size */
-  /* Start <- 'a' */
+  writeHeader (b, instructions);
+  /* S <- 'a' */
   b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
-  b[2] = 0;                     /* 0x1: Halt */
+  b[2] = GEN0 (OP_HALT);        /* 0x1: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
-  assert (o);
   assert (o - i == 1);        /* Match */
 }
 
@@ -103,16 +118,17 @@ static void test_ch1 ()
 static void test_ch2 ()
 {
   Machine m;
-  uint32_t b[3];
+  int instructions = 2;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:ch.2");
 
-  b[0] = enc (2*2);             /* Code Size */
-  /* Start <- 'a' */
+  writeHeader (b, instructions);
+  /* S <- 'a' */
   b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
-  b[2] = 0;                     /* 0x1: Halt */
+  b[2] = GEN0 (OP_HALT);        /* 0x1: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "x", 1)); /* Failed */
   mFree (&m);
 }
@@ -125,18 +141,19 @@ static void test_ch2 ()
 static void test_any1 ()
 {
   Machine m;
-  uint32_t b[3];
+  int instructions = 2;
+  uint32_t b[progSize (instructions)];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:any.1");
 
-  b[0] = enc (2*2);             /* Code Size */
-  /* . */
+  writeHeader (b, instructions);
+  /* S <- . */
   b[1] = GEN0 (OP_ANY);         /* 0x0: Any */
-  b[2] = 0;                     /* 0x1: Halt */
+  b[2] = GEN0 (OP_HALT);        /* 0x1: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -152,16 +169,17 @@ static void test_any1 ()
 static void test_any2 ()
 {
   Machine m;
-  uint32_t b[3];
+  int instructions = 2;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:any.2");
 
-  b[0] = enc (2*2);             /* Code Size */
-  /* . */
+  writeHeader (b, instructions);
+  /* S <- . */
   b[1] = GEN0 (OP_ANY);         /* 0x0: Any */
-  b[2] = 0;                     /* 0x1: Halt */
+  b[2] = GEN0 (OP_HALT);        /* 0x1: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "", 0)); /* Failed */
   mFree (&m);
 }
@@ -174,45 +192,47 @@ static void test_any2 ()
 static void test_not1 ()
 {
   Machine m;
-  uint32_t b[6];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:not.1");
 
-  b[0] = enc (5*4);             /* Code Size */
-  /* !'a' */
+  writeHeader (b, instructions);
+  /* S <- !'a' */
   b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_COMMIT, 1);   /* 0x2: Commit 1 */
   b[4] = GEN0 (OP_FAIL);        /* 0x3: Fail */
-  b[5] = 0;                     /* 0x4: Halt */
+  b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 0);        /* But didn't match anything */
+  assert (o - i == 0);          /* But didn't match anything */
 }
 
 void test_not1_fail_twice ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:not.1 (fail-twice)");
 
-  b[0] = enc (4*4);             /* Code Size */
-  /* !'a' */
+  writeHeader (b, instructions);
+  /* S <- !'a' */
   b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
   b[3] = GEN0 (OP_FAIL_TWICE);  /* 0x2: FailTwice */
   b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -228,11 +248,12 @@ void test_not1_fail_twice ()
 void test_not2 ()
 {
   Machine m;
-  uint32_t b[6];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:not.2");
 
-  b[0] = enc (5*4);             /* Code Size */
-  /* !'a' */
+  writeHeader (b, instructions);
+  /* S <- !'a' */
   b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_COMMIT, 1);   /* 0x2: Commit 1 */
@@ -240,7 +261,7 @@ void test_not2 ()
   b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "a", 1)); /* Failed */
   mFree (&m);
 }
@@ -248,10 +269,11 @@ void test_not2 ()
 void test_not2_fail_twice ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:not.2 (fail-twice)");
 
-  b[0] = enc (4*4);             /* Code Size */
+  writeHeader (b, instructions);
   /* !'a' */
   b[1] = GEN1 (OP_CHOICE, 4);   /* 0x0: Choice 0x4 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
@@ -259,7 +281,7 @@ void test_not2_fail_twice ()
   b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "a", 1)); /* Failed */
   mFree (&m);
 }
@@ -272,13 +294,14 @@ void test_not2_fail_twice ()
 void test_and1 ()
 {
   Machine m;
-  uint32_t b[9];
+  int instructions = 8;
+  uint32_t b[progSize (instructions)];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:and.1");
 
-  b[0] = enc (8*4);             /* Code Size */
-  /* &'a' */
+  writeHeader (b, instructions);
+  /* S <- &'a' */
   b[1] = GEN1 (OP_CHOICE, 7);   /* 0x0: Choice 0x7 */
   b[2] = GEN1 (OP_CHOICE, 4);   /* 0x1: Choice 0x4 */
   b[3] = GEN1 (OP_CHAR, 'a');   /* 0x2: Char 'a' */
@@ -289,7 +312,7 @@ void test_and1 ()
   b[8] = GEN0 (OP_HALT);        /* 0x7: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -300,13 +323,14 @@ void test_and1 ()
 void test_and1_back_commit ()
 {
   Machine m;
-  uint32_t b[6];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:and.1 (back-commit)");
 
-  b[0] = enc (5*4);                /* Code Size */
-  /* &'a' */
+  writeHeader (b, instructions);
+  /* S <- &'a' */
   b[1] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
   b[2] = GEN1 (OP_CHAR, 'a');      /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_BACK_COMMIT, 2); /* 0x2: BackCommit 2 */
@@ -314,7 +338,7 @@ void test_and1_back_commit ()
   b[5] = GEN0 (OP_HALT);           /* 0x4: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -330,10 +354,11 @@ match g &p s i = nil (and.2)
 void test_and2 ()
 {
   Machine m;
-  uint32_t b[9];
+  int instructions = 8;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:and.2");
 
-  b[0] = enc (8*4);             /* Code Size */
+  writeHeader (b, instructions);
   /* &'a' */
   b[1] = GEN1 (OP_CHOICE, 7);   /* 0x0: Choice 0x7 */
   b[2] = GEN1 (OP_CHOICE, 4);   /* 0x1: Choice 0x4 */
@@ -345,7 +370,7 @@ void test_and2 ()
   b[8] = GEN0 (OP_HALT);        /* 0x7: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "b", 1)); /* Failed */
   mFree (&m);
 }
@@ -353,11 +378,12 @@ void test_and2 ()
 void test_and2_back_commit ()
 {
   Machine m;
-  uint32_t b[6];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:and.2 (back-commit)");
 
-  b[0] = enc (5*4);                /* Code Size */
-  /* &'a' */
+  writeHeader (b, instructions);
+  /* S <- &'a' */
   b[1] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
   b[2] = GEN1 (OP_CHAR, 'a');      /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_BACK_COMMIT, 2); /* 0x2: BackCommit 2 */
@@ -365,7 +391,7 @@ void test_and2_back_commit ()
   b[5] = GEN0 (OP_HALT);           /* 0x4: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "b", 1)); /* Failed */
   mFree (&m);
 }
@@ -378,12 +404,13 @@ void test_and2_back_commit ()
 void test_con1 ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   const char *i = "abc";
   const char *o = NULL;
   DEBUGLN (" * t:con.1");
 
-  b[0] = enc (4*4);             /* Code Size */
+  writeHeader (b, instructions);
   /* 'a' . 'c' */
   b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
   b[2] = GEN0 (OP_ANY);         /* 0x1: Any */
@@ -391,7 +418,7 @@ void test_con1 ()
   b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -407,18 +434,19 @@ void test_con1 ()
 void test_con2 ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:con.2");
 
-  b[0] = enc (4*4);             /* Code Size */
-  /* 'a' 'c' . */
+  writeHeader (b, instructions);
+  /* S <- 'a' 'c' . */
   b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
   b[2] = GEN1 (OP_CHAR, 'c');   /* 0x1: Char 'c' */
   b[3] = GEN0 (OP_ANY);         /* 0x2: Any */
   b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "abc", 3)); /* Failed */
   mFree (&m);
 }
@@ -431,18 +459,19 @@ void test_con2 ()
 void test_con3 ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:con.3");
 
-  b[0] = enc (4*4);             /* Code Size */
-  /* 'a' 'c' . */
+  writeHeader (b, instructions);
+  /* S <- 'a' 'c' . */
   b[1] = GEN1 (OP_CHAR, 'a');   /* 0x0: Char 'a' */
   b[2] = GEN1 (OP_CHAR, 'c');   /* 0x1: Char 'c' */
   b[3] = GEN0 (OP_ANY);         /* 0x2: Any */
   b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "cba", 3)); /* Failed */
   mFree (&m);
 }
@@ -455,18 +484,20 @@ void test_con3 ()
 void test_ord1 ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:ord.1");
 
+  writeHeader (b, instructions);
   /* 'a' / 'b' */
-  b[0] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
-  b[1] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
-  b[2] = GEN1 (OP_COMMIT, 2);   /* 0x2: Commit 0x2 */
-  b[3] = GEN1 (OP_CHAR, 'b');   /* 0x3: Char 'c' */
-  b[4] = 0;                     /* 0x4: Halt */
+  b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
+  b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
+  b[3] = GEN1 (OP_COMMIT, 2);   /* 0x2: Commit 0x2 */
+  b[4] = GEN1 (OP_CHAR, 'b');   /* 0x3: Char 'c' */
+  b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "c", 1)); /* Failed */
   mFree (&m);
 }
@@ -479,12 +510,13 @@ void test_ord1 ()
 void test_ord2 ()
 {
   Machine m;
-  uint32_t b[6];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   const char *i = "a";
   const char *o = NULL;
   DEBUGLN (" * t:ord.2");
 
-  b[0] = enc (5*4);             /* Code Size */
+  writeHeader (b, instructions);
   /* 'a' / 'b' */
   b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
@@ -493,7 +525,7 @@ void test_ord2 ()
   b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -509,12 +541,13 @@ void test_ord2 ()
 void test_ord3 ()
 {
   Machine m;
-  uint32_t b[6];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:ord.3");
 
-  b[0] = enc (5*4);             /* Code Size */
+  writeHeader (b, instructions);
   /* 'a' / 'b' */
   b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 0x3 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
@@ -523,7 +556,7 @@ void test_ord3 ()
   b[5] = GEN0 (OP_HALT);        /* 0x4: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -539,20 +572,21 @@ void test_ord3 ()
 void test_rep1 ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   const char *i = "aab";
   const char *o = NULL;
   DEBUGLN (" * t:rep.1");
 
-  b[0] = enc (4*4);             /* Code Size */
-  /* 'a*' */
+  writeHeader (b, instructions);
+  /* S <- 'a*' */
   b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 3 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_COMMIT, -2);  /* 0x2: Commit -2 */
   b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -563,20 +597,21 @@ void test_rep1 ()
 void test_rep1_partial_commit ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   const char *i = "aab";
   const char *o = NULL;
   DEBUGLN (" * t:rep.1 (partial-commit)");
 
-  b[0] = enc (4*4);             /* Code Size */
-  /* 'a*' */
+  writeHeader (b, instructions);
+  /* S <- 'a*' */
   b[1] = GEN1 (OP_CHOICE, 3);          /* 0x0: Choice 3 */
   b[2] = GEN1 (OP_CHAR, 'a');          /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_PARTIAL_COMMIT, -1); /* 0x3: PartialCommit -1 */
   b[4] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -592,20 +627,21 @@ void test_rep1_partial_commit ()
 void test_rep2 ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:rep.2");
 
-  b[0] = enc (4*4);             /* Code Size */
-  /* 'a*' */
+  writeHeader (b, instructions);
+  /* S <- 'a*' */
   b[1] = GEN1 (OP_CHOICE, 3);   /* 0x0: Choice 3 */
   b[2] = GEN1 (OP_CHAR, 'a');   /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_COMMIT, -2);  /* 0x2: Commit -2 */
   b[4] = GEN0 (OP_HALT);        /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -616,20 +652,21 @@ void test_rep2 ()
 void test_rep2_partial_commit ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   const char *i = "b";
   const char *o = NULL;
   DEBUGLN (" * t:rep.2 (partial-commit)");
 
-  b[0] = enc (4*4);                    /* Code Size */
-  /* 'a*' */
+  writeHeader (b, instructions);
+  /* S <- 'a*' */
   b[1] = GEN1 (OP_CHOICE, 3);          /* 0x0: Choice 3 */
   b[2] = GEN1 (OP_CHAR, 'a');          /* 0x1: Char 'a' */
   b[3] = GEN1 (OP_PARTIAL_COMMIT, -1); /* 0x3: PartialCommit -1 */
   b[4] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -645,12 +682,13 @@ void test_rep2_partial_commit ()
 void test_var1 ()
 {
   Machine m;
-  uint32_t b[13];
+  int instructions = 0xc;
+  uint32_t b[progSize (instructions)];
   const char *i = "1+1";
   const char *o = NULL;
   DEBUGLN (" * t:var.1");
 
-  b[0x0] = enc (12*4);          /* Code Size */
+  writeHeader (b, instructions);
   /* Start */
   b[0x1] = GEN1 (OP_CALL, 0x2); /* 0x0: Call 0x2 */
   b[0x2] = GEN1 (OP_JUMP, 0xb); /* 0x1: Jump 0xb */
@@ -669,7 +707,7 @@ void test_var1 ()
   b[0xc] = GEN0 (OP_HALT);      /* 0xb: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -685,10 +723,11 @@ void test_var1 ()
 void test_var2 ()
 {
   Machine m;
-  uint32_t b[13];
+  int instructions = 0xc;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:var.2");
 
-  b[0x0] = enc (12*4);          /* Code Size */
+  writeHeader (b, instructions);
   /* Start */
   b[0x1] = GEN1 (OP_CALL, 0x2); /* 0x0: Call 0x2 */
   b[0x2] = GEN1 (OP_JUMP, 0xb); /* 0x1: Jump 0xb */
@@ -707,7 +746,7 @@ void test_var2 ()
   b[0xc] = GEN0 (OP_HALT);      /* 0xb: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (!mMatch (&m, "1+2", 3)); /* Failed */
   mFree (&m);
 }
@@ -715,20 +754,21 @@ void test_var2 ()
 void test_span1 ()
 {
   Machine m;
-  uint32_t b[5];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   const char *i = "abcdefgh";
   const char *o = NULL;
   DEBUGLN (" * t:span.1");
 
-  b[0x0] = enc (4*4);                /* Code Size */
-  /* '[a-e]*' */
+  writeHeader (b, instructions);
+  /* S <- '[a-e]*' */
   b[0x1] = GEN1 (OP_CHOICE, 3);      /* 0x0: Choice 0x3 */
   b[0x2] = GEN2 (OP_SPAN, 'a', 'e'); /* 0x1: Span 'a'-'e' */
   b[0x3] = GEN1 (OP_COMMIT, -2);     /* 0x2: Commit -0x2 */
   b[0x4] = GEN0 (OP_HALT);           /* 0x3: Halt */
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
   mFree (&m);
 
@@ -739,12 +779,13 @@ void test_span1 ()
 void test_cap1 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 9;
+  uint32_t b[progSize (instructions)];
   const char *i = "a";
   Object *out = NULL;
   DEBUGLN (" * t:cap.1");
 
-  b[0x0] = enc (9*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- 'a' */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x8);
@@ -759,7 +800,7 @@ void test_cap1 ()
   mInit (&m);
   mSymbol (&m, "Main", 4);
   mSymbol (&m, "Char", 4);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
   assert (mMatch (&m, i, strlen (i)));
   out = mExtract (&m, i);
 
@@ -783,11 +824,12 @@ void test_cap1 ()
 static void test_lst_empty1 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 4;
+  uint32_t b[progSize (instructions)];
   Object *input = NULL;
   DEBUGLN (" * t:empty.1");
 
-  b[0x0] = enc (4*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* *Empty* */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x4);
@@ -795,7 +837,7 @@ static void test_lst_empty1 ()
   b[0x4] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   input = makeCons (mSymbol (&m, "a", 1), OBJ (Nil));
   assert (mMatchList (&m, input) == input);
@@ -811,11 +853,12 @@ static void test_lst_empty1 ()
 static void test_lst_any1 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   Object *input, *output;
   DEBUGLN (" * t:lst.any.1");
 
-  b[0x0] = enc (5*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- . */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x5);
@@ -824,7 +867,7 @@ static void test_lst_any1 ()
   b[0x5] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   input = makeCons (mSymbol (&m, "a", 1), (Object*) Nil);
   output = mMatchList (&m, input);
@@ -841,10 +884,11 @@ static void test_lst_any1 ()
 static void test_lst_any2 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:lst.any.2");
 
-  b[0x0] = enc (5*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- . */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x5);
@@ -853,7 +897,7 @@ static void test_lst_any2 ()
   b[0x5] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   assert (!mMatchList (&m, NULL));
 
@@ -867,11 +911,12 @@ static void test_lst_any2 ()
 static void test_lst_term1 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   Object *input, *output;
   DEBUGLN (" * t:lst.term.1");
 
-  b[0x0] = enc (5*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- "MyTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x5);
@@ -880,7 +925,7 @@ static void test_lst_term1 ()
   b[0x5] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   input = makeCons (mSymbol (&m, "MyTerm", 6), OBJ (Nil));
   output = mMatchList (&m, input);
@@ -897,11 +942,12 @@ static void test_lst_term1 ()
 static void test_lst_term2 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   Object *input;
   DEBUGLN (" * t:lst.term.2");
 
-  b[0x0] = enc (5*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- "aTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x5);
@@ -910,7 +956,7 @@ static void test_lst_term2 ()
   b[0x5] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   /* Create the 0th term in the symbol table */
   mSymbol (&m, "aTerm", 5);
@@ -930,10 +976,11 @@ static void test_lst_term2 ()
 static void test_lst_term3 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   DEBUGLN (" * t:lst.term.3");
 
-  b[0x0] = enc (5*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- "aTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x5);
@@ -942,7 +989,7 @@ static void test_lst_term3 ()
   b[0x5] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   /* Create the 0th term referenced in the bytecode grammar within the
    * symbol table */
@@ -962,11 +1009,12 @@ static void test_lst_term3 ()
 static void test_lst_term4 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 5;
+  uint32_t b[progSize (instructions)];
   Object *input;
   DEBUGLN (" * t:lst.term.4");
 
-  b[0x0] = enc (5*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- "aTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x5);
@@ -975,7 +1023,7 @@ static void test_lst_term4 ()
   b[0x5] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   /* Create the 0th term referenced in the bytecode grammar within the
    * symbol table */
@@ -1001,11 +1049,12 @@ G[{p}] l1:l2 ---> l2
 static void test_lst_list1 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 7;
+  uint32_t b[progSize (instructions)];
   Object *input, *output;
   DEBUGLN (" * t:lst.list.1");
 
-  b[0x0] = enc (7*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- { "test" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x7);
@@ -1016,7 +1065,7 @@ static void test_lst_list1 ()
   b[0x7] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   /* Create the 0th term referenced in the bytecode grammar within the
    * symbol table */
@@ -1045,11 +1094,12 @@ G[{p}] l1:l2 ---> fail
 static void test_lst_list2 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 7;
+  uint32_t b[progSize (instructions)];
   Object *input, *output;
   DEBUGLN (" * t:lst.list.2");
 
-  b[0x0] = enc (7*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- { "foo" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x7);
@@ -1060,7 +1110,7 @@ static void test_lst_list2 ()
   b[0x7] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   /* Create the 0th term referenced in the bytecode grammar within the
    * symbol table */
@@ -1086,11 +1136,12 @@ static void test_lst_list2 ()
 static void test_lst_list3 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 7;
+  uint32_t b[progSize (instructions)];
   Object *input, *output;
   DEBUGLN (" * t:lst.list.3");
 
-  b[0x0] = enc (7*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- { "foo" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x7);
@@ -1101,7 +1152,7 @@ static void test_lst_list3 ()
   b[0x7] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   /* Create the 0th term referenced in the bytecode grammar within the
    * symbol table */
@@ -1127,11 +1178,12 @@ static void test_lst_list3 ()
 static void test_lst_list4 ()
 {
   Machine m;
-  uint32_t b[10];
+  int instructions = 7;
+  uint32_t b[progSize (instructions)];
   Object *output;
   DEBUGLN (" * t:lst.list.4");
 
-  b[0x0] = enc (7*4);           /* Code Size */
+  writeHeader (b, instructions);
   /* S <- { "foo" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x7);
@@ -1142,7 +1194,7 @@ static void test_lst_list4 ()
   b[0x7] = GEN0 (OP_HALT);
 
   mInit (&m);
-  mLoad (&m, (Bytecode *) b, sizeof (b));
+  mLoad (&m, (Bytecode *) b);
 
   /* Create the 0th term referenced in the bytecode grammar within the
    * symbol table */

@@ -189,7 +189,7 @@ const char *mMatch (Machine *m, const char *input, size_t input_size)
     DEBUG_STACK ();
 
     switch (pc->rator) {
-    case 0:
+    case OP_HALT:
       if (m->li && !i) printf ("Match failed at pos %ld\n", m->li - input + 1);
       return i;
     case OP_CAP_OPEN:
@@ -312,7 +312,7 @@ Object *mMatchList (Machine *m, Object *input)
     DEBUG_STACK ();
 
     switch (pc->rator) {
-    case 0:
+    case OP_HALT:
       oTableFree (&parents);
       return l;
     case OP_OPEN:

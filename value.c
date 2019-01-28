@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <assert.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -130,6 +131,23 @@ uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz)
   oTableAdjust (ot, osz);
   ot->items[ot->used++] = o;
   return ot->used;
+}
+
+Object *oTablePop (ObjectTable *ot)
+{
+  Object *tmp;
+  assert (oTableSize (ot));
+  tmp = oTableTop (ot);
+  /* TODO: Should we have something like oTableItemSet? */
+  oTableItem (ot, oTableSize (ot)) = NULL;
+  ot->used--;
+  return tmp;
+}
+
+Object *oTableTop (ObjectTable *ot)
+{
+  assert (oTableSize (ot));
+  return oTableItem (ot, oTableSize (ot)-1);
 }
 
 bool objConsEqual (const Object *o1, const Object *o2)

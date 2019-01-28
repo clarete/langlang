@@ -359,7 +359,6 @@ Object *mMatchList (Machine *m, Object *input)
       WARN ("SPAN instruction is noop for lists");
       continue;
     case OP_CHOICE:
-      sp->cap = m->cap;
       PUSH (l, pc + UOPERAND0 (pc));
       pc++;
       continue;

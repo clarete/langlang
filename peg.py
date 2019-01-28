@@ -849,7 +849,7 @@ class Compiler:
             s = i.encode('ascii')
             assembled += struct.pack('>' + ('s'*len(s)), *s)
         # Write code size & code
-        assembled += uint16(len(code))
+        assembled += uint16(len(self.code))
         assembled += code
         return assembled
 

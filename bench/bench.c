@@ -29,8 +29,7 @@
 
 #define NUM_RUNS 13
 
-void run (const char *name,
-          const char *grammar_file,
+void run (const char *grammar_file,
           const char *input_file)
 {
   struct timespec start, stop;
@@ -63,16 +62,17 @@ void run (const char *name,
     mFree (&m);
   }
 
-  printf ("%s ran in %lfs (%ld)\n", name, total / i, i);
+  printf ("Result: %s ran against %s in %lfs (%ld)\n",
+          grammar_file, input_file, total / i, i);
 }
 
 int main ()
 {
   /* 1000 lines & 500 columns */
-  run ("csv", "csv0.binx", "./data/1.a.csv");
+  run ("csv0.binx", "./data/1.a.csv");
   /* 500 lines & 1000 columns */
-  run ("csv", "csv0.binx", "./data/1.b.csv");
+  run ("csv0.binx", "./data/1.b.csv");
   /* 1000 lines & 1000 columns */
-  run ("csv", "csv0.binx", "./data/1.c.csv");
+  run ("csv0.binx", "./data/1.c.csv");
   return EXIT_SUCCESS;
 }

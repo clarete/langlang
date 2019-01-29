@@ -884,12 +884,10 @@ def dbgcc(c, bc, header):
             cursor += ssize
     # Parse body
         codeSize = readuint16(bc[cursor:cursor+2]); cursor += 2
-        codeStart = len(bc)-codeSize
         print('Code(%d)' % codeSize)
     else:
-        codeSize = len(bc)
-        codeStart = 0
-    unpacked = struct.unpack('>' + ('I' * (codeSize/4)), bc[codeStart:])
+        codeSize = len(bc) / 4
+    unpacked = struct.unpack('>' + ('I' * codeSize), bc[cursor:])
     for i, instr in enumerate(unpacked):
         obj = Instructions(OP_MASK(instr))
         name = obj.name

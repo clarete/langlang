@@ -52,10 +52,8 @@ if __name__ == '__main__':
     gencsvdata('./data/1.a.csv', 10, 10)
     gencsvdata('./data/1.b.csv', 100, 100)
     gencsvdata('./data/1.c.csv', 1000, 1000)
-
     gencsvdata('./data/2.a.csv', 1000, 500)
     gencsvdata('./data/2.b.csv', 500, 1000)
-    gencsvdata('./data/2.c.csv', 1000, 1000)
 
     genjsondata('./data/1.a.json', 10, 0)
     genjsondata('./data/1.b.json', 100, 0)

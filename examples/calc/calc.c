@@ -140,7 +140,6 @@ int main ()
   size_t grammar_size = 0, input_size = 0;
   Bytecode *grammar = NULL;
   char *input = NULL;
-  const char *output;
   bool running = true;
   Object *result, *tree;
 
@@ -154,8 +153,8 @@ int main ()
 
       mInit (&m);
       mLoad (&m, grammar);
-      if ((output = mMatch (&m, input, input_size)) != NULL) {
-        tree = mExtract (&m, input);
+      if ((tree = mMatch (&m, input, input_size)) != NULL) {
+        /* tree = mExtract (&m, input); */
         result = calculate (tree);
         printObj (result); printf ("\n");
       }

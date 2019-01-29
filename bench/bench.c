@@ -42,18 +42,23 @@ void runFiles (const char *grammar_file,
   Machine m;
   Bytecode *grammar = NULL;
   unsigned char *input = NULL;
+  Object *output;
 
   readFile (grammar_file, &grammar, &grammar_size);
   readFile (input_file, &input, &input_size);
+
+  printf ("Input: g: %s, i: %s\n", grammar_file, input_file);
 
   for (i = 0; i < NUM_RUNS; i++) {
     mInit (&m);
     mLoad (&m, grammar);
 
     clock_gettime (CLOCK_MONOTONIC, &start);
-    assert (mMatch (&m, (const char *) input, input_size));
-    /* mExtract (&m, (const char *) input); */
+    output = mMatch (&m, (const char *) input, input_size);
     clock_gettime (CLOCK_MONOTONIC, &stop);
+    assert (output);
+    objFree (output);
+    /* mExtract (&m, (const char *) input); */
 
     time_taken =
       (stop.tv_sec - start.tv_sec) +

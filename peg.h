@@ -79,6 +79,7 @@ typedef struct {
   Object *l;
   Instruction *pc;
   uint32_t cap;
+  uint32_t btCount;
 } BacktrackEntry;
 
 /* Virtual Machine */
@@ -126,7 +127,7 @@ void mLoad (Machine *m, Bytecode *code);
 /* Create a new symbol & store it within the machine's symbol table */
 Object *mSymbol (Machine *m, const char *sym, size_t len);
 /* Try to match input against the pattern loaded into the machine. */
-const char *mMatch (Machine *m, const char *input, size_t input_size);
+Object *mMatch (Machine *m, const char *input, size_t input_size);
 /* Try to match input list against pattern loaded into the VM */
 Object *mMatchList (Machine *m, Object *input);
 /* Extract matches from the machine's capture stack */

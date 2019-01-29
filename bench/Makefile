@@ -2,7 +2,7 @@ all: bin
 
 include ../common.mk
 
-BINX	:= csv0.binx
+BINX	:= csv0.binx json0.binx
 
 BENCH	:= bench
 SRCS	:= bench.c

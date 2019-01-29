@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <dirent.h>
 
 #include "../debug.h"
 #include "../peg.h"
@@ -29,8 +31,8 @@
 
 #define NUM_RUNS 13
 
-void run (const char *grammar_file,
-          const char *input_file)
+void runFiles (const char *grammar_file,
+               const char *input_file)
 {
   struct timespec start, stop;
   double time_taken;
@@ -66,13 +68,40 @@ void run (const char *grammar_file,
           grammar_file, input_file, total / i, i);
 }
 
+static bool endsWith (const char *str, const char *suffix)
+{
+  size_t lenS = strlen (str);
+  size_t lenSuffix = strlen (suffix);
+  if (lenS < lenSuffix) return false;
+  return strncmp (str + (lenS - lenSuffix), suffix, lenSuffix) == 0;
+}
+
+void run ()
+{
+  DIR *dp;
+  struct dirent *de;
+  char fpath[PATH_MAX];
+
+  if ((dp = opendir ("./data")) == NULL) {
+    fprintf (stderr, "Directory data doesn't seem to exist\n");
+    fprintf (stderr, "the `make' command should put it back there\n");
+    fprintf (stderr, "so long\n");
+    exit (2);
+  }
+  while ((de = readdir (dp)) != NULL) {
+    memset (fpath, 0, PATH_MAX);
+    memcpy (fpath, "./data/", 7);
+    memcpy (fpath+7, de->d_name, strlen (de->d_name));
+    if (endsWith (de->d_name, ".csv"))
+      runFiles ("csv0.binx", (const char *) fpath);
+    else if (endsWith (de->d_name, ".json"))
+      runFiles ("json0.binx", (const char *) fpath);
+  }
+  closedir (dp);
+}
+
 int main ()
 {
-  /* 1000 lines & 500 columns */
-  run ("csv0.binx", "./data/1.a.csv");
-  /* 500 lines & 1000 columns */
-  run ("csv0.binx", "./data/1.b.csv");
-  /* 1000 lines & 1000 columns */
-  run ("csv0.binx", "./data/1.c.csv");
+  run ();
   return EXIT_SUCCESS;
 }

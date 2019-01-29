@@ -1,0 +1,34 @@
+JSON      <- ;_ ;Value
+
+Value     <- Object  ;_
+           / Array   ;_
+           / Number  ;_
+           / String  ;_
+           / True    ;_
+           / False   ;_
+           / Null    ;_
+
+Object    <- ;CBO (Pair (;COMA Pair)*)? ;CBC
+Pair      <- String ;COLON ;JSON
+Array     <- ;ARO (;JSON (;COMA ;JSON)* )? ;ARC
+
+String    <- ;QUOTE %C{ (!QUOTE .)* } ;QUOTE
+Number    <- ;MINUS? %C{ [0-9]+ (;DOT [0-9]+)? }
+
+True      <- ;'true'
+False     <- ;'false'
+Null      <- ;'null'
+
+QUOTE     <- ;'"' ;_
+MINUS     <- ;'-' ;_
+DOT       <- ;'.' ;_
+COLON     <- ;':' ;_
+COMA      <- ;',' ;_
+CBO       <- ;'{' ;_
+CBC       <- ;'}' ;_
+ARO       <- ;'[' ;_
+ARC       <- ;']' ;_
+
+_         <- ;Space*
+Space     <- ;' ' / ;'\t' / ;EndOfLine
+EndOfLine <- ;'\r\n' / ;'\n' / ;'\r'

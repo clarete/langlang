@@ -20,6 +20,7 @@
 import io
 import random
 import sys
+import json
 
 
 def gencsvdata(file_name, lines, cols):
@@ -33,7 +34,38 @@ def gencsvdata(file_name, lines, cols):
             fp.write('\n')
 
 
+def genjsondata(file_name, elements, depth):
+    "Generate JSON data with some depth"
+    sys.setrecursionlimit(2000)
+    def create(sdepth):
+        node = {}
+        for el in range(elements):
+            node["el%d" % el] = el
+        if sdepth:
+            node['depth%d' % sdepth] = create(sdepth-1)
+        return node
+    with io.open(file_name, 'w') as fp:
+        json.dump(create(depth), fp)
+
+
 if __name__ == '__main__':
-    gencsvdata('./data/1.a.csv', 1000, 500)
-    gencsvdata('./data/1.b.csv', 500, 1000)
+    gencsvdata('./data/1.a.csv', 10, 10)
+    gencsvdata('./data/1.b.csv', 100, 100)
     gencsvdata('./data/1.c.csv', 1000, 1000)
+
+    gencsvdata('./data/2.a.csv', 1000, 500)
+    gencsvdata('./data/2.b.csv', 500, 1000)
+    gencsvdata('./data/2.c.csv', 1000, 1000)
+
+    genjsondata('./data/1.a.json', 10, 0)
+    genjsondata('./data/1.b.json', 100, 0)
+    genjsondata('./data/1.c.json', 1000, 0)
+
+    genjsondata('./data/2.a.json', 0, 10)
+    genjsondata('./data/2.b.json', 0, 100)
+    genjsondata('./data/2.c.json', 0, 1000)
+
+    genjsondata('./data/3.a.json', 10, 10)
+    genjsondata('./data/3.b.json', 100, 100)
+    genjsondata('./data/3.c.json', 1000, 1000)
+

@@ -62,7 +62,7 @@ static const char *opNames[OP_END] = {
 void mInit (Machine *m)
 {
   oTableInit (&m->symbols);
-  m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry *));
+  m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
   m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
   m->li = NULL;                 /* Set by Fail */
@@ -429,7 +429,7 @@ Object *mExtract (Machine *m, const char *input)
   Object *key, *result = NULL, **ostack = NULL;
 
 #define PUSH_S(i)  (stack = adjustArray (stack, sizeof (CaptureEntry), sp, &maxsp), stack[sp++] = i)
-#define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (Object*), spo, &maxspo), ostack[spo++] = i)
+#define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (Object), spo, &maxspo), ostack[spo++] = i)
 
   DEBUGLN ("  Extract: %d", m->cap);
 

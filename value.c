@@ -57,6 +57,26 @@ Object *makeSymbol (const char *p, size_t len)
   return (Object *) symbol;
 }
 
+Object *makeString (const char *p, size_t len)
+{
+  String *str;
+  str = STRING (makeObject (TYPE_STRING, sizeof (String)));
+  memcpy (str->value, p, len);
+  str->value[len] = '\0';
+  str->len = len;
+  return OBJ (str);
+}
+
+size_t llStringLen (Object *s)
+{
+  return STRING (s)->len;
+}
+
+char llStringCharAt (Object *s, size_t i)
+{
+  return STRING (s)->value[i];
+}
+
 Object *makeInt (long int v)
 {
   Int *o = INT (makeObject (TYPE_INT, sizeof (Int)));
@@ -75,6 +95,8 @@ void objFree (Object *o)
   case TYPE_SYMBOL: break;
     /* Leaf-node, just free it */
   case TYPE_INT: free (INT (o)); break;
+    /* Leaf-node, just free it */
+  case TYPE_STRING: free (STRING (o)); break;
     /* Recursive case */
   case TYPE_CONS:
     if (CAR (o))
@@ -202,7 +224,8 @@ bool objEqual (const Object *o1, const Object *o2)
   case TYPE_INT: return INT (o1)->value == INT (o2)->value;
   /* TODO: Should compare pointer, will fix after adding lookup to
      symbol factory */
-  case TYPE_SYMBOL: return strcmp (SYMBOL (o1)->name, SYMBOL (o2)->name) == 0;
+  case TYPE_SYMBOL: return SYMBOL (o1) == SYMBOL (o2);
+  case TYPE_STRING: return strcmp (STRING (o1)->value, STRING (o2)->value) == 0;
   case TYPE_CONS: return objConsEqual (o1, o2);
   default: FATAL ("Unknown type passed to printObj: %d\n", o1->type);
   }
@@ -263,6 +286,13 @@ static void printSymbol (const Object *symbol)
   printf ("\"");
 }
 
+static void printString (const Object *symbol)
+{
+  printf ("\"");
+  rawPrint (STRING (symbol)->value, STRING (symbol)->len);
+  printf ("\"");
+}
+
 static void printObjIndent (const Object *obj, int level)
 {
   if (!obj) {
@@ -270,6 +300,7 @@ static void printObjIndent (const Object *obj, int level)
   } else {
     switch (obj->type) {
     case TYPE_SYMBOL: printSymbol (obj); break;
+    case TYPE_STRING: printString (obj); break;
     case TYPE_NIL: printf ("nil"); break;
     case TYPE_CONS: printCons (CONS (obj), level); break;
     case TYPE_INT: printf ("%ld", INT (obj)->value); break;

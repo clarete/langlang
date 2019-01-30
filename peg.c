@@ -167,15 +167,15 @@ static void append (Object *l, Object *i)
    yet. */
 static Object *appendChar (Object *s, char c)
 {
-  assert (SYMBOLP (s));
-  SYMBOL (s)->name[SYMBOL (s)->len++] = c;
+  assert (STRINGP (s));
+  STRING (s)->value[STRING (s)->len++] = c;
   return s;
 }
 
 static void popChar (Object *s)
 {
-  assert (SYMBOLP (s));
-  SYMBOL (s)->name[SYMBOL (s)->len--] = 0;
+  assert (STRINGP (s));
+  STRING (s)->value[STRING (s)->len--] = 0;
 }
 
 /* Run the matching machine */
@@ -241,7 +241,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       btCount++;
 
       if (UOPERAND1 (pc)) {     /* If the match is a terminal */
-        oTableInsertObject (&treestk, makeSymbol ("", 0));
+        oTableInsertObject (&treestk, makeString ("", 0));
       } else {                  /* If the match is a non-terminal */
         Object *node = makeCons (oTableItem (&m->symbols, UOPERAND2 (pc)), OBJ (Nil));
         oTableInsertObject (&treestk, node);
@@ -271,7 +271,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       /*         *i == '\n' ? 'N' : *i, */
       /*         UOPERAND0 (pc) == '\n' ? 'N' : UOPERAND0 (pc)); */
       if (i < THE_END && *i == UOPERAND0 (pc)) {
-        if (SYMBOLP (oTableTop (&treestk))) {
+        if (STRINGP (oTableTop (&treestk))) {
           appendChar (oTableTop (&treestk), *i);
           /* DEBUG_TREE (); */
         }
@@ -283,7 +283,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       DEBUGLN ("       OP_ANY: `%c' < |s| ? %d", *i, i < THE_END);
       /* printf ("ANY: %c\n", *i); */
       if (i < THE_END) {
-        if (SYMBOLP (oTableTop (&treestk))) {
+        if (STRINGP (oTableTop (&treestk))) {
           appendChar (oTableTop (&treestk), *i);
           /* DEBUG_TREE (); */
         }
@@ -297,7 +297,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
                UOPERAND2 (pc), UOPERAND2 (pc));
       /* printf ("SPAN: %c\n", *i); */
       if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) {
-        if (SYMBOLP (oTableTop (&treestk))) {
+        if (STRINGP (oTableTop (&treestk))) {
           appendChar (oTableTop (&treestk), *i);
           /* DEBUG_TREE (); */
         }
@@ -359,9 +359,9 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
         Object *tp = oTableSize (&treestk) > 0
           ? oTableTop (&treestk)
           : NULL;
-        if (tp && SYMBOLP (tp)
-               && SYMBOL (tp)->len > 0
-               && SYMBOL (tp)->name[SYMBOL (tp)->len-1] == *i) {
+        if (tp && STRINGP (tp)
+            && llStringLen (tp) > 0
+            && llStringCharAt (tp, llStringLen (tp)-1) == *i) {
           popChar (oTableTop (&treestk));
         }
 

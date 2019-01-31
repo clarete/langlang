@@ -115,6 +115,7 @@ typedef enum {
   OP_ATOM,
   OP_OPEN,
   OP_CLOSE,
+  OP_CAPCHAR,
   OP_END,
 } OpCode;
 

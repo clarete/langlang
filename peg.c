@@ -56,6 +56,7 @@ static const char *opNames[OP_END] = {
   [OP_ATOM] = "OP_ATOM",
   [OP_OPEN] = "OP_OPEN",
   [OP_CLOSE] = "OP_CLOSE",
+  [OP_CAPCHAR] = "OP_CAPCHAR",
 };
 
 /* Set initial values for the machine */
@@ -229,10 +230,13 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
     case OP_HALT:
       if (m->li && !i) printf ("Match failed at pos %ld\n", m->li - input + 1);
       else {
-        /* DEBUG_TREE (); */
-        Object *tmp = oTablePop (&treestk);
-        oTableFree (&treestk);
-        return tmp;
+        if (oTableSize (&treestk) > 0) {
+          Object *tmp = oTablePop (&treestk);
+          oTableFree (&treestk);
+          return tmp;
+        }
+        /* It currently means success. */
+        return OBJ (Nil);
       }
     case OP_CAP_OPEN:
       /* printf ("OPEN[%c]: %s\n", UOPERAND1 (pc) ? 'T' : 'F', */
@@ -264,31 +268,23 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       /* PUSH_CAP (i, CapClose, UOPERAND1 (pc), UOPERAND2 (pc)); */
       pc++;
       continue;
+    case OP_CAPCHAR:
+      appendChar (oTableTop (&treestk), *(i-1));
+      pc++;
+      continue;
     case OP_CHAR:
       DEBUGLN ("       OP_CHAR: `%c' == `%c' ? %d", *i,
                UOPERAND0 (pc), *i == UOPERAND0 (pc));
       /* printf ("CHAR: `%c' == `%c'\n", */
       /*         *i == '\n' ? 'N' : *i, */
       /*         UOPERAND0 (pc) == '\n' ? 'N' : UOPERAND0 (pc)); */
-      if (i < THE_END && *i == UOPERAND0 (pc)) {
-        if (STRINGP (oTableTop (&treestk))) {
-          appendChar (oTableTop (&treestk), *i);
-          /* DEBUG_TREE (); */
-        }
-        i++; pc++;
-      }
+      if (i < THE_END && *i == UOPERAND0 (pc)) { i++; pc++; }
       else goto fail;
       continue;
     case OP_ANY:
       DEBUGLN ("       OP_ANY: `%c' < |s| ? %d", *i, i < THE_END);
       /* printf ("ANY: %c\n", *i); */
-      if (i < THE_END) {
-        if (STRINGP (oTableTop (&treestk))) {
-          appendChar (oTableTop (&treestk), *i);
-          /* DEBUG_TREE (); */
-        }
-        i++; pc++;
-      }
+      if (i < THE_END) { i++; pc++; }
       else goto fail;
       continue;
     case OP_SPAN:
@@ -296,13 +292,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
                UOPERAND1 (pc), UOPERAND1 (pc),
                UOPERAND2 (pc), UOPERAND2 (pc));
       /* printf ("SPAN: %c\n", *i); */
-      if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) {
-        if (STRINGP (oTableTop (&treestk))) {
-          appendChar (oTableTop (&treestk), *i);
-          /* DEBUG_TREE (); */
-        }
-        i++; pc++;
-      }
+      if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) { i++; pc++; }
       else goto fail;
       continue;
     case OP_CHOICE:

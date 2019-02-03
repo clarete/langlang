@@ -88,6 +88,7 @@ static void printSymbol (const Object *symbol);
 
 void objFree (Object *o)
 {
+  Object *tmp;
   switch (o->type) {
     /* Statically allocated, don't free it! */
   case TYPE_NIL: break;
@@ -99,12 +100,14 @@ void objFree (Object *o)
   case TYPE_STRING: free (STRING (o)); break;
     /* Recursive case */
   case TYPE_CONS:
-    if (CAR (o))
-      objFree (CAR (o));
-    if (CDR (o))
-      objFree (CDR (o));
-    free (CONS (o));
+    while (CONSP (o)) {
+      tmp = o;
+      objFree (CAR (tmp));
+      o = CDR (tmp);
+      free (CONS (tmp));
+    }
     break;
+    /* Error Handling */
   default:
     fprintf (stderr, "Invalid Object Type\n");
     break;

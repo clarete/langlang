@@ -52,8 +52,9 @@ class TokenTypes(enum.Enum):
      OPCB,
      CLCB,
      OPLS,                      # Closed with CLCB
+     OPCAP,
      END,
-    ) = range(19)
+    ) = range(20)
 
 class Token:
     def __init__(self, _type, value=None, line=0, pos=0):
@@ -87,8 +88,6 @@ class And(Node): pass
 
 class Not(Node): pass
 
-class Quiet(Node): pass
-
 class Question(Node): pass
 
 class Star(Node): pass
@@ -102,6 +101,8 @@ class Definition(Node): pass
 class Expression(Node): pass
 
 class CaptureBlock(Node): pass
+
+class CaptureNode(Node): pass
 
 class Sequence(Node): pass
 
@@ -225,8 +226,11 @@ class Parser:
             return self.t(TokenTypes.OPLS)
         elif self.matchc('}'):
             return self.t(TokenTypes.CLCB)
-        elif self.matchc('%') and self.matchc('C') and self.matchc('{'):
-            return self.t(TokenTypes.OPCB)
+        elif self.matchc('%'):
+            if self.matchc('{'):
+                return self.t(TokenTypes.OPCB)
+            else:
+                return self.t(TokenTypes.OPCAP)
         else:
             raise SyntaxError("Unexpected char `{}'".format(self.peekc()))
 
@@ -324,7 +328,6 @@ class Parser:
             prefix = lambda x: x
             if self.matcht(TokenTypes.AND): prefix = And
             elif self.matcht(TokenTypes.NOT): prefix = Not
-            elif self.matcht(TokenTypes.QUIET): prefix = Quiet
             suffix = self.parseSuffix()
             if suffix is None: break
             output.append(prefix(suffix))
@@ -345,7 +348,10 @@ class Parser:
         #          / OPEN Expression CLOSE
         #          / Capture   # Extension
         #          / Literal / Class / DOT
-        if self.testt(TokenTypes.IDENTIFIER) and self.peekt()._type != TokenTypes.ARROW:
+        if self.testt(TokenTypes.OPCAP) and self.peekt()._type == TokenTypes.IDENTIFIER:
+            self.consumet(TokenTypes.OPCAP)
+            return CaptureNode(Identifier(self.consumet(TokenTypes.IDENTIFIER).value))
+        elif self.testt(TokenTypes.IDENTIFIER) and self.peekt()._type != TokenTypes.ARROW:
             return Identifier(self.consumet(TokenTypes.IDENTIFIER).value)
         elif self.testt(TokenTypes.LITERAL):
             return Literal(self.consumet(TokenTypes.LITERAL).value)
@@ -556,8 +562,9 @@ class Instructions(enum.Enum):
      OP_ATOM,
      OP_OPEN,
      OP_CLOSE,
+     OP_CAPCHAR,
      OP_END,
-    ) = range(22)
+    ) = range(23)
 
 InstructionParams = {
     Instructions.OP_HALT: 0,
@@ -581,6 +588,7 @@ InstructionParams = {
     Instructions.OP_ATOM: 1,
     Instructions.OP_OPEN: 0,
     Instructions.OP_CLOSE: 0,
+    Instructions.OP_CAPCHAR: 0,
     Instructions.OP_END: 0,
 }
 
@@ -607,21 +615,38 @@ def gen(instruction_name, arg0=None, arg1=None):
 class Capture:
 
     def __init__(self, compiler, capture, isTerminal, capId):
-        self.capture = capture
         self.compiler = compiler
+        self.capture = capture
         self.isTerminal = isTerminal
         self.capId = capId
+        self.backup = compiler.capture
 
     def __enter__(self):
-        if self.capture:
-            self.compiler.emit(
-                "cap_open", self.isTerminal, self.compiler._str(self.capId))
+        self.compiler.capture = True
+        self.compiler.emit(
+            "cap_open",
+            self.isTerminal,
+            self.capId and self.compiler._str(self.capId))
         return self
 
     def __exit__(self, _type, value, traceback):
-        if self.capture:
-            self.compiler.emit(
-                "cap_close", self.isTerminal, self.compiler._str(self.capId))
+        self.compiler.capture = self.backup
+        self.compiler.emit(
+            "cap_close",
+            self.isTerminal,
+            self.capId and self.compiler._str(self.capId))
+
+
+class DisableCapture:
+    def __init__(self, c):
+        self.c = c
+        self.backup = c.capture
+
+    def __enter__(self):
+        self.c.capture = False
+
+    def __exit__(self, _type, value, traceback):
+        self.c.capture = self.backup
 
 
 class Compiler:
@@ -638,10 +663,9 @@ class Compiler:
         # Save all the call instructions that need to be updated with
         # the final address of where they want to call to.
         self.callsites = {}
-        # If we're going to generate capture opcodes or not.
-        self.capture = capture
-        # Capture id
-        self.captureId = 0
+        # Flag to signal if cap_{open,close} instructions should be
+        # emitted or not.
+        self.capture = False
         # All strings that couldn't fit within an instruction
         # parameter.
         self.strings = []
@@ -662,28 +686,21 @@ class Compiler:
             self.strings.append(value)
         return self.strings.index(value)
 
-    def _capture(self, isTerminal, capid, disable=False):
-        return Capture(self, self.capture and not disable, isTerminal, capid)
+    def _capture(self, isTerminal, capid=False):
+        return Capture(self, self.capture, isTerminal, capid)
 
     def _disableCapture(self):
-        class DisableCapture:
-            def __init__(self, c):
-                self.c = c
-                self.backup = c.capture
-            def __enter__(self):
-                self.c.capture = False
-            def __exit__(self, _type, value, traceback):
-                self.c.capture = self.backup
         return DisableCapture(self)
 
-    def compileQuiet(self, atom):
-        with self._disableCapture():
+    def compileCaptureBlock(self, atom):
+        with self._capture(1):
             self.compileAtom(atom.value)
 
-    def compileCaptureBlock(self, atom):
-        self._str("")
-        with self._capture(1, ""):
-            self.compileQuiet(atom)
+    def compileCaptureNode(self, atom):
+        assert(isinstance(atom.value, Identifier))
+        self._str(atom.value.value)
+        with self._capture(0, atom.value.value):
+            self.compileAtom(atom.value)
 
     def compileNot(self, atom):
         pos = self.emit("choice") -1
@@ -701,29 +718,33 @@ class Compiler:
         self.emit("commit", 1)
         self.emit("fail")
 
-    def compileLiteral(self, literal):
-        currentPos = self.pos
-        with self._capture(1, literal.value):
-            for i in literal.value:
-                self.emit("char", ord(i))
-        return self.pos - currentPos
-
     def compileString(self, string):
         currentPos = self.pos
         idx = self._str(string.value)
-        with self._capture(1, string.value):
-            self.emit("atom", idx)
+        self.emit("atom", idx)
+        return self.pos - currentPos
+
+    def compileLiteral(self, literal):
+        currentPos = self.pos
+        for i in literal.value:
+            self.emit("char", ord(i))
+            if self.capture:
+                self.emit("capchar")
         return self.pos - currentPos
 
     def compileAny(self, atom):
-        with self._capture(1, 'Any'):
-            self.emit("any")
+        currentPos = self.pos
+        self.emit("any")
+        if self.capture:
+            self.emit("capchar")
+        return self.pos - currentPos
 
     def compileRange(self, theRange):
         currentPos = self.pos
         left, right = theRange
-        with self._capture(1, '{}-{}'.format(left, right)):
-            self.emit("span", ord(left), ord(right))
+        self.emit("span", ord(left), ord(right))
+        if self.capture:
+            self.emit("capchar")
         return self.pos - currentPos
 
     def compileSequence(self, sequence):
@@ -749,12 +770,10 @@ class Compiler:
     def compileIdentifier(self, atom):
         # Emit an OP_CALL as a placeholder to be patched at the end of
         # the code generation
-        self._str(atom.value)
-        with self._capture(0, atom.value):
-            pos = self.emit("call") -1
-            if atom.value not in self.callsites:
-                self.callsites[atom.value] = []
-            self.callsites[atom.value].append(pos)
+        pos = self.emit("call") -1
+        if atom.value not in self.callsites:
+            self.callsites[atom.value] = []
+        self.callsites[atom.value].append(pos)
 
     def compileStar(self, atom):
         pos = self.emit("choice") -1
@@ -809,7 +828,7 @@ class Compiler:
         elif isinstance(atom, Identifier): self.compileIdentifier(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
-        elif isinstance(atom, Quiet): self.compileQuiet(atom)
+        elif isinstance(atom, CaptureNode): self.compileCaptureNode(atom)
         elif isinstance(atom, CaptureBlock): self.compileCaptureBlock(atom)
         elif isinstance(atom, List): self.compileList(atom)
         else: raise Exception("Unknown atom %s" % atom)
@@ -818,17 +837,18 @@ class Compiler:
         # It's always 2 because invariant contains two instructions
         self.emit("call", 2)
         pos = self.emit("jump")
-        distance = self.capture and 3 or 2
+        distance = 3 # Above invariant + the cap_open below.
         size = 0
         addresses = {}
-        self._str(self.start)
-        with self._capture(0, self.start):
-            for definition in self.ga.value:
-                identifier, expression = definition.value
-                addresses[identifier] = self.pos
-                self.cc(expression)
-                self.emit("return")
-                size += self.pos - addresses[identifier]
+
+        self.emit('cap_open', 0, self._str(self.start))
+        for definition in self.ga.value:
+            identifier, expression = definition.value
+            addresses[identifier] = self.pos
+            self.cc(expression)
+            self.emit("return")
+            size += self.pos - addresses[identifier]
+        self.emit('cap_close', 0, self._str(self.start))
         self.code[pos-1] = gen("jump", size + distance)
         self.emit("halt")
 
@@ -1023,24 +1043,24 @@ def test_tokenizer():
         Token(TokenTypes.END, line=0, pos=11),
     ])
 
-    # Quiet
-    test("S <- ;'a'", [
+    # Capture Node
+    test("S <- %A", [
         Token(TokenTypes.IDENTIFIER, 'S', line=0, pos=0),
         Token(TokenTypes.ARROW, line=0, pos=2),
-        Token(TokenTypes.QUIET, line=0, pos=5),
-        Token(TokenTypes.LITERAL, 'a', line=0, pos=6),
-        Token(TokenTypes.END, line=0, pos=9),
+        Token(TokenTypes.OPCAP, line=0, pos=5),
+        Token(TokenTypes.IDENTIFIER, 'A', line=0, pos=6),
+        Token(TokenTypes.END, line=0, pos=7),
     ])
 
-    # Capture Operator
-    test("S <- %C{ [a-z]* }", [
+    # Capture Block Operator
+    test("S <- %{ [a-z]* }", [
         Token(TokenTypes.IDENTIFIER, 'S', line=0, pos=0),
         Token(TokenTypes.ARROW, line=0, pos=2),
         Token(TokenTypes.OPCB, line=0, pos=5),
-        Token(TokenTypes.CLASS, [['a', 'z']], line=0, pos=9),
-        Token(TokenTypes.STAR, line=0, pos=14),
-        Token(TokenTypes.CLCB, line=0, pos=16),
-        Token(TokenTypes.END, line=0, pos=17),
+        Token(TokenTypes.CLASS, [['a', 'z']], line=0, pos=8),
+        Token(TokenTypes.STAR, line=0, pos=13),
+        Token(TokenTypes.CLCB, line=0, pos=15),
+        Token(TokenTypes.END, line=0, pos=16),
     ])
 
     # Lists
@@ -1184,6 +1204,19 @@ EndOfFile  <- !.
                                       Literal(')')]),
                             Identifier('Num')])]),
         Definition(['Num', Expression([Plus(Class([['0', '9']]))])])]))
+
+    # Captures
+
+    test("S <- %{ A }\nA <- 'a'\n", Grammar([
+        Definition(['S', Expression([
+            CaptureBlock(Expression([Identifier('A')]))])]),
+        Definition(['A', Expression([Literal('a')])])
+    ]))
+
+    test("S <- %A\nA <- %{ 'a' }", Grammar([
+        Definition(['S', Expression([CaptureNode(Identifier('A'))])]),
+        Definition(['A', Expression([CaptureBlock(Expression([Literal('a')]))])])
+    ]))
 
 
 def _safe_from_error(p):
@@ -1537,55 +1570,8 @@ def test_compile():
         gen("halt"),
     ))
 
-    # Captures
-    assert(cc("S <- 'a'", capture=True) == bn(
-        gen("call", 0x02),      # 0x01: Call 0x02
-        gen("jump", 0x07),      # 0x03: Jump 0x07
-        gen("cap_open", 0, 0),  # 0x00: CapOpen 0 (Main)
-        gen("cap_open", 1, 1),  # 0x04: CapOpen 1
-        gen("char", ord('a')),  # 0x05: Char 'a'
-        gen("cap_close", 1, 1), # 0x06: CapOpen 1
-        gen("return"),          # 0x07: Return
-        gen("cap_close", 0, 0), # 0x02: CapClose (Main)
-        gen("halt"),            # 0x08: Halt
-    ))
-
-    assert(cc("S <- 'a' 'b'", capture=True) == bn(
-        gen("call", 0x02),      # 0x01: Call 0x02
-        gen("jump", 0x0a),      # 0x02: Jump 0x0a
-        gen("cap_open", 0, 0),  # 0x03: CapOpen 0 (Main)
-
-        gen("cap_open", 1, 1),  # 0x04: CapOpen 1 (Seq#0)
-        gen("char", ord('a')),  # 0x05: Char 'a'
-        gen("cap_close", 1, 1), # 0x06: CapClose 1 (Seq#0)
-
-        gen("cap_open", 1, 2),  # 0x07: CapOpen 2 (Seq#1)
-        gen("char", ord('b')),  # 0x08: Char 'a'
-        gen("cap_close", 1, 2), # 0x09: CapClose 2 (Seq#1)
-
-        gen("return"),          # 0x0a: Return
-        gen("cap_close", 0, 0), # 0x0b: CapClose 0 (Main)
-        gen("halt"),            # 0x0c: Halt
-    ))
-
-    assert(cc("S <- 'a' ;'b'", capture=True) == bn(
-        gen("call", 0x02),      # 0x01: Call 0x02
-        gen("jump", 0x08),      # 0x02: Jump 0x08
-
-        gen("cap_open", 0, 0),  # 0x03: CapOpen 0 (Main)
-        gen("cap_open", 1, 1),  # 0x04: CapOpen 1 (Seq#0)
-        gen("char", ord('a')),  # 0x05: Char 'a'
-        gen("cap_close", 1, 1), # 0x06: CapClose 1 (Seq#0)
-
-        #  No captures for this
-        gen("char", ord('b')),  # 0x07: Char 'b'
-
-        gen("return"),          # 0x08: Return
-        gen("cap_close", 0, 0), # 0x09: CapClose 0 (Main)
-        gen("halt"),            # 0x0a: Halt
-    ))
-
-    assert(cc("A <- !{ .* } .", capture=False) == bn(
+    # Lists
+    assert(cc("A <- !{ .* } .") == bn(
         gen("call",   0x02),    # 0x00: Call 0x02
         gen("jump",   0x0c),    # 0x01: Jump 0x0c
         gen("choice", 0x08),    # 0x02: Choice 0x08
@@ -1605,14 +1591,56 @@ def test_compile():
         gen("halt"),            # 0x0c: Halt
     ))
 
+    # Atom
     assert(cc('A <- { "test" }\n', capture=False) == bn(
         gen("call",   0x02),    # 0x00: Call 0x02
         gen("jump",   0x06),    # 0x01: Jump 0x06
         gen("open"),            # 0x02: Open
-        gen("atom",   0x01),    # 0x03: Atom 0x01
+        gen("atom",   0x00),    # 0x03: Atom 0x00
         gen("close"),           # 0x04: Close
         gen("return"),          # 0x05: Return
         gen("halt"),            # 0x06: Halt
+    ))
+
+
+    # Captures
+    assert(cc("S <- %{ 'a' }") == bn(
+        gen("call", 0x02),      # 0x00: Call 0x02
+        gen("jump", 0x07),      # 0x01: Jump 0x07
+        gen("cap_open", 1, 0),  # 0x02: CapOpen 1 0
+        gen("char", ord('a')),  # 0x03: Char 'a'
+        gen("capchar"),         # 0x04: CapChar
+        gen("cap_close", 1, 0), # 0x05: CapClose 1 0
+        gen("return"),          # 0x06: Return
+        gen("halt"),            # 0x07: Halt
+    ))
+
+    assert(cc("S <- %{ 'a' 'b' }") == bn(
+        gen("call", 0x02),      # 0x00: Call 0x02
+        gen("jump", 0x09),      # 0x01: Jump 0x09
+        gen("cap_open", 1, 0),  # 0x02: CapOpen 1 0
+        gen("char", ord('a')),  # 0x03: Char 'a'
+        gen("capchar"),         # 0x04: CapChar
+        gen("char", ord('b')),  # 0x05: Char 'a'
+        gen("capchar"),         # 0x06: CapChar
+        gen("cap_close", 1, 0), # 0x07: CapClose 1 0
+        gen("return"),          # 0x08: Return
+        gen("halt"),            # 0x09: Halt
+    ))
+
+    assert(cc("S <- %A\nA <- %{ 'a' }") == bn(
+        gen("call", 0x02),      # 0x00: Call 0x02
+        gen("jump", 0x0b),      # 0x01: Jump 0x0b
+        gen("cap_open", 0, 0),  # 0x02: CapOpen 0 0
+        gen("call", 0x03),      # 0x03: Call 0x03
+        gen("cap_close", 0, 0), # 0x04: CapClose 0 0
+        gen("return"),          # 0x05: Return
+        gen("cap_open", 1, 0),  # 0x06: CapOpen 1 0
+        gen("char", ord('a')),  # 0x07: Char 0x97
+        gen("capchar"),         # 0x08: CapChar
+        gen("cap_close", 1, 0), # 0x09: CapClose 1 0
+        gen("return"),          # 0x0a: Return
+        gen("halt"),            # 0x0b: Halt
     ))
 
 
@@ -1623,19 +1651,11 @@ def test_compile_header():
         return c.strings
 
     # Name of the rule and char
-    assert(cc("S <- 'a'") == ['S', 'a'])
+    assert(cc("S <- 'a'") == [])
     # Name of the rules and set of chars
-    assert(cc("S <- D [%?!~#$&+]\nD <- [0-9]+") == [
-        'S',
-        'D',
-        '%', '?', '!', '~', '#', '$', '&', '+',
-        '0-9',
-    ])
+    assert(cc("S <- %D\nD <- [0-9]+") == ['D'])
     # Name of the rules and set of chars without dups
-    assert(cc("S <- [ai sim hein]") == [
-        'S',
-        'a', 'i', ' ', 's', 'm', 'h', 'e', 'n',
-    ])
+    assert(cc("S <- %A %B\nA<-'a'\nB<-'b'") == ['A', 'B'])
 
 
 def test():

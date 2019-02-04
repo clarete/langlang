@@ -162,6 +162,20 @@ static void append (Object *l, Object *i)
   CDR (tmp) = makeCons (i, OBJ (Nil));
 }
 
+static Object *pop (Object *l)
+{
+  Object *tmp, *last = NULL;
+  assert (l);
+  assert (CONSP (l));
+  for (tmp = l;
+       !NILP (tmp) && !NILP (CDR (tmp)) && !NILP (CDR (CDR (tmp)));
+       tmp = CDR (tmp));
+  last = CDR (tmp);
+  CDR (tmp) = OBJ (Nil);
+  return last;
+}
+
+
 /* TODO: Not ideal because symbols are unique and changing unique
    things that are shared with many places can cause unwanted
    consequences in this context but we don't have a string type
@@ -173,20 +187,13 @@ static Object *appendChar (Object *s, char c)
   return s;
 }
 
-static void popChar (Object *s)
-{
-  assert (STRINGP (s));
-  STRING (s)->value[STRING (s)->len--] = 0;
-}
-
 /* Run the matching machine */
 Object *mMatch (Machine *m, const char *input, size_t input_size)
 {
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
   const char *i = input;
-  /* uint32_t maxcap = 0; */
-  uint32_t btCount = 0;
+  uint32_t btCount = 0, ltCount = 0;
   ObjectTable treestk;
 
   /** Push data onto the machine's stack  */
@@ -198,18 +205,8 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       the input string. */
 #define THE_END (input + input_size)
 
-  /** Push data to the capture buffer  */
-#define PUSH_CAP(_p,_ty,_tr,_id) do {                                   \
-    m->captures = adjustArray (m->captures, sizeof (CaptureEntry), m->cap, &maxcap); \
-    m->captures[m->cap].pos = _p;                                       \
-    m->captures[m->cap].type = _ty;                                     \
-    m->captures[m->cap].term = _tr;                                     \
-    m->captures[m->cap].idx = _id;                                      \
-    m->cap++;                                                           \
-  } while (0)
-
 #define DEBUG_TREE() do {                                       \
-    printf ("  STACK:\n");                                      \
+    printf ("  STACK: %u:%u\n", btCount, ltCount);              \
     for (uint32_t i = oTableSize (&treestk); i > 0 ; i--) {     \
       printf ("   [%u] ", i-1);                                 \
       printObj (oTableItem (&treestk, i-1));                    \
@@ -228,8 +225,10 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 
     switch (pc->rator) {
     case OP_HALT:
-      if (m->li && !i) printf ("Match failed at pos %ld\n", m->li - input + 1);
-      else {
+      if (m->li && !i) {
+        printf ("Match failed at pos %ld\n", m->li - input + 1);
+        return NULL;
+      } else {
         if (oTableSize (&treestk) > 0) {
           Object *tmp = oTablePop (&treestk);
           oTableFree (&treestk);
@@ -243,32 +242,28 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       /*         SYMBOL (oTableItem (&m->symbols, */
       /*                             UOPERAND2 (pc)))->name); */
       btCount++;
-
       if (UOPERAND1 (pc)) {     /* If the match is a terminal */
         oTableInsertObject (&treestk, makeString ("", 0));
       } else {                  /* If the match is a non-terminal */
         Object *node = makeCons (oTableItem (&m->symbols, UOPERAND2 (pc)), OBJ (Nil));
         oTableInsertObject (&treestk, node);
+        ltCount = 0;
       }
-      /* DEBUG_TREE (); */
-      /* PUSH_CAP (i, CapOpen, UOPERAND1 (pc), UOPERAND2 (pc)); */
       pc++;
       continue;
     case OP_CAP_CLOSE:
       /* printf ("CLOSE[%c]: %s\n", UOPERAND1 (pc) ? 'T' : 'F', */
       /*         SYMBOL (oTableItem (&m->symbols, */
       /*                             UOPERAND2 (pc)))->name); */
-
       if (btCount > 1) {
-        btCount--;
         append (oTableTop (&treestk), oTablePop (&treestk));
+        btCount--;
+        ltCount++;
       }
-      /* DEBUG_TREE (); */
-
-      /* PUSH_CAP (i, CapClose, UOPERAND1 (pc), UOPERAND2 (pc)); */
       pc++;
       continue;
     case OP_CAPCHAR:
+      /* printf ("CAPCHAR\n"); */
       appendChar (oTableTop (&treestk), *(i-1));
       pc++;
       continue;
@@ -296,8 +291,8 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       else goto fail;
       continue;
     case OP_CHOICE:
-      sp->cap = m->cap;
       sp->btCount = btCount;
+      sp->ltCount = ltCount;
       PUSH (i, pc + UOPERAND0 (pc));
       pc++;
       continue;
@@ -342,25 +337,23 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
         /* Non-Terminals can't produce errors, so let's save the last
            known position before moving on */
         if (i) m->li = i;
-        m->cap = sp->cap;
 
-        /* Reflect of how the `NOT' (!) operator works. There was a
-           successful match that led to FAIL. */
-        Object *tp = oTableSize (&treestk) > 0
-          ? oTableTop (&treestk)
-          : NULL;
-        if (tp && STRINGP (tp)
-            && llStringLen (tp) > 0
-            && llStringCharAt (tp, llStringLen (tp)-1) == *i) {
-          popChar (oTableTop (&treestk));
+        /* printf (" FAIL[%u:%u-%u:%u]: %c\n", */
+        /*         btCount, sp->btCount, */
+        /*         ltCount, sp->ltCount, */
+        /*         *i == '\n' ? 'N' : *i); */
+
+        /* Clean capture from sequence */
+        while (ltCount > sp->ltCount) {
+          objFree (pop (oTableTop (&treestk)));
+          ltCount--;
         }
 
+        /* Clean capture stack in depth */
         while (btCount > sp->btCount) {
           objFree (oTablePop (&treestk));
           btCount--;
         }
-        /* printf (" FAIL[%u:%u]: %c\n", */
-        /*         btCount, sp->btCount, *i == '\n' ? 'N' : *i); */
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
         oTableFree (&treestk);

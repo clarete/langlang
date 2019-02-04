@@ -78,8 +78,8 @@ typedef struct {
   const char *i;
   Object *l;
   Instruction *pc;
-  uint32_t cap;
   uint32_t btCount;
+  uint32_t ltCount;
 } BacktrackEntry;
 
 /* Virtual Machine */

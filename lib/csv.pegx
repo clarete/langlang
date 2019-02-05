@@ -1,11 +1,11 @@
-File    <- ;_ Line*
-Line    <- Val (;SEP Val)* ;EOL
-Val     <- ;Quote+ / %C{ (!(SEP / EOL) .)* }
-Quote   <- ;Q %C{ (!Q .)* } ;Q
+File    <- _ %Line*
+Line    <- %Val (SEP %Val)* EOL
+Val     <- Quote+ / %{ (!(SEP / EOL) .)* }
+Quote   <- Q %{ (!Q .)* } Q
 
-SEP     <- ;',' ;_
-Q       <- ;'"' ;_
+SEP     <- ',' _
+Q       <- '"' _
 
-_       <- ;Space*
-Space   <- ;' ' / ;'\t'
-EOL     <- ;'\r\n' / ;'\n' / ;'\r'
+_       <- Space*
+Space   <- ' ' / '\t'
+EOL     <- '\r\n' / '\n' / '\r'

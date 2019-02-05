@@ -1,34 +1,39 @@
-JSON      <- ;_ ;Value
+# This is an input for the benchmark of the parsing machine. This file
+# might evolve differently from the one on the standard lib and that's
+# fine. Its counterpart without any capture operators should be kept
+# in sync though.
 
-Value     <- Object  ;_
-           / Array   ;_
-           / Number  ;_
-           / String  ;_
-           / True    ;_
-           / False   ;_
-           / Null    ;_
+JSON      <- _ Value
 
-Object    <- ;CBO (Pair (;COMA Pair)*)? ;CBC
-Pair      <- String ;COLON ;JSON
-Array     <- ;ARO (;JSON (;COMA ;JSON)* )? ;ARC
+Value     <- (%Object
+            / %Array
+            / %Number
+            / %String
+            / %True
+            / %False
+            / %Null) _
 
-String    <- ;QUOTE %C{ (!QUOTE .)* } ;QUOTE
-Number    <- ;MINUS? %C{ [0-9]+ (;DOT [0-9]+)? }
+Object    <- CBO (%Pair (COMA %Pair)*)? CBC
+Pair      <- %String COLON JSON
+Array     <- ARO (JSON (COMA JSON)*)? ARC
 
-True      <- ;'true'
-False     <- ;'false'
-Null      <- ;'null'
+String    <- QUOTE %{ (!QUOTE .)* } QUOTE
+Number    <- %{ MINUS? [0-9]+ (DOT [0-9]+)? }
 
-QUOTE     <- ;'"' ;_
-MINUS     <- ;'-' ;_
-DOT       <- ;'.' ;_
-COLON     <- ;':' ;_
-COMA      <- ;',' ;_
-CBO       <- ;'{' ;_
-CBC       <- ;'}' ;_
-ARO       <- ;'[' ;_
-ARC       <- ;']' ;_
+True      <- 'true'
+False     <- 'false'
+Null      <- 'null'
 
-_         <- ;Space*
-Space     <- ;' ' / ;'\t' / ;EndOfLine
-EndOfLine <- ;'\r\n' / ;'\n' / ;'\r'
+QUOTE     <- '"'
+MINUS     <- '-'
+DOT       <- '.'
+COLON     <- ':' _
+COMA      <- ',' _
+CBO       <- '{' _
+CBC       <- '}' _
+ARO       <- '[' _
+ARC       <- ']' _
+
+_         <- Space*
+Space     <- ' ' / '\t' / EndOfLine
+EndOfLine <- '\r\n' / '\n' / '\r'

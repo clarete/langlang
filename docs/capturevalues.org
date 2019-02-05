@@ -2,15 +2,39 @@
 
   The Parsing Machine design proposed in the paper by S. Medeiros and
   R. Ierusalimschy cover the matching strategy. Capturing values
-  wasn't part of their publication.
+  wasn't part of their publication so this document proposes a way of
+  achieving that.
 
-  In order to access the values matched by the matching, the machine
-  collects Capture Entries within a stack that is handed to
-  ~mExtract()~, which is responsible to go through that stack and
-  build cons lists out of it.
+  The capture mechanism is aware of the backtracking. The machine
+  keeps track of the level of the match and pops intermediary matches
+  off the stack to keep the result tree clean when a failure is found.
 
-  There are some decisions that are worth mentioning. Let's use an
-  example to illustrate them:
+  The matching function has a stack intended to be used to build a
+  tree of results and the VM provides three opcodes to capture values
+  within that stack:
+
+  * cap_open: When the match is for a non terminal, it pushes a list
+    onto the stack. The list contains the name of the Rule as its only
+    element. If it's a terminal, it pushes an empty string onto the
+    stack.
+  * cap_char: pushes a new character to the string on top of the stack
+  * cap_close: Pops the top of the stack and appends that value to the
+    new top of the stack.
+
+  The syntax of our extension provides two capture mechanisms: one for
+  capturing non-terminals(%) and another one for terminals (%{}). The
+  capture operators work for three basic situations:
+
+  | Grammar                | output          |
+  |------------------------+-----------------|
+  | S <- %A; A <- %{ 'a' } | ('S' ('A' 'a')) |
+  | S <- A; A <- %{ 'a' }  | ('S' 'a')       |
+  | S <- %{ A }; A <- 'a'  | ('S' 'a')       |
+  |------------------------+-----------------|
+
+  Let's use an example to illustrate them:
+
+* Example
 
   Here's a tiny Grammar for simple assignment expressions that require
   identifiers that start with letters or underscore and the other
@@ -30,190 +54,79 @@ Space       <- [ \n\r\t]
   Grammar:
 
   #+begin_src
-Min = 41
-Max = 42
+Num = 42
   #+end_src
 
-** All Terminals & Non-Terminals are captured by default
+  The output initially looks a lil useless because it only captured
+  the name of the start rule in the grammar.
 
-   Non-Terminals are ~cons~'ed with their identifiers and Terminals
-   are ~cons~'ed with other identifiers and here's the parse tree
-   generated from the above example:
+#+begin_src lisp
+("Assignment")
+#+end_src
 
-   #+begin_src lisp
- ("Assignments"
-  ("_")
-  ("Assignment"
-   ("_")
-   ("Identifier"
-    ("IdentStart" "M")
-    ("IdentCont"
-     ("IdentStart" "i"))
-    ("IdentCont"
-     ("IdentStart" "n")))
-   ("_"
-    ("Space" " "))
-   "="
-   ("_"
-    ("Space" " "))
-   ("Number" "4" "1"))
-  ("Assignment"
-   ("_"
-    ("Space" "\n"))
-   ("Identifier"
-    ("IdentStart" "M")
-    ("IdentCont"
-     ("IdentStart" "a"))
-    ("IdentCont"
-     ("IdentStart" "x")))
-   ("_"
-    ("Space" " "))
-   "="
-   ("_"
-    ("Space" " "))
-   ("Number" "4" "2")))
-     #+end_src
+** Node Capture Operator (~%~)
 
-   Very noisy right? Let's remove some unnecessary data from it.
+   You can use the Node Capture Operator (~%~) to capture the nodes
+   directly within the start production. Let's rewrite the following
+   line
+#+begin_src peg
+Assignment  <- _ Identifier _ '=' _ Number
+#+end_src
 
-** The Quiet Operator (~;~) can be used to skip single matches
+   Just like the following
+#+begin_src peg
+Assignment  <- _ %Identifier _ '=' _ %Number
+#+end_src
 
-   As a quick example, the token ~=~ is important during the lexical
-   analysis but it's just noise in the parse tree. To use it in the
-   match but prevent the parsing machine from capturing its value, we
-   just need to prefix the Non-terminal with the *Quiet* Operator:
-
-   #+begin_src peg
-Assignment  <- _ Identifier _ ;'=' _ Number
-   #+end_src
-
-   All the equal signs from the previous output will be gone after
-   this change.
-
-** The Quiet Operator is not recursive
-
-   The previous example shown how to skip the capture of Terminals. If
-   you want to skip the capture of Non-Terminals, beware they're not
-   recursive. This gives us flexibility but can lead to confusing
-   outputs, so let's get it right.
-
-   If we try to silence the ~_~ Non-Terminal int he ~Assignment~ role
-   like this:
-
-   #+begin_src peg
-Assignment  <- ;_ Identifier ;_ ;'=' ;_ Number
-   #+end_src
-
-   We'll see something like this in the output:
-
-   #+begin_src lisp
-...
+   That will make the output a lil more interesting and capture the
+   intermediary nodes ~Identifier~ and ~Number~:
+#+begin_src lisp
 ("Assignment"
- ("Identifier" ("IdentStart" "M") ("IdentCont" ("IdentStart" "i")) ("IdentCont" ("IdentStart" "n")))
- ("Space" " ")
- ("Space" " ")
- ("Number" "4" "1"))
-...
-   #+end_src
+ ("Identifier")
+ ("Number"))
+#+end_src
 
-   The role ~_~ is indeed gone from the parse tree, however the
-   captures within its call were not silenced. In order to truly get
-   rid of spaces, we'll need to silence the Non-Terminal ~Space~ as
-   well. Let's do it:
+** Block Capture Operator (~%{ Expr }~)
 
-   #+begin_src peg
-_           <- ;Space*
-   #+end_src
-
-   Here's the parse tree after silencing ~Space~ as well:
-
-   #+begin_src lisp
-...
-("Assignment"
- ("Identifier" ("IdentStart" "M") ("IdentCont" ("IdentStart" "i")) ("IdentCont" ("IdentStart" "n")))
- " "
- " "
- ("Number" "4" "1"))
-...
-   #+end_src
-
-   Once again, the *Quiet* Operator isn't recursive, so although ~_~
-   and ~Space~ were removed, the Terminals contained within ~Space~
-   are still being captured. Let's change that with the following
-   change:
-
-   #+begin_src peg
-Space       <- ;[ \n\r\t]
-   #+end_src
-
-   The spaces are finally removed from the ~Assignment~ role:
-
-   #+begin_src lisp
-...
-("Assignment"
- ("Identifier" ("IdentStart" "M") ("IdentCont" ("IdentStart" "i")) ("IdentCont" ("IdentStart" "n")))
- ("Number" "4" "1"))
-...
-   #+end_src
-
-   So, that's a lot of silencing to get rid of all the garbage we
-   don't care about. However, such flexibility (for such a cheap
-   implementation) pays off.
-
-   Let's silence nodes ~IdentStart~ & ~IdentCont~ in ~Identifier~, and
-   silence ~IdentStart~ in ~IdentCont~. Notice this time we're not
-   going to silence the Terminals, only the Non-Terminals mentioned
-   will be removed. That's how it looks like:
-
-   #+begin_src peg
-...
-Identifier  <- ;IdentStart ;IdentCont*
-IdentStart  <- [a-zA-Z_]
-IdentCont   <- ;IdentStart / [0-9]
-...
-   #+end_src
-
-   Here's the relevant chunk of the parse tree after the above change:
-
-   #+begin_src lisp
-("Assignment"
- ("Identifier" "M" "i" "n")
- ("Number" "4" "1"))
-   #+end_src
-
-** Capture Block Operator (~%C{ Expr }~)
-
-   The *Capture Block* Operator disables the capture of everything
-   within it and surounds all the matches with a single capture. Its
-   first purpose is to aggregate Terminals together. The example we've
-   been using have two situations where it could be useful:
+   The *Block Capture* Operators purpose is to aggregate Terminal
+   matches together. The example we've been using have two situations
+   where it could be useful:
 
    1. The ~Number~ rule could aggregate all its matches under one
       capture instead of one per character:
 
       #+begin_src peg
-Number      <- %C{ [0-9]+ }
+Number      <- %{ [0-9]+ }
       #+end_src
 
       The output of the ~Number~ rule now looks like this:
 
-      #+begin_src peg
-("Number" "41")
+      #+begin_src lisp
+...
+("Number" "42")
+...
       #+end_src
-   2. The ~Assignment~ rule could aggregate all the matches under
-      ~IdentStart~ and ~IdentCont~. This is a tad bit more annoying to
-      achieve because the *Capture Block* Operator isn't recursive
-      either. So besides adding the *Capture Block* Operator to
-      ~Assignment~ we need to use the *Quiet Operator* in the matches
-      within ~IdentStart~ and ~IdentCont~:
+   2. The ~Identifier~ rule will aggregate all the matches under
+      ~IdentStart~ and ~IdentCont~. This case is interesting because
+      although neither ~IdentStart~ nor ~IdentCont~ are syntactically
+      surrounded by capture operators, but the compiler generate
+      ~CAPCHAR~ opcodes after their terminals because they're
+      semantically nested:
 
-      #+begin_src peg
-Assignments <- ;_ Assignment* !.
-Assignment  <- ;_ Identifier ;_ ;'=' ;_ Number
-Identifier  <- %C{ IdentStart IdentCont* }
-IdentStart  <- ;[a-zA-Z_]
-IdentCont   <- IdentStart / ;[0-9]
-     #+end_src
+#+begin_src peg
+Identifier  <- %{ IdentStart IdentCont* }
+IdentStart  <- [a-zA-Z_]
+IdentCont   <- IdentStart / [0-9]
+#+end_src
+
+   With changes to ~Number~ and ~Identifier~ the output will look like
+   this:
+
+#+begin_src lisp
+("Assignment"
+ ("Identifier" "Num")
+ ("Number" "42"))
+#+end_src
 
 ** Example Rewritten
 
@@ -221,24 +134,29 @@ IdentCont   <- IdentStart / ;[0-9]
    in their proper places:
 
    #+begin_src peg
-Assignments <- ;_ Assignment* !.
-Assignment  <- ;_ Identifier ;_ ;'=' ;_ Number
-Identifier  <- %C{ IdentStart IdentCont* }
-IdentStart  <- ;[a-zA-Z_]
-IdentCont   <- ;IdentStart / ;[0-9]
-Number      <- %C{ [0-9]+ }
-_           <- ;Space*
-Space       <- ;[ \n\r\t]
+Assignment  <- _ %Identifier _ '=' _ %Number
+Identifier  <- %{ IdentStart IdentCont* }
+IdentStart  <- [a-zA-Z_]
+IdentCont   <- IdentStart / [0-9]
+Number      <- %{ [0-9]+ }
+_           <- Space*
+Space       <- [ \n\r\t]
    #+end_src
 
    And here's the final parse tree:
 
    #+begin_src lisp
-("Assignments"
- ("Assignment"
-  ("Identifier" "Min")
-  ("Number" "41"))
- ("Assignment"
-  ("Identifier" "Max")
-  ("Number" "42")))
+("Assignment"
+ ("Identifier" "Num")
+ ("Number" "42"))
    #+end_src
+
+** Note on verbosity
+
+   Some people like verbose outputs some people don't. The above
+   example could also be simplified to output something like
+#+begin_src lisp
+("Assignment" "Num" "42")
+#+end_src
+
+   if we omit the Node Capture operators in the first production.

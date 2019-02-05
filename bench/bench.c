@@ -97,10 +97,13 @@ void run ()
     memset (fpath, 0, PATH_MAX);
     memcpy (fpath, "./data/", 7);
     memcpy (fpath+7, de->d_name, strlen (de->d_name));
-    if (endsWith (de->d_name, ".csv"))
+    if (endsWith (de->d_name, ".csv")) {
+      runFiles ("csv0.nc.binx", (const char *) fpath);
       runFiles ("csv0.binx", (const char *) fpath);
-    else if (endsWith (de->d_name, ".json"))
+    } else if (endsWith (de->d_name, ".json")) {
+      runFiles ("json0.nc.binx", (const char *) fpath);
       runFiles ("json0.binx", (const char *) fpath);
+    }
   }
   closedir (dp);
 }

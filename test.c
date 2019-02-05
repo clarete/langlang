@@ -94,7 +94,7 @@ static void test_ch1 ()
   int instructions = 2;
   uint32_t b[progSize (instructions)];
   const char *i = "a";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:ch.1");
 
   writeHeader (b, instructions);
@@ -105,9 +105,11 @@ static void test_ch1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
-  assert (o - i == 1);        /* Match */
+  assert (m.li - i == 1);        /* Match */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -144,7 +146,7 @@ static void test_any1 ()
   int instructions = 2;
   uint32_t b[progSize (instructions)];
   const char *i = "a";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:any.1");
 
   writeHeader (b, instructions);
@@ -155,10 +157,12 @@ static void test_any1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 1);          /* Match */
+  assert (m.li - i == 1);       /* Match */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -195,7 +199,7 @@ static void test_not1 ()
   int instructions = 5;
   uint32_t b[progSize (instructions)];
   const char *i = "b";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:not.1");
 
   writeHeader (b, instructions);
@@ -209,10 +213,12 @@ static void test_not1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 0);          /* But didn't match anything */
+  assert (m.li - i == 0);       /* But didn't match anything */
+
+  objFree (o);
+  mFree (&m);
 }
 
 void test_not1_fail_twice ()
@@ -221,7 +227,7 @@ void test_not1_fail_twice ()
   int instructions = 4;
   uint32_t b[progSize (instructions)];
   const char *i = "b";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:not.1 (fail-twice)");
 
   writeHeader (b, instructions);
@@ -234,10 +240,12 @@ void test_not1_fail_twice ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Did not fail */
-  assert (o - i == 0);        /* But didn't match any char */
+  assert (m.li - i == 0);       /* But didn't match any char */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -297,7 +305,7 @@ void test_and1 ()
   int instructions = 8;
   uint32_t b[progSize (instructions)];
   const char *i = "a";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:and.1");
 
   writeHeader (b, instructions);
@@ -314,10 +322,12 @@ void test_and1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 0);          /* But didn't match anything */
+  assert (m.li - i == 0);       /* But didn't match anything */
+
+  objFree (o);
+  mFree (&m);
 }
 
 void test_and1_back_commit ()
@@ -326,7 +336,7 @@ void test_and1_back_commit ()
   int instructions = 5;
   uint32_t b[progSize (instructions)];
   const char *i = "a";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:and.1 (back-commit)");
 
   writeHeader (b, instructions);
@@ -340,10 +350,12 @@ void test_and1_back_commit ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 0);          /* But didn't match anything */
+  assert (m.li - i == 0);       /* But didn't match anything */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -407,7 +419,7 @@ void test_con1 ()
   int instructions = 4;
   uint32_t b[progSize (instructions)];
   const char *i = "abc";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:con.1");
 
   writeHeader (b, instructions);
@@ -420,10 +432,12 @@ void test_con1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 3);          /* Matched all 3 chars */
+  assert (m.li - i == 3);       /* Matched all 3 chars */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -513,7 +527,7 @@ void test_ord2 ()
   int instructions = 5;
   uint32_t b[progSize (instructions)];
   const char *i = "a";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:ord.2");
 
   writeHeader (b, instructions);
@@ -527,10 +541,12 @@ void test_ord2 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 1);          /* Match the first char */
+  assert (m.li - i == 1);       /* Match the first char */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -544,7 +560,7 @@ void test_ord3 ()
   int instructions = 5;
   uint32_t b[progSize (instructions)];
   const char *i = "b";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:ord.3");
 
   writeHeader (b, instructions);
@@ -558,10 +574,12 @@ void test_ord3 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 1);          /* Match the first char */
+  assert (m.li - i == 1);       /* Match the first char */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -575,7 +593,7 @@ void test_rep1 ()
   int instructions = 4;
   uint32_t b[progSize (instructions)];
   const char *i = "aab";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:rep.1");
 
   writeHeader (b, instructions);
@@ -588,10 +606,12 @@ void test_rep1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 2);          /* Matched two chars */
+  assert (m.li - i == 2);       /* Matched two chars */
+
+  objFree (o);
+  mFree (&m);
 }
 
 void test_rep1_partial_commit ()
@@ -600,7 +620,7 @@ void test_rep1_partial_commit ()
   int instructions = 4;
   uint32_t b[progSize (instructions)];
   const char *i = "aab";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:rep.1 (partial-commit)");
 
   writeHeader (b, instructions);
@@ -613,10 +633,12 @@ void test_rep1_partial_commit ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 2);        /* Matched two chars */
+  assert (m.li - i == 2);        /* Matched two chars */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -630,7 +652,7 @@ void test_rep2 ()
   int instructions = 4;
   uint32_t b[progSize (instructions)];
   const char *i = "b";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:rep.2");
 
   writeHeader (b, instructions);
@@ -643,10 +665,12 @@ void test_rep2 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 0);          /* But didn't match any char */
+  assert (m.li - i == 0);       /* But didn't match any char */
+
+  objFree (o);
+  mFree (&m);
 }
 
 void test_rep2_partial_commit ()
@@ -655,7 +679,7 @@ void test_rep2_partial_commit ()
   int instructions = 4;
   uint32_t b[progSize (instructions)];
   const char *i = "b";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:rep.2 (partial-commit)");
 
   writeHeader (b, instructions);
@@ -668,10 +692,12 @@ void test_rep2_partial_commit ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 0);          /* But didn't match any char */
+  assert (m.li - i == 0);       /* But didn't match any char */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -685,7 +711,7 @@ void test_var1 ()
   int instructions = 0xc;
   uint32_t b[progSize (instructions)];
   const char *i = "1+1";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:var.1");
 
   writeHeader (b, instructions);
@@ -709,10 +735,12 @@ void test_var1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 3);          /* Matched the whole input */
+  assert (m.li - i == 3);       /* Matched the whole input */
+
+  objFree (o);
+  mFree (&m);
 }
 
 /*
@@ -757,7 +785,7 @@ void test_span1 ()
   int instructions = 4;
   uint32_t b[progSize (instructions)];
   const char *i = "abcdefgh";
-  const char *o = NULL;
+  Object *o = NULL;
   DEBUGLN (" * t:span.1");
 
   writeHeader (b, instructions);
@@ -770,10 +798,12 @@ void test_span1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
-  mFree (&m);
 
   assert (o);                   /* Didn't fail */
-  assert (o - i == 5);          /* Matched chars */
+  assert (m.li - i == 5);       /* Matched chars */
+
+  objFree (o);
+  mFree (&m);
 }
 
 void test_cap1 ()
@@ -786,7 +816,7 @@ void test_cap1 ()
   DEBUGLN (" * t:cap.1");
 
   writeHeader (b, instructions);
-  /* S <- 'a' */
+  /* S <- %{ 'a' } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
   b[0x2] = GEN1 (OP_JUMP, 0x8);
   b[0x3] = GEN2 (OP_CAP_OPEN, 0x0, 0x0); /* CapOpen 0 (Main) */
@@ -801,8 +831,8 @@ void test_cap1 ()
   mSymbol (&m, "Main", 4);
   mSymbol (&m, "Char", 4);
   mLoad (&m, (Bytecode *) b);
-  assert (mMatch (&m, i, strlen (i)));
-  out = mExtract (&m, i);
+  out = mMatch (&m, i, strlen (i));
+  assert (out);
 
   printObj (out);
   printf ("\n");
@@ -871,7 +901,7 @@ static void test_lst_any1 ()
 
   input = makeCons (mSymbol (&m, "a", 1), (Object*) Nil);
   output = mMatchList (&m, input);
-  assert (output == Nil);
+  assert (NILP (output));
 
   objFree (input);
   mFree (&m);
@@ -929,7 +959,7 @@ static void test_lst_term1 ()
 
   input = makeCons (mSymbol (&m, "MyTerm", 6), OBJ (Nil));
   output = mMatchList (&m, input);
-  assert (output == Nil);
+  assert (NILP (output));
 
   objFree (input);
   mFree (&m);

@@ -229,6 +229,10 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
         printf ("Match failed at pos %ld\n", m->li - input + 1);
         return NULL;
       } else {
+        /* This is another use for `li'. It will store the final
+           suffix upon a successful match. It's very useful for
+           tests. */
+        m->li = i;
         if (oTableSize (&treestk) > 0) {
           Object *tmp = oTablePop (&treestk);
           oTableFree (&treestk);

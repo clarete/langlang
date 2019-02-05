@@ -1248,9 +1248,9 @@ void test_obj_equal_cons ()
   Object *o1, *o2, *o3;
 
   mInit (&m);
-  o1 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), NULL));
+  o1 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), OBJ (Nil)));
   o2 = makeCons (mSymbol (&m, "Hi!", 3), makeInt (5));
-  o3 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), NULL));
+  o3 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), OBJ (Nil)));
 
   assert (!objEqual (o1, o2));
   assert (!objEqual (o2, o3));

@@ -205,9 +205,10 @@ bool objConsEqual (const Object *o1, const Object *o2)
     for (tmp1 = CAR (current), tmp2 = CDR (current); ;
          tmp1 = CDR (tmp1), tmp2 = CDR (tmp2)) {
       /* If both are null, they're equal, if just one is null they're
-         different */
-      if (!tmp1 && !tmp2) return true;
-      else if (!tmp1 || !tmp2) return false;
+         different. Both should also be cons cells. */
+      if (NILP (tmp1) && NILP (tmp2)) return true;
+      else if (NILP (tmp1) || NILP (tmp2)) return false;
+      if (!CONSP (tmp1) || !CONSP (tmp2)) return false;
       /* Push the new pair into the stack */
       *stack_top++ = &(Cons){
         .o = { .type = TYPE_CONS },

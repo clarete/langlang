@@ -649,10 +649,46 @@ class DisableCapture:
         self.c.capture = self.backup
 
 
+def walker(tree, exclude=(), gather=()):
+    stk = [tree]
+    found = []
+    while stk:
+        current = stk.pop()
+        if isinstance(current, exclude):
+            pass
+        elif isinstance(current, gather):
+            found.append(current)
+        elif isinstance(current, Node):
+            stk.append(current.value)
+        elif isinstance(current, list):
+            for c in current:
+                stk.append(c)
+    return found
+
+
+def markTerminals(node):
+    for terminal in walker(node, Not, (String, Literal, Dot, Class)):
+        terminal.capture = True
+
+
+def followIdentifiers(d, node):
+    for identifier in walker(node, Not, Identifier):
+        markTerminals(d[identifier.value])
+        followIdentifiers(d, d[identifier.value])
+
+
+def markCaptures(g):
+    d = grammarAsDict(g)
+    for block in walker(g, Not, CaptureBlock):
+        markTerminals(block)
+        followIdentifiers(d, block)
+    return g
+
+
 class Compiler:
 
     def __init__(self, grammar, capture=False):
-        self.ga = grammar
+        self.ga = markCaptures(grammar)
         # The start rule is just the first one for now
         self.start = grammar.value[0].value[0]
         # Write cursor for `self.code'
@@ -663,8 +699,13 @@ class Compiler:
         # Save all the call instructions that need to be updated with
         # the final address of where they want to call to.
         self.callsites = {}
+        # Flag that signals if the grammar contains any capture
+        # operators.
+        self.hasCaptureOps = bool(
+            walker(grammar, Not, (CaptureBlock, CaptureNode)))
         # Flag to signal if cap_{open,close} instructions should be
-        # emitted or not.
+        # emitted or not. Changes throughout the execution of the
+        # compiler.
         self.capture = False
         # All strings that couldn't fit within an instruction
         # parameter.
@@ -728,22 +769,22 @@ class Compiler:
         currentPos = self.pos
         for i in literal.value:
             self.emit("char", ord(i))
-            if self.capture:
+            if self.capture or getattr(literal, 'capture', None):
                 self.emit("capchar")
         return self.pos - currentPos
 
     def compileAny(self, atom):
         currentPos = self.pos
         self.emit("any")
-        if self.capture:
+        if self.capture or getattr(atom, 'capture', None):
             self.emit("capchar")
         return self.pos - currentPos
 
-    def compileRange(self, theRange):
+    def compileRange(self, theRange, capture):
         currentPos = self.pos
         left, right = theRange
         self.emit("span", ord(left), ord(right))
-        if self.capture:
+        if self.capture or capture:
             self.emit("capchar")
         return self.pos - currentPos
 
@@ -791,10 +832,12 @@ class Compiler:
         self.code[pos] = gen('choice', size+2)
         self.emit('commit', 1)
 
-    def compileRangeOrLiteral(self, thing):
+    def compileRangeOrLiteral(self, capture, thing):
         if isinstance(thing, list):
-            return self.compileRange(thing)
-        return self.compileLiteral(Literal(thing))
+            return self.compileRange(thing, capture)
+        lit = Literal(thing)
+        if capture: lit.capture = capture
+        return self.compileLiteral(lit)
 
     def compileClass(self, atom):
         """Generate code for matching classes of characters
@@ -805,10 +848,13 @@ class Compiler:
         If `atom' describes only one interval, a single `Span'
         instruction is generated.
         """
+        compileRangeOrLiteral = functools.partial(
+            self.compileRangeOrLiteral,
+            getattr(atom, 'capture', None))
         if len(atom.value) == 1:
-            return self.compileRangeOrLiteral(atom.value[0])
+            return compileRangeOrLiteral(atom.value[0])
         else:
-            return self._compileChoices(atom.value, self.compileRangeOrLiteral)
+            return self._compileChoices(atom.value, compileRangeOrLiteral)
 
     def compileList(self, lst):
         self.emit('open')
@@ -837,18 +883,22 @@ class Compiler:
         # It's always 2 because invariant contains two instructions
         self.emit("call", 2)
         pos = self.emit("jump")
-        distance = 3 # Above invariant + the cap_open below.
+        # Above invariant + the cap_open below that appears if
+        # hasCaptureOps is True.
+        distance = self.hasCaptureOps and 3 or 2
         size = 0
         addresses = {}
 
-        self.emit('cap_open', 0, self._str(self.start))
+        if self.hasCaptureOps:
+            self.emit('cap_open', 0, self._str(self.start))
         for definition in self.ga.value:
             identifier, expression = definition.value
             addresses[identifier] = self.pos
             self.cc(expression)
             self.emit("return")
             size += self.pos - addresses[identifier]
-        self.emit('cap_close', 0, self._str(self.start))
+        if self.hasCaptureOps:
+            self.emit('cap_close', 0, self._str(self.start))
         self.code[pos-1] = gen("jump", size + distance)
         self.emit("halt")
 
@@ -1362,6 +1412,10 @@ def test_instruction():
     )
 
 
+def test_rewrite():
+    p = lambda code: Parser(code).run()
+
+
 def test_compile():
     bn = lambda *bc: struct.pack('>' + ('I' * len(bc)), *bc)
     def cc(code, **f):
@@ -1606,41 +1660,47 @@ def test_compile():
     # Captures
     assert(cc("S <- %{ 'a' }") == bn(
         gen("call", 0x02),      # 0x00: Call 0x02
-        gen("jump", 0x07),      # 0x01: Jump 0x07
-        gen("cap_open", 1, 0),  # 0x02: CapOpen 1 0
-        gen("char", ord('a')),  # 0x03: Char 'a'
-        gen("capchar"),         # 0x04: CapChar
-        gen("cap_close", 1, 0), # 0x05: CapClose 1 0
-        gen("return"),          # 0x06: Return
+        gen("jump", 0x08),      # 0x01: Jump 0x07
+        gen("cap_open", 0, 0),  # 0x02: CapOpen 0 0
+        gen("cap_open", 1, 0),  # 0x03: CapOpen 1 0
+        gen("char", ord('a')),  # 0x04: Char 'a'
+        gen("capchar"),         # 0x05: CapChar
+        gen("cap_close", 1, 0), # 0x06: CapClose 1 0
+        gen("return"),          # 0x07: Return
+        gen("cap_close", 0, 0), # 0x08: CapClose 0 0
         gen("halt"),            # 0x07: Halt
     ))
 
     assert(cc("S <- %{ 'a' 'b' }") == bn(
         gen("call", 0x02),      # 0x00: Call 0x02
-        gen("jump", 0x09),      # 0x01: Jump 0x09
-        gen("cap_open", 1, 0),  # 0x02: CapOpen 1 0
-        gen("char", ord('a')),  # 0x03: Char 'a'
-        gen("capchar"),         # 0x04: CapChar
-        gen("char", ord('b')),  # 0x05: Char 'a'
-        gen("capchar"),         # 0x06: CapChar
-        gen("cap_close", 1, 0), # 0x07: CapClose 1 0
-        gen("return"),          # 0x08: Return
-        gen("halt"),            # 0x09: Halt
+        gen("jump", 0x0a),      # 0x01: Jump 0x09
+        gen("cap_open", 0, 0),  # 0x02: CapOpen 0 0
+        gen("cap_open", 1, 0),  # 0x03: CapOpen 1 0
+        gen("char", ord('a')),  # 0x04: Char 'a'
+        gen("capchar"),         # 0x05: CapChar
+        gen("char", ord('b')),  # 0x06: Char 'a'
+        gen("capchar"),         # 0x07: CapChar
+        gen("cap_close", 1, 0), # 0x08: CapClose 1 0
+        gen("return"),          # 0x09: Return
+        gen("cap_close", 0, 0), # 0x0a: CapOpen 0 0
+        gen("halt"),            # 0x0b: Halt
     ))
 
     assert(cc("S <- %A\nA <- %{ 'a' }") == bn(
         gen("call", 0x02),      # 0x00: Call 0x02
-        gen("jump", 0x0b),      # 0x01: Jump 0x0b
+        gen("jump", 0x0c),      # 0x01: Jump 0x0b
         gen("cap_open", 0, 0),  # 0x02: CapOpen 0 0
-        gen("call", 0x03),      # 0x03: Call 0x03
-        gen("cap_close", 0, 0), # 0x04: CapClose 0 0
-        gen("return"),          # 0x05: Return
-        gen("cap_open", 1, 0),  # 0x06: CapOpen 1 0
-        gen("char", ord('a')),  # 0x07: Char 0x97
-        gen("capchar"),         # 0x08: CapChar
-        gen("cap_close", 1, 0), # 0x09: CapClose 1 0
-        gen("return"),          # 0x0a: Return
-        gen("halt"),            # 0x0b: Halt
+        gen("cap_open", 0, 1),  # 0x03: CapOpen 0 1
+        gen("call", 0x03),      # 0x04: Call 0x03
+        gen("cap_close", 0, 1), # 0x05: CapClose 0 0
+        gen("return"),          # 0x06: Return
+        gen("cap_open", 1, 0),  # 0x07: CapOpen 1 0
+        gen("char", ord('a')),  # 0x08: Char 0x97
+        gen("capchar"),         # 0x09: CapChar
+        gen("cap_close", 1, 0), # 0x0a: CapClose 1 0
+        gen("return"),          # 0x0b: Return
+        gen("cap_close", 0, 0), # 0x0c: CapClose 1 0
+        gen("halt"),            # 0x0d: Halt
     ))
 
 
@@ -1653,9 +1713,9 @@ def test_compile_header():
     # Name of the rule and char
     assert(cc("S <- 'a'") == [])
     # Name of the rules and set of chars
-    assert(cc("S <- %D\nD <- [0-9]+") == ['D'])
+    assert(cc("S <- %D\nD <- [0-9]+") == ['S', 'D'])
     # Name of the rules and set of chars without dups
-    assert(cc("S <- %A %B\nA<-'a'\nB<-'b'") == ['A', 'B'])
+    assert(cc("S <- %A %B\nA<-'a'\nB<-'b'") == ['S', 'A', 'B'])
 
 
 def test():

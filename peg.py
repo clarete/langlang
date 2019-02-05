@@ -657,7 +657,8 @@ def walker(tree, exclude=(), gather=()):
         if isinstance(current, exclude):
             pass
         elif isinstance(current, gather):
-            found.append(current)
+            if current not in found:
+                found.append(current)
         elif isinstance(current, Node):
             stk.append(current.value)
         elif isinstance(current, list):
@@ -671,17 +672,33 @@ def markTerminals(node):
         terminal.capture = True
 
 
-def followIdentifiers(d, node):
+def followIdentifiers(d, skip, node):
     for identifier in walker(node, Not, Identifier):
         markTerminals(d[identifier.value])
-        followIdentifiers(d, d[identifier.value])
+        if identifier not in skip:
+            followIdentifiers(d, skip, d[identifier.value])
+        else:
+            print("Skipping captures for rule `{}'".format(
+                identifier.value))
 
 
 def markCaptures(g):
     d = grammarAsDict(g)
-    for block in walker(g, Not, CaptureBlock):
+    # Get all block capture operators
+    blocks = walker(g, Not, CaptureBlock)
+    # Get list of all identifiers that are not directly within block
+    # capture operators
+    skip = walker(g, (Not, CaptureBlock), Identifier)
+    # Remove the identifiers that are indirectly used by the block
+    # capture operators from the skip list
+    for block in blocks:
+        for ident in walker(block, Not, Identifier):
+            if ident in skip:
+                skip.remove(ident)
+    # Kick off the marking of terminals
+    for block in blocks:
         markTerminals(block)
-        followIdentifiers(d, block)
+        followIdentifiers(d, skip, block)
     return g
 
 

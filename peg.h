@@ -131,8 +131,6 @@ Object *mSymbol (Machine *m, const char *sym, size_t len);
 Object *mMatch (Machine *m, const char *input, size_t input_size);
 /* Try to match input list against pattern loaded into the VM */
 Object *mMatchList (Machine *m, Object *input);
-/* Extract matches from the machine's capture stack */
-Object *mExtract (Machine *m, const char *input);
 /* Run grammar file on input file and extract output */
 Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file);
 

@@ -139,20 +139,6 @@ void mLoad (Machine *m, Bytecode *code)
   }
 }
 
-static void *adjustArray (void *ot, size_t osz, uint32_t used, uint32_t *capacity)
-{
-  void *tmp;
-  if (used == *capacity) {
-    *capacity = *capacity == 0 ? STACK_SIZE : *capacity * 2;
-    if ((tmp = realloc (ot, *capacity * osz)) == NULL) {
-      free (ot);
-      FATAL ("Can't allocate memory");
-    }
-    return tmp;
-  }
-  return ot;
-}
-
 static void append (Object *l, Object *i)
 {
   Object *tmp = NULL;
@@ -175,11 +161,6 @@ static Object *pop (Object *l)
   return last;
 }
 
-
-/* TODO: Not ideal because symbols are unique and changing unique
-   things that are shared with many places can cause unwanted
-   consequences in this context but we don't have a string type
-   yet. */
 static Object *appendChar (Object *s, char c)
 {
   assert (STRINGP (s));
@@ -510,65 +491,6 @@ Object *mMatchList (Machine *m, Object *input)
 #undef PARENT
 }
 
-Object *mExtract (Machine *m, const char *input)
-{
-  uint32_t start, end;
-  uint32_t sp = 0, maxsp = 0, spo = 0, maxspo = 0, cp = 0;
-  CaptureEntry *stack = NULL;
-  CaptureEntry match, match2;
-  Object *key, *result = NULL, **ostack = NULL;
-
-#define PUSH_S(i)  (stack = adjustArray (stack, sizeof (CaptureEntry), sp, &maxsp), stack[sp++] = i)
-#define PUSH_SO(i) (ostack = adjustArray (ostack, sizeof (Object), spo, &maxspo), ostack[spo++] = i)
-
-  DEBUGLN ("  Extract: %d", m->cap);
-
-  while (cp < m->cap) {
-    match = m->captures[cp++];              /* POP () */
-    key = oTableItem (&m->symbols, match.idx);
-
-    if (match.type == CapOpen) {
-      if (!match.term) PUSH_SO (OBJ (Nil));
-      PUSH_S (match);
-      continue;
-    }
-
-    if (sp == 0) {
-      FATAL ("Didn't find any match for capture %d", match.idx);
-    }
-
-    match2 = stack[--sp];
-
-    if (match2.idx != match.idx) {
-      FATAL ("Capture closed at wrong element %d:%d", match2.idx, match.idx);
-    }
-
-    if (match.term) {
-      /* Terminal */
-      start = match2.pos - input;
-      end = match.pos - input;
-      PUSH_SO (mSymbol (m, input + start, end - start));
-    } else {
-      /* Non-Terminal */
-      Object *l = OBJ (Nil);
-      while (!NILP (ostack[spo-1])) {
-        l = makeCons (ostack[--spo], l);
-      }
-      --spo;      /* Get rid of Nil that marked end of non-terminal */
-      PUSH_SO (makeCons (key, l));
-    }
-  }
-  if (spo > 0) {
-    result = *ostack;
-    for (uint32_t i = 1; i < spo; i--)
-      objFree (ostack[i]);
-  }
-
-  free (ostack);
-  free (stack);
-  return result;
-}
-
 Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file)
 {
   size_t grammar_size = 0, input_size = 0;
@@ -581,8 +503,6 @@ Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file)
 
   mLoad (m, grammar);
   output = mMatch (m, input, input_size);
-  /* if (mMatch (m, input, input_size)) */
-  /*   output = mExtract (m, input); */
 
   free (grammar);
   free (input);

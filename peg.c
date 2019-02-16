@@ -186,15 +186,6 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       the input string. */
 #define THE_END (input + input_size)
 
-#define DEBUG_TREE() do {                                       \
-    printf ("  STACK: %u:%u\n", btCount, ltCount);              \
-    for (uint32_t i = oTableSize (&treestk); i > 0 ; i--) {     \
-      printf ("   [%u] ", i-1);                                 \
-      printObj (oTableItem (&treestk, i-1));                    \
-      printf ("\n   --------------------------------------\n"); \
-    }                                                           \
-  } while (0)
-
   DEBUGLN ("   Run");
 
   oTableInit (&treestk);
@@ -352,7 +343,22 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 
 #undef POP
 #undef PUSH
-#undef PUSH_CAP
+}
+
+void enclose (ObjectTable *ot)
+{
+  Object *out = OBJ (Nil);
+
+  while (CONSP (oTableTop (ot))) {
+    out = makeCons (oTablePop (ot), out);
+  }
+  while (!NILP (oTableTop (ot))) {
+    out = makeCons (oTablePop (ot), out);
+  }
+  /* POP the NIL value that marks the beginning of the list being
+     enclosed */
+  assert (NILP (oTablePop (ot)));
+  oTableInsertObject (ot, out);
 }
 
 Object *mMatchList (Machine *m, Object *input)
@@ -360,20 +366,35 @@ Object *mMatchList (Machine *m, Object *input)
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
   Object *l = input;
-  ObjectTable parents;
+  ObjectTable treestk;
   Symbol *sym;
+  uint32_t btCount = 0, ltCount = 0;
 
   /** Push data onto the machine's stack  */
-#define PUSH(ll,pp) do { sp->l = ll; sp->pc = pp; sp++; } while (0)
+#define PUSH(ll,pp) do { sp->l = ll; sp->pc = pp; \
+    sp->btCount = btCount;                        \
+    sp->ltCount = ltCount;                        \
+    sp++;                                         \
+  } while (0)
   /** Pop data from the machine's stack. Notice it doesn't dereference
       the pointer, callers are supposed to do that when needed. */
 #define POP() (--sp)
-  /** Parent node stack item starts from top */
-#define PARENT(n) (oTableItem (&parents, oTableSize (&parents)-1-n))
+
+#define DEBUG_TREE() do {                                       \
+    printf ("%u:%u,%u:%u\t\t%02u: [",                           \
+            btCount, sp->btCount,                               \
+            ltCount, sp->ltCount,                               \
+            oTableSize (&treestk));                             \
+    for (uint32_t i = oTableSize (&treestk); i > 0 ; i--) {     \
+      printObj (oTableItem (&treestk, i-1));                    \
+      if (i > 1) printf (", ");                                 \
+    }                                                           \
+    printf ("]\n");                                             \
+  } while (0)
 
   DEBUGLN ("   Run");
 
-  oTableInit (&parents);
+  oTableInit (&treestk);
 
   while (true) {
     /* No-op if DEBUG isn't defined */
@@ -382,48 +403,47 @@ Object *mMatchList (Machine *m, Object *input)
 
     switch (pc->rator) {
     case OP_HALT:
-      oTableFree (&parents);
-      return l;
+      if (l) {
+        Object *result = oTablePop (&treestk);
+        oTableFree (&treestk);
+        return result;
+      } else {
+        oTableFree (&treestk);
+        return NULL;
+      }
     case OP_OPEN:
       if (!CONSP (l) || !CONSP (CAR (l))) goto fail;
       PUSH (CDR (l), pc++); l = CAR (l);
-      oTableInsertObject (&parents, NULL);
+      btCount++;
+      oTableInsertObject (&treestk, OBJ (Nil));
       continue;
     case OP_CLOSE:
       if (!NILP (l)) goto fail;
+      enclose (&treestk);
       l = POP ()->l; pc++;
-      if (oTableSize (&parents) > 1 && PARENT (0))
-        append (PARENT (1), PARENT (0));
-      if (oTableSize (&parents) == 1)
-        l = oTableItem (&parents, 0);
-      parents.used--;
+      ltCount = sp->ltCount;
+      btCount = sp->btCount;
       continue;
     case OP_ATOM:
       /* Did the machine receive the right parameter? */
       sym = SYMBOL (oTableItem (&m->symbols, UOPERAND0 (pc)));
       if (!sym) goto fail;
-      DEBUGLN ("       OP_ATOM: `%s' == `%s'",
-               sym->name, SYMBOL (CAR (l))->name);
+      /* printf ("ATOM: `%s' == `%s'\t", */
+      /*         sym->name, SYMBOL (CAR (l))->name); */
       /* Is it a valid subject? */
       if (!CONSP (l)) goto fail;
       if (CONSP (CAR (l))) goto fail;
       /* Does it match with the atom we're looking for? */
       if (strncmp (SYMBOL (CAR (l))->name, sym->name, sym->len)) goto fail;
-      /* Append match to the output list */
-      if (oTableSize (&parents)) {
-        if (PARENT (0)) append (PARENT (0), CAR (l));
-        else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
-      }
+      oTableInsertObject (&treestk, CAR (l));
+      ltCount++;
       /* Crank the machine to go to the next element & instruction */
       l = CDR (l); pc++;
       continue;
     case OP_ANY:
-      DEBUGLN ("       OP_ANY: %d", l != NULL && l != Nil);
       if (!l || NILP (l)) goto fail;
-      if (oTableSize (&parents)) {
-        if (PARENT (0)) append (PARENT (0), CAR (l));
-        else PARENT (0) = makeCons (CAR (l), OBJ (Nil));
-      }
+      oTableInsertObject (&treestk, CAR (l));
+      ltCount++;
       l = CDR (l); pc++;
       continue;
     case OP_SPAN:
@@ -471,14 +491,18 @@ Object *mMatchList (Machine *m, Object *input)
         do l = POP ()->l;
         while (l == NULL && sp > m->stack);
         pc = sp->pc;            /* Restore the program counter */
-        if (oTableSize (&parents) > 1) {
-          /* Clean entries created by OPEN and not used because of
-             backtracking */
-          while (!PARENT (0)) parents.used--;
+
+        while (ltCount > sp->ltCount) {
+          oTablePop (&treestk);
+          ltCount--;
+        }
+        while (btCount > sp->btCount) {
+          oTablePop (&treestk);
+          btCount--;
         }
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
-        oTableFree (&parents);
+        oTableFree (&treestk);
         return NULL;
       }
       continue;
@@ -488,7 +512,6 @@ Object *mMatchList (Machine *m, Object *input)
   }
 #undef POP
 #undef PUSH
-#undef PARENT
 }
 
 Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file)

@@ -13,8 +13,8 @@ Value     <- (%Object
             / %False
             / %Null) _
 
-Object    <- CBO (%Pair (COMA %Pair)*)? CBC
-Pair      <- %String COLON JSON
+Object    <- CBO (%Field (COMA %Field)*)? CBC
+Field     <- %String COLON JSON
 Array     <- ARO (JSON (COMA JSON)*)? ARC
 
 String    <- QUOTE %{ (!QUOTE .)* } QUOTE

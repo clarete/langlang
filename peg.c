@@ -62,7 +62,7 @@ static const char *opNames[OP_END] = {
 /* Set initial values for the machine */
 void mInit (Machine *m)
 {
-  oTableInit (&m->symbols);
+  listInit (&m->symbols);
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
   m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
@@ -73,7 +73,7 @@ void mInit (Machine *m)
 /* Release the resources used by the machine */
 void mFree (Machine *m)
 {
-  oTableFree (&m->symbols);
+  listFree (&m->symbols);
   free (m->code);
   free (m->stack);
   free (m->captures);
@@ -88,15 +88,15 @@ Object *mSymbol (Machine *m, const char *sym, size_t len) {
   Object *symbol;
 
   for (i = 0; i < m->symbols.used; i++) {
-    symbol = oTableItem (&m->symbols, i);
+    symbol = listItem (&m->symbols, i);
     if (SYMBOL (symbol)->len != len)
       continue;
     if (strncmp (SYMBOL (symbol)->name, sym, len) == 0)
       return symbol;
   }
 
-  symbol = makeSymbol (sym, len);
-  oTableInsert (&m->symbols, symbol);
+  symbol = symbolNew (sym, len);
+  listPush (&m->symbols, symbol);
   return symbol;
 }
 
@@ -145,7 +145,7 @@ static void append (Object *l, Object *i)
   assert (l);
   assert (CONSP (l));
   for (tmp = l; !NILP (tmp) && !NILP (CDR (tmp)); tmp = CDR (tmp));
-  CDR (tmp) = makeCons (i, OBJ (Nil));
+  CDR (tmp) = consNew (i, OBJ (Nil));
 }
 
 static Object *pop (Object *l)
@@ -175,7 +175,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
   Instruction *pc = m->code;
   const char *i = input;
   uint32_t btCount = 0, ltCount = 0;
-  ObjectTable treestk;
+  List treestk;
 
   /** Push data onto the machine's stack  */
 #define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
@@ -188,7 +188,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 
   DEBUGLN ("   Run");
 
-  oTableInit (&treestk);
+  listInit (&treestk);
 
   while (true) {
     /* No-op if DEBUG isn't defined */
@@ -205,9 +205,9 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
            suffix upon a successful match. It's very useful for
            tests. */
         m->li = i;
-        if (oTableSize (&treestk) > 0) {
-          Object *tmp = oTablePop (&treestk);
-          oTableFree (&treestk);
+        if (listLen (&treestk) > 0) {
+          Object *tmp = listPop (&treestk);
+          listFree (&treestk);
           return tmp;
         }
         /* It currently means success. */
@@ -215,24 +215,24 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       }
     case OP_CAP_OPEN:
       /* printf ("OPEN[%c]: %s\n", UOPERAND1 (pc) ? 'T' : 'F', */
-      /*         SYMBOL (oTableItem (&m->symbols, */
-      /*                             UOPERAND2 (pc)))->name); */
+      /*         SYMBOL (listItem (&m->symbols, */
+      /*                           UOPERAND2 (pc)))->name); */
       btCount++;
       if (UOPERAND1 (pc)) {     /* If the match is a terminal */
-        oTableInsert (&treestk, makeString ("", 0));
+        listPush (&treestk, stringNew ("", 0));
       } else {                  /* If the match is a non-terminal */
-        Object *node = makeCons (oTableItem (&m->symbols, UOPERAND2 (pc)), OBJ (Nil));
-        oTableInsert (&treestk, node);
+        Object *node = consNew (listItem (&m->symbols, UOPERAND2 (pc)), OBJ (Nil));
+        listPush (&treestk, node);
         ltCount = 0;
       }
       pc++;
       continue;
     case OP_CAP_CLOSE:
       /* printf ("CLOSE[%c]: %s\n", UOPERAND1 (pc) ? 'T' : 'F', */
-      /*         SYMBOL (oTableItem (&m->symbols, */
-      /*                             UOPERAND2 (pc)))->name); */
+      /*         SYMBOL (listItem (&m->symbols, */
+      /*                           UOPERAND2 (pc)))->name); */
       if (btCount > 1) {
-        append (oTableTop (&treestk), oTablePop (&treestk));
+        append (listTop (&treestk), listPop (&treestk));
         btCount--;
         ltCount++;
       }
@@ -240,7 +240,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       continue;
     case OP_CAPCHAR:
       /* printf ("CAPCHAR\n"); */
-      appendChar (oTableTop (&treestk), *(i-1));
+      appendChar (listTop (&treestk), *(i-1));
       pc++;
       continue;
     case OP_CHAR:
@@ -321,18 +321,18 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 
         /* Clean capture from sequence */
         while (ltCount > sp->ltCount) {
-          objFree (pop (oTableTop (&treestk)));
+          objFree (pop (listTop (&treestk)));
           ltCount--;
         }
 
         /* Clean capture stack in depth */
         while (btCount > sp->btCount) {
-          objFree (oTablePop (&treestk));
+          objFree (listPop (&treestk));
           btCount--;
         }
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
-        oTableFree (&treestk);
+        listFree (&treestk);
         return NULL;
       }
       continue;
@@ -345,20 +345,20 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 #undef PUSH
 }
 
-void enclose (ObjectTable *ot)
+void enclose (List *ot)
 {
   Object *out = OBJ (Nil);
 
-  while (CONSP (oTableTop (ot))) {
-    out = makeCons (oTablePop (ot), out);
+  while (CONSP (listTop (ot))) {
+    out = consNew (listPop (ot), out);
   }
-  while (!NILP (oTableTop (ot))) {
-    out = makeCons (oTablePop (ot), out);
+  while (!NILP (listTop (ot))) {
+    out = consNew (listPop (ot), out);
   }
   /* POP the NIL value that marks the beginning of the list being
      enclosed */
-  assert (NILP (oTablePop (ot)));
-  oTableInsert (ot, out);
+  assert (NILP (listPop (ot)));
+  listPush (ot, out);
 }
 
 Object *mMatchList (Machine *m, Object *input)
@@ -366,7 +366,7 @@ Object *mMatchList (Machine *m, Object *input)
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
   Object *l = input;
-  ObjectTable treestk;
+  List treestk;
   Symbol *sym;
   uint32_t btCount = 0, ltCount = 0;
 
@@ -384,9 +384,9 @@ Object *mMatchList (Machine *m, Object *input)
     printf ("%u:%u,%u:%u\t\t%02u: [",                           \
             btCount, sp->btCount,                               \
             ltCount, sp->ltCount,                               \
-            oTableSize (&treestk));                             \
-    for (uint32_t i = oTableSize (&treestk); i > 0 ; i--) {     \
-      printObj (oTableItem (&treestk, i-1));                    \
+            listLen (&treestk));                                \
+    for (uint32_t i = listLen (&treestk); i > 0 ; i--) {        \
+      objPrint (listItem (&treestk, i-1));                      \
       if (i > 1) printf (", ");                                 \
     }                                                           \
     printf ("]\n");                                             \
@@ -394,7 +394,7 @@ Object *mMatchList (Machine *m, Object *input)
 
   DEBUGLN ("   Run");
 
-  oTableInit (&treestk);
+  listInit (&treestk);
 
   while (true) {
     /* No-op if DEBUG isn't defined */
@@ -404,18 +404,22 @@ Object *mMatchList (Machine *m, Object *input)
     switch (pc->rator) {
     case OP_HALT:
       if (l) {
-        Object *result = oTablePop (&treestk);
-        oTableFree (&treestk);
-        return result;
+        if (listLen (&treestk) > 0) {
+          Object *result = listPop (&treestk);
+          /* listFree (&treestk); */
+          return result;
+        } else {
+          return l;
+        }
       } else {
-        oTableFree (&treestk);
+        listFree (&treestk);
         return NULL;
       }
     case OP_OPEN:
       if (!CONSP (l) || !CONSP (CAR (l))) goto fail;
       PUSH (CDR (l), pc++); l = CAR (l);
       btCount++;
-      oTableInsert (&treestk, OBJ (Nil));
+      listPush (&treestk, OBJ (Nil));
       continue;
     case OP_CLOSE:
       if (!NILP (l)) goto fail;
@@ -426,7 +430,7 @@ Object *mMatchList (Machine *m, Object *input)
       continue;
     case OP_ATOM:
       /* Did the machine receive the right parameter? */
-      sym = SYMBOL (oTableItem (&m->symbols, UOPERAND0 (pc)));
+      sym = SYMBOL (listItem (&m->symbols, UOPERAND0 (pc)));
       if (!sym) goto fail;
       /* printf ("ATOM: `%s' == `%s'\t", */
       /*         sym->name, SYMBOL (CAR (l))->name); */
@@ -435,14 +439,14 @@ Object *mMatchList (Machine *m, Object *input)
       if (CONSP (CAR (l))) goto fail;
       /* Does it match with the atom we're looking for? */
       if (strncmp (SYMBOL (CAR (l))->name, sym->name, sym->len)) goto fail;
-      oTableInsert (&treestk, CAR (l));
+      listPush (&treestk, CAR (l));
       ltCount++;
       /* Crank the machine to go to the next element & instruction */
       l = CDR (l); pc++;
       continue;
     case OP_ANY:
       if (!l || NILP (l)) goto fail;
-      oTableInsert (&treestk, CAR (l));
+      listPush (&treestk, CAR (l));
       ltCount++;
       l = CDR (l); pc++;
       continue;
@@ -493,16 +497,16 @@ Object *mMatchList (Machine *m, Object *input)
         pc = sp->pc;            /* Restore the program counter */
 
         while (ltCount > sp->ltCount) {
-          oTablePop (&treestk);
+          listPop (&treestk);
           ltCount--;
         }
         while (btCount > sp->btCount) {
-          oTablePop (&treestk);
+          listPop (&treestk);
           btCount--;
         }
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
-        oTableFree (&treestk);
+        listFree (&treestk);
         return NULL;
       }
       continue;

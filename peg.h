@@ -88,7 +88,7 @@ typedef struct {
   BacktrackEntry *stack;
   CaptureEntry *captures;
   uint32_t cap;                 /* Top of the capture stack */
-  ObjectTable symbols;          /* Store unique symbols within the VM */
+  List symbols;                 /* Store unique symbols within the VM */
   const char *li;               /* Last `i' seen when backtraking */
 } Machine;
 

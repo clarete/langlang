@@ -834,7 +834,7 @@ void test_cap1 ()
   out = mMatch (&m, i, strlen (i));
   assert (out);
 
-  printObj (out);
+  objPrint (out);
   printf ("\n");
 
   assert (out);                 /* Isn't empty */
@@ -869,7 +869,7 @@ static void test_lst_empty1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
 
-  input = makeCons (mSymbol (&m, "a", 1), OBJ (Nil));
+  input = consNew (mSymbol (&m, "a", 1), OBJ (Nil));
   assert (mMatchList (&m, input) == input);
 
   objFree (input);
@@ -899,9 +899,9 @@ static void test_lst_any1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
 
-  input = makeCons (mSymbol (&m, "a", 1), (Object*) Nil);
+  input = consNew (mSymbol (&m, "a", 1), OBJ (Nil));
   output = mMatchList (&m, input);
-  assert (NILP (output));
+  assert (objEqual (output, mSymbol (&m, "a", 1)));
 
   objFree (input);
   mFree (&m);
@@ -957,9 +957,9 @@ static void test_lst_term1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
 
-  input = makeCons (mSymbol (&m, "MyTerm", 6), OBJ (Nil));
+  input = consNew (mSymbol (&m, "MyTerm", 6), OBJ (Nil));
   output = mMatchList (&m, input);
-  assert (NILP (output));
+  assert (objEqual (output, mSymbol (&m, "MyTerm", 6)));
 
   objFree (input);
   mFree (&m);
@@ -992,7 +992,7 @@ static void test_lst_term2 ()
   mSymbol (&m, "aTerm", 5);
 
   /* Create the input with another symbol */
-  input = makeCons (mSymbol (&m, "myTerm", 6), OBJ (Nil));
+  input = consNew (mSymbol (&m, "myTerm", 6), OBJ (Nil));
   assert (!mMatchList (&m, input));
 
   objFree (input);
@@ -1061,7 +1061,7 @@ static void test_lst_term4 ()
 
   /* Run the above grammar on an input with a list within a list as
    * the first element */
-  input = makeCons (makeCons (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  input = consNew (consNew (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
   assert (!mMatchList (&m, input));
 
   /* Cleanup */
@@ -1103,11 +1103,12 @@ static void test_lst_list1 ()
 
   /* Run the above grammar on an input with "test" as the first (and
    * only) element of a list */
-  input = makeCons (makeCons (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  input = consNew (consNew (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
   output = mMatchList (&m, input);
 
   /* It does match! */
   assert (output);
+  assert (objEqual (output, consNew (mSymbol (&m, "test", 4), OBJ (Nil))));
 
   /* Cleanup */
   objFree (input);
@@ -1148,7 +1149,7 @@ static void test_lst_list2 ()
 
   /* Run the above grammar on an input with "test" as the first (and
    * only) element of a list */
-  input = makeCons (makeCons (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  input = consNew (consNew (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
   output = mMatchList (&m, input);
 
   /* It DOES NOT match! */
@@ -1190,7 +1191,7 @@ static void test_lst_list3 ()
 
   /* Run the above grammar on an input with "test" as the first (and
    * only) element of a list */
-  input = makeCons (mSymbol (&m, "test", 4), OBJ (Nil));
+  input = consNew (mSymbol (&m, "test", 4), OBJ (Nil));
   output = mMatchList (&m, input);
 
   /* It DOES NOT match! */
@@ -1242,9 +1243,9 @@ static void test_lst_list4 ()
 
 void test_obj_equal_int ()
 {
-  Object *o1 = makeInt (2);
-  Object *o2 = makeInt (3);
-  Object *o3 = makeInt (2);
+  Object *o1 = intNew (2);
+  Object *o2 = intNew (3);
+  Object *o3 = intNew (2);
 
   assert (!objEqual (o1, o2));
   assert (!objEqual (o2, o3));
@@ -1278,9 +1279,9 @@ void test_obj_equal_cons ()
   Object *o1, *o2, *o3;
 
   mInit (&m);
-  o1 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), OBJ (Nil)));
-  o2 = makeCons (mSymbol (&m, "Hi!", 3), makeInt (5));
-  o3 = makeCons (mSymbol (&m, "Hi!", 3), makeCons (makeInt (5), OBJ (Nil)));
+  o1 = consNew (mSymbol (&m, "Hi!", 3), consNew (intNew (5), OBJ (Nil)));
+  o2 = consNew (mSymbol (&m, "Hi!", 3), intNew (5));
+  o3 = consNew (mSymbol (&m, "Hi!", 3), consNew (intNew (5), OBJ (Nil)));
 
   assert (!objEqual (o1, o2));
   assert (!objEqual (o2, o3));

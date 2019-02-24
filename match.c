@@ -34,7 +34,7 @@ int run (const char *grammar_file, const char *input_file)
   mInit (&m);
   output = mRunFile (&m, grammar_file, input_file);
   if (output) {
-    printObj (output); printf ("\n");
+    objPrint (output); printf ("\n");
     objFree (output);
   }
   mFree (&m);

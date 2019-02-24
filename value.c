@@ -22,12 +22,12 @@
 #include "error.h"
 #include "value.h"
 
-/* Static object */
+/* Static Objects */
 const Object *Nil = (&(Object) { TYPE_NIL, 0 });
 
-/* ---- Object Factories ---- */
+/* ---- Object ---- */
 
-Object *makeObject (Type type, size_t size)
+Object *objNew (Type type, size_t size)
 {
   Object *obj;
   if ((obj = malloc (size)) == NULL) FATAL ("Can't make new object: OOM");
@@ -38,53 +38,6 @@ Object *makeObject (Type type, size_t size)
   /* c->nextObject = obj; */
   return obj;
 }
-
-Object *makeCons (Object *car, Object *cdr)
-{
-  Cons *cons = CONS (makeObject (TYPE_CONS, sizeof (Cons)));
-  cons->car = car;
-  cons->cdr = cdr;
-  return (Object *) cons;
-}
-
-Object *makeSymbol (const char *p, size_t len)
-{
-  Symbol *symbol;
-  symbol = SYMBOL (makeObject (TYPE_SYMBOL, sizeof (Symbol)));
-  memcpy (symbol->name, p, len);
-  symbol->name[len] = '\0';
-  symbol->len = len;
-  return (Object *) symbol;
-}
-
-Object *makeString (const char *p, size_t len)
-{
-  String *str;
-  str = STRING (makeObject (TYPE_STRING, sizeof (String)));
-  memcpy (str->value, p, len);
-  str->value[len] = '\0';
-  str->len = len;
-  return OBJ (str);
-}
-
-size_t llStringLen (Object *s)
-{
-  return STRING (s)->len;
-}
-
-char llStringCharAt (Object *s, size_t i)
-{
-  return STRING (s)->value[i];
-}
-
-Object *makeInt (long int v)
-{
-  Int *o = INT (makeObject (TYPE_INT, sizeof (Int)));
-  o->value = v;
-  return (Object *) o;
-}
-
-static void printSymbol (const Object *symbol);
 
 void objFree (Object *o)
 {
@@ -114,61 +67,126 @@ void objFree (Object *o)
   }
 }
 
-/* ---- Object Table ---- */
+static void objPrintIndent (const Object *obj, int level);
 
-void oTableInit (ObjectTable *ot)
+void objPrint (const Object *obj)
 {
-  ot->items = NULL;
-  ot->capacity = 0;
-  ot->used = 0;
+  objPrintIndent (obj, 0);
 }
 
-void oTableFree (ObjectTable *ot)
+/* Cons */
+
+Object *consNew (Object *car, Object *cdr)
 {
-  for (size_t i = 0; i < ot->used; i++)
-    free (ot->items[i]);
-  free (ot->items);
-  oTableInit (ot);
+  Cons *cons = CONS (objNew (TYPE_CONS, sizeof (Cons)));
+  cons->car = car;
+  cons->cdr = cdr;
+  return (Object *) cons;
 }
 
-void oTableAdjust (ObjectTable *ot, size_t osz)
+/* String */
+
+Object *stringNew (const char *p, size_t len)
+{
+  String *str;
+  str = STRING (objNew (TYPE_STRING, sizeof (String)));
+  memcpy (str->value, p, len);
+  str->value[len] = '\0';
+  str->len = len;
+  return OBJ (str);
+}
+
+size_t stringLen (Object *s)
+{
+  return STRING (s)->len;
+}
+
+char stringCharAt (Object *s, size_t i)
+{
+  return STRING (s)->value[i];
+}
+
+/* Int */
+
+Object *intNew (long int v)
+{
+  Int *o = INT (objNew (TYPE_INT, sizeof (Int)));
+  o->value = v;
+  return (Object *) o;
+}
+
+/* Symbol */
+
+Object *symbolNew (const char *p, size_t len)
+{
+  Symbol *symbol;
+  symbol = SYMBOL (objNew (TYPE_SYMBOL, sizeof (Symbol)));
+  memcpy (symbol->name, p, len);
+  symbol->name[len] = '\0';
+  symbol->len = len;
+  return (Object *) symbol;
+}
+
+/* ---- List ---- */
+
+static void listAdjust (List *lst, size_t osz);
+
+void listInit (List *lst)
+{
+  lst->items = NULL;
+  lst->capacity = 0;
+  lst->used = 0;
+  lst->o.type = TYPE_LIST;
+}
+
+void listFree (List *lst)
+{
+  for (size_t i = 0; i < lst->used; i++)
+    free (lst->items[i]);
+  free (lst->items);
+  listInit (lst);
+}
+
+static void listAdjust (List *lst, size_t osz)
 {
   void *tmp;
-  if (ot->used == ot->capacity) {
-    ot->capacity = ot->capacity == 0 ? INIT_OTABLE_SIZE : ot->capacity * 2;
-    if ((tmp = realloc (ot->items, ot->capacity * osz)) == NULL) {
-      free (ot->items);
+  if (lst->used == lst->capacity) {
+    lst->capacity = lst->capacity == 0 ? INIT_LIST_SIZE : lst->capacity * 2;
+    if ((tmp = realloc (lst->items, lst->capacity * osz)) == NULL) {
+      free (lst->items);
       FATAL ("Can't allocate memory");
     }
-    ot->items = tmp;
+    lst->items = tmp;
   }
 }
 
-uint32_t oTableInsert (ObjectTable *ot, Object *o)
+uint32_t listPush (List *lst, Object *o)
 {
-  oTableAdjust (ot, sizeof (Object *));
-  ot->items[ot->used++] = o;
-  return ot->used;
+  listAdjust (lst, sizeof (Object *));
+  lst->items[lst->used++] = o;
+  return lst->used;
 }
 
-Object *oTablePop (ObjectTable *ot)
+Object *listPop (List *lst)
 {
   Object *tmp;
-  assert (oTableSize (ot));
-  tmp = oTableTop (ot);
-  /* TODO: Should we have something like oTableItemSet? */
-  oTableItem (ot, oTableSize (ot)) = NULL;
-  ot->used--;
+  assert (listLen (lst));
+  tmp = listTop (lst);
+  /* TODO: Should we have something like listItemSet? */
+  listItem (lst, listLen (lst)) = NULL;
+  lst->used--;
   return tmp;
 }
 
-Object *oTableTop (ObjectTable *ot)
+Object *listTop (List *lst)
 {
-  assert (oTableSize (ot));
-  return oTableItem (ot, oTableSize (ot)-1);
+  assert (listLen (lst));
+  return listItem (lst, listLen (lst)-1);
 }
 
-bool objConsEqual (const Object *o1, const Object *o2)
+/* Object Equality */
+
+bool consEqual (const Object *o1, const Object *o2)
 {
   /* TODO: Add dynamically allocated stack */
   const Cons *stack[1048] = { 0 };
@@ -223,8 +241,8 @@ bool objEqual (const Object *o1, const Object *o2)
      symbol factory */
   case TYPE_SYMBOL: return SYMBOL (o1) == SYMBOL (o2);
   case TYPE_STRING: return strcmp (STRING (o1)->value, STRING (o2)->value) == 0;
-  case TYPE_CONS: return objConsEqual (o1, o2);
-  default: FATAL ("Unknown type passed to printObj: %d\n", o1->type);
+  case TYPE_CONS: return consEqual (o1, o2);
+  default: FATAL ("Unknown type passed to objPrint: %d\n", o1->type);
   }
 }
 
@@ -236,21 +254,21 @@ bool objEqual (const Object *o1, const Object *o2)
     printf (s);                                                 \
   } while (0)
 
-static void printObjIndent (const Object *obj, int level);
+static void symbolPrint (const Object *symbol);
 
-static void printCons (Cons *obj, int level)
+static void consPrint (Cons *obj, int level)
 {
   Cons *tmp;
   if (level > 0) printf ("\n");
   INDENTED (level, "(");
   for (tmp = obj; tmp && tmp->car; tmp = CONS (tmp->cdr)) {
-    printObjIndent (tmp->car, level+1);
+    objPrintIndent (tmp->car, level+1);
     if (tmp->cdr) {
       if (NILP (tmp->cdr))
         break;
       if (!CONSP (tmp->cdr)) {
         printf (" . ");
-        printObjIndent (tmp->cdr, level+1);
+        objPrintIndent (tmp->cdr, level+1);
         break;
       } else {
         printf (" ");
@@ -276,37 +294,32 @@ static void rawPrint (const char *s, size_t len)
   }
 }
 
-static void printSymbol (const Object *symbol)
+static void symbolPrint (const Object *symbol)
 {
   printf ("\"");
   rawPrint (SYMBOL (symbol)->name, SYMBOL (symbol)->len);
   printf ("\"");
 }
 
-static void printString (const Object *symbol)
+static void stringPrint (const Object *symbol)
 {
   printf ("\"");
   rawPrint (STRING (symbol)->value, STRING (symbol)->len);
   printf ("\"");
 }
 
-static void printObjIndent (const Object *obj, int level)
+static void objPrintIndent (const Object *obj, int level)
 {
   if (!obj) {
     printf ("NULL");
   } else {
     switch (obj->type) {
-    case TYPE_SYMBOL: printSymbol (obj); break;
-    case TYPE_STRING: printString (obj); break;
+    case TYPE_SYMBOL: symbolPrint (obj); break;
+    case TYPE_STRING: stringPrint (obj); break;
     case TYPE_NIL: printf ("nil"); break;
-    case TYPE_CONS: printCons (CONS (obj), level); break;
+    case TYPE_CONS: consPrint (CONS (obj), level); break;
     case TYPE_INT: printf ("%ld", INT (obj)->value); break;
-    default: FATAL ("Unknown type passed to printObj: %d\n", obj->type);
+    default: FATAL ("Unknown type passed to objPrint: %d\n", obj->type);
     }
   }
-}
-
-void printObj (const Object *obj)
-{
-  printObjIndent (obj, 0);
 }

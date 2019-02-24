@@ -38,7 +38,7 @@ Object *evNumber (Object *input)
   else if (HASKEY (first, "HEX")) base = 16;
   else if (HASKEY (first, "BIN")) base = 2;
   v = strtol (SYMBOL (FIRST (first))->name, NULL, base);
-  return makeInt (v);
+  return intNew (v);
 }
 
 Object *evExpression (Object *input);
@@ -62,9 +62,9 @@ Object *evUnary (Object *input)
   v = evPrimary (CAR (SECOND (input)));
 
   if (HASKEY (FIRST (input), "PLUS")) {
-    return makeInt (+INT (v)->value);
+    return intNew (+INT (v)->value);
   } else if (HASKEY (FIRST (input), "MINUS")) {
-    return makeInt (-INT (v)->value);
+    return intNew (-INT (v)->value);
   }
   return NULL;
 }
@@ -77,9 +77,9 @@ Object *evPower (Object *input)
   if (!NILP (SECOND (input))) {
     right = evPower (FIRST (SECOND (input)));
     if (HASKEY (CAR (SECOND (input)), "POWER")) {
-      return makeInt (pow (INT (left)->value, INT (right)->value));
+      return intNew (pow (INT (left)->value, INT (right)->value));
     } else if (HASKEY (CAR (SECOND (input)), "MOD")) {
-      return makeInt (INT (left)->value % INT (right)->value);
+      return intNew (INT (left)->value % INT (right)->value);
     }
     return NULL;
   } else {
@@ -95,9 +95,9 @@ Object *evFactor (Object *input)
   if (!NILP (SECOND (input))) {
     right = evFactor (FIRST (SECOND (input)));
     if (HASKEY (CAR (SECOND (input)), "STAR")) {
-      return makeInt (INT (left)->value * INT (right)->value);
+      return intNew (INT (left)->value * INT (right)->value);
     } else if (HASKEY (CAR (SECOND (input)), "SLASH")) {
-      return makeInt (INT (left)->value / INT (right)->value);
+      return intNew (INT (left)->value / INT (right)->value);
     }
     return OBJ (Nil);
   } else {
@@ -113,9 +113,9 @@ Object *evTerm (Object *input)
   if (!NILP (SECOND (input))) {
     right = evTerm (FIRST (SECOND (input)));
     if (HASKEY (CAR (SECOND (input)), "PLUS")) {
-      return makeInt (INT (left)->value + INT (right)->value);
+      return intNew (INT (left)->value + INT (right)->value);
     } else if (HASKEY (CAR (SECOND (input)), "MINUS")) {
-      return makeInt (INT (left)->value - INT (right)->value);
+      return intNew (INT (left)->value - INT (right)->value);
     }
     return OBJ (Nil);
   } else {
@@ -156,7 +156,7 @@ int main ()
       if ((tree = mMatch (&m, input, input_size)) != NULL) {
         /* tree = mExtract (&m, input); */
         result = calculate (tree);
-        printObj (result); printf ("\n");
+        objPrint (result); printf ("\n");
       }
       mFree (&m);
     }

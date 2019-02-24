@@ -24,7 +24,7 @@
 
 /* Constants */
 #define MAX_SYMBOL_SIZE    256
-#define INIT_OTABLE_SIZE   32
+#define INIT_LIST_SIZE     32
 
 /* Type cast shortcuts */
 #define OBJ(x)      ((Object *) x)
@@ -32,6 +32,7 @@
 #define CONS(x)     ((Cons *) x)
 #define INT(x)      ((Int *) x)
 #define STRING(x)   ((String *) x)
+#define LIST(x)     ((List *) x)
 
 /* Predicates used in the C environment. */
 #define SYMBOLP(o)  (OBJ (o)->type == TYPE_SYMBOL)
@@ -39,6 +40,7 @@
 #define NILP(o)     (OBJ (o)->type == TYPE_NIL)
 #define INTP(o)     (OBJ (o)->type == TYPE_INT)
 #define STRINGP(o)  (OBJ (o)->type == TYPE_STRING)
+#define LISTP(o)    (OBJ (o)->type == TYPE_LIST)
 
 /* Utilities */
 #define CAR(o) (CONS (o)->car)
@@ -50,6 +52,7 @@ typedef enum {
   TYPE_NIL,
   TYPE_INT,
   TYPE_STRING,
+  TYPE_LIST,
   TYPE_END
 } Type;
 
@@ -82,32 +85,32 @@ typedef struct {
 } Int;
 
 typedef struct {
-  void **items;
+  Object o;
   uint32_t used;
   uint32_t capacity;
-} ObjectTable;
+  void **items;
+} List;
 
 extern const Object *Nil;
 
-void printObj (const Object *o);
-Object *makeCons (Object *car, Object *cdr);
-Object *makeSymbol (const char *p, size_t len);
-Object *makeInt (long int v);
+void objPrint (const Object *o);
 bool objEqual (const Object *o1, const Object *o2);
 void objFree (Object *o);
 
-Object *makeString (const char *p, size_t len);
-size_t llStringLen (Object *s);
-char llStringCharAt (Object *s, size_t i);
+Object *consNew (Object *car, Object *cdr);
+Object *symbolNew (const char *p, size_t len);
+Object *intNew (long int v);
 
-void oTableInit (ObjectTable *ot);
-void oTableFree (ObjectTable *ot);
-void oTableAdjust (ObjectTable *ot, size_t osz);
-uint32_t oTableInsert (ObjectTable *ot, Object *o);
-Object *oTablePop (ObjectTable *ot);
-Object *oTableTop (ObjectTable *ot);
-#define oTableItem(o,i) ((o)->items[i])
-#define oTableEmpty(o) ((o)->used == 0)
-#define oTableSize(o) ((o)->used)
+Object *stringNew (const char *p, size_t len);
+size_t stringLen (Object *s);
+char stringCharAt (Object *s, size_t i);
+
+void listInit (List *lst);
+void listFree (List *lst);
+uint32_t listPush (List *lst, Object *o);
+Object *listPop (List *lst);
+Object *listTop (List *lst);
+#define listItem(o,i) ((o)->items[i])
+#define listLen(o) ((o)->used)
 
 #endif  /* VALUE_GUARD */

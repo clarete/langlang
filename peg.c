@@ -96,7 +96,7 @@ Object *mSymbol (Machine *m, const char *sym, size_t len) {
   }
 
   symbol = makeSymbol (sym, len);
-  oTableInsertObject (&m->symbols, symbol);
+  oTableInsert (&m->symbols, symbol);
   return symbol;
 }
 
@@ -219,10 +219,10 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       /*                             UOPERAND2 (pc)))->name); */
       btCount++;
       if (UOPERAND1 (pc)) {     /* If the match is a terminal */
-        oTableInsertObject (&treestk, makeString ("", 0));
+        oTableInsert (&treestk, makeString ("", 0));
       } else {                  /* If the match is a non-terminal */
         Object *node = makeCons (oTableItem (&m->symbols, UOPERAND2 (pc)), OBJ (Nil));
-        oTableInsertObject (&treestk, node);
+        oTableInsert (&treestk, node);
         ltCount = 0;
       }
       pc++;
@@ -358,7 +358,7 @@ void enclose (ObjectTable *ot)
   /* POP the NIL value that marks the beginning of the list being
      enclosed */
   assert (NILP (oTablePop (ot)));
-  oTableInsertObject (ot, out);
+  oTableInsert (ot, out);
 }
 
 Object *mMatchList (Machine *m, Object *input)
@@ -415,7 +415,7 @@ Object *mMatchList (Machine *m, Object *input)
       if (!CONSP (l) || !CONSP (CAR (l))) goto fail;
       PUSH (CDR (l), pc++); l = CAR (l);
       btCount++;
-      oTableInsertObject (&treestk, OBJ (Nil));
+      oTableInsert (&treestk, OBJ (Nil));
       continue;
     case OP_CLOSE:
       if (!NILP (l)) goto fail;
@@ -435,14 +435,14 @@ Object *mMatchList (Machine *m, Object *input)
       if (CONSP (CAR (l))) goto fail;
       /* Does it match with the atom we're looking for? */
       if (strncmp (SYMBOL (CAR (l))->name, sym->name, sym->len)) goto fail;
-      oTableInsertObject (&treestk, CAR (l));
+      oTableInsert (&treestk, CAR (l));
       ltCount++;
       /* Crank the machine to go to the next element & instruction */
       l = CDR (l); pc++;
       continue;
     case OP_ANY:
       if (!l || NILP (l)) goto fail;
-      oTableInsertObject (&treestk, CAR (l));
+      oTableInsert (&treestk, CAR (l));
       ltCount++;
       l = CDR (l); pc++;
       continue;

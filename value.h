@@ -103,8 +103,7 @@ char llStringCharAt (Object *s, size_t i);
 void oTableInit (ObjectTable *ot);
 void oTableFree (ObjectTable *ot);
 void oTableAdjust (ObjectTable *ot, size_t osz);
-uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz);
-uint32_t oTableInsertObject (ObjectTable *ot, Object *o);
+uint32_t oTableInsert (ObjectTable *ot, Object *o);
 Object *oTablePop (ObjectTable *ot);
 Object *oTableTop (ObjectTable *ot);
 #define oTableItem(o,i) ((o)->items[i])

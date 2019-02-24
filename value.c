@@ -144,16 +144,9 @@ void oTableAdjust (ObjectTable *ot, size_t osz)
   }
 }
 
-uint32_t oTableInsertObject (ObjectTable *ot, Object *o)
+uint32_t oTableInsert (ObjectTable *ot, Object *o)
 {
   oTableAdjust (ot, sizeof (Object *));
-  ot->items[ot->used++] = o;
-  return ot->used;
-}
-
-uint32_t oTableInsert (ObjectTable *ot, void *o, size_t osz)
-{
-  oTableAdjust (ot, osz);
   ot->items[ot->used++] = o;
   return ot->used;
 }

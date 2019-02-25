@@ -1293,6 +1293,65 @@ void test_obj_equal_cons ()
   mFree (&m);
 }
 
+void test_obj_equal_list ()
+{
+  List arr1, arr2, arr3;
+
+  listInit (&arr1);
+  listInit (&arr2);
+  listInit (&arr3);
+
+  listPush (&arr1, intNew (1));
+  listPush (&arr1, intNew (2));
+  listPush (&arr1, intNew (3));
+
+  listPush (&arr2, intNew (3));
+  listPush (&arr2, intNew (2));
+  listPush (&arr2, intNew (1));
+
+  listPush (&arr3, intNew (1));
+  listPush (&arr3, intNew (2));
+  listPush (&arr3, intNew (3));
+
+  assert (!objEqual (OBJ (&arr1), OBJ (&arr2)));
+  assert (!objEqual (OBJ (&arr2), OBJ (&arr3)));
+  assert (objEqual (OBJ (&arr1), OBJ (&arr3)));
+}
+
+void test_obj_equal_sublist ()
+{
+  List arr1, arr2;
+  List sarr1, sarr2;
+  List sarr3, sarr4;
+  int i;
+
+  listInit (&arr1); listInit (&arr2);
+  listInit (&sarr1); listInit (&sarr2);
+  listInit (&sarr3); listInit (&sarr4);
+
+  for (i = 1; i < 4; i++) {
+    listPush (&sarr1, intNew (i));
+    listPush (&sarr2, intNew (i));
+    listPush (&sarr3, intNew (i*2));
+    listPush (&sarr4, intNew (i*2));
+  }
+
+  listPush (&arr1, OBJ (&sarr1));
+  listPush (&arr2, OBJ (&sarr2));
+  listPush (&arr1, OBJ (&sarr3));
+  listPush (&arr2, OBJ (&sarr4));
+
+  assert (objEqual (OBJ (&arr1), OBJ (&arr2)));
+
+  listPush (&arr1, intNew (99));
+
+  assert (!objEqual (OBJ (&arr1), OBJ (&arr2)));
+
+  printf ("The list: ");
+  objPrint (consNew (OBJ (&arr1), OBJ (&arr2)));
+  printf ("\n");
+}
+
 int main ()
 {
   test_gen_args ();
@@ -1349,5 +1408,8 @@ int main ()
   test_obj_equal_int ();
   test_obj_equal_symbol ();
   test_obj_equal_cons ();
+  test_obj_equal_list ();
+  test_obj_equal_sublist ();
+
   return 0;
 }

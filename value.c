@@ -231,6 +231,40 @@ bool consEqual (const Object *o1, const Object *o2)
   return true;
 }
 
+bool listEqual (const Object *o1, const Object *o2)
+{
+  /* TODO: Add dynamically allocated stack */
+  const Object *stack[1048] = { 0 };
+  const Object **stack_top = stack;
+  const Object *current = NULL, *left = NULL, *right = NULL;
+
+  /* Add both objects cons cell wrapped to the top of the stack */
+  *stack_top++ = OBJ (consNew (OBJ (o1), OBJ (o2)));
+
+  while (stack_top > stack) {
+    current = *--stack_top;
+    left = CAR (current);
+    right = CDR (current);
+    free (CONS (current));      /* Don't free left & right */
+
+    if (LISTP (left) && LISTP (left)) {
+      /* Both are lists but have different length */
+      if (listLen (LIST (left)) != listLen (LIST (right)))
+        return false;
+      /* Add each item to the stack so they can be tested */
+      for (uint32_t i = 0; i < listLen (LIST (left)); i++)
+        *stack_top++ = OBJ (consNew (listItem (LIST (left), i),
+                                     listItem (LIST (right), i)));
+    } else if (!LISTP (left) && !LISTP (right)) {
+      /* None are lists, we can compare them with the recursive
+       * function */
+      if (!objEqual (left, right)) return false;
+    }
+  }
+
+  return true;
+}
+
 bool objEqual (const Object *o1, const Object *o2)
 {
   if (o1->type != o2->type) return false;
@@ -242,6 +276,7 @@ bool objEqual (const Object *o1, const Object *o2)
   case TYPE_SYMBOL: return SYMBOL (o1) == SYMBOL (o2);
   case TYPE_STRING: return strcmp (STRING (o1)->value, STRING (o2)->value) == 0;
   case TYPE_CONS: return consEqual (o1, o2);
+  case TYPE_LIST: return listEqual (o1, o2);
   default: FATAL ("Unknown type passed to objPrint: %d\n", o1->type);
   }
 }
@@ -276,6 +311,17 @@ static void consPrint (Cons *obj, int level)
     }
   }
   printf (")");
+}
+
+static void listPrint (List *lst, int level)
+{
+  if (level > 0) printf ("\n");
+  INDENTED (level, "[");
+  for (uint32_t i = 0; i < listLen (lst); i++) {
+    objPrintIndent (listItem (lst, i), level+1);
+    if (i != listLen (lst)-1) printf (", ");
+  }
+  printf ("]");
 }
 
 static void rawPrint (const char *s, size_t len)
@@ -318,6 +364,7 @@ static void objPrintIndent (const Object *obj, int level)
     case TYPE_STRING: stringPrint (obj); break;
     case TYPE_NIL: printf ("nil"); break;
     case TYPE_CONS: consPrint (CONS (obj), level); break;
+    case TYPE_LIST: listPrint (LIST (obj), level); break;
     case TYPE_INT: printf ("%ld", INT (obj)->value); break;
     default: FATAL ("Unknown type passed to objPrint: %d\n", obj->type);
     }

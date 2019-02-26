@@ -33,6 +33,7 @@
 #define INT(x)      ((Int *) x)
 #define STRING(x)   ((String *) x)
 #define LIST(x)     ((List *) x)
+#define DICT(x)     ((Dict *) x)
 
 /* Predicates used in the C environment. */
 #define SYMBOLP(o)  (OBJ (o)->type == TYPE_SYMBOL)
@@ -41,6 +42,7 @@
 #define INTP(o)     (OBJ (o)->type == TYPE_INT)
 #define STRINGP(o)  (OBJ (o)->type == TYPE_STRING)
 #define LISTP(o)    (OBJ (o)->type == TYPE_LIST)
+#define DICTP(o)    (OBJ (o)->type == TYPE_DICT)
 
 /* Utilities */
 #define CAR(o) (CONS (o)->car)
@@ -53,6 +55,7 @@ typedef enum {
   TYPE_INT,
   TYPE_STRING,
   TYPE_LIST,
+  TYPE_DICT,
   TYPE_END
 } Type;
 
@@ -88,14 +91,22 @@ typedef struct {
   Object o;
   uint32_t used;
   uint32_t capacity;
-  void **items;
+  Object **items;
 } List;
+
+typedef struct {
+  Object o;
+  uint32_t used;
+  uint32_t capacity;
+  Object **values;
+} Dict;
 
 extern const Object *Nil;
 
 void objPrint (const Object *o);
 bool objEqual (const Object *o1, const Object *o2);
 void objFree (Object *o);
+uint32_t objHash (Object *o);
 
 Object *consNew (Object *car, Object *cdr);
 Object *symbolNew (const char *p, size_t len);
@@ -112,5 +123,13 @@ Object *listPop (List *lst);
 Object *listTop (List *lst);
 #define listItem(o,i) ((o)->items[i])
 #define listLen(o) ((o)->used)
+
+void dictInit (Dict *d);
+void dictFree (Dict *d);
+bool dictSet (Dict *d, Object *k, Object *v);
+bool dictGet (Dict *d, Object *k, Object **v);
+bool dictDel (Dict *d, Object *k);
+#define dictLen(d) ((d)->used)
+#define dictItem(d,i) ((d)->values[i])
 
 #endif  /* VALUE_GUARD */

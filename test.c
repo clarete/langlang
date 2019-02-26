@@ -1347,8 +1347,65 @@ void test_obj_equal_sublist ()
 
   assert (!objEqual (OBJ (&arr1), OBJ (&arr2)));
 
-  printf ("The list: ");
+  printf ("The lists: ");
   objPrint (consNew (OBJ (&arr1), OBJ (&arr2)));
+  printf ("\n");
+}
+
+void test_dict0 ()
+{
+  Dict d0;
+  Object *output;
+
+  dictInit (&d0);
+
+  /* Can't delete anything from an empty dict */
+  assert (!dictDel (&d0, stringNew ("seven", 5)));
+
+  /* Add a bunch of entries */
+  assert (dictSet (&d0, stringNew ("one", 3), intNew (1)));
+  assert (dictSet (&d0, stringNew ("two", 3), intNew (2)));
+  assert (dictSet (&d0, stringNew ("three", 5), intNew (3)));
+  assert (dictSet (&d0, stringNew ("four", 4), intNew (4)));
+  assert (dictSet (&d0, stringNew ("five", 4), intNew (5)));
+  assert (dictSet (&d0, stringNew ("six", 3), intNew (6)));
+  assert (dictSet (&d0, stringNew ("seven", 5), intNew (7)));
+  assert (dictSet (&d0, stringNew ("eight", 5), intNew (8)));
+  assert (dictSet (&d0, stringNew ("nine", 4), intNew (9)));
+  assert (dictSet (&d0, stringNew ("ten", 3), intNew (10)));
+
+  /* Make sure the newly inserted all there */
+  assert (dictLen (&d0) == 10);
+
+  /* Try to insert key `eight' again, shouldn't have done anything */
+  assert (!dictSet (&d0, stringNew ("eight", 5), intNew (8)));
+  assert (dictLen (&d0) == 10);
+
+  /* Found key `two' */
+  assert (dictGet (&d0, stringNew ("two", 3), &output));
+  assert (objEqual (output, intNew (2)));
+  output = NULL;
+
+  /* Found key `seven' */
+  assert (dictGet (&d0, stringNew ("seven", 5), &output));
+  assert (objEqual (output, intNew (7)));
+  output = NULL;
+
+  /* Can't find key `blah' */
+  assert (!dictGet (&d0, stringNew ("blah", 4), &output));
+  assert (!output);
+
+  /* It can't delete keys that it can't find */
+  assert (!dictDel (&d0, stringNew ("bleh", 4)));
+
+  /* Delete a few keys */
+  assert (dictDel (&d0, stringNew ("seven", 5)));
+  assert (dictDel (&d0, stringNew ("six", 3)));
+  assert (dictDel (&d0, stringNew ("three", 5)));
+  assert (dictLen (&d0) == 7);
+
+  printf ("The dict: ");
+  objPrint (OBJ (&d0));
   printf ("\n");
 }
 
@@ -1411,5 +1468,6 @@ int main ()
   test_obj_equal_list ();
   test_obj_equal_sublist ();
 
+  test_dict0 ();
   return 0;
 }

@@ -418,7 +418,7 @@ bool objEqual (const Object *o1, const Object *o2)
   case TYPE_STRING: return strcmp (STRING (o1)->value, STRING (o2)->value) == 0;
   case TYPE_CONS: return consEqual (o1, o2);
   case TYPE_LIST: return listEqual (o1, o2);
-  default: FATAL ("Unknown type passed to objPrint: %d\n", o1->type);
+  default: FATAL ("Unknown type passed to objEqual: %d\n", o1->type);
   }
 }
 

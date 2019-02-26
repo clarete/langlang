@@ -92,7 +92,7 @@ void objFree (Object *o)
 }
 
 /* djb2 */
-uint32_t stringHash (Object *o)
+uint32_t stringHash (String *o)
 {
   uint32_t i, hash = 5381;
   for (i = 0; i < stringLen (o); i++) {
@@ -103,7 +103,7 @@ uint32_t stringHash (Object *o)
 
 uint32_t objHash (Object *o) {
   if (STRINGP (o)) {
-    return stringHash (o);
+    return stringHash (STRING (o));
   }
   return 0;
 }
@@ -137,14 +137,14 @@ Object *stringNew (const char *p, size_t len)
   return OBJ (str);
 }
 
-size_t stringLen (Object *s)
+size_t stringLen (String *s)
 {
-  return STRING (s)->len;
+  return s->len;
 }
 
-char stringCharAt (Object *s, size_t i)
+char stringCharAt (String *s, size_t i)
 {
-  return STRING (s)->value[i];
+  return s->value[i];
 }
 
 /* Int */

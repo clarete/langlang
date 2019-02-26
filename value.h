@@ -113,8 +113,8 @@ Object *symbolNew (const char *p, size_t len);
 Object *intNew (long int v);
 
 Object *stringNew (const char *p, size_t len);
-size_t stringLen (Object *s);
-char stringCharAt (Object *s, size_t i);
+size_t stringLen (String *s);
+char stringCharAt (String *s, size_t i);
 
 void listInit (List *lst);
 void listFree (List *lst);

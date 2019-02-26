@@ -24,6 +24,14 @@
 
 /* Static Objects */
 const Object *Nil = (&(Object) { TYPE_NIL, 0 });
+const Object *True = OBJ ((&(Bool) {
+  .o = { TYPE_BOOL, 0 },
+  .value = true,
+}));
+const Object *False = OBJ ((&(Bool) {
+  .o = { TYPE_BOOL, 0 },
+  .value = false,
+}));
 
 /* Memory Allocation */
 
@@ -412,6 +420,7 @@ bool objEqual (const Object *o1, const Object *o2)
   switch (o1->type) {
   case TYPE_NIL: return true;
   case TYPE_INT: return INT (o1)->value == INT (o2)->value;
+  case TYPE_BOOL: return o1 == o2;
   /* TODO: Should compare pointer, will fix after adding lookup to
      symbol factory */
   case TYPE_SYMBOL: return SYMBOL (o1) == SYMBOL (o2);
@@ -521,6 +530,7 @@ static void objPrintIndent (const Object *obj, int level)
     switch (obj->type) {
     case TYPE_NIL: printf ("nil"); break;
     case TYPE_INT: printf ("%ld", INT (obj)->value); break;
+    case TYPE_BOOL: printf ("%s", BOOL (obj)->value ? "true" : "false"); break;
     case TYPE_SYMBOL: symbolPrint (obj); break;
     case TYPE_STRING: stringPrint (obj); break;
     case TYPE_CONS: consPrint (CONS (obj), level); break;

@@ -31,6 +31,7 @@
 #define SYMBOL(x)   ((Symbol *) x)
 #define CONS(x)     ((Cons *) x)
 #define INT(x)      ((Int *) x)
+#define BOOL(x)     ((Bool *) x)
 #define STRING(x)   ((String *) x)
 #define LIST(x)     ((List *) x)
 #define DICT(x)     ((Dict *) x)
@@ -39,6 +40,7 @@
 #define SYMBOLP(o)  (OBJ (o)->type == TYPE_SYMBOL)
 #define CONSP(o)    (OBJ (o)->type == TYPE_CONS)
 #define NILP(o)     (OBJ (o)->type == TYPE_NIL)
+#define BOOLP(o)    (OBJ (o)->type == TYPE_BOOL)
 #define INTP(o)     (OBJ (o)->type == TYPE_INT)
 #define STRINGP(o)  (OBJ (o)->type == TYPE_STRING)
 #define LISTP(o)    (OBJ (o)->type == TYPE_LIST)
@@ -53,6 +55,7 @@ typedef enum {
   TYPE_CONS,
   TYPE_NIL,
   TYPE_INT,
+  TYPE_BOOL,
   TYPE_STRING,
   TYPE_LIST,
   TYPE_DICT,
@@ -89,6 +92,11 @@ typedef struct {
 
 typedef struct {
   Object o;
+  bool value;
+} Bool;
+
+typedef struct {
+  Object o;
   uint32_t used;
   uint32_t capacity;
   Object **items;
@@ -102,6 +110,8 @@ typedef struct {
 } Dict;
 
 extern const Object *Nil;
+extern const Object *True;
+extern const Object *False;
 
 void objPrint (const Object *o);
 bool objEqual (const Object *o1, const Object *o2);

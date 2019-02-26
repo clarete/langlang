@@ -1273,6 +1273,16 @@ void test_obj_equal_symbol ()
   mFree (&m);
 }
 
+void test_obj_equal_bool ()
+{
+  assert (True == True);
+  assert (False == False);
+  assert (True != False);
+  assert (objEqual (True, True));
+  assert (objEqual (False, False));
+  assert (!objEqual (True, False));
+}
+
 void test_obj_equal_cons ()
 {
   Machine m;
@@ -1344,6 +1354,9 @@ void test_obj_equal_sublist ()
   assert (objEqual (OBJ (&arr1), OBJ (&arr2)));
 
   listPush (&arr1, intNew (99));
+  listPush (&arr2, OBJ (True));
+  listPush (&arr2, OBJ (False));
+  listPush (&arr2, OBJ (Nil));
 
   assert (!objEqual (OBJ (&arr1), OBJ (&arr2)));
 
@@ -1464,6 +1477,7 @@ int main ()
 
   test_obj_equal_int ();
   test_obj_equal_symbol ();
+  test_obj_equal_bool ();
   test_obj_equal_cons ();
   test_obj_equal_list ();
   test_obj_equal_sublist ();

@@ -1,0 +1,193 @@
+* Roadmap
+** Structure
+   Values marked as DONE might still have unfinished items. They're
+   probably good to have but
+** Parsing Machine
+*** DONE [#A] PEG Semantics
+    A summary of what's implemented can be found in the [[./peg.org][Parsing
+    Machine]] documentation.
+*** DONE [#A] Capture Values in Match
+    CLOSED: [2018-09-19 Wed 17:05]
+    A summary of what's implemented can be found in the [[./capturevalues.org][Capture Values]]
+    documentation.
+*** DONE [#A] List Matching
+    CLOSED: [2019-01-22 Tue 09:15]
+    Besides parsing streams of characters, with very few tweaks, the
+    parsing machine can also match lists (and trees). It's described
+    more in depth in the article [[http://www.lua.inf.puc-rio.br/publications/mascarenhas11parsing.pdf][Parsing Expression Grammars for]]
+    Structured Data]] by F. Mascarenhas, S. Medeiros and
+    R. Ierusalimschy.
+
+    The idea is to use that to traverse trees returned by the
+    character matching stage and serve as a tool for transforming
+    trees.
+
+    One thing that I haven't been able to adapt while writing grammars
+    is the dominance of semantic actions over the actual grammar.
+    There must be a more readable and modular way of doing this job.
+
+    Some parser generators attach actions via visitor pattern by
+    adding the action code to the =AST= node's ~Visit~ method.
+
+*** DOING [#A] Semantic Actions
+    That could be done either as an API or as an extension to the
+    language for grammars.
+
+    This is interesting. Abstracting Backtracking is a good
+    idea. here's where I found about it (they give some suggestions
+    about context sensitive parsers too somewhere in the text):
+
+    Modular Semantic Actions (A. Warth, P. Dubroy &
+    T. Garnock-Jones) - page 2:
+
+    (...)
+    In code. The fact that Ohm’s grammars and semantic actions are
+    written separately — as in Newspeak’s Executable Grammars [1] —
+    leads to more readable grammars, and makes it possible for
+    grammars and semantic actions to be extended independently, using
+    familiar object-oriented mechanisms. (More on this in Section 4.)
+    (...)
+
+    [1] This means that Ohm does not support semantic predicates,
+    which results in a small loss of expressiveness, e.g., it is not
+    currently possible to write Ohm grammars for context-sensitive
+    languages like Python and HTML.
+
+*** [#B] Error Handling
+**** Problem
+     There are essentially two things that make error reporting not
+     trivial within this parsing system:
+
+     1. The backtracking semantics of the ordered choice puts the
+        cursor far away from where the parsing error occurred.
+
+     2. In a handwritten parser or in a generated one, the lexer is
+        separated from the parser and can be more comprehensive about
+        errors. In our system, the grammar for describing grammars
+        doesn't offer any way for the grammar writer to provide error
+        messages where they're expected.
+**** Suggested Solution
+
+     In the article [[http://foo][Exception Handling for Error Reporting in Parsing
+     Expression Grammars]], André Murbach Maidl, Fabio Mascarenhas and
+     Roberto Ierusalimschy propose the use of techniques that resemble
+     exception handling in programming languages.
+*** [#B] Left Recursion
+*** [#C] Streaming API
+**** Problem
+     The matching happens totally synchronously and depends on
+     previously known lengths that aren't really imposed by the
+     abstractions but rather by the current implementation.
+
+     The reading from the grammars file will probably continue to be
+     done synchronously related to the reading of the input. That
+     means that although the code for reading the both input and
+     grammars might use asynchronous functions, reading the grammars
+     will most likely block starting to read the input. That's a
+     decision that might simplify the implementation assuming that
+     grammar files will normally be way smaller than the input files.
+
+     It is desired though to not require loading an entire input file
+     into memory to allow matching more data.
+**** Solution
+     A good solution would primarily look for good interaction with
+     the execution of the language virtual machine, which currently
+     doesn't exist. In that case, it might either shape the ideas for
+     this other system. It'd be nice to be able to receive high level
+     streams provided by the language VM.
+
+     Suggested Protocol:
+
+     * ~bool nextChar(Stream s, char *c)~: Returns true if a character
+       could be read from the stream.
+     * ~uint32_t pos(Stream s)~: Returns the current position in the
+       stream.
+
+     As anything else related to the PEG machine, the hardest part to
+     integrate with is the backtracking. The stream abstraction must
+     be prepared to rewind the cursor, which to might impose a direct
+     limitation on how many nested ~CHOICE~ operations the VM will be
+     able to performed.
+
+*** [#D] Event API
+**** Problem
+     The matching currently happens separately from manipulating
+** Language Machine
+*** [#A] Built-In Value Types
+    * [X] Nil
+    * [X] Integers
+      Currently a boxed ~long int~ value
+    * [X] Boolean Currently a boxed ~bool~ value (from ~stdbool.h~)
+      with private constructor. Only available instances are ~True~
+      and ~False~.
+    * [X] List
+      Currently an array of ~Object~ pointers
+    * [X] Dictionary
+      Currently an array of ~Cons~ lists
+    * [X] String
+      Boxed ~char~ pointer
+    * [X] Symbol
+    * [ ] Float/Double/Decimal
+    * [ ] Integer Array
+*** [#B] Language Features
+    * Expressions
+      * [ ] Arithmetic: Addition/Subtraction/Multiplication/Division/Reminder/Power
+      * [ ] Logic: Or/And/Not
+      * [ ] Comparison: Equal/Not Equal
+      * [ ] Bit Manipulation
+      * [ ] Anonymous Function Declaration
+      * [ ] Function Call
+      * [ ] Asynchronous Function Call
+    * Statements
+      * [ ] Function Declaration
+      * [ ] Return
+      * [ ] Conditional
+        * [ ] if/else
+        * [ ] switch
+      * [ ] Loop
+        * [ ] while
+        * [ ] for
+        * [ ] until
+        * [ ] each
+      * [ ] Assignments
+        * [ ] Destructure
+      * [ ] Match
+      * [ ] Yield/Async/Await
+*** [#B] Callable First Class Citizen
+    * [ ] Functions: Traditional stack based implementation
+    * [ ] Closures: Probably using the ~Upvalue~ method from the Lua
+      virtual machine project
+    * [ ] Continuations (call/cc)
+    * [ ] Grammars
+*** [#C] Garbage Collection
+    Probably don't want to go with reference counting because of the
+    burden of maintaining a separate system for doing that one job
+    well is still preferable over manually typing all those pesky
+    ~inc/dec()~ calls all over the code. Could start as simple as a
+    mark & sweep and evolve to more elaborate solutions over time.
+*** [#C] NaN Tagging
+** Meta Tools
+*** Intermediary Representation
+    * [ ] AST
+    * [ ] DAG
+    * [ ] Control Flow Graph
+    * [ ] Static Single Assignment
+    * [ ] Call Graph
+*** Optimizations
+    * [ ] Peephole
+    * [ ] Constant Propagation
+    * [ ] Copy Propogation
+    * [ ] Unreachable Code
+* Known Bugs
+** TODO List matching capturing is broken for nested choices
+   * It should use the same implementation of captures in
+     ~mMatch~. The instructions are already there.
+     * Only question against this implementation is will that be way
+       too many more instructions to be executed?
+   * It's on the way of implementing semantic actions
+** TODO Memory Management
+   Since there are plans to adopt a garbage collection, object
+   creation is sort of not managed now. The only thing that requires
+   memory allocation in the heap is capturing values. Everything else
+   is done on the stack. That might change if the VM stack itself gets
+   moved to the heap.

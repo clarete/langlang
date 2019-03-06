@@ -809,7 +809,7 @@ void test_span1 ()
 void test_cap1 ()
 {
   Machine m;
-  int instructions = 9;
+  int instructions = 10;
   uint32_t b[progSize (instructions)];
   const char *i = "a";
   Object *out = NULL;
@@ -818,14 +818,15 @@ void test_cap1 ()
   writeHeader (b, instructions);
   /* S <- %{ 'a' } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x8);
+  b[0x2] = GEN1 (OP_JUMP, 0x9);
   b[0x3] = GEN2 (OP_CAP_OPEN, 0x0, 0x0); /* CapOpen 0 (Main) */
   b[0x4] = GEN2 (OP_CAP_OPEN, 0x1, 0x1);
   b[0x5] = GEN1 (OP_CHAR, 0x61);
-  b[0x6] = GEN2 (OP_CAP_CLOSE, 0x1, 0x1);
-  b[0x7] = GEN2 (OP_CAP_CLOSE, 0x0, 0x0); /* CapClose 0 (Main) */
-  b[0x8] = GEN0 (OP_RETURN);
-  b[0x9] = GEN0 (OP_HALT);
+  b[0x6] = GEN0 (OP_CAPCHAR);
+  b[0x7] = GEN2 (OP_CAP_CLOSE, 0x1, 0x1);
+  b[0x8] = GEN2 (OP_CAP_CLOSE, 0x0, 0x0); /* CapClose 0 (Main) */
+  b[0x9] = GEN0 (OP_RETURN);
+  b[0xa] = GEN0 (OP_HALT);
 
   mInit (&m);
   mSymbol (&m, "Main", 4);

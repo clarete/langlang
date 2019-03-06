@@ -1663,7 +1663,7 @@ def test_compile():
     ))
 
     # Atom
-    assert(cc('A <- { "test" }\n', capture=False) == bn(
+    assert(cc('A <- { "test" }\n') == bn(
         gen("call",   0x02),    # 0x00: Call 0x02
         gen("jump",   0x06),    # 0x01: Jump 0x06
         gen("open"),            # 0x02: Open

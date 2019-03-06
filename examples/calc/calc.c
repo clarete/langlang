@@ -25,113 +25,82 @@
 #include "../../peg.h"
 #include "../../io.h"
 
-#define FIRST(o) CAR (CDR (o))
-#define SECOND(o) CDR (CDR (o))
-#define HASKEY(o,n) (strcmp (SYMBOL (CAR (o))->name, n) == 0)
-
-Object *evNumber (Object *input)
+Object *actionDEC (Object *args, void *data)
 {
-  Object *first = FIRST (input);
-  long int v;
-  int base = -1;
-  if (HASKEY (first, "DEC")) base = 10;
-  else if (HASKEY (first, "HEX")) base = 16;
-  else if (HASKEY (first, "BIN")) base = 2;
-  v = strtol (SYMBOL (FIRST (first))->name, NULL, base);
-  return intNew (v);
+  const char *s = stringAsCharArr (STRING (CADR (args)));
+  return intNew (strtol (s, NULL, 10));
 }
 
-Object *evExpression (Object *input);
-
-Object *evPrimary (Object *input)
+Object *actionBIN (Object *args, void *data)
 {
-  if (HASKEY (FIRST (input), "Number")) {
-    return evNumber (FIRST (input));
-  } else if (HASKEY (FIRST (input), "Expression")) {
-    return evExpression (FIRST (input));
-  }
+  const char *s = stringAsCharArr (STRING (CADR (args)));
+  return intNew (strtol (s, NULL, 2));
+}
+
+Object *actionHEX (Object *args, void *data)
+{
+  const char *s = stringAsCharArr (STRING (CADR (args)));
+  return intNew (strtol (s, NULL, 16));
+}
+
+Object *actionNumber (Object *args, void *data)
+{
+  return CADR (args);
+}
+
+Object *actionPrimary (Object *args, void *data)
+{
+  return CADR (args);
+}
+
+Object *actionUnary (Object *args, void *data)
+{
+  return CADR (args);
+}
+
+Object *actionPower (Object *args, void *data)
+{
+  Object *right, *left = CADR (args);
+  const char *s;
+  if (NILP (CDR (CDR (args))))
+    return left;
+  s = stringAsCharArr (STRING (CAR (CADR (CDR (args)))));
+  right = CADR (CDR (CDR (args)));
+  if (strcmp (s, "POWER") == 0)
+    return intNew (pow (INT (left)->value, INT (right)->value));
+  else if (strcmp (s, "MOD") == 0)
+    return intNew (INT (left)->value % INT (right)->value);
   return NULL;
 }
 
-Object *evUnary (Object *input)
+Object *actionFactor (Object *args, void *data)
 {
-  Object *v;
-  /* If the operator isn't present */
-  if (NILP (CDR (CDR (input)))) return evPrimary (FIRST (input));
-
-  v = evPrimary (CAR (SECOND (input)));
-
-  if (HASKEY (FIRST (input), "PLUS")) {
-    return intNew (+INT (v)->value);
-  } else if (HASKEY (FIRST (input), "MINUS")) {
-    return intNew (-INT (v)->value);
-  }
+  Object *right, *left = CADR (args);
+  const char *s;
+  if (NILP (CDR (CDR (args))))
+    return left;
+  s = stringAsCharArr (STRING (CAR (CADR (CDR (args)))));
+  right = CADR (CDR (CDR (args)));
+  if (strcmp (s, "STAR") == 0)
+    return intNew (INT (left)->value * INT (right)->value);
+  else if (strcmp (s, "SLASH") == 0)
+    return intNew (INT (left)->value / INT (right)->value);
   return NULL;
 }
 
-Object *evPower (Object *input)
+Object *actionTerm (Object *args, void *data)
 {
-  Object *left, *right;
-  left = evUnary (FIRST (input));
-
-  if (!NILP (SECOND (input))) {
-    right = evPower (FIRST (SECOND (input)));
-    if (HASKEY (CAR (SECOND (input)), "POWER")) {
-      return intNew (pow (INT (left)->value, INT (right)->value));
-    } else if (HASKEY (CAR (SECOND (input)), "MOD")) {
-      return intNew (INT (left)->value % INT (right)->value);
-    }
-    return NULL;
-  } else {
+  Object *right, *left = CADR (args);
+  const char *s;
+  if (NILP (CDR (CDR (args))))
     return left;
-  }
-}
-
-Object *evFactor (Object *input)
-{
-  Object *left, *right;
-  left = evPower (FIRST (input));
-
-  if (!NILP (SECOND (input))) {
-    right = evFactor (FIRST (SECOND (input)));
-    if (HASKEY (CAR (SECOND (input)), "STAR")) {
-      return intNew (INT (left)->value * INT (right)->value);
-    } else if (HASKEY (CAR (SECOND (input)), "SLASH")) {
-      return intNew (INT (left)->value / INT (right)->value);
-    }
-    return OBJ (Nil);
-  } else {
-    return left;
-  }
-}
-
-Object *evTerm (Object *input)
-{
-  Object *left, *right;
-  left = evFactor (FIRST (input));
-
-  if (!NILP (SECOND (input))) {
-    right = evTerm (FIRST (SECOND (input)));
-    if (HASKEY (CAR (SECOND (input)), "PLUS")) {
-      return intNew (INT (left)->value + INT (right)->value);
-    } else if (HASKEY (CAR (SECOND (input)), "MINUS")) {
-      return intNew (INT (left)->value - INT (right)->value);
-    }
-    return OBJ (Nil);
-  } else {
-    return left;
-  }
-}
-
-Object *evExpression (Object *input)
-{
-  return evTerm (FIRST (input));
-}
-
-Object *calculate (Object *input)
-{
-  /* Unwrap "Calculator" Rule */
-  return evExpression (FIRST (input));
+  s = stringAsCharArr (STRING (CAR (CADR (CDR (args)))));
+  right = CADR (CDR (CDR (args)));
+  if (strcmp (s, "PLUS") == 0)
+    return intNew (INT (left)->value + INT (right)->value);
+  else if (strcmp (s, "MINUS") == 0)
+    return intNew (INT (left)->value - INT (right)->value);
+  return NULL;
 }
 
 int main ()
@@ -141,26 +110,36 @@ int main ()
   Bytecode *grammar = NULL;
   char *input = NULL;
   bool running = true;
-  Object *result, *tree;
+  Object *tree;
 
   readFile ("calc.binx", &grammar, &grammar_size);
+
+  mInit (&m);
+  mLoad (&m, grammar);
+
+  mPrim (&m, mSymbol (&m, "Number", 6), OBJ (primNew (actionNumber)));
+  mPrim (&m, mSymbol (&m, "Primary", 7), OBJ (primNew (actionPrimary)));
+  mPrim (&m, mSymbol (&m, "Unary", 5), OBJ (primNew (actionUnary)));
+  mPrim (&m, mSymbol (&m, "Power", 5), OBJ (primNew (actionPower)));
+  mPrim (&m, mSymbol (&m, "Factor", 6), OBJ (primNew (actionFactor)));
+  mPrim (&m, mSymbol (&m, "Term", 4), OBJ (primNew (actionTerm)));
+  mPrim (&m, mSymbol (&m, "DEC", 3), OBJ (primNew (actionDEC)));
+  mPrim (&m, mSymbol (&m, "BIN", 3), OBJ (primNew (actionBIN)));
+  mPrim (&m, mSymbol (&m, "HEX", 3), OBJ (primNew (actionHEX)));
 
   while (running) {
     if ((input = readline ("calc% ")) == NULL) break;
     input_size = strlen (input);
     if (input_size > 0) {
       add_history (input);
-
-      mInit (&m);
-      mLoad (&m, grammar);
-      if ((mMatch (&m, input, input_size, &tree)) == 0) {
-        result = calculate (tree);
-        objPrint (result); printf ("\n");
+      if (mMatch (&m, input, input_size, &tree) == 0) {
+        objPrint (tree); printf ("\n");
       }
-      mFree (&m);
     }
     free (input);
   }
+
+  mFree (&m);
 
   return 0;
 }

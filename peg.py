@@ -580,8 +580,9 @@ class Instructions(enum.Enum):
      OP_OPEN,
      OP_CLOSE,
      OP_CAPCHAR,
+     OP_PRIM,
      OP_END,
-    ) = range(24)
+    ) = range(25)
 
 InstructionParams = {
     Instructions.OP_HALT: 0,
@@ -607,6 +608,7 @@ InstructionParams = {
     Instructions.OP_OPEN: 0,
     Instructions.OP_CLOSE: 0,
     Instructions.OP_CAPCHAR: 0,
+    Instructions.OP_PRIM: 1,
     Instructions.OP_END: 0,
 }
 
@@ -940,6 +942,8 @@ class Compiler:
             identifier, expression = definition.value
             addresses[identifier] = self.pos
             self.cc(expression)
+            if self.hasCaptureOps:
+                self.emit("prim", self._str(identifier))
             self.emit("return")
             size += self.pos - addresses[identifier]
         if self.hasCaptureOps:
@@ -1755,20 +1759,21 @@ def test_compile():
     # Captures
     assert(cc("S <- %{ 'a' }") == bn(
         gen("call", 0x02),      # 0x00: Call 0x02
-        gen("jump", 0x08),      # 0x01: Jump 0x07
+        gen("jump", 0x09),      # 0x01: Jump 0x07
         gen("cap_open", 0, 0),  # 0x02: CapOpen 0 0
         gen("cap_open", 1, 0),  # 0x03: CapOpen 1 0
         gen("char", ord('a')),  # 0x04: Char 'a'
         gen("capchar"),         # 0x05: CapChar
         gen("cap_close", 1, 0), # 0x06: CapClose 1 0
-        gen("return"),          # 0x07: Return
-        gen("cap_close", 0, 0), # 0x08: CapClose 0 0
-        gen("halt"),            # 0x07: Halt
+        gen("prim", 0),         # 0x07: Prim 0
+        gen("return"),          # 0x08: Return
+        gen("cap_close", 0, 0), # 0x09: CapClose 0 0
+        gen("halt"),            # 0x0a: Halt
     ))
 
     assert(cc("S <- %{ 'a' 'b' }") == bn(
         gen("call", 0x02),      # 0x00: Call 0x02
-        gen("jump", 0x0a),      # 0x01: Jump 0x09
+        gen("jump", 0x0b),      # 0x01: Jump 0x09
         gen("cap_open", 0, 0),  # 0x02: CapOpen 0 0
         gen("cap_open", 1, 0),  # 0x03: CapOpen 1 0
         gen("char", ord('a')),  # 0x04: Char 'a'
@@ -1776,26 +1781,29 @@ def test_compile():
         gen("char", ord('b')),  # 0x06: Char 'a'
         gen("capchar"),         # 0x07: CapChar
         gen("cap_close", 1, 0), # 0x08: CapClose 1 0
-        gen("return"),          # 0x09: Return
-        gen("cap_close", 0, 0), # 0x0a: CapOpen 0 0
-        gen("halt"),            # 0x0b: Halt
+        gen("prim", 0),         # 0x09: Prim 0
+        gen("return"),          # 0x0a: Return
+        gen("cap_close", 0, 0), # 0x0b: CapOpen 0 0
+        gen("halt"),            # 0x0c: Halt
     ))
 
     assert(cc("S <- %A\nA <- %{ 'a' }") == bn(
         gen("call", 0x02),      # 0x00: Call 0x02
-        gen("jump", 0x0c),      # 0x01: Jump 0x0b
+        gen("jump", 0x0e),      # 0x01: Jump 0x0e
         gen("cap_open", 0, 0),  # 0x02: CapOpen 0 0
         gen("cap_open", 0, 1),  # 0x03: CapOpen 0 1
-        gen("call", 0x03),      # 0x04: Call 0x03
+        gen("call", 0x04),      # 0x04: Call 0x04
         gen("cap_close", 0, 1), # 0x05: CapClose 0 0
-        gen("return"),          # 0x06: Return
-        gen("cap_open", 1, 0),  # 0x07: CapOpen 1 0
-        gen("char", ord('a')),  # 0x08: Char 0x97
-        gen("capchar"),         # 0x09: CapChar
-        gen("cap_close", 1, 0), # 0x0a: CapClose 1 0
-        gen("return"),          # 0x0b: Return
-        gen("cap_close", 0, 0), # 0x0c: CapClose 1 0
-        gen("halt"),            # 0x0d: Halt
+        gen("prim", 0),         # 0x06: Prim 0
+        gen("return"),          # 0x07: Return
+        gen("cap_open", 1, 0),  # 0x08: CapOpen 1 0
+        gen("char", ord('a')),  # 0x09: Char 0x97
+        gen("capchar"),         # 0x0a: CapChar
+        gen("cap_close", 1, 0), # 0x0b: CapClose 1 0
+        gen("prim", 1),         # 0x0c: Prim 1
+        gen("return"),          # 0x0d: Return
+        gen("cap_close", 0, 0), # 0x0e: CapClose 1 0
+        gen("halt"),            # 0x0f: Halt
     ))
 
 

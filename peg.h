@@ -92,6 +92,7 @@ typedef struct {
   BacktrackEntry *stack;
   List symbols;               /* Store unique symbols within the VM */
   const char *i;              /* Last `i' seen on success */
+  Dict primitives;              /* Primitive functions */
 } Machine;
 
 /* opcodes */
@@ -119,6 +120,7 @@ typedef enum {
   OP_OPEN,
   OP_CLOSE,
   OP_CAPCHAR,
+  OP_PRIM,
   OP_END,
 } OpCode;
 
@@ -128,6 +130,8 @@ void mInit (Machine *m);
 void mFree (Machine *m);
 /* Load bytecode into the machine. */
 void mLoad (Machine *m, Bytecode *code);
+/* Register Primitive function */
+void mPrim (Machine *m, Object *sym, Object *prim);
 /* Create a new symbol & store it within the machine's symbol table */
 Object *mSymbol (Machine *m, const char *sym, size_t len);
 /* Try to match input against the pattern loaded into the machine. */

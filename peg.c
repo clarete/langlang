@@ -58,12 +58,14 @@ static const char *opNames[OP_END] = {
   [OP_CLOSE] = "OP_CLOSE",
   [OP_CAPCHAR] = "OP_CAPCHAR",
   [OP_THROW] = "OP_THROW",
+  [OP_PRIM] = "OP_PRIM",
 };
 
 /* Set initial values for the machine */
 void mInit (Machine *m)
 {
   listInit (&m->symbols);
+  dictInit (&m->primitives);
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
   m->i = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
@@ -73,6 +75,7 @@ void mInit (Machine *m)
 void mFree (Machine *m)
 {
   listFree (&m->symbols);
+  dictFree (&m->primitives);
   free (m->code);
   free (m->stack);
   m->code = NULL;
@@ -135,6 +138,11 @@ void mLoad (Machine *m, Bytecode *code)
   }
 }
 
+void mPrim (Machine *m, Object *sym, Object *prim)
+{
+  dictSet (&m->primitives, sym, prim);
+}
+
 static void append (Object *l, Object *i)
 {
   Object *tmp = NULL;
@@ -174,6 +182,7 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
   List treestk;
   const char *ffp = NULL;       /* Farther Failure Position */
   uint32_t label = PEG_SUCCESS; /* Error Label */
+  Object *prim, *sym;
 
   /** Push data onto the machine's stack  */
 #define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
@@ -253,6 +262,14 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
     case OP_CAPCHAR:
       /* printf ("CAPCHAR\n"); */
       appendChar (listTop (&treestk), *(i-1));
+      pc++;
+      continue;
+    case OP_PRIM:
+      /* printf ("PRIM: %d\n", UOPERAND0 (pc)); */
+      sym = listItem (&m->symbols, UOPERAND0 (pc));
+      if (dictGet (&m->primitives, sym, &prim)) {
+        listPush (&treestk, PRIM (prim)->fn (listPop (&treestk), NULL));
+      }
       pc++;
       continue;
     case OP_CHAR:

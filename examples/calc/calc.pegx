@@ -1,18 +1,19 @@
-Calculator      <- _ %Expression !.
+Calculator      <- _ Expression !.
 
-Expression      <- %Term
+Expression      <- Term
 Term            <- %Factor ((%PLUS / %MINUS) %Term)*
 Factor          <- %Power ((%STAR / %SLASH) %Factor)*
-Power           <- %Unary ((%POWER / %MOD)  %Power)*
+Power           <- %Unary ((%POWER / %MOD) %Power)*
 Unary           <- (%PLUS / %MINUS)? %Primary
+
 Primary         <- PROP %Expression PRCL / %Number
 Number          <- %BIN / %HEX / %FLOAT / %DEC
 
 # Terminals
-DEC             <- %{ [0-9]+ }                  _
-FLOAT           <- %{ [0-9]* '.' [0-9]+ }       _
-BIN             <- '0b' %{ [0-1]+ }             _
-HEX             <- '0x' %{ [0-9a-fA-F]+ }       _
+DEC             <- %{ [0-9]+ }             _
+FLOAT           <- %{ [0-9]* '.' [0-9]+ }  _
+BIN             <- '0b' %{ [0-1]+ }        _
+HEX             <- '0x' %{ [0-9a-fA-F]+ }  _
 
 # Arithmetic
 PLUS            <- '+'   _

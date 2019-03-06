@@ -844,6 +844,7 @@ static void test_throw ()
   b[0x5] = GEN0 (OP_HALT);
 
   mInit (&m);
+  mSymbol (&m, "An Error", 8);
   mLoad (&m, (Bytecode *) b);
   assert (mMatch (&m, i, strlen (i), NULL) == 2);
 
@@ -874,6 +875,7 @@ static void test_label_not_3 ()
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
+  mSymbol (&m, "Err", 3);
   assert (mMatch (&m, "a", 1, NULL) == 2); /* Failed \w label 0x2 */
   assert (!m.i);                /* And didn't match anything */
 
@@ -1458,6 +1460,55 @@ void test_dict0 ()
   printf ("\n");
 }
 
+Object *intPrim (Object *args, void *data)
+{
+  (void) data;                  /* Unused */
+
+  if (STRINGP (args)) {
+    char *s = stringAsCharArr (STRING (args));
+    return intNew (strtol (s, NULL, 10));
+  }
+  return intNew (0);
+}
+
+void test_prim0 ()
+{
+  Machine m;
+  mInit (&m);
+
+  int instructions = 9;
+  uint32_t b[progSize (instructions)];
+  const char *i = "1";
+  Object *out = NULL;
+  DEBUGLN (" * t:prim.0");
+
+  writeHeader (b, instructions);
+  /* S <- %{ 'a' } */
+  b[0x1] = GEN1 (OP_CALL, 0x2);
+  b[0x2] = GEN1 (OP_JUMP, 0x8);
+  b[0x3] = GEN2 (OP_CAP_OPEN, 0x1, 0x1);
+  b[0x4] = GEN1 (OP_CHAR, 0x31);
+  b[0x5] = GEN0 (OP_CAPCHAR);
+  b[0x6] = GEN2 (OP_CAP_CLOSE, 0x1, 0x1);
+  b[0x7] = GEN1 (OP_PRIM, 0x0);
+  b[0x8] = GEN0 (OP_RETURN);
+  b[0x9] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mPrim (&m, mSymbol (&m, "Int", 3), OBJ (primNew (intPrim)));
+  mLoad (&m, (Bytecode *) b);
+  mMatch (&m, i, strlen (i), &out);
+  assert (out);
+  assert (INTP (out));
+
+  printf ("Prim: ");
+  objPrint (out);
+  printf ("\n");
+
+  mFree (&m);
+}
+
+
 int main ()
 {
   test_gen_args ();
@@ -1524,5 +1575,8 @@ int main ()
   test_obj_equal_sublist ();
 
   test_dict0 ();
+
+  test_prim0 ();
+
   return 0;
 }

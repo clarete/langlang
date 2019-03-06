@@ -334,6 +334,15 @@ bool dictDel (Dict *dct, Object *k)
   return false;
 }
 
+/* Primitive Functions */
+
+Prim *primNew (PrimProto *fn)
+{
+  Prim *o = PRIM (objNew (TYPE_PRIM, sizeof (Prim)));
+  o->fn = fn;
+  return o;
+}
+
 /* Object Equality */
 
 bool consEqual (const Object *o1, const Object *o2)

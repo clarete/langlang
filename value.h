@@ -35,6 +35,7 @@
 #define STRING(x)   ((String *) x)
 #define LIST(x)     ((List *) x)
 #define DICT(x)     ((Dict *) x)
+#define PRIM(x)     ((Prim *) x)
 
 /* Predicates used in the C environment. */
 #define SYMBOLP(o)  (OBJ (o)->type == TYPE_SYMBOL)
@@ -45,10 +46,12 @@
 #define STRINGP(o)  (OBJ (o)->type == TYPE_STRING)
 #define LISTP(o)    (OBJ (o)->type == TYPE_LIST)
 #define DICTP(o)    (OBJ (o)->type == TYPE_DICT)
+#define PRIMP(o)    (OBJ (o)->type == TYPE_PRIM)
 
 /* Utilities */
 #define CAR(o) (CONS (o)->car)
 #define CDR(o) (CONS (o)->cdr)
+#define CADR(o) (CAR (CDR (o)))
 
 typedef enum {
   TYPE_SYMBOL = 1,
@@ -59,6 +62,7 @@ typedef enum {
   TYPE_STRING,
   TYPE_LIST,
   TYPE_DICT,
+  TYPE_PRIM,
   TYPE_END
 } Type;
 
@@ -109,6 +113,13 @@ typedef struct {
   Object **values;
 } Dict;
 
+typedef Object* (PrimProto) (Object *args, void *data);
+
+typedef struct {
+  Object o;
+  PrimProto *fn;
+} Prim;
+
 extern const Object *Nil;
 extern const Object *True;
 extern const Object *False;
@@ -142,5 +153,7 @@ bool dictGet (Dict *d, Object *k, Object **v);
 bool dictDel (Dict *d, Object *k);
 #define dictLen(d) ((d)->used)
 #define dictItem(d,i) ((d)->values[i])
+
+Prim *primNew (PrimProto *fn);
 
 #endif  /* VALUE_GUARD */

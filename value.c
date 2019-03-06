@@ -237,7 +237,7 @@ void dictInit (Dict *dct)
 void dictFree (Dict *dct)
 {
   for (size_t i = 0; i < dct->used; i++)
-    free (dct->values[i]);
+    objFree (dct->values[i]);
   free (dct->values);
   dictInit (dct);
 }

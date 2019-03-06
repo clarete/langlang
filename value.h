@@ -125,6 +125,7 @@ Object *intNew (long int v);
 Object *stringNew (const char *p, size_t len);
 size_t stringLen (String *s);
 char stringCharAt (String *s, size_t i);
+#define stringAsCharArr(s) ((s)->value)
 
 void listInit (List *lst);
 void listFree (List *lst);

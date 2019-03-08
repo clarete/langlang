@@ -66,7 +66,7 @@ void mInit (Machine *m)
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
   m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
-  m->li = NULL;                 /* Set by Fail */
+  m->ffp = NULL;
   m->cap = 0;
 }
 
@@ -176,6 +176,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
   const char *i = input;
   uint32_t btCount = 0, ltCount = 0;
   List treestk;
+  char *ffp = (char *) i;
 
   /** Push data onto the machine's stack  */
 #define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
@@ -185,6 +186,8 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
   /** The end of the input is the offset from the cursor to the end of
       the input string. */
 #define THE_END (input + input_size)
+  /** Update the cursor & keep track of FFP */
+#define IPP() do { i++; ffp = (char *) ((ffp) > (i) ? ffp : i); } while (0)
 
   DEBUGLN ("   Run");
 
@@ -197,14 +200,14 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 
     switch (pc->rator) {
     case OP_HALT:
-      if (m->li && !i) {
-        printf ("Match failed at pos %ld\n", m->li - input + 1);
+      if (ffp && !i) {
+        printf ("Match failed at pos %ld\n", ffp - input + 1);
         return NULL;
       } else {
         /* This is another use for `li'. It will store the final
            suffix upon a successful match. It's very useful for
            tests. */
-        m->li = i;
+        m->ffp = i;
         if (listLen (&treestk) > 0) {
           Object *tmp = listPop (&treestk);
           listFree (&treestk);
@@ -249,13 +252,13 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       /* printf ("CHAR: `%c' == `%c'\n", */
       /*         *i == '\n' ? 'N' : *i, */
       /*         UOPERAND0 (pc) == '\n' ? 'N' : UOPERAND0 (pc)); */
-      if (i < THE_END && *i == UOPERAND0 (pc)) { i++; pc++; }
+      if (i < THE_END && *i == UOPERAND0 (pc)) { IPP (); pc++; }
       else goto fail;
       continue;
     case OP_ANY:
       DEBUGLN ("       OP_ANY: `%c' < |s| ? %d", *i, i < THE_END);
       /* printf ("ANY: %c\n", *i); */
-      if (i < THE_END) { i++; pc++; }
+      if (i < THE_END) { IPP (); pc++; }
       else goto fail;
       continue;
     case OP_SPAN:
@@ -263,7 +266,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
                UOPERAND1 (pc), UOPERAND1 (pc),
                UOPERAND2 (pc), UOPERAND2 (pc));
       /* printf ("SPAN: %c\n", *i); */
-      if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) { i++; pc++; }
+      if (*i >= UOPERAND1 (pc) && *i <= UOPERAND2 (pc)) { IPP (); pc++; }
       else goto fail;
       continue;
     case OP_CHOICE:
@@ -310,9 +313,6 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
         do i = POP ()->i;
         while (i == NULL && sp > m->stack);
         pc = sp->pc;            /* Restore the program counter */
-        /* Non-Terminals can't produce errors, so let's save the last
-           known position before moving on */
-        if (i) m->li = i;
 
         /* printf (" FAIL[%u:%u-%u:%u]: %c\n", */
         /*         btCount, sp->btCount, */

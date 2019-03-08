@@ -106,7 +106,7 @@ static void test_ch1 ()
   mLoad (&m, (Bytecode *) b);
   o = mMatch (&m, i, strlen (i));
 
-  assert (m.li - i == 1);        /* Match */
+  assert (m.ffp - i == 1);      /* Match */
 
   objFree (o);
   mFree (&m);
@@ -159,7 +159,7 @@ static void test_any1 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 1);       /* Match */
+  assert (m.ffp - i == 1);      /* Match */
 
   objFree (o);
   mFree (&m);
@@ -215,7 +215,7 @@ static void test_not1 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 0);       /* But didn't match anything */
+  assert (m.ffp - i == 0);      /* But didn't match anything */
 
   objFree (o);
   mFree (&m);
@@ -242,7 +242,7 @@ void test_not1_fail_twice ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Did not fail */
-  assert (m.li - i == 0);       /* But didn't match any char */
+  assert (m.ffp - i == 0);      /* But didn't match any char */
 
   objFree (o);
   mFree (&m);
@@ -324,7 +324,7 @@ void test_and1 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 0);       /* But didn't match anything */
+  assert (m.ffp - i == 0);      /* But didn't match anything */
 
   objFree (o);
   mFree (&m);
@@ -352,7 +352,7 @@ void test_and1_back_commit ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 0);       /* But didn't match anything */
+  assert (m.ffp - i == 0);      /* But didn't match anything */
 
   objFree (o);
   mFree (&m);
@@ -434,7 +434,7 @@ void test_con1 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 3);       /* Matched all 3 chars */
+  assert (m.ffp - i == 3);      /* Matched all 3 chars */
 
   objFree (o);
   mFree (&m);
@@ -543,7 +543,7 @@ void test_ord2 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 1);       /* Match the first char */
+  assert (m.ffp - i == 1);      /* Match the first char */
 
   objFree (o);
   mFree (&m);
@@ -576,7 +576,7 @@ void test_ord3 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 1);       /* Match the first char */
+  assert (m.ffp - i == 1);      /* Match the first char */
 
   objFree (o);
   mFree (&m);
@@ -608,7 +608,7 @@ void test_rep1 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 2);       /* Matched two chars */
+  assert (m.ffp - i == 2);      /* Matched two chars */
 
   objFree (o);
   mFree (&m);
@@ -635,7 +635,7 @@ void test_rep1_partial_commit ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 2);        /* Matched two chars */
+  assert (m.ffp - i == 2);      /* Matched two chars */
 
   objFree (o);
   mFree (&m);
@@ -667,7 +667,7 @@ void test_rep2 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 0);       /* But didn't match any char */
+  assert (m.ffp - i == 0);      /* But didn't match any char */
 
   objFree (o);
   mFree (&m);
@@ -694,7 +694,7 @@ void test_rep2_partial_commit ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 0);       /* But didn't match any char */
+  assert (m.ffp - i == 0);      /* But didn't match any char */
 
   objFree (o);
   mFree (&m);
@@ -737,7 +737,7 @@ void test_var1 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 3);       /* Matched the whole input */
+  assert (m.ffp - i == 3);      /* Matched the whole input */
 
   objFree (o);
   mFree (&m);
@@ -800,7 +800,7 @@ void test_span1 ()
   o = mMatch (&m, i, strlen (i));
 
   assert (o);                   /* Didn't fail */
-  assert (m.li - i == 5);       /* Matched chars */
+  assert (m.ffp - i == 5);      /* Matched chars */
 
   objFree (o);
   mFree (&m);

@@ -89,7 +89,7 @@ typedef struct {
   CaptureEntry *captures;
   uint32_t cap;                 /* Top of the capture stack */
   List symbols;                 /* Store unique symbols within the VM */
-  const char *ffp;              /* Last `i' seen despite backtraking */
+  const char *i;                /* Last `i' seen on success */
 } Machine;
 
 /* opcodes */

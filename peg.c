@@ -64,9 +64,9 @@ void mInit (Machine *m)
 {
   listInit (&m->symbols);
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
+  m->i = NULL;
   m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
-  m->ffp = NULL;
   m->cap = 0;
 }
 
@@ -176,7 +176,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
   const char *i = input;
   uint32_t btCount = 0, ltCount = 0;
   List treestk;
-  char *ffp = (char *) i;
+  const char *ffp = NULL;       /* Farther Failure Position */
 
   /** Push data onto the machine's stack  */
 #define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
@@ -187,7 +187,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       the input string. */
 #define THE_END (input + input_size)
   /** Update the cursor & keep track of FFP */
-#define IPP() do { i++; ffp = (char *) ((ffp) > (i) ? ffp : i); } while (0)
+#define IPP() do { i++; ffp = ((ffp) > (i) ? ffp : i); } while (0)
 
   DEBUGLN ("   Run");
 
@@ -202,14 +202,16 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
     case OP_HALT:
       /* We either didn't move the cursor at all or moved it and
        * backtracked on a failure */
-      if ((!ffp && !i) || ffp > i + 1) {
+      if (!ffp && !i) {
+        printf ("Match failed at pos 1\n");
+        return NULL;
+      } else if (ffp > i + 1) {
         printf ("Match failed at pos %ld\n", ffp - input + 1);
         return NULL;
       } else {
-        /* This is another use for `li'. It will store the final
-           suffix upon a successful match. It's very useful for
-           tests. */
-        m->ffp = i;
+        /* Store final suffix upon successful match for testing
+         * purposes. */
+        m->i = i;
         if (listLen (&treestk) > 0) {
           Object *tmp = listPop (&treestk);
           listFree (&treestk);

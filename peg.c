@@ -200,7 +200,9 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 
     switch (pc->rator) {
     case OP_HALT:
-      if (ffp && !i) {
+      /* We either didn't move the cursor at all or moved it and
+       * backtracked on a failure */
+      if ((!ffp && !i) || ffp > i + 1) {
         printf ("Match failed at pos %ld\n", ffp - input + 1);
         return NULL;
       } else {

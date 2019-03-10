@@ -848,6 +848,36 @@ void test_cap1 ()
   mFree (&m);
 }
 
+static void test_error0 ()
+{
+  Machine m;
+  int instructions = 12;
+  uint32_t b[progSize (instructions)];
+  const char *i = "c";
+  DEBUGLN (" * t:err.0");
+
+  writeHeader (b, instructions);
+  /* S <- A / B; A <- 'a'; B <- 'b' */
+  b[0x1] = GEN1 (OP_CALL, 0x2);   /* CALL L(S) */
+  b[0x2] = GEN1 (OP_JUMP, 0xB);
+  b[0x3] = GEN1 (OP_CHOICE, 0x3); /* L(S) = 0x3 */
+  b[0x4] = GEN1 (OP_CALL, 0x4);   /* CALL L(A) */
+  b[0x5] = GEN1 (OP_COMMIT, 0x2);
+  b[0x6] = GEN1 (OP_CALL, 0x4);   /* CALL L(B) */
+  b[0x7] = GEN0 (OP_RETURN);
+  b[0x8] = GEN1 (OP_CHAR, 0x61);  /* 'a' LS(A) = 0x8 */
+  b[0x9] = GEN0 (OP_RETURN);
+  b[0xA] = GEN1 (OP_CHAR, 0x62);  /* 'b' LS(B) = 0xA */
+  b[0xB] = GEN0 (OP_RETURN);
+  b[0xC] = GEN0 (OP_HALT);
+
+  mInit (&m);
+  mLoad (&m, (Bytecode *) b);
+  assert (!mMatch (&m, i, strlen (i)));
+
+  mFree (&m);
+}
+
 /*
          PEG
   G[ε] l ---> l (empty.1)
@@ -1451,6 +1481,9 @@ int main ()
   test_var1 ();
   test_var2 ();
   test_span1 ();
+
+  test_error0 ();
+
   test_cap1 ();
 
   test_lst_empty1 ();

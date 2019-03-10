@@ -86,10 +86,8 @@ typedef struct {
 typedef struct {
   Instruction *code;
   BacktrackEntry *stack;
-  CaptureEntry *captures;
-  uint32_t cap;                 /* Top of the capture stack */
-  List symbols;                 /* Store unique symbols within the VM */
-  const char *i;                /* Last `i' seen on success */
+  List symbols;               /* Store unique symbols within the VM */
+  const char *i;              /* Last `i' seen on success */
 } Machine;
 
 /* opcodes */

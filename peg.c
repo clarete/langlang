@@ -65,9 +65,7 @@ void mInit (Machine *m)
   listInit (&m->symbols);
   m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
   m->i = NULL;
-  m->captures = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
-  m->cap = 0;
 }
 
 /* Release the resources used by the machine */
@@ -76,9 +74,6 @@ void mFree (Machine *m)
   listFree (&m->symbols);
   free (m->code);
   free (m->stack);
-  free (m->captures);
-  m->cap = 0;
-  m->captures = NULL;
   m->code = NULL;
   m->stack = NULL;
 }

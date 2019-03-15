@@ -90,11 +90,16 @@
       * The Capture system is a little broken. The use of the ~%{ }~
         operator without a balanced use of ~%~ operators can lead to
         type errors that lead to segfaults.
-***** Take #2
+***** Take #2 problems to solve
 
-      Too many tree traversals in the code of semantic actions. There
-      should be a way to get the semantic action closer to where it's
-      needed.
+      * Too much boilerplate code to consume structural nodes and
+        perform very simple transformations (e.g.: literals)
+        implementing semantic actions outside the grammar in the host
+        language.
+
+      * Performing things that take just adding the semantic actions
+        in grammars in the host language will clutter the semantic
+        actions
 
       Problem with it is pretty much backtracking. It'd be great to
       either make sure that there's no side effect in the semantic
@@ -102,7 +107,46 @@
       before semantic actions were executed with chances of
       failing. Look at the error handling article.
 
-*** [#B] Error Handling
+      Requirements:
+
+       * The burden of dealing with backtracking should not be left to
+         the Grammar author
+       * Semantic Actions shouldn't make the PEG less portable
+       * Semantic Actions shouldn't clutter the PEG
+
+***** Take #2 plan
+
+      The goal is to allow authors to write grammars with semantic
+      actions that will only run on valid input.
+
+      To achieve the aforementioned goal the error handling system
+      will have provide assistance to the semantic action mechanism.
+
+      The ~nofail~ semantics of *Error Labels* from [[http://www.inf.puc-rio.br/~roberto/docs/sblp2013-1.pdf][Exception Handling
+      for Error Reporting in Parsing Expression Grammars]] will serve as
+      a building block for backtracking-safe semantic actions.
+
+      When a Terminal labeled ~ErrX~ is reached during parsing, it
+      must be consumed by the parser. Otherwise an exception of the
+      type ~ErrX~ will be thrown and parsing aborted.
+
+      That can be achieved with a compiler that can enforce that
+      semantic actions can only be declared right after labeled
+      expressions. For example:
+
+      #+begin_src peg
+      ValidT <- 'a'^err @{ something() } 'b'
+      InvalidT <- 'a'^err 'b' @{ primitive() }
+
+      ValidN <- A^err2 @{ primitive() } B
+      InvalidN <- A^err2 B @{ primitive() }
+      #+end_src
+
+      The labels ~err~ and ~err2~ are the types of labels that the
+      above PEG can throw, besides the standard ~fail~ label thrown
+      when no label is provided, and doesn't support semantic actions
+      because ~fail~ is the label caught by the backtracking.
+*** DOING [#A] Error Handling
 **** Problem
      There are essentially two things that make error reporting not
      trivial within this parsing system:
@@ -115,12 +159,34 @@
         errors. In our system, the grammar for describing grammars
         doesn't offer any way for the grammar writer to provide error
         messages where they're expected.
+
 **** Suggested Solution
 
-     In the article [[http://foo][Exception Handling for Error Reporting in Parsing
+     In the article [[http://www.inf.puc-rio.br/~roberto/docs/sblp2013-1.pdf][Exception Handling for Error Reporting in Parsing
      Expression Grammars]], André Murbach Maidl, Fabio Mascarenhas and
      Roberto Ierusalimschy propose the use of techniques that resemble
      exception handling in programming languages.
+
+**** Implementation
+
+     The error reporting system proposed by the article quoted mention
+     or provide a few different tools:
+
+      * *Farthest Failure Position*: This is the heuristics used by
+        B. Ford in his implementation of the parser generator
+        Pappy. This is simple and already implemented in the `error'
+        branch. That gives the *position* where the error happened.
+
+      * *No Fail*: Operator that throws an error label if matching of
+        its operand isn't successful.
+
+      * *Error Labels*: It allows implementing specific error messages
+        by customizing error labels emitted with the ~nofail~
+        operator.
+
+      * *Try* Operator that catches error labels from its operand and
+        transforms it into a ~fail~ label.
+
 *** [#B] Left Recursion
 *** [#C] Streaming API
 **** Problem

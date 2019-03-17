@@ -153,8 +153,7 @@ int main ()
 
       mInit (&m);
       mLoad (&m, grammar);
-      if ((tree = mMatch (&m, input, input_size)) != NULL) {
-        /* tree = mExtract (&m, input); */
+      if ((mMatch (&m, input, input_size, &tree)) == 0) {
         result = calculate (tree);
         objPrint (result); printf ("\n");
       }

@@ -42,7 +42,7 @@ void runFiles (const char *grammar_file,
   Machine m;
   Bytecode *grammar = NULL;
   unsigned char *input = NULL;
-  Object *output;
+  Object *output = NULL;
 
   readFile (grammar_file, &grammar, &grammar_size);
   readFile (input_file, &input, &input_size);
@@ -54,11 +54,9 @@ void runFiles (const char *grammar_file,
     mLoad (&m, grammar);
 
     clock_gettime (CLOCK_MONOTONIC, &start);
-    output = mMatch (&m, (const char *) input, input_size);
+    assert (mMatch (&m, (const char *) input, input_size, &output) == 0);
     clock_gettime (CLOCK_MONOTONIC, &stop);
-    assert (output);
-    objFree (output);
-    /* mExtract (&m, (const char *) input); */
+    if (output) objFree (output);
 
     time_taken =
       (stop.tv_sec - start.tv_sec) +

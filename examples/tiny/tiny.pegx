@@ -1,0 +1,54 @@
+Tiny       <- _ %CmdSeq
+CmdSeq     <- (Cmd SEMICOLON^sc) (Cmd SEMICOLON^sc)*
+Cmd        <- %IfCmd / %RepeatCmd / %AssignCmd / %ReadCmd / %WriteCmd
+IfCmd      <- IF Exp^eif THEN^then %CmdSeq^cs1 (ELSE %CmdSeq^cs2)? END^end
+RepeatCmd  <- REPEAT %CmdSeq^csr UNTIL^until Exp^erep
+AssignCmd  <- %Name ASSIGNMENT Exp
+ReadCmd    <- READ Name^rexp
+WriteCmd   <- WRITE Exp^wexp
+
+Name       <- IDENT IDCONT*
+IDENT      <- %{ [a-zA-Z]+ }         _
+IDCONT     <- %{ [a-zA-Z0-9_]+ }     _
+
+Exp        <- %Term
+Term       <- %Factor ((%PLUS / %MINUS) %Term)*
+Factor     <- %Power ((%STAR / %SLASH) %Factor)*
+Power      <- %Logic ((%POWER / %MOD)  %Power)*
+Logic      <- %Unary ((%LT / %GT / %EQ) %Logic)*
+Unary      <- (%PLUS / %MINUS)? %Primary
+Primary    <- %Number
+            / %Name !ASSIGNMENT
+            / OPEN Exp CLOSE
+Number     <- DEC
+
+DEC        <- %{ [0-9]+ }  _
+SEMICOLON  <- ';'          _
+IF         <- 'if'         _
+THEN       <- 'then'       _
+ELSE       <- 'else'       _
+END        <- 'end'        _
+READ       <- 'read'       _
+WRITE      <- 'write'      _
+ASSIGNMENT <- ':='         _
+REPEAT     <- 'repeat'     _
+UNTIL      <- 'until'      _
+OPEN       <- '('          _
+CLOSE      <- ')'          _
+
+# Arithmetic
+PLUS       <- '+'          _
+MINUS      <- '-'          _
+STAR       <- '*'          _
+SLASH      <- '/'          _
+MOD        <- '%'          _
+POWER      <- '**'         _
+
+# Comparison
+LT         <- '<'          _
+GT         <- '>'          _
+EQ         <- '='          _
+
+_          <- SPACE*
+SPACE      <- ' ' / NL
+NL         <- '\r'? '\n'

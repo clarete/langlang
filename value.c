@@ -77,6 +77,7 @@ void objFree (Object *o)
   switch (o->type) {
     /* Statically allocated, don't free it! */
   case TYPE_NIL: break;
+  case TYPE_BOOL: break;
     /* Won't be freed til the end when symbol table is freed */
   case TYPE_SYMBOL: break;
     /* Leaf-node, just free it */

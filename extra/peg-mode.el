@@ -29,13 +29,13 @@
 
 (defconst peg-mode-syntax-table
   (let ((table (make-syntax-table)))
+    ;; [] should also look like strings
+    (modify-syntax-entry ?\[ "|" table)
+    (modify-syntax-entry ?\] "|" table)
     ;; ' is a string delimiter
     (modify-syntax-entry ?' "\"" table)
     ;; " is a string delimiter too
     (modify-syntax-entry ?\" "\"" table)
-    ;; [] should also look like strings
-    (modify-syntax-entry ?\[ "|" table)
-    (modify-syntax-entry ?\] "|" table)
     ;; Comments start with #
     (modify-syntax-entry ?# "< b" table)
     ;; \n is a comment ender
@@ -45,12 +45,14 @@
 (defvar peg-font-lock-defaults
   `((
      ;; Color the name of the rule
-     ("^\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*<-" 1 'font-lock-function-name-face)
+     ("^\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*<-" 1 'font-lock-function-name-face)
      ;; Color for the little assignment arrow
      ("<-" . font-lock-type-face)
      ;; ! & * + ? ( ) / are operators
      ("!\\|&\\|*\\|+\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
-     ;; Collor for assignment of a name to a piece of the expression.
+     ;; Color for label
+     ("\\(\\^[a-zA-Z_][a-zA-Z0-9_]*\\)" 1 'font-lock-constant-face)
+     ;; Color for assignment of a name to a piece of the expression.
      ("\\(:[^\s]+\\)" 1 'font-lock-variable-name-face))))
 
 ;;;###autoload

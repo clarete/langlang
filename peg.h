@@ -51,6 +51,10 @@
 /* #define SOPERAND1(op) SIGNED (op->rand >> SS_OPERAND_SIZE, SS_OPERAND_SIZE) */
 /* #define SOPERAND2(op) SIGNED (op->rand, SS_OPERAND_SIZE) */
 
+/* Default error handling. Labels above 1 are user defined  */
+#define PEG_SUCCESS 0
+#define PEG_FAILURE 1
+
 /* Binary files are read into variables of this type */
 typedef uint8_t Bytecode;
 
@@ -108,6 +112,7 @@ typedef enum {
   OP_RETURN,
   OP_SPAN,
   OP_SET,
+  OP_THROW,
   OP_CAP_OPEN,
   OP_CAP_CLOSE,
   OP_ATOM,
@@ -126,7 +131,7 @@ void mLoad (Machine *m, Bytecode *code);
 /* Create a new symbol & store it within the machine's symbol table */
 Object *mSymbol (Machine *m, const char *sym, size_t len);
 /* Try to match input against the pattern loaded into the machine. */
-Object *mMatch (Machine *m, const char *input, size_t input_size);
+uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out);
 /* Try to match input list against pattern loaded into the VM */
 Object *mMatchList (Machine *m, Object *input);
 /* Run grammar file on input file and extract output */

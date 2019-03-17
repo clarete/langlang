@@ -57,6 +57,7 @@ static const char *opNames[OP_END] = {
   [OP_OPEN] = "OP_OPEN",
   [OP_CLOSE] = "OP_CLOSE",
   [OP_CAPCHAR] = "OP_CAPCHAR",
+  [OP_THROW] = "OP_THROW",
 };
 
 /* Set initial values for the machine */
@@ -164,7 +165,7 @@ static Object *appendChar (Object *s, char c)
 }
 
 /* Run the matching machine */
-Object *mMatch (Machine *m, const char *input, size_t input_size)
+uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
 {
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
@@ -172,6 +173,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
   uint32_t btCount = 0, ltCount = 0;
   List treestk;
   const char *ffp = NULL;       /* Farther Failure Position */
+  uint32_t label = PEG_SUCCESS; /* Error Label */
 
   /** Push data onto the machine's stack  */
 #define PUSH(ii,pp) do { sp->i = ii; sp->pc = pp; sp++; } while (0)
@@ -195,25 +197,27 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
 
     switch (pc->rator) {
     case OP_HALT:
+      if (label > 1) {
+        return label;
+      }
       /* We either didn't move the cursor at all or moved it and
        * backtracked on a failure */
-      if (!ffp && !i) {
+      else if (!ffp && !i) {
         printf ("Match failed at pos 1\n");
-        return NULL;
+        return PEG_FAILURE;
       } else if (ffp > i + 1) {
         printf ("Match failed at pos %ld\n", ffp - input + 1);
-        return NULL;
+        return PEG_FAILURE;
       } else {
         /* Store final suffix upon successful match for testing
          * purposes. */
         m->i = i;
-        if (listLen (&treestk) > 0) {
-          Object *tmp = listPop (&treestk);
+        /* Output captured objects */
+        if (out && listLen (&treestk) > 0) {
+          *out = listPop (&treestk);
           listFree (&treestk);
-          return tmp;
         }
-        /* It currently means success. */
-        return OBJ (Nil);
+        return label;
       }
     case OP_CAP_OPEN:
       /* printf ("OPEN[%c]: %s\n", UOPERAND1 (pc) ? 'T' : 'F', */
@@ -300,6 +304,8 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       assert (sp > m->stack);
       pc = POP ()->pc;
       continue;
+    case OP_THROW:
+      return UOPERAND0 (pc);
     case OP_FAIL_TWICE:
       POP ();                   /* Drop top of stack & Fall through */
     case OP_FAIL:
@@ -332,7 +338,7 @@ Object *mMatch (Machine *m, const char *input, size_t input_size)
       } else {
         /* 〈pc,i,e〉 ----> Fail〈e〉 */
         listFree (&treestk);
-        return NULL;
+        return PEG_FAILURE;
       }
       continue;
     default:
@@ -528,7 +534,7 @@ Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file)
   readFile (input_file, (uint8_t **) &input, &input_size);
 
   mLoad (m, grammar);
-  output = mMatch (m, input, input_size);
+  mMatch (m, input, input_size, &output);
 
   free (grammar);
   free (input);

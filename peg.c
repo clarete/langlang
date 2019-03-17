@@ -197,7 +197,13 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
 
     switch (pc->rator) {
     case OP_HALT:
+    end:
       if (label > 1) {
+        Symbol *lb = SYMBOL (listItem (&m->symbols, label-2));
+        printf ("Match failed at pos %ld with label ",
+                ffp - input + 1);
+        objPrint (OBJ (lb));
+        printf ("\n");
         return label;
       }
       /* We either didn't move the cursor at all or moved it and
@@ -305,7 +311,8 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
       pc = POP ()->pc;
       continue;
     case OP_THROW:
-      return UOPERAND0 (pc);
+      label = UOPERAND0 (pc);
+      goto end;
     case OP_FAIL_TWICE:
       POP ();                   /* Drop top of stack & Fall through */
     case OP_FAIL:

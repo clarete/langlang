@@ -95,7 +95,7 @@ void objFree (Object *o)
     break;
     /* Error Handling */
   default:
-    fprintf (stderr, "Invalid Object Type\n");
+    fprintf (stderr, "Invalid object type passed to objFree\n");
     break;
   }
 }

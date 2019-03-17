@@ -13,9 +13,9 @@ TOBJS	:= $(patsubst %.c,%.o,$(SRCS) test.c)
 $(call GEN_CC_DEPS,$(SRCS))
 
 bin: $(MATCH) $(SUBDIRS)
-clean:; -rm $(MATCH) $(TEST) $(TOBJS) $(MOBJS)
+clean: $(SUBDIRS); -rm $(MATCH) $(TEST) $(TOBJS) $(MOBJS)
 $(MATCH): $(MOBJS); $(CCC) -o $@ $^
 $(TEST): $(TOBJS); $(CCC) -o $@ $^
 
-$(SUBDIRS):; $(MAKE) -C $@
+$(SUBDIRS):; $(MAKE) -C $@ $(MAKECMDGOALS)
 .PHONY: $(SUBDIRS)

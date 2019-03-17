@@ -53,8 +53,9 @@ class TokenTypes(enum.Enum):
      CLCB,
      OPLS,                      # Closed with CLCB
      OPCAP,
+     LABEL,
      END,
-    ) = range(20)
+    ) = range(21)
 
 class Token:
     def __init__(self, _type, value=None, line=0, pos=0):
@@ -115,6 +116,10 @@ class String(Node): pass
 class Class(Node): pass
 
 class Dot(Node): pass
+
+class Label(Node): pass
+
+class Throw(Node): pass
 
 class List(Node): pass
 
@@ -222,6 +227,8 @@ class Parser:
             return self.t(TokenTypes.QUESTION)
         elif self.matchc(';'):
             return self.t(TokenTypes.QUIET)
+        elif self.matchc('^'):
+            return self.t(TokenTypes.LABEL)
         elif self.matchc('{'):
             return self.t(TokenTypes.OPLS)
         elif self.matchc('}'):
@@ -341,6 +348,9 @@ class Parser:
         if self.matcht(TokenTypes.QUESTION): suffix = Question
         elif self.matcht(TokenTypes.STAR): suffix = Star
         elif self.matcht(TokenTypes.PLUS): suffix = Plus
+        elif self.matcht(TokenTypes.LABEL):
+            label = self.consumet(TokenTypes.IDENTIFIER)
+            return Label([label.value, fio(output)])
         return suffix(fio(output))
 
     def parsePrimary(self):
@@ -557,6 +567,7 @@ class Instructions(enum.Enum):
      OP_RETURN,
      OP_SPAN,
      OP_SET,
+     OP_THROW,
      OP_CAP_OPEN,
      OP_CAP_CLOSE,
      OP_ATOM,
@@ -564,7 +575,7 @@ class Instructions(enum.Enum):
      OP_CLOSE,
      OP_CAPCHAR,
      OP_END,
-    ) = range(23)
+    ) = range(24)
 
 InstructionParams = {
     Instructions.OP_HALT: 0,
@@ -583,6 +594,7 @@ InstructionParams = {
     Instructions.OP_RETURN: 0,
     Instructions.OP_SPAN: 2,
     Instructions.OP_SET: 0,
+    Instructions.OP_THROW: 1,
     Instructions.OP_CAP_OPEN: 2,
     Instructions.OP_CAP_CLOSE: 2,
     Instructions.OP_ATOM: 1,
@@ -873,6 +885,14 @@ class Compiler:
         else:
             return self._compileChoices(atom.value, compileRangeOrLiteral)
 
+    def compileLabel(self, atom):
+        label, sub = atom.value
+        return self._compileChoices([sub, Throw(label)], self.cc)
+
+    def compileThrow(self, atom):
+        # The +2 ensures that labels can't be lower than 2.
+        self.emit('throw', self._str(atom.value) + 2)
+
     def compileList(self, lst):
         self.emit('open')
         for i in lst.value: self.compileAtom(i)
@@ -891,6 +911,8 @@ class Compiler:
         elif isinstance(atom, Identifier): self.compileIdentifier(atom)
         elif isinstance(atom, Sequence): self.compileSequence(atom)
         elif isinstance(atom, Expression): self.compileExpression(atom)
+        elif isinstance(atom, Label): self.compileLabel(atom)
+        elif isinstance(atom, Throw): self.compileThrow(atom)
         elif isinstance(atom, CaptureNode): self.compileCaptureNode(atom)
         elif isinstance(atom, CaptureBlock): self.compileCaptureBlock(atom)
         elif isinstance(atom, List): self.compileList(atom)
@@ -1153,6 +1175,27 @@ def test_tokenizer():
         Token(TokenTypes.END,             line=0, pos=15),
     ])
 
+    # Error Labels
+    test("A <- 'a'^lab", [
+        Token(TokenTypes.IDENTIFIER, 'A',   line=0, pos=0),
+        Token(TokenTypes.ARROW,             line=0, pos=2),
+        Token(TokenTypes.LITERAL, 'a',      line=0, pos=5),
+        Token(TokenTypes.LABEL,             line=0, pos=8),
+        Token(TokenTypes.IDENTIFIER, 'lab', line=0, pos=9),
+        Token(TokenTypes.END,               line=0, pos=12),
+    ])
+    test("S <- A^lab\nA <- 'a'", [
+        Token(TokenTypes.IDENTIFIER, 'S',   line=0, pos=0),
+        Token(TokenTypes.ARROW,             line=0, pos=2),
+        Token(TokenTypes.IDENTIFIER, 'A',   line=0, pos=5),
+        Token(TokenTypes.LABEL,             line=0, pos=6),
+        Token(TokenTypes.IDENTIFIER, 'lab', line=0, pos=7),
+        Token(TokenTypes.IDENTIFIER, 'A',   line=1, pos=11),
+        Token(TokenTypes.ARROW,             line=1, pos=13),
+        Token(TokenTypes.LITERAL, 'a',      line=1, pos=16),
+        Token(TokenTypes.END,               line=1, pos=19),
+    ])
+
 
 def test_parser():
     test = functools.partial(test_runner, lambda x: Parser(x).parse)
@@ -1283,6 +1326,23 @@ EndOfFile  <- !.
     test("S <- %A\nA <- %{ 'a' }", Grammar([
         Definition(['S', Expression([CaptureNode(Identifier('A'))])]),
         Definition(['A', Expression([CaptureBlock(Expression([Literal('a')]))])])
+    ]))
+
+    # Error Labels
+
+    test("A <- 'a'^label", Grammar([
+        Definition(['A', Expression([Label([
+            'label', Literal('a')
+        ])])])
+    ]))
+
+    test("S <- %A^label\nA <- %{ 'a' }", Grammar([
+        Definition(['S', Expression([
+            Label(['label', CaptureNode(Identifier('A'))]),
+        ])]),
+        Definition(['A', Expression([
+            CaptureBlock(Expression([Literal('a')]))
+        ])]),
     ]))
 
 
@@ -1641,6 +1701,19 @@ def test_compile():
         gen("halt"),
     ))
 
+    # Error labels
+
+    assert(cc("S <- 'a'^f") == bn(
+        gen("call", 2),
+        gen("jump", 7),
+        gen("choice", 3),
+        gen("char", ord('a')),
+        gen("commit", 2),
+        gen("throw", 2),
+        gen("return"),
+        gen("halt"),
+    ))
+
     # Lists
     assert(cc("A <- !{ .* } .") == bn(
         gen("call",   0x02),    # 0x00: Call 0x02
@@ -1672,7 +1745,6 @@ def test_compile():
         gen("return"),          # 0x05: Return
         gen("halt"),            # 0x06: Halt
     ))
-
 
     # Captures
     assert(cc("S <- %{ 'a' }") == bn(

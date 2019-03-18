@@ -184,7 +184,7 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
       the input string. */
 #define THE_END (input + input_size)
   /** Update the cursor & keep track of FFP */
-#define IPP() do { i++; ffp = ((ffp) > (i) ? ffp : i); } while (0)
+#define IPP() do { i++; if (i > ffp) ffp = i; } while (0)
 
   DEBUGLN ("   Run");
 

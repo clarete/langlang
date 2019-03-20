@@ -3,35 +3,38 @@
 
 # Hierarchical syntax
 Grammar    <- Spacing %Definition+ EndOfFile
-Definition <- %Identifier LEFTARROW %Expression
+Definition <- %Identifier LEFTARROW^Arrow Expression^Exp
 
-Expression <- %Sequence (SLASH %Sequence)*
+Expression <- %Sequence (SLASH %Sequence^Seq)*
 Sequence   <- %Prefix*
-Prefix     <- (%AND / %NOT)? %Suffix
+Prefix     <- (%AND / %NOT)? %Labeled
+Labeled    <- %Suffix %Label?
 Suffix     <- %Primary (%QUESTION / %STAR / %PLUS)?
-Primary    <- %CAPTURE? %Identifier !LEFTARROW
-            / %BlockCapture
-            / OPEN %Expression CLOSE
+Primary    <- %BlockCapture
+            / %CAPTURE? %Identifier !LEFTARROW
+            / OPEN Expression CLOSE^Close
             / %Literal / %Class / %DOT
-BlockCapture <- OPCB %Expression CLCB
+BlockCapture <- OPCB Expression^Exp CLCB^Block
+Label        <- LABEL (Identifier !LEFTARROW)^Label
 
 # Lexical syntax
 Identifier <- %{ IdentStart IdentCont* } Spacing
 IdentStart <- [a-zA-Z_]
 IdentCont  <- IdentStart / [0-9]
 
-Literal    <- ['] (!['] %Char)* ['] Spacing
-            / ["] (!["] %Char)* ["] Spacing
-Class      <- '[' (!']' %Range)* ']' Spacing
+Literal    <- ['] (!['] %Char)* [']^SingleStr Spacing
+            / ["] (!["] %Char)* ["]^DoubleStr Spacing
+Class      <- '[' (!']' %Range)* ']'^Class Spacing
 Range      <- %Char '-' %Char / %Char
-Char       <- %{ '\\' [nrt'"\[\]\\] }
-            / %{ '\\' [0-2][0-7][0-7] }
-            / %{ '\\' [0-7][0-7]? }
+Char       <- %{ '\\' [nrt'"\[\]\\]^Special }
+            / %{ '\\' [0-2][0-7][0-7]^TSS }
+            / %{ '\\' [0-7]^Ss[0-7]? }
             ## Hex-chars Extension  
-            / %{ '\\x' [0-9a-fA-F]+ }
-            / %{ !'\\' . }
+            / %{ '\\x' [0-9a-fA-F]+^Hex }
+            / %{ !'\\' .^Char }
 
-LEFTARROW  <- '<-' Spacing
+LABEL      <- '^'
+LEFTARROW  <- '<' '-'^ArrowDash Spacing
 SLASH      <- '/' Spacing
 AND        <- '&' Spacing
 NOT        <- '!' Spacing

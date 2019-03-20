@@ -29,6 +29,52 @@
     Some parser generators attach actions via visitor pattern by
     adding the action code to the =AST= node's ~Visit~ method.
 
+*** DONE [#A] Error Handling
+    CLOSED: [2019-03-19 Tue 22:56]
+**** Problem
+     There are essentially two things that make error reporting not
+     trivial within this parsing system:
+
+     1. The backtracking semantics of the ordered choice puts the
+        cursor far away from where the parsing error occurred.
+
+     2. In a handwritten parser or in a generated one, the lexer is
+        separated from the parser and can be more comprehensive about
+        errors. In our system, the grammar for describing grammars
+        doesn't offer any way for the grammar writer to provide error
+        messages where they're expected.
+
+**** Suggested Solution
+
+     In the article [[http://www.inf.puc-rio.br/~roberto/docs/sblp2013-1.pdf][Exception Handling for Error Reporting in Parsing
+     Expression Grammars]], André Murbach Maidl, Fabio Mascarenhas and
+     Roberto Ierusalimschy propose the use of techniques that resemble
+     exception handling in programming languages.
+
+**** Implementation
+
+     The error reporting system proposed by the article quoted mention
+     or provide a few different tools:
+
+      * *Farthest Failure Position*: This is the heuristics used by
+        B. Ford in his implementation of the parser generator
+        Pappy. This is simple and already implemented in the `error'
+        branch. That gives the *position* where the error happened.
+
+      * *No Fail*: Operator that throws an error label if matching of
+        its operand isn't successful.
+
+      * *Error Labels*: It allows implementing specific error messages
+        by customizing error labels emitted with the ~nofail~
+        operator.
+
+      * *Try* Operator that catches error labels from its operand and
+        transforms it into a ~fail~ label.
+
+**** Questions
+     * The FFP is tricky to be tracked. Right now it's as simple as
+       ~if (i > ffp)~ and it happens at every successful match. But
+       I'm not sure if it should happen within predicates.
 *** DOING [#A] Semantic Actions
 **** Thoughts
 
@@ -146,47 +192,6 @@
       above PEG can throw, besides the standard ~fail~ label thrown
       when no label is provided, and doesn't support semantic actions
       because ~fail~ is the label caught by the backtracking.
-*** DOING [#A] Error Handling
-**** Problem
-     There are essentially two things that make error reporting not
-     trivial within this parsing system:
-
-     1. The backtracking semantics of the ordered choice puts the
-        cursor far away from where the parsing error occurred.
-
-     2. In a handwritten parser or in a generated one, the lexer is
-        separated from the parser and can be more comprehensive about
-        errors. In our system, the grammar for describing grammars
-        doesn't offer any way for the grammar writer to provide error
-        messages where they're expected.
-
-**** Suggested Solution
-
-     In the article [[http://www.inf.puc-rio.br/~roberto/docs/sblp2013-1.pdf][Exception Handling for Error Reporting in Parsing
-     Expression Grammars]], André Murbach Maidl, Fabio Mascarenhas and
-     Roberto Ierusalimschy propose the use of techniques that resemble
-     exception handling in programming languages.
-
-**** Implementation
-
-     The error reporting system proposed by the article quoted mention
-     or provide a few different tools:
-
-      * *Farthest Failure Position*: This is the heuristics used by
-        B. Ford in his implementation of the parser generator
-        Pappy. This is simple and already implemented in the `error'
-        branch. That gives the *position* where the error happened.
-
-      * *No Fail*: Operator that throws an error label if matching of
-        its operand isn't successful.
-
-      * *Error Labels*: It allows implementing specific error messages
-        by customizing error labels emitted with the ~nofail~
-        operator.
-
-      * *Try* Operator that catches error labels from its operand and
-        transforms it into a ~fail~ label.
-
 *** [#B] Left Recursion
 *** [#C] Streaming API
 **** Problem

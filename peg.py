@@ -331,27 +331,33 @@ class Parser:
         # Sequence <- Prefix*
         output = []
         while True:
-            # Prefix <- (AND / NOT)? Suffix
+            # Prefix <- (AND / NOT)? Labeled
             prefix = lambda x: x
             if self.matcht(TokenTypes.AND): prefix = And
             elif self.matcht(TokenTypes.NOT): prefix = Not
-            suffix = self.parseSuffix()
+            suffix = self.parseLabeled()
             if suffix is None: break
             output.append(prefix(suffix))
         if len(output) > 1: return Sequence(output)
         else: return fio(output)
 
+    def parseLabeled(self):
+        # Labeled <- Suffix Label?
+        output = self.parseSuffix()
+        if self.matcht(TokenTypes.LABEL):
+            label = self.consumet(TokenTypes.IDENTIFIER)
+            return Label([label.value, output])
+        return output
+
+
     def parseSuffix(self):
         # Suffix <- Primary (QUESTION / STAR / PLUS)?
-        output = [self.parsePrimary()]
+        output = self.parsePrimary()
         suffix = lambda x: x
         if self.matcht(TokenTypes.QUESTION): suffix = Question
         elif self.matcht(TokenTypes.STAR): suffix = Star
         elif self.matcht(TokenTypes.PLUS): suffix = Plus
-        elif self.matcht(TokenTypes.LABEL):
-            label = self.consumet(TokenTypes.IDENTIFIER)
-            return Label([label.value, fio(output)])
-        return suffix(fio(output))
+        return suffix(output)
 
     def parsePrimary(self):
         # Primary <- Identifier !LEFTARROW

@@ -41,50 +41,50 @@
   letters can be either letters, underscores or numbers:
 
   #+begin_src peg
-Assignment  <- _ Identifier _ '=' _ Number
-Identifier  <- IdentStart IdentCont*
-IdentStart  <- [a-zA-Z_]
-IdentCont   <- IdentStart / [0-9]
-Number      <- [0-9]+
-_           <- Space*
-Space       <- [ \n\r\t]
+  Assignment  <- _ Identifier _ '=' _ Number
+  Identifier  <- IdentStart IdentCont*
+  IdentStart  <- [a-zA-Z_]
+  IdentCont   <- IdentStart / [0-9]
+  Number      <- [0-9]+
+  _           <- Space*
+  Space       <- [ \n\r\t]
   #+end_src
 
   Here's an example of an input that can be parsed with the above
   Grammar:
 
   #+begin_src
-Num = 42
+  Num = 42
   #+end_src
 
   The output initially looks a lil useless because it only captured
   the name of the start rule in the grammar.
 
-#+begin_src lisp
-("Assignment")
-#+end_src
+  #+begin_src lisp
+  ("Assignment")
+  #+end_src
 
 ** Node Capture Operator (~%~)
 
    You can use the Node Capture Operator (~%~) to capture the nodes
    directly within the start production. Let's rewrite the following
    line
-#+begin_src peg
-Assignment  <- _ Identifier _ '=' _ Number
-#+end_src
+   #+begin_src peg
+   Assignment  <- _ Identifier _ '=' _ Number
+   #+end_src
 
    Just like the following
-#+begin_src peg
-Assignment  <- _ %Identifier _ '=' _ %Number
-#+end_src
+   #+begin_src peg
+   Assignment  <- _ %Identifier _ '=' _ %Number
+   #+end_src
 
    That will make the output a lil more interesting and capture the
    intermediary nodes ~Identifier~ and ~Number~:
-#+begin_src lisp
-("Assignment"
- ("Identifier")
- ("Number"))
-#+end_src
+   #+begin_src lisp
+   ("Assignment"
+    ("Identifier")
+    ("Number"))
+   #+end_src
 
 ** Block Capture Operator (~%{ Expr }~)
 
@@ -96,15 +96,15 @@ Assignment  <- _ %Identifier _ '=' _ %Number
       capture instead of one per character:
 
       #+begin_src peg
-Number      <- %{ [0-9]+ }
+      Number      <- %{ [0-9]+ }
       #+end_src
 
       The output of the ~Number~ rule now looks like this:
 
       #+begin_src lisp
-...
-("Number" "42")
-...
+      ...
+      ("Number" "42")
+      ...
       #+end_src
    2. The ~Identifier~ rule will aggregate all the matches under
       ~IdentStart~ and ~IdentCont~. This case is interesting because
@@ -113,20 +113,20 @@ Number      <- %{ [0-9]+ }
       ~CAPCHAR~ opcodes after their terminals because they're
       semantically nested:
 
-#+begin_src peg
-Identifier  <- %{ IdentStart IdentCont* }
-IdentStart  <- [a-zA-Z_]
-IdentCont   <- IdentStart / [0-9]
-#+end_src
+      #+begin_src peg
+      Identifier  <- %{ IdentStart IdentCont* }
+      IdentStart  <- [a-zA-Z_]
+      IdentCont   <- IdentStart / [0-9]
+      #+end_src
 
    With changes to ~Number~ and ~Identifier~ the output will look like
    this:
 
-#+begin_src lisp
-("Assignment"
- ("Identifier" "Num")
- ("Number" "42"))
-#+end_src
+   #+begin_src lisp
+   ("Assignment"
+    ("Identifier" "Num")
+    ("Number" "42"))
+   #+end_src
 
 ** Example Rewritten
 
@@ -134,29 +134,29 @@ IdentCont   <- IdentStart / [0-9]
    in their proper places:
 
    #+begin_src peg
-Assignment  <- _ %Identifier _ '=' _ %Number
-Identifier  <- %{ IdentStart IdentCont* }
-IdentStart  <- [a-zA-Z_]
-IdentCont   <- IdentStart / [0-9]
-Number      <- %{ [0-9]+ }
-_           <- Space*
-Space       <- [ \n\r\t]
+   Assignment  <- _ %Identifier _ '=' _ %Number
+   Identifier  <- %{ IdentStart IdentCont* }
+   IdentStart  <- [a-zA-Z_]
+   IdentCont   <- IdentStart / [0-9]
+   Number      <- %{ [0-9]+ }
+   _           <- Space*
+   Space       <- [ \n\r\t]
    #+end_src
 
    And here's the final parse tree:
 
    #+begin_src lisp
-("Assignment"
- ("Identifier" "Num")
- ("Number" "42"))
+   ("Assignment"
+    ("Identifier" "Num")
+    ("Number" "42"))
    #+end_src
 
 ** Note on verbosity
 
    Some people like verbose outputs some people don't. The above
    example could also be simplified to output something like
-#+begin_src lisp
-("Assignment" "Num" "42")
-#+end_src
+   #+begin_src lisp
+   ("Assignment" "Num" "42")
+   #+end_src
 
    if we omit the Node Capture operators in the first production.

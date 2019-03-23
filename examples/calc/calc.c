@@ -28,6 +28,7 @@
 #define FIRST(o) CAR (CDR (o))
 #define SECOND(o) CDR (CDR (o))
 #define HASKEY(o,n) (strcmp (SYMBOL (CAR (o))->name, n) == 0)
+#define BINOP(a,op,b) (INT (a)->value op INT (b)->value)
 
 Object *evNumber (Object *input)
 {
@@ -41,14 +42,14 @@ Object *evNumber (Object *input)
   return intNew (v);
 }
 
-Object *evExpression (Object *input);
+Object *evTerm (Object *input);
 
 Object *evPrimary (Object *input)
 {
   if (HASKEY (FIRST (input), "Number")) {
     return evNumber (FIRST (input));
-  } else if (HASKEY (FIRST (input), "Expression")) {
-    return evExpression (FIRST (input));
+  } else if (HASKEY (FIRST (input), "Term")) {
+    return evTerm (FIRST (input));
   }
   return NULL;
 }
@@ -73,65 +74,64 @@ Object *evPower (Object *input)
 {
   Object *left, *right;
   left = evUnary (FIRST (input));
+  right = SECOND (input);
 
-  if (!NILP (SECOND (input))) {
-    right = evPower (FIRST (SECOND (input)));
-    if (HASKEY (CAR (SECOND (input)), "POWER")) {
-      return intNew (pow (INT (left)->value, INT (right)->value));
-    } else if (HASKEY (CAR (SECOND (input)), "MOD")) {
-      return intNew (INT (left)->value % INT (right)->value);
+  while (!NILP (right)) {
+    if (HASKEY (CAR (right), "POWER")) {
+      right = CDR (right);
+      left = intNew (pow (INT (left)->value,
+                          INT (evUnary (CAR (right)))->value));
+    } else if (HASKEY (CAR (right), "MOD")) {
+      right = CDR (right);
+      left = intNew (BINOP (left, &, evUnary (CAR (right))));
     }
-    return NULL;
-  } else {
-    return left;
+    right = CDR (right);
   }
+  return left;
 }
 
 Object *evFactor (Object *input)
 {
   Object *left, *right;
   left = evPower (FIRST (input));
+  right = SECOND (input);
 
-  if (!NILP (SECOND (input))) {
-    right = evFactor (FIRST (SECOND (input)));
-    if (HASKEY (CAR (SECOND (input)), "STAR")) {
-      return intNew (INT (left)->value * INT (right)->value);
-    } else if (HASKEY (CAR (SECOND (input)), "SLASH")) {
-      return intNew (INT (left)->value / INT (right)->value);
+  while (!NILP (right)) {
+    if (HASKEY (CAR (right), "STAR")) {
+      right = CDR (right);
+      left = intNew (BINOP (left, *, evPower (CAR (right))));
+    } else if (HASKEY (CAR (right), "SLASH")) {
+      right = CDR (right);
+      left = intNew (BINOP (left, /, evPower (CAR (right))));
     }
-    return OBJ (Nil);
-  } else {
-    return left;
+    right = CDR (right);
   }
+  return left;
 }
 
 Object *evTerm (Object *input)
 {
   Object *left, *right;
   left = evFactor (FIRST (input));
+  right = SECOND (input);
 
-  if (!NILP (SECOND (input))) {
-    right = evTerm (FIRST (SECOND (input)));
-    if (HASKEY (CAR (SECOND (input)), "PLUS")) {
-      return intNew (INT (left)->value + INT (right)->value);
-    } else if (HASKEY (CAR (SECOND (input)), "MINUS")) {
-      return intNew (INT (left)->value - INT (right)->value);
+  while (!NILP (right)) {
+    if (HASKEY (CAR (right), "PLUS")) {
+      right = CDR (right);
+      left = intNew (BINOP (left, +, evFactor (CAR (right))));
+    } else if (HASKEY (CAR (right), "MINUS")) {
+      right = CDR (right);
+      left = intNew (BINOP (left, -, evFactor (CAR (right))));
     }
-    return OBJ (Nil);
-  } else {
-    return left;
+    right = CDR (right);
   }
-}
-
-Object *evExpression (Object *input)
-{
-  return evTerm (FIRST (input));
+  return left;
 }
 
 Object *calculate (Object *input)
 {
   /* Unwrap "Calculator" Rule */
-  return evExpression (FIRST (input));
+  return evTerm (FIRST (input));
 }
 
 int main ()

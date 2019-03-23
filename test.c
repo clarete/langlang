@@ -845,6 +845,7 @@ static void test_throw ()
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
+  mSymbol (&m, "test", 4);
   assert (mMatch (&m, i, strlen (i), NULL) == 2);
 
   mFree (&m);
@@ -874,6 +875,7 @@ static void test_label_not_3 ()
 
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
+  mSymbol (&m, "error", 5);
   assert (mMatch (&m, "a", 1, NULL) == 2); /* Failed \w label 0x2 */
   assert (!m.i);                /* And didn't match anything */
 

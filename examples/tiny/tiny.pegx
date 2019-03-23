@@ -12,10 +12,10 @@ IDENT      <- %{ [a-zA-Z]+ }         _
 IDCONT     <- %{ [a-zA-Z0-9_]+ }     _
 
 Exp        <- %Term
-Term       <- %Factor ((%PLUS / %MINUS) %Term)*
-Factor     <- %Power ((%STAR / %SLASH) %Factor)*
-Power      <- %Logic ((%POWER / %MOD)  %Power)*
-Logic      <- %Unary ((%LT / %GT / %EQ) %Logic)*
+Term       <- %Factor ((%PLUS / %MINUS) %Factor)*
+Factor     <- %Power ((%STAR / %SLASH) %Power)*
+Power      <- %Logic ((%POWER / %MOD) %Logic)*
+Logic      <- %Unary ((%LT / %GT / %EQ) %Unary)*
 Unary      <- (%PLUS / %MINUS)? %Primary
 Primary    <- %Number
             / %Name !ASSIGNMENT

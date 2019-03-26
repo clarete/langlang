@@ -64,7 +64,7 @@ static const char *opNames[OP_END] = {
 void mInit (Machine *m)
 {
   listInit (&m->symbols);
-  m->stack = calloc (STACK_SIZE, sizeof (CaptureEntry));
+  m->stack = calloc (STACK_SIZE, sizeof (BacktrackEntry));
   m->i = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
 }

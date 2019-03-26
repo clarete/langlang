@@ -64,18 +64,6 @@ typedef struct {
   uint32_t rand: 27;
 } Instruction;
 
-typedef enum {
-  CapOpen,
-  CapClose,
-} CaptureType;
-
-typedef struct {
-  CaptureType type;
-  const char *pos;
-  uint16_t idx;
-  uint16_t term;
-} CaptureEntry;
-
 /* Entry that's stored in the Machine's stack for supporting backtrack
    on the ordered choice operator */
 typedef struct {

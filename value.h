@@ -64,7 +64,6 @@ typedef enum {
 
 typedef struct val {
   Type type;
-  struct val *next;
 } Value;
 
 typedef struct {

@@ -23,13 +23,13 @@
 #include "value.h"
 
 /* Static Valects */
-const Value *Nil = (&(Value) { TYPE_NIL, 0 });
+const Value *Nil = (&(Value) { TYPE_NIL });
 const Value *True = VAL ((&(Bool) {
-  .o = { TYPE_BOOL, 0 },
+  .o = { TYPE_BOOL },
   .value = true,
 }));
 const Value *False = VAL ((&(Bool) {
-  .o = { TYPE_BOOL, 0 },
+  .o = { TYPE_BOOL },
   .value = false,
 }));
 

@@ -11,7 +11,7 @@ int main (int argc, char **argv)
   size_t grammar_size = 0, input_size = 0;
   Bytecode *grammar = NULL;
   char *input = NULL;
-  Object *tree;
+  Value *tree;
   String *label;
   Dict errors;
   uint32_t e;
@@ -39,17 +39,17 @@ int main (int argc, char **argv)
            stringNew ("missing 'END' after if", 22));
 
   if ((e = mMatch (&m, input, input_size, &tree)) == 0) {
-    objPrint (tree);
+    valPrint (tree);
     printf ("\n");
   } else if (e > 1) {
     label = STRING (listItem (&m.symbols, e-2));
-    Object *msg = NULL,
+    Value *msg = NULL,
       *sym = mSymbol (&m, stringAsCharArr (label), stringLen (label));
     printf ("Syntax error: ");
     if (dictGet (&errors, sym, &msg))
       printf ("%s", stringAsCharArr (STRING (msg)));
     else
-      objPrint (OBJ (label));
+      valPrint (VAL (label));
     printf ("\n");
   }
 

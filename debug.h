@@ -46,13 +46,13 @@
   } while (0)
 
 #  define DEBUG_FAILSTATE2() do {                               \
-    printf ("       FAIL["); objPrint (l); printf ("]");        \
+    printf ("       FAIL["); valPrint (l); printf ("]");        \
     DEBUGLN ("         NEXT: %s", OP_NAME ((*(pc)).rator));     \
   } while (0)
 
 #  define DEBUGL(m) do {                        \
     printf ("         %s[", m);                 \
-    objPrint(l);                                \
+    valPrint(l);                                \
     printf ("]\n");                             \
   } while (0)
 

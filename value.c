@@ -22,13 +22,13 @@
 #include "error.h"
 #include "value.h"
 
-/* Static Objects */
-const Object *Nil = (&(Object) { TYPE_NIL, 0 });
-const Object *True = OBJ ((&(Bool) {
+/* Static Valects */
+const Value *Nil = (&(Value) { TYPE_NIL, 0 });
+const Value *True = VAL ((&(Bool) {
   .o = { TYPE_BOOL, 0 },
   .value = true,
 }));
-const Object *False = OBJ ((&(Bool) {
+const Value *False = VAL ((&(Bool) {
   .o = { TYPE_BOOL, 0 },
   .value = false,
 }));
@@ -57,23 +57,23 @@ static void *memFn (void *o, uint32_t newSize)
   return alloc;
 }
 
-/* ---- Object ---- */
+/* ---- Value ---- */
 
-Object *objNew (Type type, size_t size)
+Value *valNew (Type type, size_t size)
 {
-  Object *obj;
-  if ((obj = malloc (size)) == NULL) FATAL ("Can't make new object: OOM");
-  obj->type = type;
+  Value *val;
+  if ((val = malloc (size)) == NULL) FATAL ("Can't make new value: OOM");
+  val->type = type;
 
-  /* TODO: Receive context to associate object */
-  /* obj->next = c->nextObject; */
-  /* c->nextObject = obj; */
-  return obj;
+  /* TODO: Receive context to associate value */
+  /* val->next = c->nextValue; */
+  /* c->nextValue = val; */
+  return val;
 }
 
-void objFree (Object *o)
+void valFree (Value *o)
 {
-  Object *tmp;
+  Value *tmp;
   switch (o->type) {
     /* Statically allocated, don't free it! */
   case TYPE_NIL: break;
@@ -88,14 +88,14 @@ void objFree (Object *o)
   case TYPE_CONS:
     while (CONSP (o)) {
       tmp = o;
-      objFree (CAR (tmp));
+      valFree (CAR (tmp));
       o = CDR (tmp);
       free (CONS (tmp));
     }
     break;
     /* Error Handling */
   default:
-    fprintf (stderr, "Invalid object type passed to objFree\n");
+    fprintf (stderr, "Invalid value type passed to valFree\n");
     break;
   }
 }
@@ -110,40 +110,40 @@ uint32_t stringHash (String *o)
   return hash;
 }
 
-uint32_t objHash (Object *o) {
+uint32_t valHash (Value *o) {
   if (STRINGP (o)) {
     return stringHash (STRING (o));
   }
   return 0;
 }
 
-static void objPrintIndent (const Object *obj, int level);
+static void valPrintIndent (const Value *val, int level);
 
-void objPrint (const Object *obj)
+void valPrint (const Value *val)
 {
-  objPrintIndent (obj, 0);
+  valPrintIndent (val, 0);
 }
 
 /* Cons */
 
-Object *consNew (Object *car, Object *cdr)
+Value *consNew (Value *car, Value *cdr)
 {
-  Cons *cons = CONS (objNew (TYPE_CONS, sizeof (Cons)));
+  Cons *cons = CONS (valNew (TYPE_CONS, sizeof (Cons)));
   cons->car = car;
   cons->cdr = cdr;
-  return (Object *) cons;
+  return (Value *) cons;
 }
 
 /* String */
 
-Object *stringNew (const char *p, size_t len)
+Value *stringNew (const char *p, size_t len)
 {
   String *str;
-  str = STRING (objNew (TYPE_STRING, sizeof (String)));
+  str = STRING (valNew (TYPE_STRING, sizeof (String)));
   memcpy (str->value, p, len);
   str->value[len] = '\0';
   str->len = len;
-  return OBJ (str);
+  return VAL (str);
 }
 
 size_t stringLen (String *s)
@@ -158,23 +158,23 @@ char stringCharAt (String *s, size_t i)
 
 /* Int */
 
-Object *intNew (long int v)
+Value *intNew (long int v)
 {
-  Int *o = INT (objNew (TYPE_INT, sizeof (Int)));
+  Int *o = INT (valNew (TYPE_INT, sizeof (Int)));
   o->value = v;
-  return (Object *) o;
+  return (Value *) o;
 }
 
 /* Symbol */
 
-Object *symbolNew (const char *p, size_t len)
+Value *symbolNew (const char *p, size_t len)
 {
   Symbol *symbol;
-  symbol = SYMBOL (objNew (TYPE_SYMBOL, sizeof (Symbol)));
+  symbol = SYMBOL (valNew (TYPE_SYMBOL, sizeof (Symbol)));
   memcpy (symbol->name, p, len);
   symbol->name[len] = '\0';
   symbol->len = len;
-  return (Object *) symbol;
+  return (Value *) symbol;
 }
 
 /* ---- List ---- */
@@ -190,27 +190,27 @@ void listInit (List *lst)
 void listFree (List *lst)
 {
   for (size_t i = 0; i < lst->used; i++)
-    objFree (lst->items[i]);
+    valFree (lst->items[i]);
   free (lst->items);
   listInit (lst);
 }
 
-uint32_t listPush (List *lst, Object *o)
+uint32_t listPush (List *lst, Value *o)
 {
   uint32_t oldCapacity;
   if (lst->capacity < lst->used + 1) {
     oldCapacity = lst->capacity;
     lst->capacity = INCR_CAPACITY (oldCapacity);
-    lst->items = REALLOC (lst->items, Object *,
+    lst->items = REALLOC (lst->items, Value *,
                           oldCapacity, lst->capacity);
   }
   lst->items[lst->used++] = o;
   return lst->used;
 }
 
-Object *listPop (List *lst)
+Value *listPop (List *lst)
 {
-  Object *tmp;
+  Value *tmp;
   assert (listLen (lst));
   tmp = listTop (lst);
   /* TODO: Should we have something like listItemSet? */
@@ -219,7 +219,7 @@ Object *listPop (List *lst)
   return tmp;
 }
 
-Object *listTop (List *lst)
+Value *listTop (List *lst)
 {
   assert (listLen (lst));
   return listItem (lst, listLen (lst)-1);
@@ -238,35 +238,35 @@ void dictInit (Dict *dct)
 void dictFree (Dict *dct)
 {
   for (size_t i = 0; i < dct->used; i++)
-    objFree (dct->values[i]);
+    valFree (dct->values[i]);
   free (dct->values);
   dictInit (dct);
 }
 
-Object *dictFind (Dict *dct, Object *k)
+Value *dictFind (Dict *dct, Value *k)
 {
   uint64_t hash;
   uint32_t index;
-  Object *tmp, *entries;
+  Value *tmp, *entries;
 
   if (dictLen (dct) == 0) return NULL;
 
-  hash = objHash (k);
+  hash = valHash (k);
   index = hash % dct->capacity;
   entries = dictItem (dct, index);
 
   for (tmp = entries; !NILP (tmp); tmp = CDR (tmp)) {
-    if (objEqual (CAR (CAR (tmp)), k)) {
+    if (valEqual (CAR (CAR (tmp)), k)) {
       return CAR (tmp);
     }
   }
   return NULL;
 }
 
-bool dictSet (Dict *dct, Object *k, Object *v)
+bool dictSet (Dict *dct, Value *k, Value *v)
 {
   uint32_t index, hash, i, oldCapacity;
-  Object **values, *tmp, *o;
+  Value **values, *tmp, *o;
   if ((o = dictFind (dct, k)) != NULL) {
     CDR (o) = v;
     return false;               /* Not created */
@@ -275,15 +275,15 @@ bool dictSet (Dict *dct, Object *k, Object *v)
     oldCapacity = dct->capacity;
     /* Allocate larger space */
     dct->capacity = INCR_CAPACITY (oldCapacity);
-    values = ALLOC (Object *, dct->capacity);
+    values = ALLOC (Value *, dct->capacity);
     for (i = 0; i < dct->capacity; i++) {
-      values[i] = OBJ (Nil);
+      values[i] = VAL (Nil);
     }
     /* Re-hash all existing keys */
     for (i = 0; i < oldCapacity; i++) {
       o = dictItem (dct, i);
       for (tmp = o; !NILP (tmp); tmp = CDR (tmp)) {
-        hash = objHash (CAR (CAR (tmp)));
+        hash = valHash (CAR (CAR (tmp)));
         index = hash % dct->capacity;
         values[index] = consNew (CAR (tmp), values[index]);
       }
@@ -291,39 +291,39 @@ bool dictSet (Dict *dct, Object *k, Object *v)
     dct->values = values;
   }
   /* Insert the new item into the table */
-  index = objHash (k) % dct->capacity;
+  index = valHash (k) % dct->capacity;
   dct->values[index] = consNew (consNew (k, v), dct->values[index]);
 
   /* printf ("hash: %10d, index: %2d, ", stringHash (k), index); */
-  /* objPrint (k); */
+  /* valPrint (k); */
   /* printf ("\n"); */
 
   dct->used++;
   return true;                  /* Just Created */
 }
 
-bool dictGet (Dict *dct, Object *k, Object **v)
+bool dictGet (Dict *dct, Value *k, Value **v)
 {
-  Object *o = dictFind (dct, k);
+  Value *o = dictFind (dct, k);
   if (o) *v = CDR (o);
   return o != NULL;
 }
 
-bool dictDel (Dict *dct, Object *k)
+bool dictDel (Dict *dct, Value *k)
 {
   uint64_t hash;
   uint32_t index;
-  Object *tmp, *prev, *next, *entries;
+  Value *tmp, *prev, *next, *entries;
 
   if (dictLen (dct) == 0) return false;
 
-  hash = objHash (k);
+  hash = valHash (k);
   index = hash % dct->capacity;
   entries = dictItem (dct, index);
 
   prev = NULL;
   for (tmp = entries; !NILP (tmp); prev = tmp, tmp = CDR (tmp)) {
-    if (objEqual (CAR (CAR (tmp)), k)) {
+    if (valEqual (CAR (CAR (tmp)), k)) {
       next = CDR (tmp);
       if (prev) CDR (prev) = next;
       else dct->values[index] = next;
@@ -334,33 +334,33 @@ bool dictDel (Dict *dct, Object *k)
   return false;
 }
 
-/* Object Equality */
+/* Value Equality */
 
-bool consEqual (const Object *o1, const Object *o2)
+bool consEqual (const Value *o1, const Value *o2)
 {
   /* TODO: Add dynamically allocated stack */
   const Cons *stack[1048] = { 0 };
   const Cons **stack_top = stack;
   const Cons *current = NULL;
-  Object *tmp1, *tmp2;
+  Value *tmp1, *tmp2;
 
   if (!CONSP (o1) || !CONSP (o2)) return false;
 
   /* Add the root of the tree to the top of the stack */
   *stack_top++ = &(Cons){
     .o = { .type = TYPE_CONS },
-    .car = OBJ (o1),
-    .cdr = OBJ (o2)
+    .car = VAL (o1),
+    .cdr = VAL (o2)
   };
 
   /* Loop til the stack is empty */
   while (stack_top > stack) {
     current = *--stack_top;
     /* If current pair in the stack has different type, bail */
-    if (OBJ (CAR (current))->type != OBJ (CDR (current))->type)
+    if (VAL (CAR (current))->type != VAL (CDR (current))->type)
       return false;
     /* If current pair isn't a Cons and isn't equal, bail */
-    if (!CONSP (CAR (current)) && !objEqual (CAR (current), CDR (current)))
+    if (!CONSP (CAR (current)) && !valEqual (CAR (current), CDR (current)))
       return false;
     /* Iterate over Cons items */
     for (tmp1 = CAR (current), tmp2 = CDR (current); ;
@@ -381,15 +381,15 @@ bool consEqual (const Object *o1, const Object *o2)
   return true;
 }
 
-bool listEqual (const Object *o1, const Object *o2)
+bool listEqual (const Value *o1, const Value *o2)
 {
   /* TODO: Add dynamically allocated stack */
-  const Object *stack[1048] = { 0 };
-  const Object **stack_top = stack;
-  const Object *current = NULL, *left = NULL, *right = NULL;
+  const Value *stack[1048] = { 0 };
+  const Value **stack_top = stack;
+  const Value *current = NULL, *left = NULL, *right = NULL;
 
-  /* Add both objects cons cell wrapped to the top of the stack */
-  *stack_top++ = OBJ (consNew (OBJ (o1), OBJ (o2)));
+  /* Add both values cons cell wrapped to the top of the stack */
+  *stack_top++ = VAL (consNew (VAL (o1), VAL (o2)));
 
   while (stack_top > stack) {
     current = *--stack_top;
@@ -403,19 +403,19 @@ bool listEqual (const Object *o1, const Object *o2)
         return false;
       /* Add each item to the stack so they can be tested */
       for (uint32_t i = 0; i < listLen (LIST (left)); i++)
-        *stack_top++ = OBJ (consNew (listItem (LIST (left), i),
+        *stack_top++ = VAL (consNew (listItem (LIST (left), i),
                                      listItem (LIST (right), i)));
     } else if (!LISTP (left) && !LISTP (right)) {
       /* None are lists, we can compare them with the recursive
        * function */
-      if (!objEqual (left, right)) return false;
+      if (!valEqual (left, right)) return false;
     }
   }
 
   return true;
 }
 
-bool objEqual (const Object *o1, const Object *o2)
+bool valEqual (const Value *o1, const Value *o2)
 {
   if (o1->type != o2->type) return false;
   switch (o1->type) {
@@ -428,7 +428,7 @@ bool objEqual (const Object *o1, const Object *o2)
   case TYPE_STRING: return strcmp (STRING (o1)->value, STRING (o2)->value) == 0;
   case TYPE_CONS: return consEqual (o1, o2);
   case TYPE_LIST: return listEqual (o1, o2);
-  default: FATAL ("Unknown type passed to objEqual: %d\n", o1->type);
+  default: FATAL ("Unknown type passed to valEqual: %d\n", o1->type);
   }
 }
 
@@ -440,21 +440,21 @@ bool objEqual (const Object *o1, const Object *o2)
     printf (s);                                                 \
   } while (0)
 
-static void symbolPrint (const Object *symbol);
+static void symbolPrint (const Value *symbol);
 
-static void consPrint (Cons *obj, int level)
+static void consPrint (Cons *val, int level)
 {
   Cons *tmp;
   if (level > 0) printf ("\n");
   INDENTED (level, "(");
-  for (tmp = obj; tmp && tmp->car; tmp = CONS (tmp->cdr)) {
-    objPrintIndent (tmp->car, level+1);
+  for (tmp = val; tmp && tmp->car; tmp = CONS (tmp->cdr)) {
+    valPrintIndent (tmp->car, level+1);
     if (tmp->cdr) {
       if (NILP (tmp->cdr))
         break;
       if (!CONSP (tmp->cdr)) {
         printf (" . ");
-        objPrintIndent (tmp->cdr, level+1);
+        valPrintIndent (tmp->cdr, level+1);
         break;
       } else {
         printf (" ");
@@ -469,7 +469,7 @@ static void listPrint (List *lst, int level)
   if (level > 0) printf ("\n");
   INDENTED (level, "[");
   for (uint32_t i = 0; i < listLen (lst); i++) {
-    objPrintIndent (listItem (lst, i), level+1);
+    valPrintIndent (listItem (lst, i), level+1);
     if (i != listLen (lst)-1) printf (", ");
   }
   printf ("]");
@@ -477,16 +477,16 @@ static void listPrint (List *lst, int level)
 
 static void dictPrint (Dict *dict, int level)
 {
-  Object *o, *tmp;
+  Value *o, *tmp;
   uint32_t found = 0;
   INDENTED (level, "{");
   for (uint32_t i = 0; i < dict->capacity; i++) {
     if (NILP (dictItem (dict, i))) continue;
     o = dictItem (dict, i);
     for (tmp = o; !NILP (tmp); tmp = CDR (tmp)) {
-      objPrint (CAR (CAR (tmp)));
+      valPrint (CAR (CAR (tmp)));
       printf (": ");
-      objPrint (CDR (CAR (tmp)));
+      valPrint (CDR (CAR (tmp)));
       if (found++ != dictLen (dict)-1) printf (", ");
     }
   }
@@ -509,35 +509,35 @@ static void rawPrint (const char *s, size_t len)
   }
 }
 
-static void symbolPrint (const Object *symbol)
+static void symbolPrint (const Value *symbol)
 {
   printf ("\"");
   rawPrint (SYMBOL (symbol)->name, SYMBOL (symbol)->len);
   printf ("\"");
 }
 
-static void stringPrint (const Object *symbol)
+static void stringPrint (const Value *symbol)
 {
   printf ("\"");
   rawPrint (STRING (symbol)->value, STRING (symbol)->len);
   printf ("\"");
 }
 
-static void objPrintIndent (const Object *obj, int level)
+static void valPrintIndent (const Value *val, int level)
 {
-  if (!obj) {
+  if (!val) {
     printf ("NULL");
   } else {
-    switch (obj->type) {
+    switch (val->type) {
     case TYPE_NIL: printf ("nil"); break;
-    case TYPE_INT: printf ("%ld", INT (obj)->value); break;
-    case TYPE_BOOL: printf ("%s", BOOL (obj)->value ? "true" : "false"); break;
-    case TYPE_SYMBOL: symbolPrint (obj); break;
-    case TYPE_STRING: stringPrint (obj); break;
-    case TYPE_CONS: consPrint (CONS (obj), level); break;
-    case TYPE_LIST: listPrint (LIST (obj), level); break;
-    case TYPE_DICT: dictPrint (DICT (obj), level); break;
-    default: FATAL ("Unknown type passed to objPrint: %d\n", obj->type);
+    case TYPE_INT: printf ("%ld", INT (val)->value); break;
+    case TYPE_BOOL: printf ("%s", BOOL (val)->value ? "true" : "false"); break;
+    case TYPE_SYMBOL: symbolPrint (val); break;
+    case TYPE_STRING: stringPrint (val); break;
+    case TYPE_CONS: consPrint (CONS (val), level); break;
+    case TYPE_LIST: listPrint (LIST (val), level); break;
+    case TYPE_DICT: dictPrint (DICT (val), level); break;
+    default: FATAL ("Unknown type passed to valPrint: %d\n", val->type);
     }
   }
 }

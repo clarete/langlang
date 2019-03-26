@@ -79,9 +79,9 @@ void mFree (Machine *m)
   m->stack = NULL;
 }
 
-Object *mSymbol (Machine *m, const char *sym, size_t len) {
+Value *mSymbol (Machine *m, const char *sym, size_t len) {
   uint32_t i;
-  Object *symbol;
+  Value *symbol;
 
   for (i = 0; i < m->symbols.used; i++) {
     symbol = listItem (&m->symbols, i);
@@ -114,7 +114,7 @@ void mLoad (Machine *m, Bytecode *code)
   DEBUGLN ("   Header(%d)", headerSize);
   for (i = 0; i < headerSize; i++) {
     size_t ssize = READ_UINT8 (code);
-    Object *symbol = mSymbol (m, (const char *) code, ssize);
+    Value *symbol = mSymbol (m, (const char *) code, ssize);
     (void) symbol; /* Next line may not be included in output */
     DEBUGLN ("     0x%0x: String(%ld) %s", i, ssize, SYMBOL (symbol)->name);
     code += ssize; /* Push the cursor to after the string just read */
@@ -135,29 +135,29 @@ void mLoad (Machine *m, Bytecode *code)
   }
 }
 
-static void append (Object *l, Object *i)
+static void append (Value *l, Value *i)
 {
-  Object *tmp = NULL;
+  Value *tmp = NULL;
   assert (l);
   assert (CONSP (l));
   for (tmp = l; !NILP (tmp) && !NILP (CDR (tmp)); tmp = CDR (tmp));
-  CDR (tmp) = consNew (i, OBJ (Nil));
+  CDR (tmp) = consNew (i, VAL (Nil));
 }
 
-static Object *pop (Object *l)
+static Value *pop (Value *l)
 {
-  Object *tmp, *last = NULL;
+  Value *tmp, *last = NULL;
   assert (l);
   assert (CONSP (l));
   for (tmp = l;
        !NILP (tmp) && !NILP (CDR (tmp)) && !NILP (CDR (CDR (tmp)));
        tmp = CDR (tmp));
   last = CDR (tmp);
-  CDR (tmp) = OBJ (Nil);
+  CDR (tmp) = VAL (Nil);
   return last;
 }
 
-static Object *appendChar (Object *s, char c)
+static Value *appendChar (Value *s, char c)
 {
   assert (STRINGP (s));
   STRING (s)->value[STRING (s)->len++] = c;
@@ -165,7 +165,7 @@ static Object *appendChar (Object *s, char c)
 }
 
 /* Run the matching machine */
-uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
+uint32_t mMatch (Machine *m, const char *input, size_t input_size, Value **out)
 {
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
@@ -202,7 +202,7 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
         Symbol *lb = SYMBOL (listItem (&m->symbols, label-2));
         printf ("Match failed at pos %ld with label ",
                 ffp - input + 1);
-        objPrint (OBJ (lb));
+        valPrint (VAL (lb));
         printf ("\n");
         return label;
       }
@@ -218,7 +218,7 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
         /* Store final suffix upon successful match for testing
          * purposes. */
         m->i = i;
-        /* Output captured objects */
+        /* Output captured values */
         if (out && listLen (&treestk) > 0) {
           *out = listPop (&treestk);
           listFree (&treestk);
@@ -233,7 +233,7 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
       if (UOPERAND1 (pc)) {     /* If the match is a terminal */
         listPush (&treestk, stringNew ("", 0));
       } else {                  /* If the match is a non-terminal */
-        Object *node = consNew (listItem (&m->symbols, UOPERAND2 (pc)), OBJ (Nil));
+        Value *node = consNew (listItem (&m->symbols, UOPERAND2 (pc)), VAL (Nil));
         listPush (&treestk, node);
         ltCount = 0;
       }
@@ -333,13 +333,13 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
 
         /* Clean capture from sequence */
         while (ltCount > sp->ltCount) {
-          objFree (pop (listTop (&treestk)));
+          valFree (pop (listTop (&treestk)));
           ltCount--;
         }
 
         /* Clean capture stack in depth */
         while (btCount > sp->btCount) {
-          objFree (listPop (&treestk));
+          valFree (listPop (&treestk));
           btCount--;
         }
       } else {
@@ -359,7 +359,7 @@ uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out)
 
 void enclose (List *ot)
 {
-  Object *out = OBJ (Nil);
+  Value *out = VAL (Nil);
 
   while (CONSP (listTop (ot))) {
     out = consNew (listPop (ot), out);
@@ -373,11 +373,11 @@ void enclose (List *ot)
   listPush (ot, out);
 }
 
-Object *mMatchList (Machine *m, Object *input)
+Value *mMatchList (Machine *m, Value *input)
 {
   BacktrackEntry *sp = m->stack;
   Instruction *pc = m->code;
-  Object *l = input;
+  Value *l = input;
   List treestk;
   Symbol *sym;
   uint32_t btCount = 0, ltCount = 0;
@@ -398,7 +398,7 @@ Object *mMatchList (Machine *m, Object *input)
             ltCount, sp->ltCount,                               \
             listLen (&treestk));                                \
     for (uint32_t i = listLen (&treestk); i > 0 ; i--) {        \
-      objPrint (listItem (&treestk, i-1));                      \
+      valPrint (listItem (&treestk, i-1));                      \
       if (i > 1) printf (", ");                                 \
     }                                                           \
     printf ("]\n");                                             \
@@ -417,7 +417,7 @@ Object *mMatchList (Machine *m, Object *input)
     case OP_HALT:
       if (l) {
         if (listLen (&treestk) > 0) {
-          Object *result = listPop (&treestk);
+          Value *result = listPop (&treestk);
           /* listFree (&treestk); */
           return result;
         } else {
@@ -431,7 +431,7 @@ Object *mMatchList (Machine *m, Object *input)
       if (!CONSP (l) || !CONSP (CAR (l))) goto fail;
       PUSH (CDR (l), pc++); l = CAR (l);
       btCount++;
-      listPush (&treestk, OBJ (Nil));
+      listPush (&treestk, VAL (Nil));
       continue;
     case OP_CLOSE:
       if (!NILP (l)) goto fail;
@@ -530,12 +530,12 @@ Object *mMatchList (Machine *m, Object *input)
 #undef PUSH
 }
 
-Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file)
+Value *mRunFile (Machine *m, const char *grammar_file, const char *input_file)
 {
   size_t grammar_size = 0, input_size = 0;
   Bytecode *grammar = NULL;
   char *input = NULL;
-  Object *output = NULL;
+  Value *output = NULL;
 
   readFile (grammar_file, &grammar, &grammar_size);
   readFile (input_file, (uint8_t **) &input, &input_size);

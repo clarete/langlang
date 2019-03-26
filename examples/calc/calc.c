@@ -30,9 +30,9 @@
 #define HASKEY(o,n) (strcmp (SYMBOL (CAR (o))->name, n) == 0)
 #define BINOP(a,op,b) (INT (a)->value op INT (b)->value)
 
-Object *evNumber (Object *input)
+Value *evNumber (Value *input)
 {
-  Object *first = FIRST (input);
+  Value *first = FIRST (input);
   long int v;
   int base = -1;
   if (HASKEY (first, "DEC")) base = 10;
@@ -42,9 +42,9 @@ Object *evNumber (Object *input)
   return intNew (v);
 }
 
-Object *evTerm (Object *input);
+Value *evTerm (Value *input);
 
-Object *evPrimary (Object *input)
+Value *evPrimary (Value *input)
 {
   if (HASKEY (FIRST (input), "Number")) {
     return evNumber (FIRST (input));
@@ -54,9 +54,9 @@ Object *evPrimary (Object *input)
   return NULL;
 }
 
-Object *evUnary (Object *input)
+Value *evUnary (Value *input)
 {
-  Object *v;
+  Value *v;
   /* If the operator isn't present */
   if (NILP (CDR (CDR (input)))) return evPrimary (FIRST (input));
 
@@ -70,9 +70,9 @@ Object *evUnary (Object *input)
   return NULL;
 }
 
-Object *evPower (Object *input)
+Value *evPower (Value *input)
 {
-  Object *left, *right;
+  Value *left, *right;
   left = evUnary (FIRST (input));
   right = SECOND (input);
 
@@ -90,9 +90,9 @@ Object *evPower (Object *input)
   return left;
 }
 
-Object *evFactor (Object *input)
+Value *evFactor (Value *input)
 {
-  Object *left, *right;
+  Value *left, *right;
   left = evPower (FIRST (input));
   right = SECOND (input);
 
@@ -109,9 +109,9 @@ Object *evFactor (Object *input)
   return left;
 }
 
-Object *evTerm (Object *input)
+Value *evTerm (Value *input)
 {
-  Object *left, *right;
+  Value *left, *right;
   left = evFactor (FIRST (input));
   right = SECOND (input);
 
@@ -128,7 +128,7 @@ Object *evTerm (Object *input)
   return left;
 }
 
-Object *calculate (Object *input)
+Value *calculate (Value *input)
 {
   /* Unwrap "Calculator" Rule */
   return evTerm (FIRST (input));
@@ -141,7 +141,7 @@ int main ()
   Bytecode *grammar = NULL;
   char *input = NULL;
   bool running = true;
-  Object *result, *tree;
+  Value *result, *tree;
 
   readFile ("calc.binx", &grammar, &grammar_size);
 
@@ -155,7 +155,7 @@ int main ()
       mLoad (&m, grammar);
       if ((mMatch (&m, input, input_size, &tree)) == 0) {
         result = calculate (tree);
-        objPrint (result); printf ("\n");
+        valPrint (result); printf ("\n");
       }
       mFree (&m);
     }

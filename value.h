@@ -27,7 +27,7 @@
 #define INIT_LIST_SIZE     32
 
 /* Type cast shortcuts */
-#define OBJ(x)      ((Object *) x)
+#define VAL(x)      ((Value *) x)
 #define SYMBOL(x)   ((Symbol *) x)
 #define CONS(x)     ((Cons *) x)
 #define INT(x)      ((Int *) x)
@@ -37,14 +37,14 @@
 #define DICT(x)     ((Dict *) x)
 
 /* Predicates used in the C environment. */
-#define SYMBOLP(o)  (OBJ (o)->type == TYPE_SYMBOL)
-#define CONSP(o)    (OBJ (o)->type == TYPE_CONS)
-#define NILP(o)     (OBJ (o)->type == TYPE_NIL)
-#define BOOLP(o)    (OBJ (o)->type == TYPE_BOOL)
-#define INTP(o)     (OBJ (o)->type == TYPE_INT)
-#define STRINGP(o)  (OBJ (o)->type == TYPE_STRING)
-#define LISTP(o)    (OBJ (o)->type == TYPE_LIST)
-#define DICTP(o)    (OBJ (o)->type == TYPE_DICT)
+#define SYMBOLP(o)  (VAL (o)->type == TYPE_SYMBOL)
+#define CONSP(o)    (VAL (o)->type == TYPE_CONS)
+#define NILP(o)     (VAL (o)->type == TYPE_NIL)
+#define BOOLP(o)    (VAL (o)->type == TYPE_BOOL)
+#define INTP(o)     (VAL (o)->type == TYPE_INT)
+#define STRINGP(o)  (VAL (o)->type == TYPE_STRING)
+#define LISTP(o)    (VAL (o)->type == TYPE_LIST)
+#define DICTP(o)    (VAL (o)->type == TYPE_DICT)
 
 /* Utilities */
 #define CAR(o) (CONS (o)->car)
@@ -62,84 +62,84 @@ typedef enum {
   TYPE_END
 } Type;
 
-typedef struct obj {
+typedef struct val {
   Type type;
-  struct obj *next;
-} Object;
+  struct val *next;
+} Value;
 
 typedef struct {
-  Object o;
-  Object *car;
-  Object *cdr;
+  Value o;
+  Value *car;
+  Value *cdr;
 } Cons;
 
 typedef struct {
-  Object o;
+  Value o;
   uint32_t len;
   char name[MAX_SYMBOL_SIZE];
 } Symbol;
 
 typedef struct {
-  Object o;
+  Value o;
   uint32_t len;
   char value[MAX_SYMBOL_SIZE];
 } String;
 
 typedef struct {
-  Object o;
+  Value o;
   long int value;
 } Int;
 
 typedef struct {
-  Object o;
+  Value o;
   bool value;
 } Bool;
 
 typedef struct {
-  Object o;
+  Value o;
   uint32_t used;
   uint32_t capacity;
-  Object **items;
+  Value **items;
 } List;
 
 typedef struct {
-  Object o;
+  Value o;
   uint32_t used;
   uint32_t capacity;
-  Object **values;
+  Value **values;
 } Dict;
 
-extern const Object *Nil;
-extern const Object *True;
-extern const Object *False;
+extern const Value *Nil;
+extern const Value *True;
+extern const Value *False;
 
-void objPrint (const Object *o);
-bool objEqual (const Object *o1, const Object *o2);
-void objFree (Object *o);
-uint32_t objHash (Object *o);
+void valPrint (const Value *o);
+bool valEqual (const Value *o1, const Value *o2);
+void valFree (Value *o);
+uint32_t valHash (Value *o);
 
-Object *consNew (Object *car, Object *cdr);
-Object *symbolNew (const char *p, size_t len);
-Object *intNew (long int v);
+Value *consNew (Value *car, Value *cdr);
+Value *symbolNew (const char *p, size_t len);
+Value *intNew (long int v);
 
-Object *stringNew (const char *p, size_t len);
+Value *stringNew (const char *p, size_t len);
 size_t stringLen (String *s);
 char stringCharAt (String *s, size_t i);
 #define stringAsCharArr(s) ((s)->value)
 
 void listInit (List *lst);
 void listFree (List *lst);
-uint32_t listPush (List *lst, Object *o);
-Object *listPop (List *lst);
-Object *listTop (List *lst);
+uint32_t listPush (List *lst, Value *o);
+Value *listPop (List *lst);
+Value *listTop (List *lst);
 #define listItem(o,i) ((o)->items[i])
 #define listLen(o) ((o)->used)
 
 void dictInit (Dict *d);
 void dictFree (Dict *d);
-bool dictSet (Dict *d, Object *k, Object *v);
-bool dictGet (Dict *d, Object *k, Object **v);
-bool dictDel (Dict *d, Object *k);
+bool dictSet (Dict *d, Value *k, Value *v);
+bool dictGet (Dict *d, Value *k, Value **v);
+bool dictDel (Dict *d, Value *k);
 #define dictLen(d) ((d)->used)
 #define dictItem(d,i) ((d)->values[i])
 

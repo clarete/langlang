@@ -80,7 +80,7 @@ typedef struct {
    on the ordered choice operator */
 typedef struct {
   const char *i;
-  Object *l;
+  Value *l;
   Instruction *pc;
   uint32_t btCount;
   uint32_t ltCount;
@@ -129,12 +129,12 @@ void mFree (Machine *m);
 /* Load bytecode into the machine. */
 void mLoad (Machine *m, Bytecode *code);
 /* Create a new symbol & store it within the machine's symbol table */
-Object *mSymbol (Machine *m, const char *sym, size_t len);
+Value *mSymbol (Machine *m, const char *sym, size_t len);
 /* Try to match input against the pattern loaded into the machine. */
-uint32_t mMatch (Machine *m, const char *input, size_t input_size, Object **out);
+uint32_t mMatch (Machine *m, const char *input, size_t input_size, Value **out);
 /* Try to match input list against pattern loaded into the VM */
-Object *mMatchList (Machine *m, Object *input);
+Value *mMatchList (Machine *m, Value *input);
 /* Run grammar file on input file and extract output */
-Object *mRunFile (Machine *m, const char *grammar_file, const char *input_file);
+Value *mRunFile (Machine *m, const char *grammar_file, const char *input_file);
 
 #endif  /* VM_GUARD */

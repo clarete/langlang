@@ -756,7 +756,7 @@ void test_cap1 ()
   Machine m;
   int instructions = 10;
   uint32_t b[progSize (instructions)];
-  Object *out = NULL;
+  Value *out = NULL;
   const char *i = "a";
   DEBUGLN (" * t:cap.1");
 
@@ -781,7 +781,7 @@ void test_cap1 ()
 
   assert (out);
 
-  objPrint (out);
+  valPrint (out);
   printf ("\n");
 
   assert (out);                 /* Isn't empty */
@@ -790,7 +790,7 @@ void test_cap1 ()
   /* assert (SYMBOLP (CAR (CAR (out))));   /\* Has an symbol within it *\/ */
   /* assert (strcmp (SYMBOL (CAR (CAR (out)))->name, "a") == 0); /\* Has the right value *\/ */
 
-  objFree (out);
+  valFree (out);
   mFree (&m);
 }
 
@@ -894,7 +894,7 @@ static void test_lst_empty1 ()
   Machine m;
   int instructions = 4;
   uint32_t b[progSize (instructions)];
-  Object *input = NULL;
+  Value *input = NULL;
   DEBUGLN (" * t:empty.1");
 
   writeHeader (b, instructions);
@@ -907,10 +907,10 @@ static void test_lst_empty1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
 
-  input = consNew (mSymbol (&m, "a", 1), OBJ (Nil));
+  input = consNew (mSymbol (&m, "a", 1), VAL (Nil));
   assert (mMatchList (&m, input) == input);
 
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -923,7 +923,7 @@ static void test_lst_any1 ()
   Machine m;
   int instructions = 5;
   uint32_t b[progSize (instructions)];
-  Object *input, *output;
+  Value *input, *output;
   DEBUGLN (" * t:lst.any.1");
 
   writeHeader (b, instructions);
@@ -937,11 +937,11 @@ static void test_lst_any1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
 
-  input = consNew (mSymbol (&m, "a", 1), OBJ (Nil));
+  input = consNew (mSymbol (&m, "a", 1), VAL (Nil));
   output = mMatchList (&m, input);
-  assert (objEqual (output, mSymbol (&m, "a", 1)));
+  assert (valEqual (output, mSymbol (&m, "a", 1)));
 
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -981,7 +981,7 @@ static void test_lst_term1 ()
   Machine m;
   int instructions = 5;
   uint32_t b[progSize (instructions)];
-  Object *input, *output;
+  Value *input, *output;
   DEBUGLN (" * t:lst.term.1");
 
   writeHeader (b, instructions);
@@ -995,11 +995,11 @@ static void test_lst_term1 ()
   mInit (&m);
   mLoad (&m, (Bytecode *) b);
 
-  input = consNew (mSymbol (&m, "MyTerm", 6), OBJ (Nil));
+  input = consNew (mSymbol (&m, "MyTerm", 6), VAL (Nil));
   output = mMatchList (&m, input);
-  assert (objEqual (output, mSymbol (&m, "MyTerm", 6)));
+  assert (valEqual (output, mSymbol (&m, "MyTerm", 6)));
 
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -1012,7 +1012,7 @@ static void test_lst_term2 ()
   Machine m;
   int instructions = 5;
   uint32_t b[progSize (instructions)];
-  Object *input;
+  Value *input;
   DEBUGLN (" * t:lst.term.2");
 
   writeHeader (b, instructions);
@@ -1030,10 +1030,10 @@ static void test_lst_term2 ()
   mSymbol (&m, "aTerm", 5);
 
   /* Create the input with another symbol */
-  input = consNew (mSymbol (&m, "myTerm", 6), OBJ (Nil));
+  input = consNew (mSymbol (&m, "myTerm", 6), VAL (Nil));
   assert (!mMatchList (&m, input));
 
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -1064,7 +1064,7 @@ static void test_lst_term3 ()
   mSymbol (&m, "aTerm", 5);
 
   /* Run the above grammar on an empty input */
-  assert (!mMatchList (&m, OBJ (Nil)));
+  assert (!mMatchList (&m, VAL (Nil)));
 
   /* Cleanup */
   mFree (&m);
@@ -1079,7 +1079,7 @@ static void test_lst_term4 ()
   Machine m;
   int instructions = 5;
   uint32_t b[progSize (instructions)];
-  Object *input;
+  Value *input;
   DEBUGLN (" * t:lst.term.4");
 
   writeHeader (b, instructions);
@@ -1099,11 +1099,11 @@ static void test_lst_term4 ()
 
   /* Run the above grammar on an input with a list within a list as
    * the first element */
-  input = consNew (consNew (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  input = consNew (consNew (mSymbol (&m, "test", 4), VAL (Nil)), VAL (Nil));
   assert (!mMatchList (&m, input));
 
   /* Cleanup */
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -1119,7 +1119,7 @@ static void test_lst_list1 ()
   Machine m;
   int instructions = 7;
   uint32_t b[progSize (instructions)];
-  Object *input, *output;
+  Value *input, *output;
   DEBUGLN (" * t:lst.list.1");
 
   writeHeader (b, instructions);
@@ -1141,15 +1141,15 @@ static void test_lst_list1 ()
 
   /* Run the above grammar on an input with "test" as the first (and
    * only) element of a list */
-  input = consNew (consNew (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  input = consNew (consNew (mSymbol (&m, "test", 4), VAL (Nil)), VAL (Nil));
   output = mMatchList (&m, input);
 
   /* It does match! */
   assert (output);
-  assert (objEqual (output, consNew (mSymbol (&m, "test", 4), OBJ (Nil))));
+  assert (valEqual (output, consNew (mSymbol (&m, "test", 4), VAL (Nil))));
 
   /* Cleanup */
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -1165,7 +1165,7 @@ static void test_lst_list2 ()
   Machine m;
   int instructions = 7;
   uint32_t b[progSize (instructions)];
-  Object *input, *output;
+  Value *input, *output;
   DEBUGLN (" * t:lst.list.2");
 
   writeHeader (b, instructions);
@@ -1187,14 +1187,14 @@ static void test_lst_list2 ()
 
   /* Run the above grammar on an input with "test" as the first (and
    * only) element of a list */
-  input = consNew (consNew (mSymbol (&m, "test", 4), OBJ (Nil)), OBJ (Nil));
+  input = consNew (consNew (mSymbol (&m, "test", 4), VAL (Nil)), VAL (Nil));
   output = mMatchList (&m, input);
 
   /* It DOES NOT match! */
   assert (!output);
 
   /* Cleanup */
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -1207,7 +1207,7 @@ static void test_lst_list3 ()
   Machine m;
   int instructions = 7;
   uint32_t b[progSize (instructions)];
-  Object *input, *output;
+  Value *input, *output;
   DEBUGLN (" * t:lst.list.3");
 
   writeHeader (b, instructions);
@@ -1229,14 +1229,14 @@ static void test_lst_list3 ()
 
   /* Run the above grammar on an input with "test" as the first (and
    * only) element of a list */
-  input = consNew (mSymbol (&m, "test", 4), OBJ (Nil));
+  input = consNew (mSymbol (&m, "test", 4), VAL (Nil));
   output = mMatchList (&m, input);
 
   /* It DOES NOT match! */
   assert (!output);
 
   /* Cleanup */
-  objFree (input);
+  valFree (input);
   mFree (&m);
 }
 
@@ -1249,7 +1249,7 @@ static void test_lst_list4 ()
   Machine m;
   int instructions = 7;
   uint32_t b[progSize (instructions)];
-  Object *output;
+  Value *output;
   DEBUGLN (" * t:lst.list.4");
 
   writeHeader (b, instructions);
@@ -1270,7 +1270,7 @@ static void test_lst_list4 ()
   mSymbol (&m, "foo", 3);
 
   /* Run the above grammar on a empty input */
-  output = mMatchList (&m, OBJ (Nil));
+  output = mMatchList (&m, VAL (Nil));
 
   /* It DOES NOT match! */
   assert (!output);
@@ -1279,69 +1279,69 @@ static void test_lst_list4 ()
   mFree (&m);
 }
 
-void test_obj_equal_int ()
+void test_val_equal_int ()
 {
-  Object *o1 = intNew (2);
-  Object *o2 = intNew (3);
-  Object *o3 = intNew (2);
+  Value *o1 = intNew (2);
+  Value *o2 = intNew (3);
+  Value *o3 = intNew (2);
 
-  assert (!objEqual (o1, o2));
-  assert (!objEqual (o2, o3));
-  assert (objEqual (o1, o3));
+  assert (!valEqual (o1, o2));
+  assert (!valEqual (o2, o3));
+  assert (valEqual (o1, o3));
 
-  objFree (o1);
-  objFree (o2);
-  objFree (o3);
+  valFree (o1);
+  valFree (o2);
+  valFree (o3);
 }
 
-void test_obj_equal_symbol ()
+void test_val_equal_symbol ()
 {
   Machine m;
-  Object *o1, *o2, *o3;
+  Value *o1, *o2, *o3;
 
   mInit (&m);
   o1 = mSymbol (&m, "Hi!", 3);
   o2 = mSymbol (&m, "Oi!", 3);
   o3 = mSymbol (&m, "Hi!", 3);
 
-  assert (!objEqual (o1, o2));
-  assert (!objEqual (o2, o3));
-  assert (objEqual (o1, o3));
+  assert (!valEqual (o1, o2));
+  assert (!valEqual (o2, o3));
+  assert (valEqual (o1, o3));
 
   mFree (&m);
 }
 
-void test_obj_equal_bool ()
+void test_val_equal_bool ()
 {
   assert (True == True);
   assert (False == False);
   assert (True != False);
-  assert (objEqual (True, True));
-  assert (objEqual (False, False));
-  assert (!objEqual (True, False));
+  assert (valEqual (True, True));
+  assert (valEqual (False, False));
+  assert (!valEqual (True, False));
 }
 
-void test_obj_equal_cons ()
+void test_val_equal_cons ()
 {
   Machine m;
-  Object *o1, *o2, *o3;
+  Value *o1, *o2, *o3;
 
   mInit (&m);
-  o1 = consNew (mSymbol (&m, "Hi!", 3), consNew (intNew (5), OBJ (Nil)));
+  o1 = consNew (mSymbol (&m, "Hi!", 3), consNew (intNew (5), VAL (Nil)));
   o2 = consNew (mSymbol (&m, "Hi!", 3), intNew (5));
-  o3 = consNew (mSymbol (&m, "Hi!", 3), consNew (intNew (5), OBJ (Nil)));
+  o3 = consNew (mSymbol (&m, "Hi!", 3), consNew (intNew (5), VAL (Nil)));
 
-  assert (!objEqual (o1, o2));
-  assert (!objEqual (o2, o3));
-  assert (objEqual (o1, o3));
+  assert (!valEqual (o1, o2));
+  assert (!valEqual (o2, o3));
+  assert (valEqual (o1, o3));
 
-  objFree (o1);
-  objFree (o2);
-  objFree (o3);
+  valFree (o1);
+  valFree (o2);
+  valFree (o3);
   mFree (&m);
 }
 
-void test_obj_equal_list ()
+void test_val_equal_list ()
 {
   List arr1, arr2, arr3;
 
@@ -1361,12 +1361,12 @@ void test_obj_equal_list ()
   listPush (&arr3, intNew (2));
   listPush (&arr3, intNew (3));
 
-  assert (!objEqual (OBJ (&arr1), OBJ (&arr2)));
-  assert (!objEqual (OBJ (&arr2), OBJ (&arr3)));
-  assert (objEqual (OBJ (&arr1), OBJ (&arr3)));
+  assert (!valEqual (VAL (&arr1), VAL (&arr2)));
+  assert (!valEqual (VAL (&arr2), VAL (&arr3)));
+  assert (valEqual (VAL (&arr1), VAL (&arr3)));
 }
 
-void test_obj_equal_sublist ()
+void test_val_equal_sublist ()
 {
   List arr1, arr2;
   List sarr1, sarr2;
@@ -1384,29 +1384,29 @@ void test_obj_equal_sublist ()
     listPush (&sarr4, intNew (i*2));
   }
 
-  listPush (&arr1, OBJ (&sarr1));
-  listPush (&arr2, OBJ (&sarr2));
-  listPush (&arr1, OBJ (&sarr3));
-  listPush (&arr2, OBJ (&sarr4));
+  listPush (&arr1, VAL (&sarr1));
+  listPush (&arr2, VAL (&sarr2));
+  listPush (&arr1, VAL (&sarr3));
+  listPush (&arr2, VAL (&sarr4));
 
-  assert (objEqual (OBJ (&arr1), OBJ (&arr2)));
+  assert (valEqual (VAL (&arr1), VAL (&arr2)));
 
   listPush (&arr1, intNew (99));
-  listPush (&arr2, OBJ (True));
-  listPush (&arr2, OBJ (False));
-  listPush (&arr2, OBJ (Nil));
+  listPush (&arr2, VAL (True));
+  listPush (&arr2, VAL (False));
+  listPush (&arr2, VAL (Nil));
 
-  assert (!objEqual (OBJ (&arr1), OBJ (&arr2)));
+  assert (!valEqual (VAL (&arr1), VAL (&arr2)));
 
   printf ("The lists: ");
-  objPrint (consNew (OBJ (&arr1), OBJ (&arr2)));
+  valPrint (consNew (VAL (&arr1), VAL (&arr2)));
   printf ("\n");
 }
 
 void test_dict0 ()
 {
   Dict d0;
-  Object *output;
+  Value *output;
 
   dictInit (&d0);
 
@@ -1434,12 +1434,12 @@ void test_dict0 ()
 
   /* Found key `two' */
   assert (dictGet (&d0, stringNew ("two", 3), &output));
-  assert (objEqual (output, intNew (2)));
+  assert (valEqual (output, intNew (2)));
   output = NULL;
 
   /* Found key `seven' */
   assert (dictGet (&d0, stringNew ("seven", 5), &output));
-  assert (objEqual (output, intNew (7)));
+  assert (valEqual (output, intNew (7)));
   output = NULL;
 
   /* Can't find key `blah' */
@@ -1456,7 +1456,7 @@ void test_dict0 ()
   assert (dictLen (&d0) == 7);
 
   printf ("The dict: ");
-  objPrint (OBJ (&d0));
+  valPrint (VAL (&d0));
   printf ("\n");
 }
 
@@ -1518,12 +1518,12 @@ int main ()
   test_lst_list3 ();
   test_lst_list4 ();
 
-  test_obj_equal_int ();
-  test_obj_equal_symbol ();
-  test_obj_equal_bool ();
-  test_obj_equal_cons ();
-  test_obj_equal_list ();
-  test_obj_equal_sublist ();
+  test_val_equal_int ();
+  test_val_equal_symbol ();
+  test_val_equal_bool ();
+  test_val_equal_cons ();
+  test_val_equal_list ();
+  test_val_equal_sublist ();
 
   test_dict0 ();
   return 0;

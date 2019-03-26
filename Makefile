@@ -1,6 +1,6 @@
 all: bin
 
-SUBDIRS = lib examples/calc examples/tiny
+SUBDIRS = lib bench examples/calc examples/tiny
 
 include common.mk
 

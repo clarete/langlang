@@ -1833,10 +1833,13 @@ def parseG(args):
     return grammarSrc, grammar
 
 
+def outputName(args):
+    name, ext = os.path.splitext(args.grammar)
+    return args.output or name + ext.replace('peg', 'bin')
+
+
 def compileG(args, grammarSrc, grammar):
-    name, _ = os.path.splitext(args.grammar)
-    file_name = args.output or '%s.bin' % name
-    with io.open(file_name, 'wb') as out:
+    with io.open(outputName(args), 'wb') as out:
         compiled = Compiler(grammar, capture=args.capture).assemble()
         out.write(compiled)
         if not args.quiet: dbgcc(grammarSrc, compiled, header=True)
@@ -1856,6 +1859,9 @@ def run(args):
     except FormattedException as exc:
         print(exc.message)
         exit(1)
+    except:
+        os.unlink(outputName(args))
+        raise
 
 
 def main():

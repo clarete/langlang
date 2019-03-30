@@ -16,9 +16,13 @@
 *** Matching
     * [X] Patterns
     * [X] Expressions
-    * [ ] Lists
-*** Extraction
-    * [x] Lists
+    * [X] Lists
+*** Capture
+    * [X] Patterns
+    * [-] Lists (Exists but is broken)
+*** Error Handling
+    * [X] Farther Failure Position recording
+    * [X] Error Labels
 ** Semantic Operations
 *** Character
     * ~‘c’~: Matches a character
@@ -38,16 +42,18 @@
     * ~a*~: Matches the pattern =a= zero or more times.
     * ~a?~: Syntax sugar for ~&ee / !e~.
 ** Machine Instructions
-*** General & Chars
-    * [X] Char c
-    * [X] Any
+*** General Semantics
     * [X] Choice l [o]
     * [X] Commit l
     * [X] Fail
     * [X] FailTwice l
     * [X] Jump l
-    * [X] Call l
+    * [X] Call l k (operator precedence)
     * [X] Return
+    * [X] Halt
+*** Char Matching
+    * [X] Char c
+    * [X] Any
 *** Optimizations
     * [X] PartialCommit
     * [X] BackCommit l
@@ -55,29 +61,32 @@
     * [ ] TestAny n o
     * [ ] Set i
     * [X] Span x y
-*** Lists
-    * [ ] Atom
-    * [ ] Open
-    * [ ] Close
+*** List Matching
+    * [X] Atom
+    * [X] Open
+    * [X] Close
 *** Captures
     * [X] CapOpen
     * [X] CapClose
+    * [X] Capchar
+*** Error Handling
+    * [X] Throw
 ** Bytecode Format
+*** Basic Layout
+    The bytecode file is comprised of the following sections:
 
-   The bytecode file is comprised of the following sections:
-
-   #+begin_src text
-   A     B     C     D
-   +-----+-----+-----+-----+
-   + 16b | ... | 16b | ... |
-   +-----+-----+-----+-----+
-   ^     ^     ^     ^
-   |     |     |     |--> D. Beginning of Code section. It ends at D+*C
-   |     |     |--------> C. Length of Code section (range 0-65,535)
-   |     |--------------> B. Begining of String Table
-   +--------------------> A. Number of items in String Table (range 0-65,535)
-   #+end_src
-*** Strings
+    #+begin_src text
+    A     B     C     D
+    +-----+-----+-----+-----+
+    + 16b | ... | 16b | ... |
+    +-----+-----+-----+-----+
+    ^     ^     ^     ^
+    |     |     |     |--> D. Beginning of Code Section.
+    |     |     |--------> C. Number of instructions in Code Section (range 0-65,535)
+    |     |--------------> B. Begining of String Table
+    +--------------------> A. Number of items in String Table (range 0-65,535)
+    #+end_src
+*** String Table
     #+begin_src text
     A     B    C     D    E
     +-----+----+-----+----+-----+
@@ -102,10 +111,10 @@
 
 *** Code
 
-    The first =16b= of the code section store the size of the rest of
-    the section. The rest of the section is filled with compiled
-    patterns. The patterns are represented as sequences of
-    instructions. Each instruction is =32b= long.
+    The first =16b= of the Code Section store the number of
+    instructions in the Code Section. The rest of the section is
+    filled with compiled patterns. The patterns are represented as
+    sequences of instructions. Each instruction is =32b= long.
 
     #+begin_src text
     A     B     C     D
@@ -116,19 +125,18 @@
     |     |     |     |----> D. Nth instruction
     |     |     |----------> C. 2nd Instruction
     |     |----------------> B. 1st Instruction
-    |----------------------> A. Size of code section.
+    |----------------------> A. Number of instructions in Code Section.
     #+end_src
 
 *** Instruction Format
 
-    Each instruction is 32 bit long. The first 4 bits are reserved for
-    the opcode and the other 28 bits store parameters for the
-    instruction.  We have instructions that take 0, 1 or 2
-    parameters. Since there are only 4 bits for instructions, we can
-    have at most 31 of them.
+    Each instruction is 32 bit long. The first 5 bits store the opcode
+    and the other 27 bits store parameters for the instruction.  We
+    have instructions that take 0, 1 or 2 parameters. Since there are
+    only 5 bits for instructions, we can have at most 32 of them.
 
-    The utility =OP_MASK()= can be used to read the opcode from a 32bit
-    instruction data. Each argument size introduces different
+    The utility =OP_MASK()= can be used to read the opcode from a
+    32bit instruction data. Each argument size introduces different
     functions.  They're Here are the types of arguments:
 
 **** Instruction with 1 parameter (Eg.: Char x)
@@ -142,8 +150,8 @@
      [       5 |                                                  27 ]
      #+end_src
 
-      * =soperand()= Read signed value
-      * =uoperand()= Read unsigned value
+     * =SOPERAND0()= Read signed value
+     * =UOPERAND0()= Read unsigned value
 
 **** Instruction with 2 parameters (Eg.: TestChar 4 97)
 
@@ -156,14 +164,14 @@
      [       5 |                  11 |                            16 ]
      #+end_src
 
-      * =s1operand()= Read first operand as signed value
-      * =u1operand()= Read first operand as unsigned values
-      * =s2operand()= Read second operand as signed value
-      * =u2operand()= Read second operand as unsigned value
+     * =SOPERAND1()= Read first operand as signed value
+     * =UOPERAND1()= Read first operand as unsigned values
+     * =SOPERAND2()= Read second operand as signed value
+     * =UOPERAND2()= Read second operand as unsigned value
 ** Other Design Choices
 
-   The core of this module tries to follow as close as possible the
-   design established the article referenced in the introduction.
+   The PEG VM implementation follows as close as possible the design
+   established by the article referenced in the introduction.
    However, the design doesn't specify the implementation details of
    features that aren't related to text matching, like the
    implementation of SET, SPAN and how to capture the matches.
@@ -198,36 +206,14 @@
 
     Besides being able to tell if an input matches PEG, the parsing
     machine should also be able to extract the matched values as a
-    tree where the nodes are tagged with the pieces of the grammar
+    tree where the nodes are tagged with the name of the grammar rule
     they matched.
 
-    Two instructions were added in order to support this feature:
-    =OP_CAP_OPEN t l= and =OP_CAP_CLOSE t l=. In both instructions,
-    =t= is a boolean flag where false means the capture is non
-    terminal and true means it's a terminal. And =l= is the location
-    of the identifier of the capture in the soon to be implemented
-    string table.
+    Three instructions were added in order to support this feature:
+    =OP_CAP_OPEN t l=, =OP_CAP_CLOSE t l= and =OP_CAP_CHAR=. The
+    parameter =t= is a boolean flag where false means the capture is
+    non terminal and true means it's a terminal. And =l= is the
+    location of the identifier of the capture in the string table.
 
-    The =OP_CAP_{OPEN,CLOSE}= instructions are supposed to be used in
-    tandem and the compiler must generate capture pairs accounting for
-    the execution model of the VM where some instructions (e.g.: Fail,
-    Call, Jump, Return) can move the program counter of the virtual
-    machine in non linear ways.
-
-    To achieve the above goal, each semantic operation establishes
-    their own capture rules. The predicates are the easiest ones, they
-    never capture any values as they're only boolean match operators
-    and don't really move the input cursor.
-
-    Sequences require one pair of capture instructions around the
-    whole set of expressions. Then each item of the expression will
-    have their own capture rules applied.
-
-    If a program doesn't match the input, the machine will get into
-    the =Fail= state and the program counter will backtrack before the
-    =OP_CAP_CLOSE= instruction can be executed. Which leads to a
-    dangling =OP_CAP_OPEN= on top of the capture stack. To avoid that
-    problem, the field =cap= was added to the =BacktrackEntry= struct,
-    which is the format of stack entries. When the machine gets into
-    fail state for backtracking, it also restores the top of the
-    capture stack.
+    The exact semantics and usage of captures is described in more
+    detail in a separate document about [[./capturevalues.org][Capturing Values]].

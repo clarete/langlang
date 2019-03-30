@@ -37,19 +37,18 @@
 #define S1_OPERAND_SIZE    11
 #define S2_OPERAND_SIZE    16
 
-/** Clear all 28bits from the right then shift to the right */
+/** Clear all 27bits from the right then shift to the right */
 #define OP_MASK(c) (((c) & 0xf8000000) >> OPERATOR_OFFSET)
+/** Clear the operator from the instruction */
+#define RN_MASK(c) ((c) & 0x7ffffff)
 
-/** Read unsigned single operand */
-#define UOPERAND0(op) (op->rand & 0x7ffffff)
-#define UOPERAND1(op) ((op->rand & 0x7ffffff) >> S2_OPERAND_SIZE)
-#define UOPERAND2(op) (op->rand & ((1 << S2_OPERAND_SIZE) - 1))
-/** Read signed values */
-#define SIGNED(i,s) ((int32_t) ((i & (1 << (s - 1))) ? (i | ~((1 << s) - 1)) : (i & 0x7ffffff)))
-/** Read single operand from instruction */
-#define SOPERAND0(op) SIGNED (op->rand, SL_OPERAND_SIZE)
-/* #define SOPERAND1(op) SIGNED (op->rand >> SS_OPERAND_SIZE, SS_OPERAND_SIZE) */
-/* #define SOPERAND2(op) SIGNED (op->rand, SS_OPERAND_SIZE) */
+/** Read instruction operands */
+#define UOPERAND0(r) ((r)->u32)
+#define UOPERAND1(r) ((r)->u.r1)
+#define UOPERAND2(r) ((r)->u.r2)
+#define SOPERAND0(r) ((r)->s32)
+#define SOPERAND1(r) ((r)->s.r1)
+#define SOPERAND2(r) ((r)->s.r2)
 
 /* Default error handling. Labels above 1 are user defined  */
 #define PEG_SUCCESS 0
@@ -61,7 +60,18 @@ typedef uint8_t Bytecode;
 /* Instruction following the format of 4b operator and 12b operand */
 typedef struct {
   unsigned short rator: 5;
-  uint32_t rand: 27;
+  union {
+    uint32_t u32: 27;
+    int32_t s32: 27;
+    struct {
+      uint32_t r2: 16;
+      uint32_t r1: 11;
+    } u;
+    struct {
+      int32_t r2: 16;
+      int32_t r1: 11;
+    } s;
+  };
 } Instruction;
 
 /* Entry that's stored in the Machine's stack for supporting backtrack

@@ -129,7 +129,7 @@ void mLoad (Machine *m, Bytecode *code)
   for (i = 0; i < code_size; i++) {
     instr = READ_UINT32 (code);
     tmp->rator = OP_MASK (instr);
-    tmp->rand = instr;          /* Use SOPERAND* to access this */
+    tmp->u32 = RN_MASK (instr);
     DEBUG_INSTRUCTION_LOAD ();
     tmp++;
   }

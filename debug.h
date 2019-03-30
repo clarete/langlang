@@ -29,7 +29,7 @@
            buffer,                                                      \
            B (tmp->rator),                                              \
            opname ? opname : "HALT",                                    \
-           B (tmp->rand),                                               \
+           B (tmp->u32),                                                \
            UOPERAND0 (tmp));                                            \
   } while (0)
 
@@ -37,7 +37,7 @@
     const char *opname = OP_NAME (pc->rator);                           \
     DEBUGLN ("     RATOR: " BFMT " (%17s), RAND: " BFMT " (%d)",        \
              B (pc->rator), opname ? opname : "HALT",                   \
-             B (pc->rand),  UOPERAND0 (pc));                            \
+             B (pc->u32),  UOPERAND0 (pc));                             \
   } while (0)
 
 #  define DEBUG_FAILSTATE() do {                                \

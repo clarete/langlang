@@ -950,7 +950,7 @@ static void test_lst_any1 ()
   writeHeader (b, instructions);
   /* S <- . */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x2] = GEN1 (OP_JUMP, 0x4);
   b[0x3] = GEN0 (OP_ANY);
   b[0x4] = GEN0 (OP_RETURN);
   b[0x5] = GEN0 (OP_HALT);
@@ -980,7 +980,7 @@ static void test_lst_any2 ()
   writeHeader (b, instructions);
   /* S <- . */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x2] = GEN1 (OP_JUMP, 0x4);
   b[0x3] = GEN0 (OP_ANY);
   b[0x4] = GEN0 (OP_RETURN);
   b[0x5] = GEN0 (OP_HALT);
@@ -1008,7 +1008,7 @@ static void test_lst_term1 ()
   writeHeader (b, instructions);
   /* S <- "MyTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x2] = GEN1 (OP_JUMP, 0x4);
   b[0x3] = GEN1 (OP_ATOM, 0x0);
   b[0x4] = GEN0 (OP_RETURN);
   b[0x5] = GEN0 (OP_HALT);
@@ -1039,7 +1039,7 @@ static void test_lst_term2 ()
   writeHeader (b, instructions);
   /* S <- "aTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x2] = GEN1 (OP_JUMP, 0x4);
   b[0x3] = GEN1 (OP_ATOM, 0x0);
   b[0x4] = GEN0 (OP_RETURN);
   b[0x5] = GEN0 (OP_HALT);
@@ -1072,7 +1072,7 @@ static void test_lst_term3 ()
   writeHeader (b, instructions);
   /* S <- "aTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x2] = GEN1 (OP_JUMP, 0x4);
   b[0x3] = GEN1 (OP_ATOM, 0x0);
   b[0x4] = GEN0 (OP_RETURN);
   b[0x5] = GEN0 (OP_HALT);
@@ -1106,7 +1106,7 @@ static void test_lst_term4 ()
   writeHeader (b, instructions);
   /* S <- "aTerm" */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x5);
+  b[0x2] = GEN1 (OP_JUMP, 0x4);
   b[0x3] = GEN1 (OP_ATOM, 0x0);
   b[0x4] = GEN0 (OP_RETURN);
   b[0x5] = GEN0 (OP_HALT);
@@ -1146,7 +1146,7 @@ static void test_lst_list1 ()
   writeHeader (b, instructions);
   /* S <- { "test" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x2] = GEN1 (OP_JUMP, 0x6);
   b[0x3] = GEN0 (OP_OPEN);
   b[0x4] = GEN1 (OP_ATOM, 0x0);
   b[0x5] = GEN0 (OP_CLOSE);
@@ -1192,7 +1192,7 @@ static void test_lst_list2 ()
   writeHeader (b, instructions);
   /* S <- { "foo" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x2] = GEN1 (OP_JUMP, 0x6);
   b[0x3] = GEN0 (OP_OPEN);
   b[0x4] = GEN1 (OP_ATOM, 0x0);
   b[0x5] = GEN0 (OP_CLOSE);
@@ -1234,7 +1234,7 @@ static void test_lst_list3 ()
   writeHeader (b, instructions);
   /* S <- { "foo" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x2] = GEN1 (OP_JUMP, 0x6);
   b[0x3] = GEN0 (OP_OPEN);
   b[0x4] = GEN1 (OP_ATOM, 0x0);
   b[0x5] = GEN0 (OP_CLOSE);
@@ -1276,7 +1276,7 @@ static void test_lst_list4 ()
   writeHeader (b, instructions);
   /* S <- { "foo" } */
   b[0x1] = GEN1 (OP_CALL, 0x2);
-  b[0x2] = GEN1 (OP_JUMP, 0x7);
+  b[0x2] = GEN1 (OP_JUMP, 0x6);
   b[0x3] = GEN0 (OP_OPEN);
   b[0x4] = GEN1 (OP_ATOM, 0x0);
   b[0x5] = GEN0 (OP_CLOSE);

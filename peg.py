@@ -1008,12 +1008,12 @@ def dbgcc(c, bc, header):
         name = obj.name
         argc = InstructionParams[obj]
         if argc == 1:
-            val = '      0x{:03x}'.format(UOPERAND0(instr))
+            val = '    0x{:07x}'.format(UOPERAND0(instr))
         elif argc == 2:
-            val = ' 0x{:02x} 0x{:03x}'.format(
+            val = ' 0x{:03x} 0x{:04x}'.format(
                 UOPERAND1(instr), UOPERAND2(instr))
         else:
-            val = '           '
+            val = '             '
         print('   0x{:03x} 0x{:08x} [{:>17}{}]'.format(i, instr, obj.name, val))
     return bc
 

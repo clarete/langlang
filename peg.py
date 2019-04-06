@@ -621,7 +621,7 @@ S2_OPERAND_SIZE  =  16
 def gen(instruction_name, arg0=None, arg1=None):
     instruction = Instructions["OP_{}".format(instruction_name.upper())]
     if arg0 is not None and arg1 is not None: # Two args, 1) 10b 2) 16b
-        return ((arg1 | (arg0 << S2_OPERAND_SIZE)) | (instruction.value << OPERATOR_OFFSET))
+        return (((arg1 & 0xffff) | (arg0 << S2_OPERAND_SIZE)) | (instruction.value << OPERATOR_OFFSET))
     elif arg0 is not None and arg1 is None: # Single 27bits arg
         return (arg0 & 0x07ffffff) | (instruction.value << OPERATOR_OFFSET)
     elif arg0 is None and arg1 is not None: # Not supported
@@ -1492,6 +1492,12 @@ def test_instruction():
     # Two Arguments
     assert(
         gen("span", ord('a'), ord('e')) == 0b01110000011000010000000001100101
+    )
+    # Two Arguments a and b with b negative
+    assert (
+        gen("call", 1, -1) == 0b01100000000000011111111111111111
+        #                       ----|----------|---------------|
+        #                Instruction^      arg0^           arg1^
     )
 
 

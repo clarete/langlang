@@ -40,7 +40,7 @@ static inline uint32_t gen1 (OpCode opc, uint32_t arg0) {
 }
 
 static inline uint32_t gen2 (OpCode opc, uint16_t arg0, uint16_t arg1) {
-  return ((arg1 & 0x7ffffff) | (arg0 << S2_OPERAND_SIZE) | opc << OPERATOR_OFFSET);
+  return ((arg1 & 0xffff) | (arg0 << S2_OPERAND_SIZE) | opc << OPERATOR_OFFSET);
 }
 
 static inline uint32_t enc (uint32_t in)
@@ -81,6 +81,27 @@ static void test_gen_args ()
   assert (gen1 (OP_COMMIT, -2) == 0x27fffffe);
   printf ("     gen2arg (OP_SPAN, 'a', 'e'): 0x%02x\n", gen2 (OP_SPAN, 'a', 'e'));
   assert (gen2 (OP_SPAN, 'a', 'e') == 0x70610065);
+  assert (gen2 (OP_CALL, 2, 1) == 0x60020001);
+}
+
+static void test_read_instr ()
+{
+  Instruction instr;
+  uint32_t code;
+  printf ("* read_instr\n");
+  printf ("     gen0arg (OP_ANY): 0x%02x\n", gen0 (OP_ANY));
+
+  assert (OP_MASK (gen0 (OP_ANY)) == OP_ANY);
+  assert (OP_MASK (gen2 (OP_CALL, 2, 3)) == OP_CALL);
+  assert (RN_MASK (gen0 (OP_ANY)) == 0);
+
+  code = gen2 (OP_SPAN, 'a', 'e');
+  instr.rator = OP_MASK (code);
+  instr.u32 = RN_MASK (code);
+
+  printf ("     gen2arg (OP_SPAN, 'a', 'e'): 0x%02x\n", code);
+  assert (instr.u.r1 == 'a');
+  assert (instr.u.r2 == 'e');
 }
 
 /*
@@ -1463,6 +1484,7 @@ void test_dict0 ()
 int main ()
 {
   test_gen_args ();
+  test_read_instr ();
   test_ch1 ();
   test_ch2 ();
   test_any1 ();

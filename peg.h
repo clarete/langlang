@@ -82,12 +82,12 @@ typedef struct {
   Instruction *pc;
   uint32_t btCount;
   uint32_t ltCount;
-} BacktrackEntry;
+} mStackFrame;
 
 /* Virtual Machine */
 typedef struct {
   Instruction *code;
-  BacktrackEntry *stack;
+  mStackFrame *stack;
   List symbols;               /* Store unique symbols within the VM */
   const char *i;              /* Last `i' seen on success */
 } Machine;

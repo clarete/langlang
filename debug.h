@@ -58,7 +58,7 @@
 
 #  define DEBUG_STACK() do {                                            \
     DEBUGLN ("         STACK: %p %p", (void *) sp, (void *) m->stack);  \
-    for (BacktrackEntry *_tmp_bt = sp; _tmp_bt > m->stack; _tmp_bt--) { \
+    for (mStackFrame *_tmp_bt = sp; _tmp_bt > m->stack; _tmp_bt--) {    \
       DEBUGLN ("           [I]: %p %p `%s'",                            \
                (void *) _tmp_bt,                                        \
                (void *) (_tmp_bt - 1)->pc,                              \

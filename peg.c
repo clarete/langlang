@@ -64,7 +64,7 @@ static const char *opNames[OP_END] = {
 void mInit (Machine *m)
 {
   listInit (&m->symbols);
-  m->stack = calloc (STACK_SIZE, sizeof (BacktrackEntry));
+  m->stack = calloc (STACK_SIZE, sizeof (mStackFrame));
   m->i = NULL;
   m->code = NULL;               /* Will be set by mLoad() */
 }
@@ -167,7 +167,7 @@ static Value *appendChar (Value *s, char c)
 /* Run the matching machine */
 uint32_t mMatch (Machine *m, const char *input, size_t input_size, Value **out)
 {
-  BacktrackEntry *sp = m->stack;
+  mStackFrame *sp = m->stack;
   Instruction *pc = m->code;
   const char *i = input;
   uint32_t btCount = 0, ltCount = 0;
@@ -375,7 +375,7 @@ void enclose (List *ot)
 
 Value *mMatchList (Machine *m, Value *input)
 {
-  BacktrackEntry *sp = m->stack;
+  mStackFrame *sp = m->stack;
   Instruction *pc = m->code;
   Value *l = input;
   List treestk;

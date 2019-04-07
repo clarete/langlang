@@ -893,11 +893,12 @@ class Compiler:
 
     def compileLabel(self, atom):
         label, sub = atom.value
+        if sub is None: return self.compileAtom(Throw(label))
         return self._compileChoices([sub, Throw(label)], self.cc)
 
     def compileThrow(self, atom):
         # The +2 ensures that labels can't be lower than 2.
-        self.emit('throw', self._str(atom.value) + 2)
+        return self.emit('throw', self._str(atom.value) + 2)
 
     def compileList(self, lst):
         self.emit('open')

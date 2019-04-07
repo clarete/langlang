@@ -19,5 +19,6 @@ $(call GEN_CC_DEPS,$(SRCS))
 $(BENCH): $(ALLO); $(CCC) -o $@ $^
 $(CSVDATA): data; python3 gendata.py
 data:; mkdir -p $@
-bin: $(BENCH) $(BIN) $(BINX) $(CSVDATA)
+bin: $(BENCH) $(BIN) $(BINX)
+run: bin $(CSVDATA); ./bench
 clean:; -rm $(OBJS) $(BENCH) $(BIN) $(BINX)

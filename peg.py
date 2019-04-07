@@ -963,7 +963,7 @@ class Compiler:
         for i in self.strings:
             assembled += uint8(len(i))
             s = i.encode('ascii')
-            assembled += struct.pack('>' + ('s'*len(s)), *s)
+            assembled += struct.pack('>%ds' % len(s), s)
         # Write code size & code
         assembled += uint16(len(self.code))
         assembled += code

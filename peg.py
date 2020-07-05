@@ -1864,7 +1864,7 @@ def run(args):
         if args.compile: compileG(args, grammarSrc, grammar)
         else: matchG(args, grammarSrc, grammar)
     except FormattedException as exc:
-        print(exc.message)
+        print(str(exc))
         exit(1)
     except:
         os.unlink(outputName(args))

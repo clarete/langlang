@@ -349,7 +349,6 @@ class Parser:
             return Label([label.value, output])
         return output
 
-
     def parseSuffix(self):
         # Suffix <- Primary (QUESTION / STAR / PLUS)?
         output = self.parsePrimary()
@@ -987,7 +986,9 @@ UOPERAND2 = lambda c: (UOPERAND0(c) & ((1 << S2_OPERAND_SIZE) - 1))
 
 def dbgcc(c, bc, header):
     if c[-1] == '\n': c = c[:-1]
-    print('\033[92m{}\033[0m'.format(c.encode('utf-8')), end=':\n')
+    print('\033[92m', end='')
+    print(c.encode('utf-8'), end=':\n')
+    print('\033[0m', end=':\n')
     cursor = 0
     # Parse header
     if header:

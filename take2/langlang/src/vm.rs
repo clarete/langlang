@@ -14,6 +14,7 @@ enum Value {
     // F64(f64),
     Chr(char),
     // Str(String),
+    Node(Vec<Value>),
 }
 
 #[derive(Clone, Debug)]
@@ -72,7 +73,6 @@ struct VM {
     stack: Vec<StackFrame>,
     failure: Option<Error>,
     captured_stack: Vec<Vec<Value>>,
-    captured_pointer: usize,
 }
 
 impl VM {
@@ -86,7 +86,6 @@ impl VM {
             stack: vec![],
             failure: None,
             captured_stack: vec![vec![]],
-            captured_pointer: 0,
         };
     }
 
@@ -112,7 +111,8 @@ impl VM {
     }
 
     fn capture(&mut self, v: Value) {
-        self.captured_stack[self.captured_pointer].push(v);
+        let i = self.captured_stack.len() - 1;
+        self.captured_stack[i].push(v);
     }
 
     fn fail(&mut self) -> bool {
@@ -197,11 +197,17 @@ impl VM {
                 Instruction::Call(offset) => {
                     self.push_call(self.program_counter + 1);
                     self.program_counter += offset;
+                    self.captured_stack.push(vec![]);
                 }
-                Instruction::Return => match self.stack.pop() {
-                    None => return Err(Error::Overflow),
-                    Some(frame) => self.program_counter = frame.program_counter,
-                },
+                Instruction::Return => {
+                    match self.stack.pop() {
+                        None => return Err(Error::Overflow),
+                        Some(frame) => self.program_counter = frame.program_counter,
+                    }
+                    if let Some(captured) = self.captured_stack.pop() {
+                        self.capture(Value::Node(captured));
+                    }
+                }
             }
         }
         Ok(())
@@ -519,7 +525,14 @@ mod tests {
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        // assert_eq!(vec![vec![]] as Vec<Vec<Value>>, vm.captured_stack);
+        assert_eq!(
+            vec![vec![Value::Node(vec![
+                Value::Node(vec![Value::Chr('1')]),
+                Value::Chr('+'),
+                Value::Node(vec![Value::Chr('1')]),
+            ])]] as Vec<Vec<Value>>,
+            vm.captured_stack
+        );
         assert_eq!(3, vm.cursor);
     }
 

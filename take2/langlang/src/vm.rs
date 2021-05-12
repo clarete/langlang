@@ -16,13 +16,14 @@ enum Value {
     // U64(u64),
     // F64(f64),
     // Str(String),
-    // Node(Vec<Value>),
+    Node { name: String, children: Vec<Value> },
 }
 
 #[derive(Clone, Debug)]
 enum Instruction {
     Halt,
     Any,
+    Capture,
     Char(char),
     // Span(char, char),
     Choice(usize),
@@ -52,17 +53,69 @@ enum Error {
 
 #[derive(Debug)]
 struct Program {
+    names: HashMap<usize, String>,
     code: Vec<Instruction>,
     // source_mapping: ...
 }
 
+#[derive(Debug, PartialEq)]
+enum StackFrameType {
+    Backtrack,
+    Call,
+}
+
 #[derive(Debug)]
 struct StackFrame {
-    program_counter: usize,        // pc
-    cursor: Result<usize, Error>,  // s
-    result: Result<usize, Error>,  // X
-    callable_index: Option<usize>, // pc+l
-    precedence: Option<usize>,     // k
+    ftype: StackFrameType,
+    program_counter: usize,       // pc
+    cursor: Result<usize, Error>, // s
+    result: Result<usize, Error>, // X
+    address: usize,               // pc+l
+    precedence: usize,            // k
+    capture: usize,
+    captures: Vec<Value>,
+}
+
+impl StackFrame {
+    fn new_backtrack(cursor: usize, pc: usize, capture: usize) -> Self {
+        StackFrame {
+            ftype: StackFrameType::Backtrack,
+            program_counter: pc,
+            capture: capture,
+            cursor: Ok(cursor),
+            // fields not used for backtrack frames
+            captures: vec![],
+            address: 0,
+            result: Err(Error::Fail),
+            precedence: 0,
+        }
+    }
+
+    fn new_call(pc: usize, address: usize, precedence: usize) -> Self {
+        StackFrame {
+            ftype: StackFrameType::Call,
+            program_counter: pc,
+            cursor: Err(Error::Fail),
+            result: Err(Error::Fail),
+            address: address,
+            precedence: precedence,
+            capture: 0,
+            captures: vec![],
+        }
+    }
+
+    fn new_lrcall(cursor: usize, pc: usize, address: usize, precedence: usize) -> Self {
+        StackFrame {
+            ftype: StackFrameType::Call,
+            program_counter: pc,
+            cursor: Ok(cursor),
+            result: Err(Error::LeftRec),
+            address: address,
+            precedence: precedence,
+            captures: vec![],
+            capture: 0,
+        }
+    }
 }
 
 // #[derive(Debug)]
@@ -98,23 +151,24 @@ struct VM {
     program_counter: usize,
     // Stack of both backtrack and call frames
     stack: Vec<StackFrame>,
-    // Stack of captured values
-    captured_stack: Vec<Vec<Value>>,
+    // Memoized position of left recursive results
     lrmemo: HashMap<LeftRecTableKey, LeftRecTableEntry>,
+    // Value returned from last operation
+    accumulator: Option<Value>,
 }
 
 impl VM {
     fn new(program: Program) -> Self {
-        return VM {
+        VM {
             ffp: 0,
             cursor: Ok(0),
             source: vec![],
             program: program,
             program_counter: 0,
             stack: vec![],
-            captured_stack: vec![vec![]],
             lrmemo: HashMap::new(),
-        };
+            accumulator: None,
+        }
     }
 
     fn advance_cursor(&mut self) -> Result<(), Error> {
@@ -126,6 +180,8 @@ impl VM {
         Ok(())
     }
 
+    // stack management
+
     fn stkpeek(&mut self) -> Result<&mut StackFrame, Error> {
         let len = self.stack.len();
         if len < 1 {
@@ -135,18 +191,39 @@ impl VM {
     }
 
     fn stkpop(&mut self) -> Result<StackFrame, Error> {
-        self.stack.pop().ok_or(Error::Fail)
+        self.stack.pop().ok_or(Error::Overflow)
     }
 
-    fn capture(&mut self, v: Value) {
-        let i = self.captured_stack.len() - 1;
-        self.captured_stack[i].push(v);
+    // functions for capturing matched values
+
+    fn capture(&mut self, v: Value) -> Result<(), Error> {
+        for i in (0..self.stack.len()).rev() {
+            if self.stack[i].ftype == StackFrameType::Backtrack {
+                continue;
+            }
+            self.stack[i].captures.push(v);
+            break;
+        }
+        Ok(())
     }
 
-    fn pop_captured(&mut self) {
-        let i = self.captured_stack.len() - 1;
-        self.captured_stack[i].pop();
+    fn pop_captured(&mut self, how_many: usize) {
+        if let Ok(frame) = self.stkpeek() {
+            for _ in 0..(frame.captures.len() - how_many) {
+                frame.captures.pop();
+            }
+        }
     }
+
+    fn captured_len(&self) -> Result<usize, Error> {
+        let len = self.stack.len();
+        if len > 0 {
+            return Ok(self.stack[len - 1].captures.len());
+        }
+        Err(Error::Overflow)
+    }
+
+    // evaluation
 
     fn run(&mut self, input: &String) -> Result<(), Error> {
         self.source = input.chars().collect();
@@ -169,7 +246,7 @@ impl VM {
                     if cursor >= self.source.len() {
                         self.cursor = Err(Error::EOF);
                     } else {
-                        self.capture(Value::Chr(self.source[cursor]));
+                        self.accumulator = Some(Value::Chr(self.source[cursor]));
                         self.advance_cursor()?;
                         self.program_counter += 1;
                     }
@@ -187,18 +264,16 @@ impl VM {
                         )));
                         continue;
                     }
-                    self.capture(Value::Chr(current));
+                    self.accumulator = Some(Value::Chr(self.source[cursor]));
                     self.advance_cursor()?;
                     self.program_counter += 1;
                 }
                 Instruction::Choice(offset) => {
-                    self.stack.push(StackFrame {
-                        program_counter: self.program_counter + offset,
-                        cursor: Ok(cursor),
-                        callable_index: None,
-                        result: Err(Error::Fail),
-                        precedence: None,
-                    });
+                    self.stack.push(StackFrame::new_backtrack(
+                        cursor,
+                        self.program_counter + offset,
+                        self.captured_len()?,
+                    ));
                     self.program_counter += 1;
                 }
                 Instruction::Commit(offset) => {
@@ -224,53 +299,54 @@ impl VM {
                 Instruction::Return => {
                     self.inst_return()?;
                 }
+                Instruction::Capture => {
+                    if let Some(v) = self.accumulator.take() {
+                        self.capture(v)?;
+                    }
+                    self.program_counter += 1;
+                }
             }
         }
         Ok(())
     }
 
-    fn inst_call(&mut self, callable_index: usize, precedence: usize) -> Result<(), Error> {
+    fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
         let cursor = self.cursor.clone()?;
         if precedence == 0 {
-            self.stack.push(StackFrame {
-                program_counter: self.program_counter + 1,
-                cursor: Err(Error::Fail),
-                result: Err(Error::Fail),
-                callable_index: Some(callable_index),
-                precedence: Some(precedence),
-            });
-            self.program_counter = callable_index;
+            self.stack.push(StackFrame::new_call(
+                self.program_counter + 1,
+                address,
+                precedence,
+            ));
+            self.program_counter = address;
             return Ok(());
         }
-        let key = (callable_index, cursor);
+        let key = (address, cursor);
         match self.lrmemo.get(&key) {
             None => {
                 // println!("lvar.{{1, 2}}");
-                self.captured_stack.push(vec![]);
-                self.stack.push(StackFrame {
-                    program_counter: self.program_counter + 1,
-                    cursor: Ok(cursor),
-                    result: Err(Error::LeftRec),
-                    callable_index: Some(callable_index),
-                    precedence: Some(precedence),
-                });
-                self.program_counter = callable_index;
+                self.stack.push(StackFrame::new_lrcall(
+                    cursor,
+                    self.program_counter + 1,
+                    address,
+                    precedence,
+                ));
+                self.program_counter = address;
                 self.lrmemo.insert(
                     key,
                     LeftRecTableEntry {
-                        cursor: Err(Error::Matching("LEFTREC".to_string())),
+                        cursor: Err(Error::LeftRec),
                         precedence: precedence,
                         bound: 0,
                     },
                 );
-                //self.fail()?;
             }
             Some(entry) => {
                 match entry.cursor {
                     Err(_) => {
                         // println!("lvar.{{3, 5}}.1");
                         self.fail()?;
-                    },
+                    }
                     Ok(cursor) => {
                         if precedence < entry.precedence {
                             // println!("lvar.{{3, 5}}.2");
@@ -290,32 +366,39 @@ impl VM {
     fn inst_return(&mut self) -> Result<(), Error> {
         let cursor = self.cursor.clone()?;
         let mut frame = self.stkpeek()?;
+        let address = frame.address;
 
-        if let Some(precedence) = frame.precedence {
-            if precedence == 0 {
-                self.program_counter = frame.program_counter;
-                self.stkpop()?;
-                return Ok(());
-            }
+        if frame.precedence == 0 {
+            let frame = self.stkpop()?;
+            self.program_counter = frame.program_counter;
+            let name = self
+                .program
+                .names
+                .get(&address)
+                .unwrap_or(&"".to_string())
+                .clone();
+            self.accumulator = Some(Value::Node {
+                name: name,
+                children: frame.captures,
+            });
+            return Ok(());
         }
 
-        if frame.result.is_err() || cursor > frame.result.clone()?  {
-            if let Some(callable_index) = frame.callable_index {
-                // println!("{{lvar, inc}}.1");
+        if frame.result.is_err() || cursor > frame.result.clone()? {
+            // println!("{{lvar, inc}}.1");
 
-                frame.result = Ok(cursor);
+            frame.result = Ok(cursor);
 
-                let frame_cursor = frame.cursor.clone();
-                let key = (callable_index, frame_cursor.clone().unwrap());
-                let mut entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;
+            let frame_cursor = frame.cursor.clone();
+            let key = (frame.address, frame_cursor.clone().unwrap());
+            let mut entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;
 
-                entry.cursor = Ok(cursor);
-                entry.bound += 1;
-                entry.precedence = entry.precedence;
+            entry.cursor = Ok(cursor);
+            entry.bound += 1;
+            entry.precedence = entry.precedence;
 
-                self.cursor = frame_cursor;
-                self.program_counter = callable_index;
-            }
+            self.cursor = frame_cursor;
+            self.program_counter = address;
         } else {
             // println!("inc.3");
             let pc = frame.program_counter;
@@ -337,17 +420,18 @@ impl VM {
                 None => {
                     self.cursor = Err(error.clone());
                     return Err(error);
-                },
+                }
                 Some(f) => {
                     if let Ok(cursor) = f.cursor {
                         self.cursor = Ok(cursor);
                         break f;
                     }
-                },
+                }
             }
         };
 
         self.program_counter = frame.program_counter;
+        self.pop_captured(frame.capture);
         Ok(())
     }
 }
@@ -366,14 +450,19 @@ mod tests {
         let input = "a".to_string();
         // G <- 'a'
         let program = Program {
-            code: vec![Instruction::Char('a'), Instruction::Halt],
+            names: HashMap::new(),
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Char('a'),
+                Instruction::Return,
+            ],
         };
 
         let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        assert_eq!(vec![vec![Value::Chr('a')]], vm.captured_stack);
         assert!(vm.cursor.is_ok());
         assert_eq!(1, vm.cursor.unwrap());
     }
@@ -388,7 +477,13 @@ mod tests {
         let input = "b".to_string();
         // G <- 'a'
         let program = Program {
-            code: vec![Instruction::Char('a'), Instruction::Halt],
+            names: HashMap::new(),
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Char('a'),
+                Instruction::Return,
+            ],
         };
 
         let mut vm = VM::new(program);
@@ -410,11 +505,14 @@ mod tests {
     fn any_1() {
         let input = "abcd".to_string();
         let program = Program {
+            names: HashMap::new(),
             code: vec![
-                Instruction::Any,
-                Instruction::Any,
-                Instruction::Any,
+                Instruction::Call(2, 0),
                 Instruction::Halt,
+                Instruction::Any,
+                Instruction::Any,
+                Instruction::Any,
+                Instruction::Return,
             ],
         };
 
@@ -422,11 +520,6 @@ mod tests {
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        assert_eq!(
-            vec![vec![Value::Chr('a'), Value::Chr('b'), Value::Chr('c')]],
-            vm.captured_stack,
-        );
-
         assert!(vm.cursor.is_ok());
         assert_eq!(3, vm.cursor.unwrap());
     }
@@ -439,7 +532,13 @@ mod tests {
     fn any_2_eof() {
         let input = "".to_string();
         let program = Program {
-            code: vec![Instruction::Any],
+            names: HashMap::new(),
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Any,
+                Instruction::Return,
+            ],
         };
 
         let mut vm = VM::new(program);
@@ -460,12 +559,15 @@ mod tests {
         let input = "foo".to_string();
         // G <- !'a'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
                 Instruction::Choice(4),
                 Instruction::Char('a'),
                 Instruction::Commit(1),
                 Instruction::Fail,
-                Instruction::Halt,
+                Instruction::Return,
             ],
         };
 
@@ -487,12 +589,15 @@ mod tests {
         let input = "foo".to_string();
         // G <- !'f'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
                 Instruction::Choice(4),
                 Instruction::Char('f'),
                 Instruction::Commit(1),
                 Instruction::Fail,
-                Instruction::Halt,
+                Instruction::Return,
             ],
         };
 
@@ -514,12 +619,16 @@ mod tests {
         let input = "c".to_string();
         // G <- 'a' / 'b'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::Commit(2),
                 Instruction::Char('b'),
                 Instruction::Halt,
+                Instruction::Return,
             ],
         };
 
@@ -544,12 +653,16 @@ mod tests {
         let input = "a".to_string();
         // G <- 'a' / 'b'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::Commit(2),
                 Instruction::Char('b'),
                 Instruction::Halt,
+                Instruction::Return,
             ],
         };
 
@@ -557,7 +670,6 @@ mod tests {
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        assert_eq!(vec![vec![Value::Chr('a')]], vm.captured_stack);
         assert!(vm.cursor.is_ok());
         assert_eq!(1, vm.cursor.unwrap());
     }
@@ -571,12 +683,16 @@ mod tests {
         let input = "b".to_string();
         // G <- 'a' / 'b'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::Commit(2),
                 Instruction::Char('b'),
                 Instruction::Halt,
+                Instruction::Return,
             ],
         };
 
@@ -584,7 +700,6 @@ mod tests {
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        assert_eq!(vec![vec![Value::Chr('b')]], vm.captured_stack);
         assert!(vm.cursor.is_ok());
         assert_eq!(1, vm.cursor.unwrap());
         assert_eq!(1, vm.ffp);
@@ -599,11 +714,14 @@ mod tests {
         let input = "aab".to_string();
         // G <- 'a*'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::CommitB(2),
-                Instruction::Halt,
+                Instruction::Return,
             ],
         };
 
@@ -611,10 +729,6 @@ mod tests {
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        assert_eq!(
-            vec![vec![Value::Chr('a'), Value::Chr('a')]],
-            vm.captured_stack
-        );
         assert!(vm.cursor.is_ok());
         assert_eq!(2, vm.cursor.unwrap());
         assert_eq!(2, vm.ffp);
@@ -629,11 +743,14 @@ mod tests {
         let input = "b".to_string();
         // G <- 'a*'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::CommitB(2),
-                Instruction::Halt,
+                Instruction::Return,
             ],
         };
 
@@ -641,7 +758,6 @@ mod tests {
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        assert_eq!(vec![vec![]] as Vec<Vec<Value>>, vm.captured_stack);
         assert!(vm.cursor.is_ok());
         assert_eq!(0, vm.cursor.unwrap());
         assert_eq!(0, vm.ffp);
@@ -657,6 +773,7 @@ mod tests {
         // G <- D '+' D
         // D <- '0' / '1'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Jump(11),
@@ -679,14 +796,6 @@ mod tests {
         let result = vm.run(&input);
 
         assert!(result.is_ok());
-        // assert_eq!(
-        //     vec![vec![Value::Node(vec![
-        //         Value::Node(vec![Value::Chr('1')]),
-        //         Value::Chr('+'),
-        //         Value::Node(vec![Value::Chr('1')]),
-        //     ])]] as Vec<Vec<Value>>,
-        //     vm.captured_stack
-        // );
         assert!(vm.cursor.is_ok());
         assert_eq!(3, vm.cursor.unwrap());
         assert_eq!(3, vm.ffp);
@@ -702,6 +811,7 @@ mod tests {
         // G <- D '+' D
         // D <- '0' / '1'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Jump(11),
@@ -732,16 +842,12 @@ mod tests {
     }
 
     // (lvar.1)
-    //
-    // (A, xyz) not in L G[P(A)] xyz L[(A, xyz) -> fail] -peg-> (yz, x')
-    //     G[P(A)] xyz L[(A, xyz) -> (yz,'x, k)] -inc-> (z, (xy)')
-    // -----------------------------------------------------------------
-    //                  G[Ak] xyz L -peg-> (z, A[(xy)'])
     #[test]
-    fn var_1_lr() {
+    fn lrvar_1() {
         let input = "n+n".to_string();
         // G <- G '+' 'n' / 'n'
         let program = Program {
+            names: HashMap::new(),
             code: vec![
                 Instruction::Call(2, 1),
                 Instruction::Jump(9),
@@ -762,5 +868,117 @@ mod tests {
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(3, vm.cursor.unwrap());
+    }
+
+    #[test]
+    fn capture_1() {
+        // G <- 'abacate' / 'abada'
+        let values = [(2, "G".to_string())].iter().cloned().collect();
+        let program = Program {
+            names: values,
+            code: vec![
+                // Call to first production follwed by the end of the matching
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                // Body of the production G
+                Instruction::Choice(16),
+                Instruction::Char('a'),
+                Instruction::Capture,
+                Instruction::Char('b'),
+                Instruction::Capture,
+                Instruction::Char('a'),
+                Instruction::Capture,
+                Instruction::Char('c'),
+                Instruction::Capture,
+                Instruction::Char('a'),
+                Instruction::Capture,
+                Instruction::Char('t'),
+                Instruction::Capture,
+                Instruction::Char('e'),
+                Instruction::Capture,
+                Instruction::Commit(11),
+                Instruction::Char('a'),
+                Instruction::Capture,
+                Instruction::Char('b'),
+                Instruction::Capture,
+                Instruction::Char('a'),
+                Instruction::Capture,
+                Instruction::Char('d'),
+                Instruction::Capture,
+                Instruction::Char('a'),
+                Instruction::Capture,
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(program);
+        let input = "abada".to_string();
+        let result = vm.run(&input);
+
+        assert!(result.is_ok());
+        assert!(vm.cursor.is_ok());
+        assert_eq!(5, vm.cursor.unwrap());
+        assert!(vm.accumulator.is_some());
+        assert_eq!(
+            Value::Node {
+                name: "G".to_string(),
+                children: vec![
+                    Value::Chr('a'),
+                    Value::Chr('b'),
+                    Value::Chr('a'),
+                    Value::Chr('d'),
+                    Value::Chr('a'),
+                ]
+            },
+            vm.accumulator.unwrap()
+        );
+    }
+
+    #[test]
+    fn capture_2() {
+        // G <- D
+        // D <- '0' / '1'
+        let values = [(2, "G".to_string()), (5, "D".to_string())]
+            .iter()
+            .cloned()
+            .collect();
+        let program = Program {
+            names: values,
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                // G
+                Instruction::Call(3, 0),
+                Instruction::Capture,
+                Instruction::Return,
+                // D
+                Instruction::Choice(4),
+                Instruction::Char('0'),
+                Instruction::Capture,
+                Instruction::Commit(3),
+                Instruction::Char('1'),
+                Instruction::Capture,
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(program);
+        let input = "1".to_string();
+        let result = vm.run(&input);
+
+        assert!(result.is_ok());
+        assert!(vm.cursor.is_ok());
+        assert_eq!(1, vm.cursor.unwrap());
+        assert!(vm.accumulator.is_some());
+        assert_eq!(
+            Value::Node {
+                name: "G".to_string(),
+                children: vec![Value::Node {
+                    name: "D".to_string(),
+                    children: vec![Value::Chr('1')],
+                }],
+            },
+            vm.accumulator.unwrap()
+        );
     }
 }

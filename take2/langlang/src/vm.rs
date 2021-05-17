@@ -8,6 +8,7 @@
 //
 
 use std::collections::HashMap;
+use log::debug;
 
 #[derive(Debug, PartialEq)]
 enum Value {
@@ -112,8 +113,8 @@ impl StackFrame {
             result: Err(Error::LeftRec),
             address: address,
             precedence: precedence,
-            captures: vec![],
             capture: 0,
+            captures: vec![],
         }
     }
 }
@@ -198,18 +199,17 @@ impl VM {
 
     fn capture(&mut self, v: Value) -> Result<(), Error> {
         for i in (0..self.stack.len()).rev() {
-            if self.stack[i].ftype == StackFrameType::Backtrack {
-                continue;
+            if self.stack[i].ftype == StackFrameType::Call {
+                self.stack[i].captures.push(v);
+                break;
             }
-            self.stack[i].captures.push(v);
-            break;
         }
         Ok(())
     }
 
-    fn pop_captured(&mut self, how_many: usize) {
+    fn pop_captured(&mut self) {
         if let Ok(frame) = self.stkpeek() {
-            for _ in 0..(frame.captures.len() - how_many) {
+            for _ in 0..(frame.captures.len() - frame.capture) {
                 frame.captures.pop();
             }
         }
@@ -238,7 +238,7 @@ impl VM {
                 Err(_) => (Instruction::Fail, 0),
             };
 
-            println!("[{:?}] I: {:?}", cursor, instruction);
+            debug!("[{:?}] I: {:?}", cursor, instruction);
 
             match instruction {
                 Instruction::Halt => break,
@@ -311,6 +311,10 @@ impl VM {
     }
 
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
+        debug!(
+            "       . call({:?})",
+            self.program.names.get(&address).unwrap_or(&"".to_string())
+        );
         let cursor = self.cursor.clone()?;
         if precedence == 0 {
             self.stack.push(StackFrame::new_call(
@@ -324,7 +328,7 @@ impl VM {
         let key = (address, cursor);
         match self.lrmemo.get(&key) {
             None => {
-                // println!("lvar.{{1, 2}}");
+                debug!("       . lvar.{{1, 2}}");
                 self.stack.push(StackFrame::new_lrcall(
                     cursor,
                     self.program_counter + 1,
@@ -341,24 +345,22 @@ impl VM {
                     },
                 );
             }
-            Some(entry) => {
-                match entry.cursor {
-                    Err(_) => {
-                        // println!("lvar.{{3, 5}}.1");
+            Some(entry) => match entry.cursor {
+                Err(_) => {
+                    debug!("       . lvar.{{3, 5}}.1");
+                    self.fail()?;
+                }
+                Ok(cursor) => {
+                    if precedence < entry.precedence {
+                        debug!("       . lvar.{{3, 5}}.2");
                         self.fail()?;
-                    }
-                    Ok(cursor) => {
-                        if precedence < entry.precedence {
-                            // println!("lvar.{{3, 5}}.2");
-                            self.fail()?;
-                        } else {
-                            // println!("lvar.4");
-                            self.cursor = Ok(cursor);
-                            self.program_counter += 1;
-                        }
+                    } else {
+                        debug!("       . lvar.4");
+                        self.cursor = Ok(cursor);
+                        self.program_counter += 1;
                     }
                 }
-            }
+            },
         }
         Ok(())
     }
@@ -371,21 +373,15 @@ impl VM {
         if frame.precedence == 0 {
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
-            let name = self
-                .program
-                .names
-                .get(&address)
-                .unwrap_or(&"".to_string())
-                .clone();
             self.accumulator = Some(Value::Node {
-                name: name,
+                name: self.string_at(address),
                 children: frame.captures,
             });
             return Ok(());
         }
 
         if frame.result.is_err() || cursor > frame.result.clone()? {
-            // println!("{{lvar, inc}}.1");
+            debug!("       . {{lvar, inc}}.1");
 
             frame.result = Ok(cursor);
 
@@ -400,39 +396,61 @@ impl VM {
             self.cursor = frame_cursor;
             self.program_counter = address;
         } else {
-            // println!("inc.3");
+            debug!("       . inc.3");
             let pc = frame.program_counter;
             self.cursor = frame.result.clone();
             self.program_counter = pc;
-            self.stkpop()?;
+            self.accumulator = Some(Value::Node {
+                name: self.string_at(address),
+                children: self.stkpop()?.captures,
+            });
         }
         Ok(())
     }
 
     fn fail(&mut self) -> Result<(), Error> {
-        // println!("::::::FAIL");
+        debug!("       . fail");
         let error = match self.cursor.clone() {
             Err(e) => e,
             Ok(_) => Error::Fail,
         };
         let frame = loop {
+            debug!("       . pop");
             match self.stack.pop() {
                 None => {
+                    debug!("       . none");
                     self.cursor = Err(error.clone());
                     return Err(error);
                 }
                 Some(f) => {
                     if let Ok(cursor) = f.cursor {
                         self.cursor = Ok(cursor);
+                    }
+                    if f.ftype == StackFrameType::Backtrack {
                         break f;
+                    }
+                    if let Ok(result) = f.result {
+                        if result > 0 {
+                            debug!("       . inc.2");
+                            self.cursor = Ok(result);
+                            break f;
+                        }
                     }
                 }
             }
         };
 
         self.program_counter = frame.program_counter;
-        self.pop_captured(frame.capture);
+        self.pop_captured();
         Ok(())
+    }
+
+    fn string_at(&self, address: usize) -> String {
+        self.program
+            .names
+            .get(&address)
+            .unwrap_or(&"".to_string())
+            .clone()
     }
 }
 
@@ -841,16 +859,15 @@ mod tests {
         assert_eq!(2, vm.ffp);
     }
 
-    // (lvar.1)
     #[test]
-    fn lrvar_1() {
-        let input = "n+n".to_string();
+    fn lrvar_err() {
+        let values = [(2, "E".to_string())].iter().cloned().collect();
         // G <- G '+' 'n' / 'n'
         let program = Program {
-            names: HashMap::new(),
+            names: values,
             code: vec![
                 Instruction::Call(2, 1),
-                Instruction::Jump(9),
+                Instruction::Halt,
                 Instruction::Choice(5),
                 Instruction::CallB(1, 1),
                 Instruction::Char('+'),
@@ -858,10 +875,80 @@ mod tests {
                 Instruction::Commit(2),
                 Instruction::Char('n'),
                 Instruction::Return,
-                Instruction::Halt,
             ],
         };
 
+        let input = "321".to_string();
+        let mut vm = VM::new(program);
+        let result = vm.run(&input);
+
+        assert!(result.is_err());
+        // assert!(vm.cursor.is_ok());
+        // assert_eq!(5, vm.cursor.unwrap());
+    }
+
+    // (lvar.1)
+    #[test]
+    fn lrvar_1() {
+        let values = [(2, "E".to_string())].iter().cloned().collect();
+        // G <- G '+' 'n' / 'n'
+        let program = Program {
+            names: values,
+            code: vec![
+                Instruction::Call(2, 1),
+                Instruction::Halt,
+                Instruction::Choice(5),
+                Instruction::CallB(1, 1),
+                Instruction::Char('+'),
+                Instruction::Char('n'),
+                Instruction::Commit(2),
+                Instruction::Char('n'),
+                Instruction::Return,
+            ],
+        };
+
+        let input = "n+n+n".to_string();
+        let mut vm = VM::new(program);
+        let result = vm.run(&input);
+
+        assert!(result.is_ok());
+        assert!(vm.cursor.is_ok());
+        assert_eq!(5, vm.cursor.unwrap());
+    }
+
+    #[test]
+    fn lrvar_2() {
+        let values = [(2, "E".to_string()), (9, "D".to_string())]
+            .iter()
+            .cloned()
+            .collect();
+        // E <- E:1 '+' E:2
+        //    / D
+        // D <- '0' / '1'
+        let program = Program {
+            names: values,
+            code: vec![
+                Instruction::Call(2, 1),
+                Instruction::Halt,
+                // / E:1 '+' E:1
+                Instruction::Choice(5),
+                Instruction::CallB(1, 1),
+                Instruction::Char('+'),
+                Instruction::CallB(3, 1),
+                Instruction::Commit(2),
+                // / D
+                Instruction::Call(2, 0),
+                Instruction::Return,
+                // D
+                Instruction::Choice(3),
+                Instruction::Char('0'),
+                Instruction::Commit(2),
+                Instruction::Char('1'),
+                Instruction::Return,
+            ],
+        };
+
+        let input = "0+1".to_string();
         let mut vm = VM::new(program);
         let result = vm.run(&input);
 
@@ -871,42 +958,81 @@ mod tests {
     }
 
     #[test]
+    fn lrvar_3() {
+        let values = [(2, "E".to_string()), (9, "D".to_string())]
+            .iter()
+            .cloned()
+            .collect();
+        // E <- E:1 '+' E:2
+        //    / E:2 '*' E:3
+        //    / D
+        // D <- '0' / '1'
+        let program = Program {
+            names: values,
+            code: vec![
+                Instruction::Call(2, 1),
+                Instruction::Halt,
+                // / E:1 '+' E:2
+                Instruction::Choice(5),
+                Instruction::CallB(1, 1),
+                Instruction::Char('+'),
+                Instruction::CallB(3, 2),
+                Instruction::Commit(7),
+                // / E:2 '*' E:2
+                Instruction::Choice(5),
+                Instruction::CallB(6, 2),
+                Instruction::Char('*'),
+                Instruction::CallB(8, 3),
+                Instruction::Commit(2),
+                // / D
+                Instruction::Call(2, 0),
+                Instruction::Return,
+                // D
+                Instruction::Choice(3),
+                Instruction::Char('0'),
+                Instruction::Commit(2),
+                Instruction::Char('1'),
+                Instruction::Return,
+            ],
+        };
+
+        let input = "0+1*1".to_string();
+        let mut vm = VM::new(program);
+        let result = vm.run(&input);
+
+        assert!(result.is_ok());
+        assert!(vm.cursor.is_ok());
+        assert_eq!(5, vm.cursor.unwrap());
+    }
+
+    // left recursive captures
+
+    #[test]
     fn capture_1() {
         // G <- 'abacate' / 'abada'
         let values = [(2, "G".to_string())].iter().cloned().collect();
+        #[rustfmt::skip]
         let program = Program {
             names: values,
             code: vec![
                 // Call to first production follwed by the end of the matching
                 Instruction::Call(2, 0),
                 Instruction::Halt,
-                // Body of the production G
+                // Body of production G
                 Instruction::Choice(16),
-                Instruction::Char('a'),
-                Instruction::Capture,
-                Instruction::Char('b'),
-                Instruction::Capture,
-                Instruction::Char('a'),
-                Instruction::Capture,
-                Instruction::Char('c'),
-                Instruction::Capture,
-                Instruction::Char('a'),
-                Instruction::Capture,
-                Instruction::Char('t'),
-                Instruction::Capture,
-                Instruction::Char('e'),
-                Instruction::Capture,
+                Instruction::Char('a'), Instruction::Capture,
+                Instruction::Char('b'), Instruction::Capture,
+                Instruction::Char('a'), Instruction::Capture,
+                Instruction::Char('c'), Instruction::Capture,
+                Instruction::Char('a'), Instruction::Capture,
+                Instruction::Char('t'), Instruction::Capture,
+                Instruction::Char('e'), Instruction::Capture,
                 Instruction::Commit(11),
-                Instruction::Char('a'),
-                Instruction::Capture,
-                Instruction::Char('b'),
-                Instruction::Capture,
-                Instruction::Char('a'),
-                Instruction::Capture,
-                Instruction::Char('d'),
-                Instruction::Capture,
-                Instruction::Char('a'),
-                Instruction::Capture,
+                Instruction::Char('a'), Instruction::Capture,
+                Instruction::Char('b'), Instruction::Capture,
+                Instruction::Char('a'), Instruction::Capture,
+                Instruction::Char('d'), Instruction::Capture,
+                Instruction::Char('a'), Instruction::Capture,
                 Instruction::Return,
             ],
         };
@@ -973,6 +1099,75 @@ mod tests {
         assert_eq!(
             Value::Node {
                 name: "G".to_string(),
+                children: vec![Value::Node {
+                    name: "D".to_string(),
+                    children: vec![Value::Chr('1')],
+                }],
+            },
+            vm.accumulator.unwrap()
+        );
+    }
+
+    #[test]
+    fn capture_3() {
+        // E <- E:1 '+' E:2
+        //    / E:2 '*' E:3
+        //    / D
+        // D <- '0' / '1'
+        let values = [(2, "E".to_string()), (21, "D".to_string())]
+            .iter()
+            .cloned()
+            .collect();
+        let program = Program {
+            names: values,
+            code: vec![
+                Instruction::Call(2, 1),
+                Instruction::Halt,
+                // / E:1 '+' E:2
+                Instruction::Choice(8),
+                Instruction::CallB(1, 1),
+                Instruction::Capture,
+                Instruction::Char('+'),
+                Instruction::Capture,
+                Instruction::CallB(5, 2),
+                Instruction::Capture,
+                Instruction::Commit(10),
+                // / E:2 '*' E:2
+                Instruction::Choice(8),
+                Instruction::CallB(9, 2),
+                Instruction::Capture,
+                Instruction::Char('*'),
+                Instruction::Capture,
+                Instruction::CallB(13, 3),
+                Instruction::Capture,
+                Instruction::Commit(3),
+                // / D
+                Instruction::Call(3, 0),
+                Instruction::Capture,
+                Instruction::Return,
+                // D
+                Instruction::Choice(4),
+                Instruction::Char('0'),
+                Instruction::Capture,
+                Instruction::Commit(3),
+                Instruction::Char('1'),
+                Instruction::Capture,
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(program);
+        let input = "1".to_string();
+        let result = vm.run(&input);
+
+        assert!(result.is_ok());
+        assert!(vm.cursor.is_ok());
+        assert_eq!(1, vm.cursor.unwrap());
+
+        assert!(vm.accumulator.is_some());
+        assert_eq!(
+            Value::Node {
+                name: "E".to_string(),
                 children: vec![Value::Node {
                     name: "D".to_string(),
                     children: vec![Value::Chr('1')],

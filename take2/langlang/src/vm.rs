@@ -7,11 +7,11 @@
 // compiled to programs, but how programs get executted as patterns.
 //
 
-use std::collections::HashMap;
 use log::debug;
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq)]
-enum Value {
+pub enum Value {
     Chr(char),
     // I64(i64),
     // U64(u64),
@@ -21,7 +21,7 @@ enum Value {
 }
 
 #[derive(Clone, Debug)]
-enum Instruction {
+pub enum Instruction {
     Halt,
     Any,
     Capture,
@@ -44,7 +44,7 @@ enum Instruction {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-enum Error {
+pub enum Error {
     Fail,
     LeftRec,
     Overflow,
@@ -53,10 +53,19 @@ enum Error {
 }
 
 #[derive(Debug)]
-struct Program {
+pub struct Program {
     names: HashMap<usize, String>,
     code: Vec<Instruction>,
     // source_mapping: ...
+}
+
+impl Program {
+    pub fn new(code: Vec<Instruction>, names: HashMap<usize, String>) -> Self {
+        Program {
+            code: code,
+            names: names,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -225,7 +234,7 @@ impl VM {
 
     // evaluation
 
-    fn run(&mut self, input: &String) -> Result<(), Error> {
+    pub fn run(&mut self, input: &String) -> Result<Option<&Value>, Error> {
         self.source = input.chars().collect();
 
         loop {
@@ -307,14 +316,12 @@ impl VM {
                 }
             }
         }
-        Ok(())
+
+        Ok(self.accumulator.as_ref())
     }
 
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
-        debug!(
-            "       . call({:?})",
-            self.program.names.get(&address).unwrap_or(&"".to_string())
-        );
+        debug!("       . call({:?})", self.string_at(address));
         let cursor = self.cursor.clone()?;
         if precedence == 0 {
             self.stack.push(StackFrame::new_call(

@@ -148,7 +148,7 @@ struct LeftRecTableEntry {
 }
 
 #[derive(Debug)]
-struct VM {
+pub struct VM<'a> {
     // Cursor within input, error means matching failed
     cursor: Result<usize, Error>,
     // Farther Failure Position
@@ -156,7 +156,7 @@ struct VM {
     // Input source
     source: Vec<char>,
     // Vector of instructions and tables with literal values
-    program: Program,
+    program: &'a Program,
     // Cursor within the program
     program_counter: usize,
     // Stack of both backtrack and call frames
@@ -167,8 +167,8 @@ struct VM {
     accumulator: Option<Value>,
 }
 
-impl VM {
-    fn new(program: Program) -> Self {
+impl<'a> VM<'a> {
+    pub fn new(program: &'a Program) -> Self {
         VM {
             ffp: 0,
             cursor: Ok(0),

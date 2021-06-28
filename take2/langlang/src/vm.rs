@@ -61,10 +61,7 @@ pub struct Program {
 
 impl Program {
     pub fn new(code: Vec<Instruction>, names: HashMap<usize, String>) -> Self {
-        Program {
-            code: code,
-            names: names,
-        }
+        Program { names, code }
     }
 }
 
@@ -91,7 +88,7 @@ impl StackFrame {
         StackFrame {
             ftype: StackFrameType::Backtrack,
             program_counter: pc,
-            capture: capture,
+            capture,
             cursor: Ok(cursor),
             // fields not used for backtrack frames
             captures: vec![],
@@ -107,8 +104,8 @@ impl StackFrame {
             program_counter: pc,
             cursor: Err(Error::Fail),
             result: Err(Error::Fail),
-            address: address,
-            precedence: precedence,
+            address,
+            precedence,
             capture: 0,
             captures: vec![],
         }
@@ -120,8 +117,8 @@ impl StackFrame {
             program_counter: pc,
             cursor: Ok(cursor),
             result: Err(Error::LeftRec),
-            address: address,
-            precedence: precedence,
+            address,
+            precedence,
             capture: 0,
             captures: vec![],
         }
@@ -175,7 +172,7 @@ impl<'a> VM<'a> {
             ffp: 0,
             cursor: Ok(0),
             source: vec![],
-            program: program,
+            program,
             program_counter: 0,
             stack: vec![],
             call_frames: vec![],
@@ -198,9 +195,10 @@ impl<'a> VM<'a> {
     fn stkpeek(&mut self) -> Result<&mut StackFrame, Error> {
         let len = self.stack.len();
         if len < 1 {
-            return Err(Error::Overflow)?;
+            Err(Error::Overflow)
+        } else {
+            Ok(&mut self.stack[len - 1])
         }
-        Ok(&mut self.stack[len - 1])
     }
 
     fn stkpush(&mut self, frame: StackFrame) {
@@ -221,28 +219,15 @@ impl<'a> VM<'a> {
     // functions for capturing matched values
 
     fn capture(&mut self, v: Value) -> Result<(), Error> {
-        if self.call_frames.len() > 0 {
+        if !self.call_frames.is_empty() {
             let idx = self.call_frames[self.call_frames.len() - 1];
             self.stack[idx].captures.push(v);
-            // let mut j = self.call_frames - 1;
-            // for i in (0..self.stack.len()).rev() {
-            //     if self.stack[i].ftype == StackFrameType::Call {
-            //         if j == 0 {
-            //             debug!("CAPTURED VEI: {:?}, {:?}, {:?}", j, v, self.stack[i]);
-            //             self.stack[i].captures.push(v);
-            //             debug!("            : {:?}", self.stack[i]);
-            //             break;
-            //         } else {
-            //             j -= 0;
-            //         }
-            //     }
-            // }
         }
         Ok(())
     }
 
     fn num_captures(&self) -> usize {
-        if self.call_frames.len() > 0 {
+        if !self.call_frames.is_empty() {
             let idx = self.call_frames[self.call_frames.len() - 1];
             self.stack[idx].captures.len()
         } else {
@@ -252,7 +237,7 @@ impl<'a> VM<'a> {
 
     // evaluation
 
-    pub fn run(&mut self, input: &String) -> Result<Option<&Value>, Error> {
+    pub fn run(&mut self, input: &str) -> Result<Option<&Value>, Error> {
         self.source = input.chars().collect();
 
         loop {
@@ -365,7 +350,7 @@ impl<'a> VM<'a> {
                     key,
                     LeftRecTableEntry {
                         cursor: Err(Error::LeftRec),
-                        precedence: precedence,
+                        precedence,
                         bound: 0,
                     },
                 );
@@ -411,12 +396,13 @@ impl<'a> VM<'a> {
             frame.result = Ok(cursor);
 
             let frame_cursor = frame.cursor.clone();
+            let frame_precedence = frame.precedence;
             let key = (frame.address, frame_cursor.clone().unwrap());
             let mut entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;
 
             entry.cursor = Ok(cursor);
             entry.bound += 1;
-            entry.precedence = entry.precedence;
+            entry.precedence = frame_precedence;
 
             self.cursor = frame_cursor;
             self.program_counter = address;
@@ -470,7 +456,7 @@ impl<'a> VM<'a> {
 
         self.program_counter = frame.program_counter;
 
-        if self.call_frames.len() > 0 {
+        if !self.call_frames.is_empty() {
             let len = self.num_captures();
             let idx = self.call_frames[self.call_frames.len() - 1];
             self.stack[idx].captures.drain(frame.capture..len);

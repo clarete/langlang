@@ -26,7 +26,7 @@ pub enum Instruction {
     Any,
     Capture,
     Char(char),
-    // Span(char, char),
+    Span(char, char),
     Choice(usize),
     Commit(usize),
     CommitB(usize),
@@ -280,6 +280,23 @@ impl<'a> VM<'a> {
                     self.advance_cursor()?;
                     self.program_counter += 1;
                 }
+                Instruction::Span(start, end) => {
+                    if cursor >= self.source.len() {
+                        self.cursor = Err(Error::EOF);
+                        continue;
+                    }
+                    let current = self.source[cursor];
+                    if current >= start && current <= end {
+                        self.accumulator = Some(Value::Chr(self.source[cursor]));
+                        self.advance_cursor()?;
+                        self.program_counter += 1;
+                        continue;
+                    }
+                    self.cursor = Err(Error::Matching(format!(
+                        "Expected char between {} and {}, but got {} instead",
+                        start, end, current,
+                    )));
+                }
                 Instruction::Choice(offset) => {
                     self.stkpush(StackFrame::new_backtrack(
                         cursor,
@@ -408,8 +425,8 @@ impl<'a> VM<'a> {
             self.program_counter = address;
         } else {
             debug!("       . inc.3");
-            let pc = frame.program_counter;
             let frame = self.stkpop()?;
+            let pc = frame.program_counter;
             self.cursor = frame.result;
             self.program_counter = pc;
             self.accumulator = Some(Value::Node {
@@ -530,6 +547,63 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             Error::Matching("Expected a, but got b instead".to_string()),
+            result.unwrap_err(),
+        );
+        assert_eq!(0, vm.ffp);
+    }
+
+    // (span.1)
+    //
+    // 'a' <= s[i] <= 'z'
+    // -------------------
+    // match 'c' s i = i+1
+    #[test]
+    fn span_1() {
+        // G <- [a-z]
+        let program = Program {
+            names: HashMap::new(),
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Span('a', 'z'),
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(&program);
+        let input = "a".to_string();
+        let result = vm.run(&input);
+
+        assert!(result.is_ok());
+        assert!(vm.cursor.is_ok());
+        assert_eq!(1, vm.cursor.unwrap());
+    }
+
+    // (span.2)
+    //
+    // NOT 'a' <= s[i] <= 'z'
+    // -------------------
+    // match 'c' s i = nil
+    #[test]
+    fn span_2() {
+        // G <- [a-z]
+        let program = Program {
+            names: HashMap::new(),
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Span('a', 'z'),
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(&program);
+        let input = "9".to_string();
+        let result = vm.run(&input);
+
+        assert!(result.is_err());
+        assert_eq!(
+            Error::Matching("Expected char between a and z, but got 9 instead".to_string()),
             result.unwrap_err(),
         );
         assert_eq!(0, vm.ffp);

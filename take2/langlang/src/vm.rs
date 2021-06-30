@@ -411,17 +411,17 @@ impl<'a> VM<'a> {
             }
             Some(entry) => match entry.cursor {
                 Err(_) => {
-                    debug!("       . lvar.{{3, 5}}.1");
+                    debug!("       . lvar.3");
                     self.fail()?;
                 }
                 Ok(cursor) => {
-                    if precedence < entry.precedence {
-                        debug!("       . lvar.{{3, 5}}.2");
-                        self.fail()?;
-                    } else {
+                    if entry.precedence >= precedence  {
                         debug!("       . lvar.4");
                         self.cursor = Ok(cursor);
                         self.program_counter += 1;
+                    } else {
+                        debug!("       . lvar.5");
+                        self.fail()?;
                     }
                 }
             },
@@ -475,7 +475,7 @@ impl<'a> VM<'a> {
     }
 
     fn fail(&mut self) -> Result<(), Error> {
-        debug!("       . fail, stack: {:#?}", self.stack);
+        debug!("       . fail");
         let error = match self.cursor.clone() {
             Err(e) => e,
             Ok(_) => Error::Fail,

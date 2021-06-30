@@ -63,6 +63,43 @@ impl Program {
     pub fn new(code: Vec<Instruction>, names: HashMap<usize, String>) -> Self {
         Program { names, code }
     }
+
+    pub fn name_at(&self, address: usize) -> String {
+        self.names.get(&address).unwrap_or(&"".to_string()).clone()
+    }
+
+    pub fn to_string(&self) -> String {
+        let mut output = String::new();
+        for (i, instruction) in self.code.iter().enumerate() {
+            let name = match instruction {
+                Instruction::Halt => "halt".to_string(),
+                Instruction::Any => "any".to_string(),
+                Instruction::Capture => "capture".to_string(),
+                Instruction::Fail => "fail".to_string(),
+                Instruction::Return => "return".to_string(),
+                Instruction::Char(c) => format!("char {:?}", c),
+                Instruction::Span(a, b) => format!("span {:?} {:?}", a, b),
+                Instruction::Choice(o) => format!("choice {:?}", o),
+                Instruction::Commit(o) => format!("commit {:?}", o),
+                Instruction::CommitB(o) => format!("commitb {:?}", o),
+                Instruction::Jump(addr) => format!("jump {:?}", addr),
+                Instruction::Call(addr, precedence) => {
+                    let fn_addr = i + (*addr);
+                    let fn_name = self.name_at(fn_addr);
+                    format!("call {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
+                }
+                Instruction::CallB(addr, precedence) => {
+                    let fn_addr = i - (*addr);
+                    let fn_name = self.name_at(fn_addr);
+                    format!("callb {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
+                }
+            };
+            output.push_str(format!("{:#03} ", i).as_str());
+            output.push_str(name.as_str());
+            output.push('\n');
+        }
+        output
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -91,10 +128,10 @@ impl StackFrame {
             capture,
             cursor: Ok(cursor),
             // fields not used for backtrack frames
-            captures: vec![],
             address: 0,
-            result: Err(Error::Fail),
             precedence: 0,
+            result: Err(Error::Fail),
+            captures: vec![],
         }
     }
 
@@ -341,7 +378,7 @@ impl<'a> VM<'a> {
     }
 
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
-        debug!("       . call({:?})", self.string_at(address));
+        debug!("       . call({:?})", self.program.name_at(address));
         let cursor = self.cursor.clone()?;
         if precedence == 0 {
             self.stkpush(StackFrame::new_call(
@@ -401,7 +438,7 @@ impl<'a> VM<'a> {
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
             self.accumulator = Some(Value::Node {
-                name: self.string_at(address),
+                name: self.program.name_at(address),
                 children: frame.captures,
             });
             return Ok(());
@@ -430,7 +467,7 @@ impl<'a> VM<'a> {
             self.cursor = frame.result;
             self.program_counter = pc;
             self.accumulator = Some(Value::Node {
-                name: self.string_at(address),
+                name: self.program.name_at(address),
                 children: frame.captures,
             });
         }
@@ -480,14 +517,6 @@ impl<'a> VM<'a> {
         }
 
         Ok(())
-    }
-
-    fn string_at(&self, address: usize) -> String {
-        self.program
-            .names
-            .get(&address)
-            .unwrap_or(&"".to_string())
-            .clone()
     }
 }
 

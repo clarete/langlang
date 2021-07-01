@@ -462,10 +462,11 @@ impl<'a> VM<'a> {
             self.program_counter = address;
         } else {
             debug!("       . inc.3");
-            let frame = self.stkpop()?;
+            let mut frame = self.stkpop()?;
             let pc = frame.program_counter;
             self.cursor = frame.result;
             self.program_counter = pc;
+            frame.captures.pop();
             self.accumulator = Some(Value::Node {
                 name: self.program.name_at(address),
                 children: frame.captures,
@@ -1303,7 +1304,7 @@ mod tests {
         // E <- E:1 '+' E:2
         //    / E:2 '*' E:3
         //    / D
-        // D <- '0' / '1'
+        // D <- [0-9]+
         let values = [(2, "E".to_string()), (21, "D".to_string())]
             .iter()
             .cloned()
@@ -1336,32 +1337,52 @@ mod tests {
                 Instruction::Capture,
                 Instruction::Return,
                 // D
+                Instruction::Span('0', '9'),
+                Instruction::Capture,
                 Instruction::Choice(4),
-                Instruction::Char('0'),
+                Instruction::Span('0', '9'),
                 Instruction::Capture,
-                Instruction::Commit(3),
-                Instruction::Char('1'),
-                Instruction::Capture,
+                Instruction::CommitB(3),
                 Instruction::Return,
             ],
         };
 
         let mut vm = VM::new(&program);
-        let input = "1".to_string();
+        let input = "12+34*56".to_string();
         let result = vm.run(&input);
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
-        // assert_eq!(1, vm.cursor.unwrap());
-
+        assert_eq!(8, vm.cursor.unwrap());
         assert!(vm.accumulator.is_some());
+
         assert_eq!(
             Value::Node {
                 name: "E".to_string(),
-                children: vec![Value::Node {
-                    name: "D".to_string(),
-                    children: vec![Value::Chr('1')],
-                }],
+                children: vec![
+                    Value::Node {
+                        name: "D".to_string(),
+                        children: vec![Value::Chr('1'), Value::Chr('2')],
+                    },
+                    Value::Chr('+'),
+                    Value::Node {
+                        name: "E".to_string(),
+                        children: vec![
+                            Value::Node {
+                                name: "D".to_string(),
+                                children: vec![Value::Chr('3'), Value::Chr('4')],
+                            },
+                            Value::Chr('*'),
+                            Value::Node {
+                                name: "E".to_string(),
+                                children: vec![Value::Node {
+                                    name: "D".to_string(),
+                                    children: vec![Value::Chr('5'), Value::Chr('6')],
+                                }],
+                            }
+                        ],
+                    }
+                ],
             },
             vm.accumulator.unwrap()
         );

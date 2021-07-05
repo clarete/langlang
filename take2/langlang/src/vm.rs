@@ -52,7 +52,7 @@ pub enum Error {
     EOF,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Program {
     names: HashMap<usize, String>,
     code: Vec<Instruction>,
@@ -182,7 +182,7 @@ struct LeftRecTableEntry {
 }
 
 #[derive(Debug)]
-pub struct VM<'a> {
+pub struct VM {
     // Cursor within input, error means matching failed
     cursor: Result<usize, Error>,
     // Farther Failure Position
@@ -190,7 +190,7 @@ pub struct VM<'a> {
     // Input source
     source: Vec<char>,
     // Vector of instructions and tables with literal values
-    program: &'a Program,
+    program: Program,
     // Cursor within the program
     program_counter: usize,
     // Stack of both backtrack and call frames
@@ -203,8 +203,8 @@ pub struct VM<'a> {
     accumulator: Option<Value>,
 }
 
-impl<'a> VM<'a> {
-    pub fn new(program: &'a Program) -> Self {
+impl VM {
+    pub fn new(program: Program) -> Self {
         VM {
             ffp: 0,
             cursor: Ok(0),
@@ -415,7 +415,7 @@ impl<'a> VM<'a> {
                     self.fail()?;
                 }
                 Ok(cursor) => {
-                    if entry.precedence >= precedence  {
+                    if entry.precedence >= precedence {
                         debug!("       . lvar.4");
                         self.cursor = Ok(cursor);
                         self.program_counter += 1;
@@ -544,7 +544,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -571,7 +571,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_err());
@@ -600,7 +600,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let input = "a".to_string();
         let result = vm.run(&input);
 
@@ -627,7 +627,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let input = "9".to_string();
         let result = vm.run(&input);
 
@@ -658,7 +658,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -683,7 +683,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_err());
@@ -713,7 +713,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -743,7 +743,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_err());
@@ -774,7 +774,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_err());
@@ -808,7 +808,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -838,7 +838,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -867,7 +867,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -896,7 +896,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -934,7 +934,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -972,7 +972,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_err());
@@ -1003,7 +1003,7 @@ mod tests {
         };
 
         let input = "321".to_string();
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_err());
@@ -1032,7 +1032,7 @@ mod tests {
         };
 
         let input = "n+n+n".to_string();
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -1073,7 +1073,7 @@ mod tests {
         };
 
         let input = "0+1".to_string();
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -1121,7 +1121,7 @@ mod tests {
         };
 
         let input = "0+1*1".to_string();
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let result = vm.run(&input);
 
         assert!(result.is_ok());
@@ -1159,7 +1159,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let input = "abada".to_string();
         let result = vm.run(&input);
 
@@ -1210,7 +1210,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let input = "1".to_string();
         let result = vm.run(&input);
 
@@ -1276,7 +1276,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let input = "abada".to_string();
         let result = vm.run(&input);
 
@@ -1347,7 +1347,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(&program);
+        let mut vm = VM::new(program);
         let input = "12+34*56".to_string();
         let result = vm.run(&input);
 

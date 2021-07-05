@@ -67,38 +67,40 @@ impl Program {
     pub fn name_at(&self, address: usize) -> String {
         self.names.get(&address).unwrap_or(&"".to_string()).clone()
     }
+}
 
-    pub fn to_string(&self) -> String {
-        let mut output = String::new();
+impl std::fmt::Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for (i, instruction) in self.code.iter().enumerate() {
-            let name = match instruction {
-                Instruction::Halt => "halt".to_string(),
-                Instruction::Any => "any".to_string(),
-                Instruction::Capture => "capture".to_string(),
-                Instruction::Fail => "fail".to_string(),
-                Instruction::Return => "return".to_string(),
-                Instruction::Char(c) => format!("char {:?}", c),
-                Instruction::Span(a, b) => format!("span {:?} {:?}", a, b),
-                Instruction::Choice(o) => format!("choice {:?}", o),
-                Instruction::Commit(o) => format!("commit {:?}", o),
-                Instruction::CommitB(o) => format!("commitb {:?}", o),
-                Instruction::Jump(addr) => format!("jump {:?}", addr),
+            write!(f, "{:#03} ", i)?;
+
+            match instruction {
+                Instruction::Halt => writeln!(f, "halt"),
+                Instruction::Any => writeln!(f, "any"),
+                Instruction::Capture => writeln!(f, "capture"),
+                Instruction::Fail => writeln!(f, "fail"),
+                Instruction::Return => writeln!(f, "return"),
+                Instruction::Char(c) => writeln!(f, "char {:?}", c),
+                Instruction::Span(a, b) => writeln!(f, "span {:?} {:?}", a, b),
+                Instruction::Choice(o) => writeln!(f, "choice {:?}", o),
+                Instruction::Commit(o) => writeln!(f, "commit {:?}", o),
+                Instruction::CommitB(o) => writeln!(f, "commitb {:?}", o),
+                Instruction::Jump(addr) => writeln!(f, "jump {:?}", addr),
+                // Instruction::Throw(label) => writeln!(f, "throw {:?}", label),
+                // Instruction::ThrowR(label, offset) => writeln!(f, "throwr {:?} {:?}", label, offset),
                 Instruction::Call(addr, precedence) => {
                     let fn_addr = i + (*addr);
                     let fn_name = self.name_at(fn_addr);
-                    format!("call {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
+                    writeln!(f, "call {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
                 }
                 Instruction::CallB(addr, precedence) => {
                     let fn_addr = i - (*addr);
                     let fn_name = self.name_at(fn_addr);
-                    format!("callb {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
+                    writeln!(f, "callb {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
                 }
-            };
-            output.push_str(format!("{:#03} ", i).as_str());
-            output.push_str(name.as_str());
-            output.push('\n');
+            }?;
         }
-        output
+        write!(f, "")
     }
 }
 

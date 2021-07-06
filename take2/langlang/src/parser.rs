@@ -43,9 +43,12 @@ pub struct Fun {
 pub struct Compiler {
     cursor: usize,
     code: Vec<vm::Instruction>,
+    strings: Vec<String>,
+    strings_map: HashMap<String, usize>,
     funcs: HashMap<String, Fun>,
-    names: HashMap<usize, String>,
+    identifiers: HashMap<usize, usize>,
     addrs: HashMap<usize, String>,
+    labels: HashMap<usize, (usize, usize)>,
 }
 
 impl Compiler {
@@ -53,14 +56,17 @@ impl Compiler {
         Compiler {
             cursor: 0,
             code: vec![],
+            strings: vec![],
+            strings_map: HashMap::new(),
+            identifiers: HashMap::new(),
             funcs: HashMap::new(),
-            names: HashMap::new(),
             addrs: HashMap::new(),
+            labels: HashMap::new(),
         }
     }
 
     pub fn program(self) -> vm::Program {
-        vm::Program::new(self.code, self.names)
+        vm::Program::new(self.identifiers, self.labels, self.strings, self.code)
     }
 
     pub fn compile_str(&mut self, s: &str) -> Result<(), Error> {
@@ -99,7 +105,9 @@ impl Compiler {
             }
             AST::Definition(name, expr) => {
                 let addr = self.cursor;
-                self.names.insert(addr, name.clone());
+                let strid = self.strings.len();
+                self.strings.push(name.clone());
+                self.identifiers.insert(addr, strid);
                 self.compile(*expr)?;
                 self.emit(vm::Instruction::Return);
                 self.funcs.insert(

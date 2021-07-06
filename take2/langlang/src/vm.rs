@@ -54,18 +54,33 @@ pub enum Error {
 
 #[derive(Clone, Debug)]
 pub struct Program {
-    names: HashMap<usize, String>,
+    identifiers: HashMap<usize, usize>,
+    labels: HashMap<usize, (usize, usize)>,
+    strings: Vec<String>,
     code: Vec<Instruction>,
     // source_mapping: ...
 }
 
 impl Program {
-    pub fn new(code: Vec<Instruction>, names: HashMap<usize, String>) -> Self {
-        Program { names, code }
+    pub fn new(
+        identifiers: HashMap<usize, usize>,
+        labels: HashMap<usize, (usize, usize)>,
+        strings: Vec<String>,
+        code: Vec<Instruction>,
+    ) -> Self {
+        Program {
+            identifiers,
+            labels,
+            strings,
+            code,
+        }
     }
 
-    pub fn name_at(&self, address: usize) -> String {
-        self.names.get(&address).unwrap_or(&"".to_string()).clone()
+    pub fn string_at(&self, address: usize) -> String {
+        match self.identifiers.get(&address) {
+            None => "?".to_string(),
+            Some(id) => self.strings[*id].clone(),
+        }
     }
 }
 
@@ -87,15 +102,17 @@ impl std::fmt::Display for Program {
                 Instruction::CommitB(o) => writeln!(f, "commitb {:?}", o),
                 Instruction::Jump(addr) => writeln!(f, "jump {:?}", addr),
                 // Instruction::Throw(label) => writeln!(f, "throw {:?}", label),
-                // Instruction::ThrowR(label, offset) => writeln!(f, "throwr {:?} {:?}", label, offset),
+                // Instruction::ThrowR(label, offset) => {
+                //     writeln!(f, "throwr {:?} {:?}", label, offset)
+                // }
                 Instruction::Call(addr, precedence) => {
                     let fn_addr = i + (*addr);
-                    let fn_name = self.name_at(fn_addr);
+                    let fn_name = self.string_at(fn_addr);
                     writeln!(f, "call {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
                 }
                 Instruction::CallB(addr, precedence) => {
                     let fn_addr = i - (*addr);
-                    let fn_name = self.name_at(fn_addr);
+                    let fn_name = self.string_at(fn_addr);
                     writeln!(f, "callb {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
                 }
             }?;
@@ -380,7 +397,7 @@ impl VM {
     }
 
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
-        debug!("       . call({:?})", self.program.name_at(address));
+        debug!("       . call({:?})", self.program.string_at(address));
         let cursor = self.cursor.clone()?;
         if precedence == 0 {
             self.stkpush(StackFrame::new_call(
@@ -440,7 +457,7 @@ impl VM {
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
             self.accumulator = Some(Value::Node {
-                name: self.program.name_at(address),
+                name: self.program.string_at(address),
                 children: frame.captures,
             });
             return Ok(());
@@ -470,7 +487,7 @@ impl VM {
             self.program_counter = pc;
             frame.captures.pop();
             self.accumulator = Some(Value::Node {
-                name: self.program.name_at(address),
+                name: self.program.string_at(address),
                 children: frame.captures,
             });
         }
@@ -537,7 +554,9 @@ mod tests {
         let input = "a".to_string();
         // G <- 'a'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -564,7 +583,9 @@ mod tests {
         let input = "b".to_string();
         // G <- 'a'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -593,7 +614,9 @@ mod tests {
     fn span_1() {
         // G <- [a-z]
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -620,7 +643,9 @@ mod tests {
     fn span_2() {
         // G <- [a-z]
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -649,7 +674,9 @@ mod tests {
     fn any_1() {
         let input = "abcd".to_string();
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -676,7 +703,9 @@ mod tests {
     fn any_2_eof() {
         let input = "".to_string();
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -703,7 +732,9 @@ mod tests {
         let input = "foo".to_string();
         // G <- !'a'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -733,7 +764,9 @@ mod tests {
         let input = "foo".to_string();
         // G <- !'f'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -763,7 +796,9 @@ mod tests {
         let input = "c".to_string();
         // G <- 'a' / 'b'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -797,7 +832,9 @@ mod tests {
         let input = "a".to_string();
         // G <- 'a' / 'b'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -827,7 +864,9 @@ mod tests {
         let input = "b".to_string();
         // G <- 'a' / 'b'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -858,7 +897,9 @@ mod tests {
         let input = "aab".to_string();
         // G <- 'a*'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -887,7 +928,9 @@ mod tests {
         let input = "b".to_string();
         // G <- 'a*'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -917,7 +960,9 @@ mod tests {
         // G <- D '+' D
         // D <- '0' / '1'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Jump(11),
@@ -955,7 +1000,9 @@ mod tests {
         // G <- D '+' D
         // D <- '0' / '1'
         let program = Program {
-            names: HashMap::new(),
+            identifiers: HashMap::new(),
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Jump(11),
@@ -987,10 +1034,13 @@ mod tests {
 
     #[test]
     fn lrvar_err() {
-        let values = [(2, "E".to_string())].iter().cloned().collect();
+        let identifiers = [(2, 0)].iter().cloned().collect();
+
         // G <- G '+' 'n' / 'n'
         let program = Program {
-            names: values,
+            identifiers,
+            labels: HashMap::new(),
+            strings: vec!["E".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
                 Instruction::Halt,
@@ -1016,10 +1066,13 @@ mod tests {
     // (lvar.1)
     #[test]
     fn lrvar_1() {
-        let values = [(2, "E".to_string())].iter().cloned().collect();
+        let identifiers = [(2, 0)].iter().cloned().collect();
+
         // G <- G '+' 'n' / 'n'
         let program = Program {
-            names: values,
+            identifiers,
+            labels: HashMap::new(),
+            strings: vec!["E".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
                 Instruction::Halt,
@@ -1044,15 +1097,18 @@ mod tests {
 
     #[test]
     fn lrvar_2() {
-        let values = [(2, "E".to_string()), (9, "D".to_string())]
+        let identifiers = [(2, 0), (9, 1)]
             .iter()
             .cloned()
             .collect();
+
         // E <- E:1 '+' E:2
         //    / D
         // D <- '0' / '1'
         let program = Program {
-            names: values,
+            identifiers,
+            labels: HashMap::new(),
+            strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
                 Instruction::Halt,
@@ -1085,16 +1141,19 @@ mod tests {
 
     #[test]
     fn lrvar_3() {
-        let values = [(2, "E".to_string()), (9, "D".to_string())]
+        let identifiers = [(2, 0), (9, 1)]
             .iter()
             .cloned()
             .collect();
+
         // E <- E:1 '+' E:2
         //    / E:2 '*' E:3
         //    / D
         // D <- '0' / '1'
         let program = Program {
-            names: values,
+            identifiers,
+            labels: HashMap::new(),
+            strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
                 Instruction::Halt,
@@ -1134,10 +1193,12 @@ mod tests {
     #[test]
     fn capture_choice() {
         // G <- 'abacate' / 'abada'
-        let values = [(2, "G".to_string())].iter().cloned().collect();
+        let identifiers = [(2, 0)].iter().cloned().collect();
         #[rustfmt::skip]
         let program = Program {
-            names: values,
+            identifiers,
+            labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 // Call to first production follwed by the end of the matching
                 Instruction::Call(2, 0),
@@ -1188,12 +1249,14 @@ mod tests {
     fn capture_choice_within_var() {
         // G <- D
         // D <- '0' / '1'
-        let values = [(2, "G".to_string()), (5, "D".to_string())]
+        let identifiers = [(2, 0), (5, 1)]
             .iter()
             .cloned()
             .collect();
         let program = Program {
-            names: values,
+            identifiers,
+            labels: HashMap::new(),
+            strings: vec!["G".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -1235,10 +1298,11 @@ mod tests {
     #[test]
     fn capture_choice_within_repeat() {
         // G <- ('abacate' / 'abada')+
-        let values = [(2, "G".to_string())].iter().cloned().collect();
+        let identifiers = [(2, 0)].iter().cloned().collect();
         #[rustfmt::skip]
         let program = Program {
-            names: values,
+            identifiers, labels: HashMap::new(),
+            strings: vec!["G".to_string()],
             code: vec![
                 // Call to first production follwed by the end of the matching
                 Instruction::Call(2, 0),
@@ -1307,12 +1371,14 @@ mod tests {
         //    / E:2 '*' E:3
         //    / D
         // D <- [0-9]+
-        let values = [(2, "E".to_string()), (21, "D".to_string())]
+        let identifiers = [(2, 0), (21, 1)]
             .iter()
             .cloned()
             .collect();
         let program = Program {
-            names: values,
+            identifiers,
+            labels: HashMap::new(),
+            strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
                 Instruction::Halt,

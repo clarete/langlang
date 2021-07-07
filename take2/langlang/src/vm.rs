@@ -551,7 +551,6 @@ mod tests {
     // match 'c' s i = i+1
     #[test]
     fn ch_1() {
-        let input = "a".to_string();
         // G <- 'a'
         let program = Program {
             identifiers: HashMap::new(),
@@ -566,7 +565,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("a");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -580,7 +579,6 @@ mod tests {
     // match 'c' s i = nil
     #[test]
     fn ch_2() {
-        let input = "b".to_string();
         // G <- 'a'
         let program = Program {
             identifiers: HashMap::new(),
@@ -595,7 +593,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("b");
 
         assert!(result.is_err());
         assert_eq!(
@@ -626,8 +624,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let input = "a".to_string();
-        let result = vm.run(&input);
+        let result = vm.run("a");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -655,8 +652,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let input = "9".to_string();
-        let result = vm.run(&input);
+        let result = vm.run("9");
 
         assert!(result.is_err());
         assert_eq!(
@@ -672,7 +668,6 @@ mod tests {
     // match . s i = i+1
     #[test]
     fn any_1() {
-        let input = "abcd".to_string();
         let program = Program {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
@@ -688,7 +683,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("abcd");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -701,7 +696,6 @@ mod tests {
     // match . s i = nil
     #[test]
     fn any_2_eof() {
-        let input = "".to_string();
         let program = Program {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
@@ -715,7 +709,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("");
 
         assert!(result.is_err());
         assert_eq!(Error::EOF, result.clone().unwrap_err());
@@ -729,7 +723,6 @@ mod tests {
     // match !p s i = i
     #[test]
     fn not_1() {
-        let input = "foo".to_string();
         // G <- !'a'
         let program = Program {
             identifiers: HashMap::new(),
@@ -747,7 +740,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("foo");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -761,7 +754,6 @@ mod tests {
     // match !p s i = nil
     #[test]
     fn not_2() {
-        let input = "foo".to_string();
         // G <- !'f'
         let program = Program {
             identifiers: HashMap::new(),
@@ -779,7 +771,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("foo");
 
         assert!(result.is_err());
         assert_eq!(Error::Fail, result.unwrap_err());
@@ -793,7 +785,6 @@ mod tests {
     //         match p1 / p2 s i = nil
     #[test]
     fn ord_1() {
-        let input = "c".to_string();
         // G <- 'a' / 'b'
         let program = Program {
             identifiers: HashMap::new(),
@@ -812,7 +803,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("c");
 
         assert!(result.is_err());
         // currently shows the last error
@@ -829,7 +820,6 @@ mod tests {
     // match p1 / p2 s i = i+j (ord.2)
     #[test]
     fn ord_2() {
-        let input = "a".to_string();
         // G <- 'a' / 'b'
         let program = Program {
             identifiers: HashMap::new(),
@@ -848,7 +838,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("a");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -861,7 +851,6 @@ mod tests {
     //         match p1 / p2 s i = i+k
     #[test]
     fn ord_3() {
-        let input = "b".to_string();
         // G <- 'a' / 'b'
         let program = Program {
             identifiers: HashMap::new(),
@@ -880,7 +869,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("b");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -894,7 +883,6 @@ mod tests {
     //            match p∗ s i = i+j+k
     #[test]
     fn rep_1() {
-        let input = "aab".to_string();
         // G <- 'a*'
         let program = Program {
             identifiers: HashMap::new(),
@@ -911,7 +899,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("aab");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -925,7 +913,6 @@ mod tests {
     // match p∗ s i = i
     #[test]
     fn rep_2() {
-        let input = "b".to_string();
         // G <- 'a*'
         let program = Program {
             identifiers: HashMap::new(),
@@ -942,7 +929,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("b");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -956,7 +943,6 @@ mod tests {
     // match g Ak s i = i+j
     #[test]
     fn var_1() {
-        let input = "1+1".to_string();
         // G <- D '+' D
         // D <- '0' / '1'
         let program = Program {
@@ -982,7 +968,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("1+1");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -996,7 +982,6 @@ mod tests {
     //  match g Ak s i = nil
     #[test]
     fn var_2() {
-        let input = "1+2".to_string();
         // G <- D '+' D
         // D <- '0' / '1'
         let program = Program {
@@ -1022,7 +1007,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("1+2");
 
         assert!(result.is_err());
         assert_eq!(
@@ -1054,13 +1039,12 @@ mod tests {
             ],
         };
 
-        let input = "321".to_string();
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("321");
 
         assert!(result.is_err());
-        // assert!(vm.cursor.is_ok());
-        // assert_eq!(5, vm.cursor.unwrap());
+        assert!(vm.cursor.is_err());
+        assert_eq!(0, vm.ffp);
     }
 
     // (lvar.1)
@@ -1086,9 +1070,8 @@ mod tests {
             ],
         };
 
-        let input = "n+n+n".to_string();
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("n+n+n");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -1097,10 +1080,7 @@ mod tests {
 
     #[test]
     fn lrvar_2() {
-        let identifiers = [(2, 0), (9, 1)]
-            .iter()
-            .cloned()
-            .collect();
+        let identifiers = [(2, 0), (9, 1)].iter().cloned().collect();
 
         // E <- E:1 '+' E:2
         //    / D
@@ -1130,9 +1110,8 @@ mod tests {
             ],
         };
 
-        let input = "0+1".to_string();
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("0+1");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -1141,10 +1120,7 @@ mod tests {
 
     #[test]
     fn lrvar_3() {
-        let identifiers = [(2, 0), (9, 1)]
-            .iter()
-            .cloned()
-            .collect();
+        let identifiers = [(2, 0), (9, 1)].iter().cloned().collect();
 
         // E <- E:1 '+' E:2
         //    / E:2 '*' E:3
@@ -1181,9 +1157,8 @@ mod tests {
             ],
         };
 
-        let input = "0+1*1".to_string();
         let mut vm = VM::new(program);
-        let result = vm.run(&input);
+        let result = vm.run("0+1*1");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -1223,8 +1198,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let input = "abada".to_string();
-        let result = vm.run(&input);
+        let result = vm.run("abada");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -1249,10 +1223,7 @@ mod tests {
     fn capture_choice_within_var() {
         // G <- D
         // D <- '0' / '1'
-        let identifiers = [(2, 0), (5, 1)]
-            .iter()
-            .cloned()
-            .collect();
+        let identifiers = [(2, 0), (5, 1)].iter().cloned().collect();
         let program = Program {
             identifiers,
             labels: HashMap::new(),
@@ -1276,8 +1247,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let input = "1".to_string();
-        let result = vm.run(&input);
+        let result = vm.run("1");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -1301,7 +1271,8 @@ mod tests {
         let identifiers = [(2, 0)].iter().cloned().collect();
         #[rustfmt::skip]
         let program = Program {
-            identifiers, labels: HashMap::new(),
+            identifiers,
+            labels: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 // Call to first production follwed by the end of the matching
@@ -1343,8 +1314,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let input = "abada".to_string();
-        let result = vm.run(&input);
+        let result = vm.run("abada");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
@@ -1371,10 +1341,7 @@ mod tests {
         //    / E:2 '*' E:3
         //    / D
         // D <- [0-9]+
-        let identifiers = [(2, 0), (21, 1)]
-            .iter()
-            .cloned()
-            .collect();
+        let identifiers = [(2, 0), (21, 1)].iter().cloned().collect();
         let program = Program {
             identifiers,
             labels: HashMap::new(),
@@ -1416,8 +1383,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let input = "12+34*56".to_string();
-        let result = vm.run(&input);
+        let result = vm.run("12+34*56");
 
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());

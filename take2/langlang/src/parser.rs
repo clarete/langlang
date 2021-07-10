@@ -19,6 +19,7 @@ pub struct Location {
 pub enum AST {
     Grammar(Vec<AST>),
     Definition(String, Box<AST>),
+    LabelDefinition(String, String),
     Sequence(Vec<AST>),
     Choice(Vec<AST>),
     Not(Box<AST>),
@@ -29,6 +30,7 @@ pub enum AST {
     String(String),
     Range(char, char),
     Char(char),
+    Label(String, Box<AST>),
     Any,
 }
 
@@ -49,6 +51,7 @@ pub struct Compiler {
     identifiers: HashMap<usize, usize>,
     addrs: HashMap<usize, String>,
     labels: HashMap<usize, (usize, usize)>,
+    recovery: HashMap<usize, usize>,
 }
 
 impl Compiler {
@@ -62,11 +65,18 @@ impl Compiler {
             funcs: HashMap::new(),
             addrs: HashMap::new(),
             labels: HashMap::new(),
+            recovery: HashMap::new(),
         }
     }
 
     pub fn program(self) -> vm::Program {
-        vm::Program::new(self.identifiers, self.labels, self.strings, self.code)
+        vm::Program::new(
+            self.identifiers,
+            self.labels,
+            self.strings,
+            self.recovery,
+            self.code,
+        )
     }
 
     pub fn compile_str(&mut self, s: &str) -> Result<(), Error> {
@@ -107,6 +117,7 @@ impl Compiler {
                 let addr = self.cursor;
                 let strid = self.strings.len();
                 self.strings.push(name.clone());
+                self.strings_map.insert(name.clone(), strid);
                 self.identifiers.insert(addr, strid);
                 self.compile(*expr)?;
                 self.emit(vm::Instruction::Return);
@@ -118,6 +129,34 @@ impl Compiler {
                         size: self.cursor - addr,
                     },
                 );
+                Ok(())
+            }
+            AST::LabelDefinition(name, message) => {
+                let name_id = self.strings.len();
+                self.strings.push(name.clone());
+                self.strings_map.insert(name.clone(), name_id);
+                let message_id = self.strings.len();
+                self.strings.push(message);
+                self.labels.insert(name_id, (message_id, 0));
+                Ok(())
+            }
+            AST::Label(name, element) => {
+                let label_id = match self.strings_map.get(&name) {
+                    Some(id) => *id,
+                    None => {
+                        let strid = self.strings.len();
+                        self.strings.push(name.clone());
+                        self.strings_map.insert(name.clone(), strid);
+                        // we don't add anything to labels because there isn't any message to attach
+                        strid
+                    }
+                };
+                let pos = self.cursor;
+                self.emit(vm::Instruction::Choice(0));
+                self.compile(*element)?;
+                self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 1);
+                self.emit(vm::Instruction::Commit(2));
+                self.emit(vm::Instruction::Throw(label_id));
                 Ok(())
             }
             AST::Sequence(seq) => {
@@ -184,6 +223,20 @@ impl Compiler {
                 self.emit(vm::Instruction::CommitB(self.cursor - pos));
                 Ok(())
             }
+            AST::Identifier(id) => {
+                match self.funcs.get(&id) {
+                    Some(func) => {
+                        let addr = self.cursor - func.addr;
+                        self.emit(vm::Instruction::CallB(addr, 0));
+                    }
+                    None => {
+                        self.addrs.insert(self.cursor, id.clone());
+                        self.emit(vm::Instruction::Call(0, 0));
+                    }
+                }
+                self.emit(vm::Instruction::Capture);
+                Ok(())
+            }
             AST::Range(a, b) => {
                 self.emit(vm::Instruction::Span(a, b));
                 self.emit(vm::Instruction::Capture);
@@ -203,20 +256,6 @@ impl Compiler {
             }
             AST::Any => {
                 self.emit(vm::Instruction::Any);
-                self.emit(vm::Instruction::Capture);
-                Ok(())
-            }
-            AST::Identifier(id) => {
-                match self.funcs.get(&id) {
-                    Some(func) => {
-                        let addr = self.cursor - func.addr;
-                        self.emit(vm::Instruction::CallB(addr, 0));
-                    }
-                    None => {
-                        self.addrs.insert(self.cursor, id.clone());
-                        self.emit(vm::Instruction::Call(0, 0));
-                    }
-                }
                 self.emit(vm::Instruction::Capture);
                 Ok(())
             }
@@ -255,8 +294,6 @@ pub struct Parser {
 
 type ParseFn<T> = fn(&mut Parser) -> Result<T, Error>;
 
-//type ParseFn<T> = for<'r> fn(&'r mut Parser) -> Result<T, Error>;
-
 impl Parser {
     pub fn new(s: &str) -> Self {
         return Parser {
@@ -265,10 +302,13 @@ impl Parser {
         };
     }
 
-    // GR: Grammar <- Spacing Definition+ EndOfFile
+    // GR: Grammar <- Spacing (Definition / LabelDefinition)+ EndOfFile
     pub fn parse_grammar(&mut self) -> Result<AST, Error> {
         self.parse_spacing()?;
-        let defs = self.one_or_more(|p| p.parse_definition())?;
+        let defs = self.one_or_more(|p| p.choice(vec![
+            |p| p.parse_label_definition(),
+            |p| p.parse_definition(),
+        ]))?;
         self.parse_eof()?;
         Ok(AST::Grammar(defs))
     }
@@ -281,6 +321,17 @@ impl Parser {
         self.parse_spacing()?;
         let expr = self.parse_expression()?;
         Ok(AST::Definition(id, Box::new(expr)))
+    }
+
+    // GR: LabelDefinition <- 'label' _ Identifier '=' _ Literal
+    fn parse_label_definition(&mut self) -> Result<AST, Error> {
+        self.expect_str("label")?;
+        self.parse_spacing()?;
+        let label = self.parse_identifier()?;
+        self.expect('=')?;
+        self.parse_spacing()?;
+        let literal = self.parse_literal()?;
+        Ok(AST::LabelDefinition(label, literal))
     }
 
     // GR: Expression <- Sequence (SLASH Sequence)*
@@ -310,7 +361,7 @@ impl Parser {
         }
     }
 
-    // GR: Prefix <- (AND / NOT)? Suffix
+    // GR: Prefix <- (AND / NOT)? Labeled
     fn parse_prefix(&mut self) -> Result<AST, Error> {
         let prefix = self.choice(vec![
             |p| {
@@ -325,15 +376,30 @@ impl Parser {
             },
             |_| Ok(""),
         ]);
-        let suffix = self.parse_suffix()?;
+        let labeled = self.parse_labeled()?;
         Ok(match prefix {
-            Ok("&") => AST::Not(Box::new(AST::Not(Box::new(suffix)))),
-            Ok("!") => AST::Not(Box::new(suffix)),
+            Ok("&") => AST::Not(Box::new(AST::Not(Box::new(labeled)))),
+            Ok("!") => AST::Not(Box::new(labeled)),
+            _ => labeled,
+        })
+    }
+
+    // GR: Labeled <- Suffix Label?
+    fn parse_labeled(&mut self) -> Result<AST, Error> {
+        let suffix = self.parse_suffix()?;
+        Ok(match self.parse_label() {
+            Ok(label) => AST::Label(label, Box::new(suffix)),
             _ => suffix,
         })
     }
 
-    // GR: Suffix <- Primary (QUESTION / STAR / PLUS)?
+    // GR: Label   <- "^" (Identifier !LEFTARROW)
+    fn parse_label(&mut self) -> Result<String, Error> {
+        self.expect_str("^")?;
+        self.parse_identifier()
+    }
+
+    // GR: Suffix  <- Primary (QUESTION / STAR / PLUS)?
     fn parse_suffix(&mut self) -> Result<AST, Error> {
         let primary = self.parse_primary()?;
         let suffix = self.choice(vec![

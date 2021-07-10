@@ -50,7 +50,7 @@ pub struct Compiler {
     funcs: HashMap<String, Fun>,
     identifiers: HashMap<usize, usize>,
     addrs: HashMap<usize, String>,
-    labels: HashMap<usize, (usize, usize)>,
+    labels: HashMap<usize, usize>,
     recovery: HashMap<usize, usize>,
 }
 
@@ -73,8 +73,8 @@ impl Compiler {
         vm::Program::new(
             self.identifiers,
             self.labels,
-            self.strings,
             self.recovery,
+            self.strings,
             self.code,
         )
     }
@@ -83,6 +83,16 @@ impl Compiler {
         let mut p = Parser::new(s);
         self.compile(p.parse_grammar()?)?;
         Ok(())
+    }
+
+    fn push_string(&mut self, s: String) -> usize {
+        let strid = self.strings.len();
+        if let Some(id) = self.strings_map.get(&s) {
+            return *id;
+        }
+        self.strings.push(s.clone());
+        self.strings_map.insert(s, strid);
+        strid
     }
 
     pub fn compile(&mut self, node: AST) -> Result<(), Error> {
@@ -115,9 +125,7 @@ impl Compiler {
             }
             AST::Definition(name, expr) => {
                 let addr = self.cursor;
-                let strid = self.strings.len();
-                self.strings.push(name.clone());
-                self.strings_map.insert(name.clone(), strid);
+                let strid = self.push_string(name.clone());
                 self.identifiers.insert(addr, strid);
                 self.compile(*expr)?;
                 self.emit(vm::Instruction::Return);
@@ -132,25 +140,13 @@ impl Compiler {
                 Ok(())
             }
             AST::LabelDefinition(name, message) => {
-                let name_id = self.strings.len();
-                self.strings.push(name.clone());
-                self.strings_map.insert(name.clone(), name_id);
-                let message_id = self.strings.len();
-                self.strings.push(message);
-                self.labels.insert(name_id, (message_id, 0));
+                let name_id = self.push_string(name);
+                let message_id = self.push_string(message);
+                self.labels.insert(name_id, message_id);
                 Ok(())
             }
             AST::Label(name, element) => {
-                let label_id = match self.strings_map.get(&name) {
-                    Some(id) => *id,
-                    None => {
-                        let strid = self.strings.len();
-                        self.strings.push(name.clone());
-                        self.strings_map.insert(name.clone(), strid);
-                        // we don't add anything to labels because there isn't any message to attach
-                        strid
-                    }
-                };
+                let label_id = self.push_string(name);
                 let pos = self.cursor;
                 self.emit(vm::Instruction::Choice(0));
                 self.compile(*element)?;

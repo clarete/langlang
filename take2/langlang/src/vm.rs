@@ -54,10 +54,22 @@ pub enum Error {
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    // Map with keys as the position of the first instruction of each
+    // production in the source code, and values as the index in the
+    // strings table where the name of the production can be found.
     identifiers: HashMap<usize, usize>,
-    labels: HashMap<usize, (usize, usize)>,
-    strings: Vec<String>,
+    // Map with IDs of labels as keys and the ID of the messages
+    // associated with the labels as values
+    labels: HashMap<usize, usize>,
+    // Map with the IDs of labels as keys and the index of the first
+    // line of the production with the recovery expression associated
+    // to that label as values.
     recovery: HashMap<usize, usize>,
+    // Table with strings that refer to either error labels or
+    // production identifiers.  IDs are assigned in the order they are
+    // requested.
+    strings: Vec<String>,
+    // Array of instructions that get executed by the virtual machine
     code: Vec<Instruction>,
     // source_mapping: ...
 }
@@ -65,16 +77,16 @@ pub struct Program {
 impl Program {
     pub fn new(
         identifiers: HashMap<usize, usize>,
-        labels: HashMap<usize, (usize, usize)>,
-        strings: Vec<String>,
+        labels: HashMap<usize, usize>,
         recovery: HashMap<usize, usize>,
+        strings: Vec<String>,
         code: Vec<Instruction>,
     ) -> Self {
         Program {
             identifiers,
             labels,
-            strings,
             recovery,
+            strings,
             code,
         }
     }
@@ -82,7 +94,7 @@ impl Program {
     pub fn label(&self, id: usize) -> String {
         match self.labels.get(&id) {
             None => "?".to_string(),
-            Some((sid, _)) => self.strings[*sid].clone(),
+            Some(sid) => self.strings[*sid].clone(),
         }
     }
 
@@ -1217,7 +1229,7 @@ mod tests {
     #[test]
     fn throw_1() {
         let identifiers = [(2, 0)].iter().cloned().collect();
-        let labels = [(1, (1, 0))].iter().cloned().collect();
+        let labels = [(1, 1)].iter().cloned().collect();
         let strings = vec![
             "G".to_string(),
             "Not really b".to_string(),

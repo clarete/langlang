@@ -28,6 +28,7 @@ pub enum Instruction {
     Char(char),
     Span(char, char),
     Choice(usize),
+    ChoiceP(usize),
     Commit(usize),
     CommitB(usize),
     Fail,
@@ -123,6 +124,7 @@ impl std::fmt::Display for Program {
                 Instruction::Char(c) => writeln!(f, "char {:?}", c),
                 Instruction::Span(a, b) => writeln!(f, "span {:?} {:?}", a, b),
                 Instruction::Choice(o) => writeln!(f, "choice {:?}", o),
+                Instruction::ChoiceP(o) => writeln!(f, "choicep {:?}", o),
                 Instruction::Commit(o) => writeln!(f, "commit {:?}", o),
                 Instruction::CommitB(o) => writeln!(f, "commitb {:?}", o),
                 Instruction::Jump(addr) => writeln!(f, "jump {:?}", addr),
@@ -159,10 +161,11 @@ struct StackFrame {
     precedence: usize,            // k
     capture: usize,
     captures: Vec<Value>,
+    predicate: bool,
 }
 
 impl StackFrame {
-    fn new_backtrack(cursor: usize, pc: usize, capture: usize) -> Self {
+    fn new_backtrack(cursor: usize, pc: usize, capture: usize, predicate: bool) -> Self {
         StackFrame {
             ftype: StackFrameType::Backtrack,
             program_counter: pc,
@@ -173,6 +176,7 @@ impl StackFrame {
             precedence: 0,
             result: Err(Error::Fail),
             captures: vec![],
+            predicate,
         }
     }
 
@@ -186,6 +190,7 @@ impl StackFrame {
             precedence,
             capture: 0,
             captures: vec![],
+            predicate: false,
         }
     }
 
@@ -199,6 +204,7 @@ impl StackFrame {
             precedence,
             capture: 0,
             captures: vec![],
+            predicate: false,
         }
     }
 }
@@ -299,6 +305,9 @@ impl VM {
         if frame.ftype == StackFrameType::Call {
             self.call_frames.pop().ok_or(Error::Overflow)?;
         }
+        if frame.predicate {
+            self.within_predicate = false;
+        }
         Ok(frame)
     }
 
@@ -388,8 +397,19 @@ impl VM {
                         cursor,
                         self.program_counter + offset,
                         self.num_captures(),
+                        false,
                     ));
                     self.program_counter += 1;
+                }
+                Instruction::ChoiceP(offset) => {
+                    self.stkpush(StackFrame::new_backtrack(
+                        cursor,
+                        self.program_counter + offset,
+                        self.num_captures(),
+                        true,
+                    ));
+                    self.program_counter += 1;
+                    self.within_predicate = true;
                 }
                 Instruction::Commit(offset) => {
                     self.stkpop()?;
@@ -555,6 +575,9 @@ impl VM {
                         self.cursor = Ok(cursor);
                     }
                     if f.ftype == StackFrameType::Backtrack {
+                        if f.predicate {
+                            self.within_predicate = false;
+                        }
                         break f;
                     } else {
                         self.call_frames.pop();
@@ -1230,10 +1253,7 @@ mod tests {
     fn throw_1() {
         let identifiers = [(2, 0)].iter().cloned().collect();
         let labels = [(1, 1)].iter().cloned().collect();
-        let strings = vec![
-            "G".to_string(),
-            "Not really b".to_string(),
-        ];
+        let strings = vec!["G".to_string(), "Not really b".to_string()];
 
         // G <- 'a' 'b'^l / 'c'
         let program = Program {

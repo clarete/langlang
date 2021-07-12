@@ -193,9 +193,9 @@ impl Compiler {
             }
             AST::Not(expr) => {
                 let pos = self.cursor;
-                self.emit(vm::Instruction::Choice(0));
+                self.emit(vm::Instruction::ChoiceP(0));
                 self.compile(*expr)?;
-                self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 2);
+                self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 2);
                 self.emit(vm::Instruction::Commit(1));
                 self.emit(vm::Instruction::Fail);
                 Ok(())

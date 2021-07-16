@@ -49,7 +49,9 @@ pub enum Error {
     Fail,
     LeftRec,
     Overflow,
+    // Error matching the input (ffp, expected)
     Matching(usize, String),
+    // End of file
     EOF,
 }
 
@@ -369,10 +371,7 @@ impl VM {
                     }
                     let current = self.source[cursor];
                     if current != expected {
-                        self.cursor = Err(Error::Matching(self.ffp, format!(
-                            "Expected {}, but got {} instead",
-                            expected, current,
-                        )));
+                        self.cursor = Err(Error::Matching(self.ffp, expected.to_string()));
                         continue;
                     }
                     self.accumulator = Some(Value::Chr(self.source[cursor]));
@@ -391,10 +390,7 @@ impl VM {
                         self.program_counter += 1;
                         continue;
                     }
-                    self.cursor = Err(Error::Matching(self.ffp, format!(
-                        "Expected char between {} and {}, but got {} instead",
-                        start, end, current,
-                    )));
+                    self.cursor = Err(Error::Matching(self.ffp, format!("[{}-{}]", start, end)));
                 }
                 Instruction::Choice(offset) => {
                     self.stkpush(StackFrame::new_backtrack(
@@ -667,10 +663,7 @@ mod tests {
         let result = vm.run("b");
 
         assert!(result.is_err());
-        assert_eq!(
-            Error::Matching(0, "Expected a, but got b instead".to_string()),
-            result.unwrap_err(),
-        );
+        assert_eq!(Error::Matching(0, "a".to_string()), result.unwrap_err());
     }
 
     // (span.1)
@@ -727,10 +720,7 @@ mod tests {
         let result = vm.run("9");
 
         assert!(result.is_err());
-        assert_eq!(
-            Error::Matching(0, "Expected char between a and z, but got 9 instead".to_string()),
-            result.unwrap_err(),
-        );
+        assert_eq!(Error::Matching(0, "[a-z]".to_string()), result.unwrap_err());
     }
 
     // (any.1)
@@ -883,10 +873,7 @@ mod tests {
 
         assert!(result.is_err());
         // currently shows the last error
-        assert_eq!(
-            Error::Matching(0, "Expected b, but got c instead".to_string()),
-            result.unwrap_err()
-        );
+        assert_eq!(Error::Matching(0, "b".to_string()), result.unwrap_err());
     }
 
     // (ord.2)
@@ -1091,10 +1078,7 @@ mod tests {
         let result = vm.run("1+2");
 
         assert!(result.is_err());
-        assert_eq!(
-            Error::Matching(2, "Expected 1, but got 2 instead".to_string()),
-            result.unwrap_err()
-        );
+        assert_eq!(Error::Matching(2, "1".to_string()), result.unwrap_err());
     }
 
     #[test]

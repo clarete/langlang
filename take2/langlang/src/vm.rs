@@ -49,7 +49,7 @@ pub enum Error {
     Fail,
     LeftRec,
     Overflow,
-    Matching(String),
+    Matching(usize, String),
     EOF,
 }
 
@@ -94,7 +94,7 @@ impl Program {
 
     pub fn label(&self, id: usize) -> String {
         match self.labels.get(&id) {
-            None => "?".to_string(),
+            None => self.strings[id].clone(),
             Some(sid) => self.strings[*sid].clone(),
         }
     }
@@ -365,7 +365,7 @@ impl VM {
                     }
                     let current = self.source[cursor];
                     if current != expected {
-                        self.cursor = Err(Error::Matching(format!(
+                        self.cursor = Err(Error::Matching(self.ffp, format!(
                             "Expected {}, but got {} instead",
                             expected, current,
                         )));
@@ -387,7 +387,7 @@ impl VM {
                         self.program_counter += 1;
                         continue;
                     }
-                    self.cursor = Err(Error::Matching(format!(
+                    self.cursor = Err(Error::Matching(self.ffp, format!(
                         "Expected char between {} and {}, but got {} instead",
                         start, end, current,
                     )));
@@ -441,7 +441,7 @@ impl VM {
                     } else {
                         let message = self.program.label(label);
                         match self.program.recovery.get(&label) {
-                            None => return Err(Error::Matching(message)),
+                            None => return Err(Error::Matching(self.ffp, message)),
                             Some(addr) => self.program_counter = *addr,
                         }
                     }
@@ -664,10 +664,9 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            Error::Matching("Expected a, but got b instead".to_string()),
+            Error::Matching(0, "Expected a, but got b instead".to_string()),
             result.unwrap_err(),
         );
-        assert_eq!(0, vm.ffp);
     }
 
     // (span.1)
@@ -725,10 +724,9 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            Error::Matching("Expected char between a and z, but got 9 instead".to_string()),
+            Error::Matching(0, "Expected char between a and z, but got 9 instead".to_string()),
             result.unwrap_err(),
         );
-        assert_eq!(0, vm.ffp);
     }
 
     // (any.1)
@@ -882,10 +880,9 @@ mod tests {
         assert!(result.is_err());
         // currently shows the last error
         assert_eq!(
-            Error::Matching("Expected b, but got c instead".to_string()),
+            Error::Matching(0, "Expected b, but got c instead".to_string()),
             result.unwrap_err()
         );
-        assert_eq!(0, vm.ffp);
     }
 
     // (ord.2)
@@ -1091,10 +1088,9 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            Error::Matching("Expected 1, but got 2 instead".to_string()),
+            Error::Matching(2, "Expected 1, but got 2 instead".to_string()),
             result.unwrap_err()
         );
-        assert_eq!(2, vm.ffp);
     }
 
     #[test]
@@ -1281,11 +1277,9 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            Error::Matching("Not really b".to_string()),
+            Error::Matching(1, "Not really b".to_string()),
             result.unwrap_err()
         );
-
-        assert_eq!(1, vm.ffp);
         assert_eq!(Vec::<(usize, usize)>::new(), vm.error_log);
     }
 

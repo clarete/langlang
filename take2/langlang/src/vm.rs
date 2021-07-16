@@ -13,7 +13,7 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq)]
 pub enum Value {
     Chr(char),
-    // Str(String),
+    Str(String),
     // I64(i64),
     // U64(u64),
     // F64(f64),
@@ -27,6 +27,7 @@ pub enum Instruction {
     Capture,
     Char(char),
     Span(char, char),
+    Str(usize),
     Choice(usize),
     ChoiceP(usize),
     Commit(usize),
@@ -128,6 +129,7 @@ impl std::fmt::Display for Program {
                 Instruction::Fail => writeln!(f, "fail"),
                 Instruction::Return => writeln!(f, "return"),
                 Instruction::Char(c) => writeln!(f, "char {:?}", c),
+                Instruction::Str(i) => writeln!(f, "str {:?}", i),
                 Instruction::Span(a, b) => writeln!(f, "span {:?} {:?}", a, b),
                 Instruction::Choice(o) => writeln!(f, "choice {:?}", o),
                 Instruction::ChoiceP(o) => writeln!(f, "choicep {:?}", o),
@@ -391,6 +393,27 @@ impl VM {
                         continue;
                     }
                     self.cursor = Err(Error::Matching(self.ffp, format!("[{}-{}]", start, end)));
+                }
+                Instruction::Str(id) => {
+                    let s = self.program.string_at(id);
+                    let mut matches = 0;
+                    for (i, expected) in s.chars().enumerate() {
+                        let local_cursor = cursor + i;
+                        if local_cursor >= self.source.len() {
+                            break;
+                        }
+                        let current = self.source[local_cursor];
+                        if current == expected {
+                            self.advance_cursor()?;
+                            matches += 1;
+                        }
+                    }
+                    if matches == s.len() {
+                        self.accumulator = Some(Value::Str(s));
+                    } else {
+                        self.cursor = Err(Error::Matching(self.ffp, s));
+                    }
+                    self.program_counter += 1;
                 }
                 Instruction::Choice(offset) => {
                     self.stkpush(StackFrame::new_backtrack(
@@ -1269,6 +1292,63 @@ mod tests {
             result.unwrap_err()
         );
         assert_eq!(Vec::<(usize, usize)>::new(), vm.error_log);
+    }
+
+    #[test]
+    fn str_1() {
+        let program = Program {
+            identifiers: [(2, 0)].iter().cloned().collect(),
+            labels: HashMap::new(),
+            recovery: HashMap::new(),
+            strings: vec!["G".to_string(), "abacate".to_string()],
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Str(1),
+                Instruction::Capture,
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(program);
+        let result = vm.run("abacate");
+
+        assert!(result.is_ok());
+        assert!(vm.cursor.is_ok());
+        assert_eq!(7, vm.cursor.unwrap());
+        assert!(vm.accumulator.is_some());
+        assert_eq!(
+            Value::Node {
+                name: "G".to_string(),
+                children: vec![Value::Str("abacate".to_string())],
+            },
+            vm.accumulator.unwrap(),
+        );
+    }
+
+    #[test]
+    fn str_2() {
+        let program = Program {
+            identifiers: [(2, 0)].iter().cloned().collect(),
+            labels: HashMap::new(),
+            recovery: HashMap::new(),
+            strings: vec!["G".to_string(), "abacate".to_string()],
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Str(1),
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(program);
+        let result = vm.run("abacaxi");
+
+        assert!(result.is_err());
+        assert_eq!(
+            Error::Matching(5, "abacate".to_string()),
+            result.unwrap_err(),
+        );
     }
 
     #[test]

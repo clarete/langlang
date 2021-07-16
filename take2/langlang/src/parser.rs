@@ -302,10 +302,11 @@ impl Parser {
     // GR: Grammar <- Spacing (Definition / LabelDefinition)+ EndOfFile
     pub fn parse_grammar(&mut self) -> Result<AST, Error> {
         self.parse_spacing()?;
-        let defs = self.one_or_more(|p| p.choice(vec![
-            |p| p.parse_label_definition(),
-            |p| p.parse_definition(),
-        ]))?;
+        let defs = self.one_or_more(|p| {
+            p.choice(vec![|p| p.parse_label_definition(), |p| {
+                p.parse_definition()
+            }])
+        })?;
         self.parse_eof()?;
         Ok(AST::Grammar(defs))
     }
@@ -320,7 +321,7 @@ impl Parser {
         Ok(AST::Definition(id, Box::new(expr)))
     }
 
-    // GR: LabelDefinition <- 'label' _ Identifier '=' _ Literal
+    // GR: LabelDefinition <- LABEL Identifier EQ Literal
     fn parse_label_definition(&mut self) -> Result<AST, Error> {
         self.expect_str("label")?;
         self.parse_spacing()?;
@@ -390,7 +391,7 @@ impl Parser {
         })
     }
 
-    // GR: Label   <- "^" (Identifier !LEFTARROW)
+    // GR: Label   <- "^" Identifier
     fn parse_label(&mut self) -> Result<String, Error> {
         self.expect_str("^")?;
         self.parse_identifier()
@@ -425,7 +426,7 @@ impl Parser {
         })
     }
 
-    // GR: Primary <- Identifier !LEFTARROW
+    // GR: Primary <- Identifier !(LEFTARROW / (Identifier EQ))
     // GR:          / OPEN Expression CLOSE
     // GR:          / Literal / Class / DOT
     fn parse_primary(&mut self) -> Result<AST, Error> {
@@ -435,7 +436,12 @@ impl Parser {
                 p.not(|p| {
                     p.expect('<')?;
                     p.expect('-')?;
-                    Ok(())
+                    p.parse_spacing()
+                })?;
+                p.not(|p| {
+                    p.parse_identifier()?;
+                    p.expect('=')?;
+                    p.parse_spacing()
                 })?;
                 Ok(AST::Identifier(id))
             },

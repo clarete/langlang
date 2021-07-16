@@ -266,7 +266,7 @@ impl Compiler {
 
 #[derive(Debug)]
 pub enum Error {
-    BacktrackError(String),
+    BacktrackError(usize, String),
     CompileError(String),
     // ParseError(String),
 }
@@ -276,15 +276,15 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::BacktrackError(m) => write!(f, "Backtrack Error: {}", m),
+            Error::BacktrackError(i, m) => write!(f, "Syntax Error: {}: {}", i, m),
             Error::CompileError(m) => write!(f, "Compile Error: {}", m),
-            // Error::ParseError(m) => write!(f, "Parse Error: {}", m),
         }
     }
 }
 
 pub struct Parser {
     cursor: usize,
+    ffp: usize,
     source: Vec<char>,
 }
 
@@ -294,6 +294,7 @@ impl Parser {
     pub fn new(s: &str) -> Self {
         return Parser {
             cursor: 0,
+            ffp: 0,
             source: s.chars().collect(),
         };
     }
@@ -685,7 +686,7 @@ impl Parser {
             match func(self) {
                 Ok(ch) => output.push(ch),
                 Err(e) => match e {
-                    Error::BacktrackError(_) => break,
+                    Error::BacktrackError(..) => break,
                     _ => return Err(e),
                 },
             }
@@ -743,10 +744,14 @@ impl Parser {
 
     fn next(&mut self) {
         self.cursor += 1;
+
+        if self.cursor > self.ffp {
+            self.ffp = self.cursor;
+        }
     }
 
     fn err(&mut self, msg: String) -> Error {
-        Error::BacktrackError(msg)
+        Error::BacktrackError(self.ffp, msg)
     }
 }
 

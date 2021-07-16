@@ -99,11 +99,15 @@ impl Program {
         }
     }
 
-    pub fn string_at(&self, address: usize) -> String {
+    pub fn identifier(&self, address: usize) -> String {
         match self.identifiers.get(&address) {
             None => "?".to_string(),
             Some(id) => self.strings[*id].clone(),
         }
+    }
+
+    pub fn string_at(&self, id: usize) -> String {
+        self.strings[id].clone()
     }
 }
 
@@ -131,12 +135,12 @@ impl std::fmt::Display for Program {
                 Instruction::Throw(label) => writeln!(f, "throw {:?}", label),
                 Instruction::Call(addr, precedence) => {
                     let fn_addr = i + (*addr);
-                    let fn_name = self.string_at(fn_addr);
+                    let fn_name = self.identifier(fn_addr);
                     writeln!(f, "call {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
                 }
                 Instruction::CallB(addr, precedence) => {
                     let fn_addr = i - (*addr);
-                    let fn_name = self.string_at(fn_addr);
+                    let fn_name = self.identifier(fn_addr);
                     writeln!(f, "callb {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
                 }
             }?;
@@ -459,7 +463,7 @@ impl VM {
     }
 
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
-        debug!("       . call({:?})", self.program.string_at(address));
+        debug!("       . call({:?})", self.program.identifier(address));
         let cursor = self.cursor.clone()?;
         if precedence == 0 {
             self.stkpush(StackFrame::new_call(
@@ -519,7 +523,7 @@ impl VM {
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
             self.accumulator = Some(Value::Node {
-                name: self.program.string_at(address),
+                name: self.program.identifier(address),
                 children: frame.captures,
             });
             return Ok(());
@@ -549,7 +553,7 @@ impl VM {
             self.program_counter = pc;
             frame.captures.pop();
             self.accumulator = Some(Value::Node {
-                name: self.program.string_at(address),
+                name: self.program.identifier(address),
                 children: frame.captures,
             });
         }

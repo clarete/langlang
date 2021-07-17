@@ -27,7 +27,7 @@ pub enum AST {
     ZeroOrMore(Box<AST>),
     OneOrMore(Box<AST>),
     Identifier(String),
-    String(String),
+    Str(String),
     Range(char, char),
     Char(char),
     Label(String, Box<AST>),
@@ -238,11 +238,10 @@ impl Compiler {
                 self.emit(vm::Instruction::Capture);
                 Ok(())
             }
-            AST::String(s) => {
-                for c in s.chars() {
-                    self.emit(vm::Instruction::Char(c));
-                    self.emit(vm::Instruction::Capture);
-                }
+            AST::Str(s) => {
+                let id = self.push_string(s);
+                self.emit(vm::Instruction::Str(id));
+                self.emit(vm::Instruction::Capture);
                 Ok(())
             }
             AST::Char(c) => {
@@ -453,7 +452,7 @@ impl Parser {
                 p.parse_spacing()?;
                 Ok(expr)
             },
-            |p| Ok(AST::String(p.parse_literal()?)),
+            |p| Ok(AST::Str(p.parse_literal()?)),
             |p| Ok(AST::Choice(p.parse_class()?)),
             |p| {
                 p.parse_dot()?;

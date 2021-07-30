@@ -1,0 +1,53 @@
+Prog        <- PUBLIC CLASS NAME LCUR PUBLIC STATIC VOID MAIN LPAR STRING LBRA RBRA NAME RPAR BlockStmt
+BlockStmt   <- LCUR Stmt* RCUR^rcblk
+Stmt        <- IfStmt / WhileStmt / PrintStmt / DecStmt / AssignStmt / BlockStmt
+IfStmt      <- IF LPAR^lpif Exp^condi RPAR^rpif Stmt^then (ELSE Stmt^else)?
+WhileStmt   <- WHILE LPAR^lpw Exp^condw RPAR^rpw Stmt^body
+DecStmt     <- INT NAME^ndec (ASSIGN Exp^edec)? SEMI^semid
+AssignStmt  <- NAME ASSIGN^assign Exp^rval SEMI^semia
+PrintStmt   <- PRINTLN LPAR^lpp Exp^eprint RPAR^rpp SEMI^semip
+Exp         <- RelExp (EQ RelExp^relexp)*
+RelExp      <- AddExp (LT AddExp^addexp)*
+AddExp      <- MulExp ((PLUS / MINUS) MulExp^mulexp)*
+MulExp      <- AtomExp ((TIMES / DIV) AtomExp^atomexp)*
+AtomExp     <- LPAR Exp^parexp RPAR^rpe
+             / NUMBER
+             / NAME
+
+NAME        <- [a-zA-Z_][a-zA-Z0-9_]* _
+NUMBER      <- [0-9]+   _
+
+STRING      <- 'String' _
+INT         <- 'int'    _
+PUBLIC      <- 'public' _
+CLASS       <- 'class'  _
+STATIC      <- 'static' _
+VOID        <- 'void'   _
+MAIN        <- 'main'   _
+PRINTLN     <- 'System.out.println' _
+
+IF          <- 'if'     _
+ELSE        <- 'else'   _
+WHILE       <- 'while'  _
+
+LBRA        <- '['      _
+RBRA        <- ']'      _
+LPAR        <- '('      _
+RPAR        <- ')'      _
+LCUR        <- '{'      _
+RCUR        <- '}'      _
+
+MINUS       <- '-'      _
+PLUS        <- '+'      _
+TIMES       <- '*'      _
+DIV         <- '/'      _
+
+ASSIGN      <- '='      _
+EQ          <- '=='     _
+LT          <- '<'      _
+SEMI        <- ';'      _
+
+_           <- Space*
+Space       <- ' ' / '\t'/ EndOfLine
+EndOfLine   <- '\r\n'/ '\n' / '\r'
+EndOfFile   <- !.

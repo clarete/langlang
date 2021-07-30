@@ -1,0 +1,17 @@
+# Execute `cargo run -- shell` and try this out
+Value <- SP
+
+SP <- '\\20'
+
+# Read hex numbers.  The label hexDigit is there to say that if the
+# parser sees 0x, it MUST then succeed parsing the expression that
+# follows it ([a-fA-F0-9]+).  If it doesn't, the following message
+# will be shown instead of the automated one
+label hexDigit = 'Hexadecimals (started with 0x) require digits in the ranges of [a-f][0-9]'
+HexNum <- '0x' [a-fA-F0-9]+^hexDigit
+
+# We do emojies too, try an animal
+Emoji  <- [🦄🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵]
+
+# Make sure we can still create rules named "label"
+label  <- 'a label'

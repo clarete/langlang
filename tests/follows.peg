@@ -1,0 +1,15 @@
+use std::peg::ast
+use std::ds::stack
+
+lang Follows {
+  use ast::*
+
+  let stk = stack::new()
+
+  let depth = 0
+
+  Definition <- ast::Definition  -> push(stk, stack::new())
+                                 -> depth++
+
+  Identifier <- ast::Identifier  -> push(stk[depth], i)
+}

@@ -1,0 +1,14 @@
+Value   <- Array / Buffer / String / Integer / Error
+
+Array   <- '*' length:l eostr Value+l
+
+Buffer  <- '$' length:l eostr .+l eostr
+String  <- '+' %{ (!eostr .)* } eostr
+# Guaranteed to be in the range of a signed 64 bit integer. How to
+# validate range?
+Integer <- ':' %{ (!eostr .)* } eostr
+Error   <- '-' %{ (!eostr .)* } eostr
+
+null    <- "$-1\r\n" / "*-1\r\n"
+length  <- %{ [0-9]+ }
+eostr   <- '\r\n'

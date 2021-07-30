@@ -1,10 +1,10 @@
 File    <- _ %Line*
 Line    <- %Val (SEP %Val)* EOL
 Val     <- Quote+ / %{ (!(SEP / EOL) .)* }
-Quote   <- Q %{ (!Q .)* } Q
+Quote   <- Q %{ (!Q .)* } Q _
 
 SEP     <- ',' _
-Q       <- '"' _
+Q       <- '"'
 
 _       <- Space*
 Space   <- ' ' / '\t'

@@ -1,0 +1,4 @@
+emailaddress = localpart "@" domainpart
+localpart = 1*ALPHA ; And this is a comment, by the way
+domainpart = 1*ALPHA *("." 1*ALPHA)
+ALPHA = %x41-5A / %x61-7A ; Upper and lower case ASCII letters (A-Z, a-z)

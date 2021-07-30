@@ -1,0 +1,99 @@
+# Scopes
+Module          <- %Code EndOfFile
+Code            <- _ ((Statement / Expression) EndOfLine?)*
+CodeBlock       <- CBOP %Code CBCL
+CodeOrBlock     <- (%CodeBlock / %Code)
+
+# Expressions
+Expression      <- Factor %AddExpr*
+AddExpr         <- (ADD / SUB) Factor
+Factor          <- Primary %MulExpr*
+MulExpr         <- (MUL / DIV) %Primary
+Primary         <- PROP %Expression PRCL
+                 / %Value
+                 / %FunDef
+                 / %FunCall
+                 / %Identifier
+                 / %{ '-' } %Primary
+
+# Values
+Value           <- %Number / %String / %BOOL
+Number          <- %NEGATIVE? (%BIN / %HEX / %FLOAT / %DEC)
+String          <- DQUOTE %{ (!DQUOTE .)* } DQUOTE _
+
+# Function Declaration
+FunDef          <- FN %Identifier? %DefParams CodeOrBlock
+DefParams       <- PROP %DefParam? (PARAMSEP %DefParam)* PRCL
+DefParam        <- %Identifier (ASSIGN %Expression)?
+
+# Function Call
+FunCall         <- (%FunDef / Identifier) %CallParams
+CallParams      <- PROP %CallParamItems PRCL
+CallParamItems  <- %Expression? (PARAMSEP %Expression)*
+
+# Statements
+Statement       <- %ReturnStm / %WhileStm / %ForStm / %IfStm / %FunDef / %Assignment
+Assignment      <- %Identifier ASSIGN %Expression
+
+# Control Flow Statements
+ForStm          <- FOR %ForSteps %CodeBlock
+ForSteps        <- PROP %Assignment FORSEP %Expression FORSEP %Expression PRCL
+Test            <- PROP %Expression PRCL
+WhileStm        <- WHILE %Test %CodeOrBlock
+IfStm           <- IF %Test %CodeOrBlock %ElseStm?
+ElseStm         <- ELSE %CodeOrBlock
+ReturnStm       <- RETURN %Expression
+
+# Lexcical Hierarchy
+
+## Values
+Identifier      <- %{ [a-zA-Z_][a-zA-Z0-9_]* }  _
+DEC             <- %{ [0-9]+ }                  _
+FLOAT           <- %{ [0-9]* '.' [0-9]+ }       _
+BIN             <- '0b' %{ [0-1]+ }             _
+HEX             <- '0x' %{ [0-9a-fA-F]+ }       _
+BOOL            <- %{ ('true' / 'false') }      _
+
+## Keywords
+BREAK           <- 'break'        _
+CASE            <- 'case'         _
+CONTINUE        <- 'continue'     _
+EACH            <- 'each'         _
+ELSE            <- 'else'         _
+FOR             <- 'for'          _
+FN              <- 'fn'           _
+WHILE           <- 'while'        _
+IF              <- 'if'           _
+MATCH           <- 'match'        _
+RETURN          <- 'return'       _
+SWITCH          <- 'switch'       _
+
+## Lexical Delimiters
+DQUOTE          <- '"'
+PARAMSEP        <- ',' _
+FORSEP          <- ';' _
+PROP            <- '(' _
+PRCL            <- ')' _
+CBOP            <- '{' _
+CBCL            <- '}' _
+NEGATIVE        <- '-' _
+ASSIGN          <- '=' _
+
+## Operators
+ADD             <- '+'  _
+SUB             <- '-'  _
+MUL             <- '*'  _
+DIV             <- '/'  _
+OLT             <- '<'  _
+OLTE            <- '<=' _
+OGT             <- '>'  _
+OGTE            <- '>=' _
+RSHIFT          <- '>>' _
+LSHIFT          <- '<<' _
+
+## Whitespace Handling
+_               <- (Space / %Comment)*
+Comment         <- '#' %{ (!EndOfLine .)* } EndOfLine
+Space           <- ' ' / '\t' / EndOfLine
+EndOfLine       <- '\r\n' / '\n' / '\r'
+EndOfFile       <- !.

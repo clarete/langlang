@@ -1,0 +1,32 @@
+JSONObject <- CBO (Pair (COMA Pair)*)? CBC
+Pair       <- String SEMICOLON Value
+Array      <- ARO (Value (COMA Value)* )? ARC
+Value      <- String
+           / Number
+           / JSONObject
+           / Array
+           / True
+           / False
+           / Null
+True      <- "true"
+False     <- "false"
+Null      <- "null"
+String    <- doublequote Char* doublequote
+Char      <- backslash doublequote
+           / backslash backslash
+           / backslash [bfnrt]
+           / backslash 'u' Hex Hex Hex Hex
+           / (!doublequote .)
+Number    <- '0' / [1-9] Digit* (DOT Digit*)?
+Digit     <- [0-9]
+Hex       <- [0-9A-Fa-f]
+
+backslash   <- '\\'
+doublequote <- '"'
+DOT         <- '.'
+SEMICOLON   <- ':'
+COMA        <- ','
+CBO         <- '{'
+CBC         <- '}'
+ARO         <- '['
+ARC         <- ']'

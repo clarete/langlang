@@ -7,6 +7,7 @@
 // compiled to programs, but how programs get executted as patterns.
 //
 
+use std::boxed::Box;
 use log::debug;
 use std::collections::HashMap;
 
@@ -62,6 +63,10 @@ pub struct Program {
     // production in the source code, and values as the index in the
     // strings table where the name of the production can be found.
     identifiers: HashMap<usize, usize>,
+    // Map from addresses in the `code` vector to sets of vectors with
+    // string IDs.  That is used for reporting which terminals are
+    // expected (FOLLOWS set) after a certain expression
+    follows: HashMap<usize, Vec<usize>>,
     // Map with IDs of labels as keys and the ID of the messages
     // associated with the labels as values
     labels: HashMap<usize, usize>,
@@ -75,12 +80,12 @@ pub struct Program {
     strings: Vec<String>,
     // Array of instructions that get executed by the virtual machine
     code: Vec<Instruction>,
-    // source_mapping: ...
 }
 
 impl Program {
     pub fn new(
         identifiers: HashMap<usize, usize>,
+        follows: HashMap<usize, Vec<usize>>,
         labels: HashMap<usize, usize>,
         recovery: HashMap<usize, usize>,
         strings: Vec<String>,
@@ -88,6 +93,7 @@ impl Program {
     ) -> Self {
         Program {
             identifiers,
+            follows,
             labels,
             recovery,
             strings,
@@ -109,6 +115,19 @@ impl Program {
         }
     }
 
+    pub fn expected(&self, address: usize) -> Vec<String> {
+        // println!("EXPECTED requested: {:?}", address);
+        match self.follows.get(&address) {
+            None => vec![],
+            Some(ids) => {
+                let stuff = ids.iter().map(|id| self.string_at(*id)).collect();
+                // println!("   IDSSS: {:?}", ids);
+                // println!("   STUFF: {:?}", stuff);
+                stuff
+            },
+        }
+    }
+
     pub fn string_at(&self, id: usize) -> String {
         self.strings[id].clone()
     }
@@ -118,6 +137,7 @@ impl std::fmt::Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "Labels: {:#?}", self.labels)?;
         writeln!(f, "Strings: {:#?}", self.strings)?;
+        writeln!(f, "Follows: {:#?}", self.follows)?;
 
         for (i, instruction) in self.code.iter().enumerate() {
             write!(f, "{:#03} ", i)?;
@@ -129,7 +149,7 @@ impl std::fmt::Display for Program {
                 Instruction::Fail => writeln!(f, "fail"),
                 Instruction::Return => writeln!(f, "return"),
                 Instruction::Char(c) => writeln!(f, "char {:?}", c),
-                Instruction::Str(i) => writeln!(f, "str {:?}", i),
+                Instruction::Str(i) => writeln!(f, "str {:?} {:?}", self.strings[*i], i),
                 Instruction::Span(a, b) => writeln!(f, "span {:?} {:?}", a, b),
                 Instruction::Choice(o) => writeln!(f, "choice {:?}", o),
                 Instruction::ChoiceP(o) => writeln!(f, "choicep {:?}", o),
@@ -140,12 +160,12 @@ impl std::fmt::Display for Program {
                 Instruction::Call(addr, precedence) => {
                     let fn_addr = i + (*addr);
                     let fn_name = self.identifier(fn_addr);
-                    writeln!(f, "call {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
+                    writeln!(f, "call {:?} {:?} {:?}", fn_name, fn_addr, *precedence)
                 }
                 Instruction::CallB(addr, precedence) => {
                     let fn_addr = i - (*addr);
                     let fn_name = self.identifier(fn_addr);
-                    writeln!(f, "callb {:?}({:?}) {:?}", fn_name, fn_addr, *precedence)
+                    writeln!(f, "callb {:?} {:?} {:?}", fn_name, fn_addr, *precedence)
                 }
             }?;
         }
@@ -256,6 +276,8 @@ pub struct VM {
     lrmemo: HashMap<LeftRecTableKey, LeftRecTableEntry>,
     // Where value returned from successful match operation is stored
     accumulator: Option<Value>,
+    // Set of tokens that are displayed as expected upon error
+    expected: Box<Vec<usize>>,
     // Error log contains all errors captured during recovery.  It is
     // a vector containing pairs made of the label recovered and the
     // position in the cursor where it started
@@ -276,6 +298,7 @@ impl VM {
             call_frames: vec![],
             lrmemo: HashMap::new(),
             accumulator: None,
+            expected: Box::new(vec![]),
             error_log: vec![],
             within_predicate: false,
         }
@@ -353,7 +376,9 @@ impl VM {
                 Err(_) => (Instruction::Fail, 0),
             };
 
-            debug!("[{:?}] I: {:?}", cursor, instruction);
+            debug!("[{:?},{:?}] I: {:?}", self.program_counter, cursor, instruction);
+
+            // if let Some(expected)
 
             match instruction {
                 Instruction::Halt => break,
@@ -373,6 +398,7 @@ impl VM {
                     }
                     let current = self.source[cursor];
                     if current != expected {
+                        // println!("OIA PROCE VE FI: {:?}", self.program.expected(self.program_counter));
                         self.cursor = Err(Error::Matching(self.ffp, expected.to_string()));
                         continue;
                     }
@@ -392,6 +418,7 @@ impl VM {
                         self.program_counter += 1;
                         continue;
                     }
+                    // println!("OIA PROCE VE FI: {:?}", self.program.expected(self.program_counter));
                     self.cursor = Err(Error::Matching(self.ffp, format!("[{}-{}]", start, end)));
                 }
                 Instruction::Str(id) => {
@@ -411,6 +438,7 @@ impl VM {
                     if matches == s.len() {
                         self.accumulator = Some(Value::Str(s));
                     } else {
+                        // println!("STR OIA PROCE VE FI: {:?}", self.program_counter);
                         self.cursor = Err(Error::Matching(self.ffp, s));
                     }
                     self.program_counter += 1;
@@ -585,6 +613,7 @@ impl VM {
             Err(e) => e,
             Ok(_) => Error::Fail,
         };
+        //println!("FAIA OIA PROCE VE FI: {:?}", self.program_counter);
         let frame = loop {
             debug!("       . pop");
             match self.stack.pop() {
@@ -644,6 +673,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -673,6 +703,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -701,6 +732,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -730,6 +762,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -756,6 +789,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -785,6 +819,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -814,6 +849,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -846,6 +882,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -878,6 +915,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -910,6 +948,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -942,6 +981,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -975,6 +1015,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -1006,6 +1047,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -1038,6 +1080,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -1078,6 +1121,7 @@ mod tests {
             identifiers: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -1113,6 +1157,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["E".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
@@ -1145,6 +1190,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["E".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
@@ -1178,6 +1224,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
@@ -1220,6 +1267,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 1),
@@ -1268,6 +1316,7 @@ mod tests {
             labels,
             strings,
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
@@ -1300,6 +1349,7 @@ mod tests {
             identifiers: [(2, 0)].iter().cloned().collect(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string(), "abacate".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -1332,6 +1382,7 @@ mod tests {
             identifiers: [(2, 0)].iter().cloned().collect(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string(), "abacate".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -1360,6 +1411,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 // Call to first production follwed by the end of the matching
@@ -1415,6 +1467,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 0),
@@ -1462,6 +1515,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
                 // Call to first production follwed by the end of the matching
@@ -1535,6 +1589,7 @@ mod tests {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
             strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
                 Instruction::Call(2, 1),

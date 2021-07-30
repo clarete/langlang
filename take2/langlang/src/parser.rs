@@ -43,15 +43,38 @@ pub struct Fun {
 
 #[derive(Debug)]
 pub struct Compiler {
+    // The index of the last instruction written the `code` vector
     cursor: usize,
+    // Vector where the compiler writes down the instructions
     code: Vec<vm::Instruction>,
+    // Storage for unique (interned) strings
     strings: Vec<String>,
+    // Map from strings to their position in the `strings` vector
     strings_map: HashMap<String, usize>,
+    // Map from set of production names to the set of metadata about
+    // the production
     funcs: HashMap<String, Fun>,
+    // Map from set of positions of the first instruction of rules to
+    // the position of their index in the strings map
     identifiers: HashMap<usize, usize>,
+    // Map from call site addresses to production names that keeps
+    // calls that need to be patched because they occurred syntaticaly
+    // before the definition of the production
     addrs: HashMap<usize, String>,
+    // Map from the set of labels to the set of messages for error
+    // reporting
     labels: HashMap<usize, usize>,
+    // Map from the set of label IDs to the set with the first address
+    // of the label's respective recovery expression
     recovery: HashMap<usize, usize>,
+    // Map from the set of addresses to the set of vectors of
+    // terminals that should be expected in case the expression under
+    // the address fails parsing
+    follows: HashMap<usize, Vec<usize>>,
+    follows_stk: Vec<Vec<usize>>,
+    firsts_stk: Vec<Vec<usize>>,
+    firsts_by_id: HashMap<usize, Vec<usize>>,
+    indent_level: usize,
 }
 
 impl Compiler {
@@ -66,12 +89,18 @@ impl Compiler {
             addrs: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
+            follows: HashMap::new(),
+            follows_stk: vec![],
+            firsts_stk: vec![],
+            firsts_by_id: HashMap::new(),
+            indent_level: 0,
         }
     }
 
     pub fn program(self) -> vm::Program {
         vm::Program::new(
             self.identifiers,
+            self.follows,
             self.labels,
             self.recovery,
             self.strings,
@@ -120,15 +149,25 @@ impl Compiler {
                             )));
                         }
                     }
+                    // println!("FIRSTS FOR: {:?}: {:?}", addr, self.firsts_by_id.get(&addr));
                 }
+                // println!("FIRSTS BY ADDR: {:?}", self.firsts_by_id);
                 Ok(())
             }
             AST::Definition(name, expr) => {
                 let addr = self.cursor;
                 let strid = self.push_string(name.clone());
                 self.identifiers.insert(addr, strid);
+                self.firsts_stk.push(vec![]);
+
+                let n = format!("Definition {:?}", name);
+                self.indent(n.as_str());
                 self.compile(*expr)?;
+                self.dedent(n.as_str());
                 self.emit(vm::Instruction::Return);
+                let firsts = self.firsts_stk.pop().unwrap();
+                // println!("DEF FIRSTS: {} {:?} {:?}\n", name, addr, firsts);
+                self.firsts_by_id.insert(addr, firsts);
                 self.funcs.insert(
                     name.clone(),
                     Fun {
@@ -156,9 +195,22 @@ impl Compiler {
                 Ok(())
             }
             AST::Sequence(seq) => {
+                let mut i = 0;
+                self.indent("Seq");
                 for s in seq {
+                    let cursor = self.cursor;
+                    self.follows_stk.push(vec![]);
+                    self.indent("SeqItem");
                     self.compile(s)?;
+                    self.dedent("SeqItem");
+                    let follows = self.follows_stk.pop().unwrap();
+                    if i == 0 && follows.len() > 0 {
+                        self.add_first(follows[0]);
+                    }
+                    i += 1;
+                    self.follows.insert(cursor, follows);
                 }
+                self.dedent("Seq");
                 Ok(())
             }
             AST::Optional(op) => {
@@ -173,6 +225,10 @@ impl Compiler {
             AST::Choice(choices) => {
                 let (mut i, last_choice) = (0, choices.len() - 1);
                 let mut commits = vec![];
+                self.firsts_stk.push(vec![]);
+
+                self.indent("Choice");
+
                 for choice in choices {
                     if i == last_choice {
                         self.compile(choice)?;
@@ -186,8 +242,18 @@ impl Compiler {
                     commits.push(self.cursor);
                     self.emit(vm::Instruction::Commit(0));
                 }
+
+                self.dedent("Choice");
+
                 for commit in commits {
                     self.code[commit] = vm::Instruction::Commit(self.cursor - commit);
+                }
+
+                let firsts_frame = self.firsts_stk.pop().unwrap();
+
+                for f in firsts_frame {
+                    self.add_first(f);
+                    self.add_follow(f);
                 }
                 Ok(())
             }
@@ -223,9 +289,13 @@ impl Compiler {
                 match self.funcs.get(&id) {
                     Some(func) => {
                         let addr = self.cursor - func.addr;
+                        for f in self.firsts_by_id[&func.addr].clone() {
+                            self.add_follow(f);
+                        }
                         self.emit(vm::Instruction::CallB(addr, 0));
                     }
                     None => {
+                        self.prt(format!("Addr {} Deferred", self.cursor).as_str());
                         self.addrs.insert(self.cursor, id.clone());
                         self.emit(vm::Instruction::Call(0, 0));
                     }
@@ -242,6 +312,7 @@ impl Compiler {
                 let id = self.push_string(s);
                 self.emit(vm::Instruction::Str(id));
                 self.emit(vm::Instruction::Capture);
+                self.add_follow(id);
                 Ok(())
             }
             AST::Char(c) => {
@@ -257,9 +328,49 @@ impl Compiler {
         }
     }
 
+    fn add_first(&mut self, id: usize) {
+        let l = self.firsts_stk.len();
+        if l > 0 {
+            self.prt(format!("add_first: [{:?}][{:?}] {:?}", l-1, id, self.strings[id]).as_str());
+            self.firsts_stk[l-1].push(id);
+        }
+    }
+
+    fn add_follow(&mut self, id: usize) {
+        let l = self.follows_stk.len();
+        if l > 0 {
+            self.prt(format!("add_follow: [{:?}][{:?}] {:?}", l-1, id, self.strings[id]).as_str());
+            self.follows_stk[l-1].push(id);
+        }
+    }
+
     fn emit(&mut self, instruction: vm::Instruction) {
         self.code.push(instruction);
         self.cursor += 1;
+    }
+
+    fn prt(&mut self, msg: &str) {
+        // for _ in 0..self.indent_level {
+        //     print!("  ");
+        // }
+        // println!("{}", msg);
+    }
+
+    fn indent(&mut self, msg: &str) {
+        for _ in 0..self.indent_level {
+            print!("  ");
+        }
+        // println!("Open {}", msg);
+        self.indent_level += 1;
+    }
+
+    fn dedent(&mut self, msg: &str) {
+        // self.indent_level -= 1;
+        // for _ in 0..self.indent_level {
+        //     print!("  ");
+        // }
+        // println!("Close {}", msg);
+        //println!("follows: {:?}", self.follows);
     }
 }
 
@@ -350,12 +461,10 @@ impl Parser {
 
     // GR: Sequence <- Prefix*
     fn parse_sequence(&mut self) -> Result<AST, Error> {
-        let mut seq = self.zero_or_more(|p| p.parse_prefix())?;
-        if seq.len() == 1 {
-            Ok(seq.remove(0))
-        } else {
-            Ok(AST::Sequence(seq))
-        }
+        let seq = self.zero_or_more(|p| p.parse_prefix())?;
+        // always return a sequence, even when there's just one item
+        // that makes it a bit easier to generate follows set
+        Ok(AST::Sequence(seq))
     }
 
     // GR: Prefix <- (AND / NOT)? Labeled
@@ -390,9 +499,9 @@ impl Parser {
         })
     }
 
-    // GR: Label   <- "^" Identifier
+    // GR: Label   <- [^⇑] Identifier
     fn parse_label(&mut self) -> Result<String, Error> {
-        self.expect_str("^")?;
+        self.choice(vec![|p| p.expect_str("^"), |p| p.expect_str("⇑")])?;
         self.parse_identifier()
     }
 
@@ -592,6 +701,22 @@ impl Parser {
                 p.expect('\\')?;
                 Ok('\\')
             },
+            |p| {
+                // [0-2][0-7][0-7]
+                p.expect_range('0', '2')?;
+                p.expect_range('0', '7')?;
+                p.expect_range('0', '7')?;
+                Ok(' ')
+            },
+            |p| {
+                // [0-7][0-7]?
+                let mut value = p.expect_range('0', '7')? as u8;
+                if let Ok(d) = p.expect_range('0', '7') {
+                    value += 16;
+                    value += d as u8;
+                }
+                Ok(value as char)
+            }
         ])
     }
 
@@ -763,6 +888,74 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn follows_1() {
+        let mut c = Compiler::new();
+
+        // we're first look for the follow set for the call site of
+        // the production A within productions `*Identifier`
+
+        let out = c.compile_str(
+            "
+            A <- 'JustATerminal'
+            B <- 'b' 'w' IdentifierAfterIdentifier
+            C <- ('m' / 'n') 'o'
+            TerminalAfterIdentifier    <- A ';'
+            ChoiceAfterIdentifier      <- A ('a' 'x' / 'b' 'y' / 'c' 'z')
+            IdentifierAfterIdentifier  <- A B ('k' / 'l')
+            IdChoiceAfterIdentifier    <- A C ('k' / 'l')
+            ForwardIdentifier          <- A After
+            After                      <- '1' / '2'
+
+            # First(B) = {'b'}
+            # First(C) = {'m' 'n'}
+            # First(A) = {'JustATerminal'}
+            # First(TerminalAfterIdentifier)              = First(A)
+            # First(ChoiceAfterIdentifier)                = First(A)
+            #    First(ChoiceAfterIdentifier + A)         = {'a' 'b' 'c'}
+            # First(IdentifierAfterIdentifier)            = First(A)
+            #    First(IdentifierAfterIdentifier + A + B) = {'k' 'l'}
+            # First(IdChoiceAfterIdentifier)              = First(A)
+            #    First(IdChoiceAfterIdentifier + A)       = First(C)
+            #    First(IdChoiceAfterIdentifier + A + C)   = {'k' 'l'}
+            # First(ForwardIdentifier)                    = First(A)
+            #    First(ForwardIdentifier + A)             = First(After)
+            # First(After) = {'1' '2'}
+            ",
+        );
+
+        assert!(out.is_ok());
+        let fns: HashMap<String, usize> = c
+            .funcs
+            .iter()
+            .map(|(k, v)| ((*k).clone(), v.addr+2)) // 2 for call+capture
+            .collect();
+        let p = c.program();
+
+        // println!("{}", p.to_string());
+
+        assert_eq!(
+            vec![";".to_string()],
+            p.expected(fns["TerminalAfterIdentifier"])
+        );
+        assert_eq!(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            p.expected(fns["ChoiceAfterIdentifier"])
+        );
+        assert_eq!(
+            vec!["b".to_string()],
+            p.expected(fns["IdentifierAfterIdentifier"])
+        );
+        assert_eq!(
+            vec!["m".to_string(), "n".to_string()],
+            p.expected(fns["IdChoiceAfterIdentifier"])
+        );
+        assert_eq!(
+            vec!["1".to_string(), "2".to_string()],
+            p.expected(fns["ForwardIdentifier"])
+        );
+    }
 
     #[test]
     fn choice_pick_none() -> Result<(), Error> {

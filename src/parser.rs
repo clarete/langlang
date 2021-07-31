@@ -149,9 +149,7 @@ impl Compiler {
                             )));
                         }
                     }
-                    // println!("FIRSTS FOR: {:?}: {:?}", addr, self.firsts_by_id.get(&addr));
                 }
-                // println!("FIRSTS BY ADDR: {:?}", self.firsts_by_id);
                 Ok(())
             }
             AST::Definition(name, expr) => {
@@ -166,7 +164,6 @@ impl Compiler {
                 self.dedent(n.as_str());
                 self.emit(vm::Instruction::Return);
                 let firsts = self.firsts_stk.pop().unwrap();
-                // println!("DEF FIRSTS: {} {:?} {:?}\n", name, addr, firsts);
                 self.firsts_by_id.insert(addr, firsts);
                 self.funcs.insert(
                     name.clone(),
@@ -357,9 +354,9 @@ impl Compiler {
     }
 
     fn indent(&mut self, msg: &str) {
-        for _ in 0..self.indent_level {
-            print!("  ");
-        }
+        // for _ in 0..self.indent_level {
+        //     print!("  ");
+        // }
         // println!("Open {}", msg);
         self.indent_level += 1;
     }
@@ -701,22 +698,6 @@ impl Parser {
                 p.expect('\\')?;
                 Ok('\\')
             },
-            |p| {
-                // [0-2][0-7][0-7]
-                p.expect_range('0', '2')?;
-                p.expect_range('0', '7')?;
-                p.expect_range('0', '7')?;
-                Ok(' ')
-            },
-            |p| {
-                // [0-7][0-7]?
-                let mut value = p.expect_range('0', '7')? as u8;
-                if let Ok(d) = p.expect_range('0', '7') {
-                    value += 16;
-                    value += d as u8;
-                }
-                Ok(value as char)
-            }
         ])
     }
 

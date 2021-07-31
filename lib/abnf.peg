@@ -1,48 +1,48 @@
-# # RFC 5234 ABNF
+# RFC 5234 ABNF
 
-# # 2.2. Rule Form
-# rulelist      <- (rule / c_wsp* c_nl)+
-# rule          <- rulename defined_as elements c_nl
-# rulename      <- [a-zA-Z][0-9a-zA-Z-]*
-# defined_as    <- c_wsp* ('=' / '=/') c_wsp*
-# elements      <- c_wsp* alternation c_wsp*
+# 2.2. Rule Form
+rulelist      <- (rule / c_wsp* c_nl)+
+rule          <- rulename defined_as elements c_nl
+rulename      <- [a-zA-Z][0-9a-zA-Z-]*
+defined_as    <- c_wsp* ('=' / '=/') c_wsp*
+elements      <- c_wsp* alternation c_wsp*
 
-# c_wsp         <- c_nl* WSP
-# c_nl          <- comment / CRLF
-# comment       <- ';' (WSP / VCHAR)* CRLF
+c_wsp         <- c_nl* WSP
+c_nl          <- comment / CRLF
+comment       <- ';' (WSP / VCHAR)* CRLF
 
-# alternation   <- concatenation (c_wsp* '/' c_wsp* concatenation)*
-# concatenation <- repetition (c_wsp+ repetition)*
-# repetition    <- repeat? element
+alternation   <- concatenation (c_wsp* '/' c_wsp* concatenation)*
+concatenation <- repetition (c_wsp+ repetition)*
+repetition    <- repeat? element
 
-# repeat        <- (DIGIT* '*' DIGIT*) / DIGIT+
-# element       <- rulename / group / option / chr_val / num_val / prose_val
-# group         <- '(' c_wsp* alternation c_wsp* ')'
-# option        <- '[' c_wsp* alternation c_wsp* ']'
+repeat        <- (DIGIT* '*' DIGIT*) / DIGIT+
+element       <- rulename / group / option / chr_val / num_val / prose_val
+group         <- '(' c_wsp* alternation c_wsp* ')'
+option        <- '[' c_wsp* alternation c_wsp* ']'
 
 # # 2.3. Terminal Values (also 3.4. Value Range Alternatives)
-# chr_val <- DQUOTE (!DQUOTE .) DQUOTE
-# num_val <- '%' (bin_val / dec_val / hex_val)
-# bin_val <- 'b'[0-1]+([-.][0-1]+)?
-# dec_val <- 'd'[0-9]+([-.][0-9]+)?
-# hex_val <- 'x'[0-9a-fA-F]+('.'[0-9a-fA-F]+)?
-# prose_val <- '<' ([\20-\3D] / [\3F-\7E])* '>'
+chr_val <- DQUOTE (!DQUOTE .) DQUOTE
+num_val <- '%' (bin_val / dec_val / hex_val)
+bin_val <- 'b'[0-1]+([-.][0-1]+)?
+dec_val <- 'd'[0-9]+([-.][0-9]+)?
+hex_val <- 'x'[0-9a-fA-F]+('.'[0-9a-fA-F]+)?
+prose_val <- '<' ([ -=] / [?-~])* '>'
 
 # B.1. Core ABNF
-# ALPHA    <- [a-zA-Z]
-# BIT      <- [0-1]
+ALPHA    <- [a-zA-Z]
+BIT      <- [0-1]
 # CHAR     <- [\01-\7f]           # any 7-bit US-ASCII character, excluding NUL
-# CR       <- '\0d'               # carriage return
-# CRLF     <- CR LF / CR / LF     # Internet standard newline
-# CTL      <- [\00-\1f] / '\7f'   # controls
-# DIGIT    <- [\30-\39]           # 0-9
-# DQUOTE   <- '\22'               # " (Double Quote)
-# HEXDIGIT <- DIGIT [a-fA-F]
-# HTAB     <- '\09'               # horizontal tab
-# LF       <- '\0A'               # linefeed
+CR       <- '\r'               # carriage return
+CRLF     <- CR LF / CR / LF     # Internet standard newline
+# CTL      <- [\x00-\x1f] / '\x7f'   # controls
+DIGIT    <- [0-9]           # 0-9
+DQUOTE   <- '"'                 # " (Double Quote)
+HEXDIGIT <- DIGIT [a-fA-F]
+HTAB     <- '\t'               # horizontal tab
+LF       <- '\n'               # linefeed
 
-# LWSP     <- (WSP / CRLF WSP)*
-# OCTET    <- [\00-\ff]           # 8 bits of data
-SP       <- '\20'               # white space
-# VCHAR    <- [\21-\7e]           # visible (printing) characters
-# WSP      <- SP / HTAB
+LWSP     <- (WSP / CRLF WSP)*
+# OCTET    <- [\x00-\xff]           # 8 bits of data
+SP       <- ' '                 # white space
+VCHAR    <- [!-~]               # visible (printing) characters
+WSP      <- SP / HTAB

@@ -7,7 +7,6 @@
 // compiled to programs, but how programs get executted as patterns.
 //
 
-use std::boxed::Box;
 use log::debug;
 use std::collections::HashMap;
 
@@ -277,7 +276,7 @@ pub struct VM {
     // Where value returned from successful match operation is stored
     accumulator: Option<Value>,
     // Set of tokens that are displayed as expected upon error
-    expected: Box<Vec<usize>>,
+    expected: Vec<usize>,
     // Error log contains all errors captured during recovery.  It is
     // a vector containing pairs made of the label recovered and the
     // position in the cursor where it started
@@ -298,7 +297,7 @@ impl VM {
             call_frames: vec![],
             lrmemo: HashMap::new(),
             accumulator: None,
-            expected: Box::new(vec![]),
+            expected: vec![],
             error_log: vec![],
             within_predicate: false,
         }

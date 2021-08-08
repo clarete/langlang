@@ -76,8 +76,14 @@ pub struct Compiler {
     recovery: HashMap<usize, usize>,
     // Map from the set of addresses to the set of vectors of
     // terminals that should be expected in case the expression under
-    // the address fails parsing
+    // the address fails parsing.  This is similar to `final_follows`,
+    // except that this map can contain deferred addresses that still
+    // need to be resolved during backpatching.
     follows: HashMap<usize, Vec<Token>>,
+    // Same type of map as `follows`, the difference is that follows
+    // map can contain deferred addresses, and this set can't.  All
+    // addresses here are final.
+    final_follows: HashMap<usize, Vec<usize>>,
     // Stack of sets of firsts, are used to build the follows sets
     firsts: Vec<Vec<Token>>,
     // Map of the sets of string IDs of rule names to the sets of
@@ -101,35 +107,31 @@ impl Compiler {
             labels: HashMap::new(),
             recovery: HashMap::new(),
             follows: HashMap::new(),
+            final_follows: HashMap::new(),
             firsts: vec![],
             rules_firsts: HashMap::new(),
             indent_level: 0,
         }
     }
 
-    pub fn program(self) -> vm::Program {
-        let mut follows: HashMap<usize, Vec<usize>> = HashMap::new();
-        for (pos, tokens) in self.follows {
-            let mut addrs = vec![];
-            for token in tokens {
-                match token {
-                    Token::Deferred(id) => {
-                        for first in self.rules_firsts[&id].clone() {
-                            match first {
-                                Token::StringID(id) => addrs.push(id),
-                                Token::Deferred(..) => panic!("too deep"),
-                            }
-                        }
-                    },
-                    Token::StringID(id) => addrs.push(id),
-                }
-            }
-            follows.insert(pos, addrs);
-        }
+    /// Takes a PEG string and runs the compilation process, by
+    /// parsing the input string, traversing the output grammar to
+    /// emit the code, and then backpatching both call sites and
+    /// follows sets deferred during the code main generation pass.
+    pub fn compile_str(&mut self, s: &str) -> Result<(), Error> {
+        let mut p = Parser::new(s);
+        self.compile(p.parse_grammar()?)?;
+        self.backpatch_callsites()?;
+        self.backpatch_follows();
+        Ok(())
+    }
 
+    /// Access the output of the compilation process.  Call this
+    /// method after calling `compile_str()`.
+    pub fn program(self) -> vm::Program {
         vm::Program::new(
             self.identifiers,
-            follows,
+            self.final_follows,
             self.labels,
             self.recovery,
             self.strings,
@@ -137,12 +139,10 @@ impl Compiler {
         )
     }
 
-    pub fn compile_str(&mut self, s: &str) -> Result<(), Error> {
-        let mut p = Parser::new(s);
-        self.compile(p.parse_grammar()?)?;
-        Ok(())
-    }
-
+    /// Try to find the string `s` within the table of interned
+    /// strings, and return its ID if it is found.  If the string `s`
+    /// doesn't exist within the interned table yet, it's inserted and
+    /// the index where it was inserted becomes its ID.
     fn push_string(&mut self, s: String) -> usize {
         let strid = self.strings.len();
         if let Some(id) = self.strings_map.get(&s) {
@@ -153,48 +153,94 @@ impl Compiler {
         strid
     }
 
-    // follows(G[ε])       = {ε}                   ; empty
-    // follows(G[a])       = {ε}                   ; terminal
-    // follows(G[p1 / p2]) = {ε}                   ; ordered choice
-    // follows(G[A])       = first(G[P(A)])        ; non-terminal
-    // follows(G[p1 p2])   = first(p2)             ; sequence
-    // follows(G[p*])      = {ε}                   ; repetition
-    // follows(G[!p])      =
-    //
-    // first(G[ε])       = {ε}                     ; empty
-    // first(G[a])       = {a}                     ; terminal
-    // first(G[A])       = first(G[P(A)])          ; non-terminal
-    // first(G[p1 p2])   = first(p1)               ; sequence
-    // first(G[p1 / p2]) = first(p1) ++ first(p2)  ; ordered choice
-    // first(G[p*])      = first(p)                ; repetition
-    // first(G[!p])      =
-    //
-    pub fn compile(&mut self, node: AST) -> Result<(), Error> {
+    /// Iterate over the set of addresses of call sites of forward
+    /// rule declarations and re-emit the `Call` opcode with the right
+    /// offset that could not be figured out in the first pass of the
+    /// compilation.
+    fn backpatch_callsites(&mut self) -> Result<(), Error> {
+        for (addr, id) in &self.addrs {
+            match self.funcs.get(id) {
+                Some(func) => {
+                    let offset = if func.addr > *addr {
+                        func.addr - addr
+                    } else {
+                        addr - func.addr
+                    };
+                    self.code[*addr] = vm::Instruction::Call(offset, 0);
+                }
+                None => {
+                    let name = self.strings[*id].clone();
+                    return Err(Error::CompileError(format!(
+                        "Production {:?} doesnt exist",
+                        name
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn backpatch_follows(&mut self) {
+        for (pos, tokens) in &self.follows {
+            let mut addrs = vec![];
+            for token in tokens {
+                addrs.extend(self.resolve_token(token))
+            }
+            addrs.dedup();
+            self.final_follows.insert(*pos, addrs);
+        }
+    }
+
+    fn resolve_token(&self, token: &Token) -> Vec<usize> {
+        match token {
+            Token::StringID(id) => vec![*id],
+            Token::Deferred(id) => {
+                let mut v = vec![];
+                for first in self.rules_firsts[id].clone() {
+                    v.extend(self.resolve_token(&first))
+                }
+                v
+            }
+        }
+    }
+
+    /// Traverse AST node, emit bytecode and find first/follows sets
+    ///
+    /// The first part of the work done by this method is to emit
+    /// bytecode for the Parsing Expression Grammars virtual machine.
+    /// This work is heavily based on the article "A Parsing Machine
+    /// for PEGs" by S. Medeiros, et al.
+    ///
+    /// The second challenge that this method tackles is building the
+    /// follows sets.  Learn more about these sets in the article,
+    /// also by S. Medeiros, named "Syntax Error Recovery in Parsing
+    /// Expression Grammars".  But here's the rough idea:
+    ///
+    ///   follows(G[ε])       = {ε}                   ; empty
+    ///   follows(G[a])       = {ε}                   ; terminal
+    ///   follows(G[p1 / p2]) = {ε}                   ; ordered choice
+    ///   follows(G[A])       = first(G[P(A)])        ; non-terminal
+    ///   follows(G[p1 p2])   = first(p2)             ; sequence
+    ///   follows(G[p*])      = {ε}                   ; repetition
+    ///   follows(G[!p])      =
+    ///
+    ///   first(G[ε])       = {ε}                     ; empty
+    ///   first(G[a])       = {a}                     ; terminal
+    ///   first(G[A])       = first(G[P(A)])          ; non-terminal
+    ///   first(G[p1 p2])   = first(p1)               ; sequence
+    ///   first(G[p1 / p2]) = first(p1) ++ first(p2)  ; ordered choice
+    ///   first(G[p*])      = first(p)                ; repetition
+    ///   first(G[!p])      =
+    ///
+    /// The output of the compilation can be accessed via the
+    /// `program()` method.
+    fn compile(&mut self, node: AST) -> Result<(), Error> {
         match node {
             AST::Grammar(rules) => {
                 self.emit(vm::Instruction::Call(2, 0));
                 self.emit(vm::Instruction::Halt);
                 for r in rules {
                     self.compile(r)?;
-                }
-                for (addr, id) in &self.addrs {
-                    match self.funcs.get(id) {
-                        Some(func) => {
-                            let offset = if func.addr > *addr {
-                                func.addr - addr
-                            } else {
-                                addr - func.addr
-                            };
-                            self.code[*addr] = vm::Instruction::Call(offset, 0);
-                        }
-                        None => {
-                            let name = self.strings[*id].clone();
-                            return Err(Error::CompileError(format!(
-                                "Production {:?} doesnt exist",
-                                name
-                            )));
-                        }
-                    }
                 }
                 Ok(())
             }
@@ -206,9 +252,9 @@ impl Compiler {
                 let n = format!("Definition {:?}", name);
                 self.pushfff(n.as_str());
                 self.compile(*expr)?;
-                let firsts = self.popfff(n.as_str());
                 self.emit(vm::Instruction::Return);
 
+                let firsts = self.popfff(n.as_str());
                 self.rules_firsts.insert(strid, firsts);
                 self.funcs.insert(
                     strid,
@@ -395,24 +441,30 @@ impl Compiler {
     // Debugging helpers
 
     fn prt(&mut self, msg: &str) {
-        debug!("{:indent$}{}", "", msg, indent=self.indent_level);
+        debug!("{:indent$}{}", "", msg, indent = self.indent_level);
     }
 
     fn prt_token(&mut self, msg: &str, token: &Token) {
-        debug!("{:width$}{} {}", "", msg, match token {
-            Token::Deferred(id) => format!("Deferred {:#?} {:?}", id, self.strings[*id]),
-            Token::StringID(id) => format!("StringID {:#?} {:?}", id, self.strings[*id]),
-        }, width=self.indent_level);
+        debug!(
+            "{:width$}{} {}",
+            "",
+            msg,
+            match token {
+                Token::Deferred(id) => format!("Deferred {:#?} {:?}", id, self.strings[*id]),
+                Token::StringID(id) => format!("StringID {:#?} {:?}", id, self.strings[*id]),
+            },
+            width = self.indent_level
+        );
     }
 
     fn indent(&mut self, msg: &str) {
-        debug!("{:width$}Open {}", "", msg, width=self.indent_level);
+        debug!("{:width$}Open {}", "", msg, width = self.indent_level);
         self.indent_level += 2;
     }
 
     fn dedent(&mut self, msg: &str) {
         self.indent_level -= 2;
-        debug!("{:width$}Close {}", "", msg, width=self.indent_level);
+        debug!("{:width$}Close {}", "", msg, width = self.indent_level);
     }
 }
 
@@ -987,6 +1039,32 @@ mod tests {
         assert_eq!(
             vec!["1".to_string(), "2".to_string()],
             p.expected(fns["ForwardIdentifier"])
+        );
+    }
+
+    #[test]
+    fn follows_2() {
+        let mut c = Compiler::new();
+        let out = c.compile_str(
+            "
+            A <- B / C
+            B <- 'b' / C
+            C <- 'c'
+            IDAfterIDWithChoiceWithIDs <- A A
+            ",
+        );
+
+        assert!(out.is_ok());
+        let fns: HashMap<String, usize> = c
+            .funcs
+            .iter()
+            .map(|(k, v)| (c.strings[*k].clone(), v.addr + 2)) // 2 for call+capture
+            .collect();
+        let p = c.program();
+
+        assert_eq!(
+            vec!["b".to_string(), "c".to_string()],
+            p.expected(fns["IDAfterIDWithChoiceWithIDs"])
         );
     }
 

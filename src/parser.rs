@@ -1,3 +1,4 @@
+use log::debug;
 use std::boxed::Box;
 use std::collections::HashMap;
 
@@ -43,7 +44,7 @@ pub struct Fun {
 
 #[derive(Clone, Debug)]
 pub enum Token {
-    Deferred(usize /* rule id */, usize /* addr */),
+    Deferred(usize),
     StringID(usize),
 }
 
@@ -77,9 +78,11 @@ pub struct Compiler {
     // terminals that should be expected in case the expression under
     // the address fails parsing
     follows: HashMap<usize, Vec<Token>>,
-    firsts_stk: Vec<Vec<Token>>,
+    // Stack of sets of firsts, are used to build the follows sets
+    firsts: Vec<Vec<Token>>,
+    // Map of the sets of string IDs of rule names to the sets of
+    // first tokens that appear in a rule
     rules_firsts: HashMap<usize, Vec<Token>>,
-
     // Used for printing out debugging messages with the of the
     // structure the call stack the compiler is traversing
     indent_level: usize,
@@ -98,7 +101,7 @@ impl Compiler {
             labels: HashMap::new(),
             recovery: HashMap::new(),
             follows: HashMap::new(),
-            firsts_stk: vec![],
+            firsts: vec![],
             rules_firsts: HashMap::new(),
             indent_level: 0,
         }
@@ -110,14 +113,13 @@ impl Compiler {
             let mut addrs = vec![];
             for token in tokens {
                 match token {
-                    Token::Deferred(id, addr) => {
+                    Token::Deferred(id) => {
                         for first in self.rules_firsts[&id].clone() {
                             match first {
                                 Token::StringID(id) => addrs.push(id),
                                 Token::Deferred(..) => panic!("too deep"),
                             }
                         }
-                        println!("SOMETHING SOMETHING: {:?}, {:?}", self.strings[id].clone(), addr);
                     },
                     Token::StringID(id) => addrs.push(id),
                 }
@@ -200,15 +202,13 @@ impl Compiler {
                 let addr = self.cursor;
                 let strid = self.push_string(name.clone());
                 self.identifiers.insert(addr, strid);
-                self.firsts_stk.push(vec![]);
 
                 let n = format!("Definition {:?}", name);
-                self.indent(n.as_str());
+                self.pushfff(n.as_str());
                 self.compile(*expr)?;
-                self.dedent(n.as_str());
+                let firsts = self.popfff(n.as_str());
                 self.emit(vm::Instruction::Return);
 
-                let firsts = self.top_firsts();
                 self.rules_firsts.insert(strid, firsts);
                 self.funcs.insert(
                     strid,
@@ -265,7 +265,6 @@ impl Compiler {
             AST::Choice(choices) => {
                 let (mut i, last_choice) = (0, choices.len() - 1);
                 let mut commits = vec![];
-                self.firsts_stk.push(vec![]);
 
                 self.pushfff("Choice");
 
@@ -334,8 +333,7 @@ impl Compiler {
                         self.emit(vm::Instruction::CallB(addr, 0));
                     }
                     None => {
-                        self.prt(format!("Addr {} Deferred", self.cursor).as_str());
-                        self.add_first(Token::Deferred(id, self.cursor));
+                        self.add_first(Token::Deferred(id));
                         self.addrs.insert(self.cursor, id);
                         self.emit(vm::Instruction::Call(0, 0));
                     }
@@ -368,71 +366,53 @@ impl Compiler {
         }
     }
 
-    fn pushfff(&mut self, msg: &str) {
-        self.indent(msg);
-        self.firsts_stk.push(vec![]);
-    }
-
-    fn popfff(&mut self, msg: &str) -> Vec<Token> {
-        self.dedent(msg);
-        let firsts = self.firsts_stk.pop().unwrap();
-        firsts
-    }
-
-    fn top_firsts(&mut self) -> Vec<Token> {
-        let l = self.firsts_stk.len();
-        if l > 0 {
-            self.firsts_stk[l - 1].clone()
-        } else {
-            vec![]
-        }
-    }
-
-    fn add_first(&mut self, first: Token) {
-        let l = self.firsts_stk.len();
-        if l > 0 {
-            self.prt_token("first", &first);
-            self.firsts_stk[l - 1].push(first);
-        }
-    }
-
     fn emit(&mut self, instruction: vm::Instruction) {
         self.prt(format!("emit {:?} {:?}", self.cursor, instruction).as_str());
         self.code.push(instruction);
         self.cursor += 1;
     }
 
-    fn prt(&mut self, msg: &str) {
-        for _ in 0..self.indent_level {
-            print!("  ");
+    // Helpers for building the "firsts" sets
+
+    fn pushfff(&mut self, msg: &str) {
+        self.indent(msg);
+        self.firsts.push(vec![]);
+    }
+
+    fn popfff(&mut self, msg: &str) -> Vec<Token> {
+        self.dedent(msg);
+        self.firsts.pop().unwrap()
+    }
+
+    fn add_first(&mut self, first: Token) {
+        let l = self.firsts.len();
+        if l > 0 {
+            self.prt_token("first", &first);
+            self.firsts[l - 1].push(first);
         }
-        println!("{}", msg);
+    }
+
+    // Debugging helpers
+
+    fn prt(&mut self, msg: &str) {
+        debug!("{:indent$}{}", "", msg, indent=self.indent_level);
     }
 
     fn prt_token(&mut self, msg: &str, token: &Token) {
-        for _ in 0..self.indent_level {
-            print!("  ");
-        }
-        println!("{} {}", msg, match token {
-            Token::Deferred(id, addr) => format!("addr {:#?} deferred First(P({}))", addr, self.strings[*id]),
+        debug!("{:width$}{} {}", "", msg, match token {
+            Token::Deferred(id) => format!("Deferred {:#?} {:?}", id, self.strings[*id]),
             Token::StringID(id) => format!("StringID {:#?} {:?}", id, self.strings[*id]),
-        });
+        }, width=self.indent_level);
     }
 
     fn indent(&mut self, msg: &str) {
-        for _ in 0..self.indent_level {
-            print!("  ");
-        }
-        println!("Open {}", msg);
-        self.indent_level += 1;
+        debug!("{:width$}Open {}", "", msg, width=self.indent_level);
+        self.indent_level += 2;
     }
 
     fn dedent(&mut self, msg: &str) {
-        self.indent_level -= 1;
-        for _ in 0..self.indent_level {
-            print!("  ");
-        }
-        println!("Close {}", msg);
+        self.indent_level -= 2;
+        debug!("{:width$}Close {}", "", msg, width=self.indent_level);
     }
 }
 

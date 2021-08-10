@@ -801,6 +801,14 @@ impl Parser {
                 p.expect('\\')?;
                 Ok('\\')
             },
+            |p| {
+                p.expect('\'')?;
+                Ok('\'')
+            },
+            |p| {
+                p.expect('"')?;
+                Ok('"')
+            },
         ])
     }
 

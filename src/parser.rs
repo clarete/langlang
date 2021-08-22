@@ -33,6 +33,7 @@ pub enum AST {
     Char(char),
     Label(String, Box<AST>),
     Any,
+    Empty,
 }
 
 #[derive(Debug)]
@@ -409,6 +410,7 @@ impl Compiler {
                 self.emit(vm::Instruction::Capture);
                 Ok(())
             }
+            AST::Empty => Ok(()),
         }
     }
 
@@ -539,32 +541,27 @@ impl Parser {
     // GR: Expression <- Sequence (SLASH Sequence)*
     fn parse_expression(&mut self) -> Result<AST, Error> {
         let first = self.parse_sequence()?;
-        let mut rest = self.zero_or_more(|p| {
+        let mut choices = vec![first];
+        choices.append(&mut self.zero_or_more(|p| {
             p.expect('/')?;
             p.parse_spacing()?;
             p.parse_sequence()
-        })?;
-        if rest.is_empty() {
-            Ok(first)
+        })?);
+        Ok(if choices.len() == 1 {
+            choices.remove(0)
         } else {
-            let mut choices = vec![first];
-            choices.append(&mut rest);
-            Ok(AST::Choice(choices))
-        }
+            AST::Choice(choices)
+        })
     }
 
     // GR: Sequence <- Prefix*
     fn parse_sequence(&mut self) -> Result<AST, Error> {
-        let /*mut*/ seq = self.zero_or_more(|p| p.parse_prefix())?;
-        // always return a sequence, even when there's just one item
-        // that makes it a bit easier to generate follows set
-        //
-        // if seq.len() == 1 {
-        //     Ok(seq.remove(0))
-        // } else {
-        //     Ok(AST::Sequence(seq))
-        // }
-        Ok(AST::Sequence(seq))
+        let seq = self.zero_or_more(|p| p.parse_prefix())?;
+        Ok(AST::Sequence(if seq.is_empty() {
+            vec![AST::Empty]
+        } else {
+            seq
+        }))
     }
 
     // GR: Prefix <- (AND / NOT)? Labeled
@@ -980,6 +977,34 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn structure_empty() {
+        let mut p = Parser::new(
+            "A <- 'a' /
+             B <- 'b'
+            ",
+        );
+        let out = p.parse_grammar();
+
+        assert!(out.is_ok());
+        assert_eq!(
+            AST::Grammar(vec![
+                AST::Definition(
+                    "A".to_string(),
+                    Box::new(AST::Choice(vec![
+                        AST::Sequence(vec![AST::Str("a".to_string())]),
+                        AST::Sequence(vec![AST::Empty])
+                    ]))
+                ),
+                AST::Definition(
+                    "B".to_string(),
+                    Box::new(AST::Sequence(vec![AST::Str("b".to_string())])),
+                ),
+            ]),
+            out.unwrap()
+        );
+    }
 
     #[test]
     fn follows_1() {

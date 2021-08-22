@@ -1,15 +1,11 @@
 Prog        <- PUBLIC CLASS NAME LCUR PUBLIC STATIC VOID MAIN LPAR STRING LBRA RBRA NAME RPAR BlockStmt
-SEMIa       <- ';'      _
-SEMId       <- ';'      _
-SEMIp       <- ';'      _
-
 BlockStmt   <- LCUR Stmt* RCUR
 Stmt        <- IfStmt / WhileStmt / PrintStmt / DecStmt / AssignStmt / BlockStmt
 IfStmt      <- IF LPAR Exp RPAR Stmt (ELSE Stmt)?
 WhileStmt   <- WHILE LPAR Exp RPAR Stmt
-DecStmt     <- INT NAME (ASSIGN Exp)? SEMId
-AssignStmt  <- NAME ASSIGN Exp SEMIa
-PrintStmt   <- PRINTLN LPAR Exp RPAR SEMIp
+DecStmt     <- INT NAME (ASSIGN Exp)? SEMI
+AssignStmt  <- NAME ASSIGN Exp SEMI
+PrintStmt   <- PRINTLN LPAR Exp RPAR SEMI
 Exp         <- RelExp (EQ RelExp)*
 RelExp      <- AddExp (LT AddExp)*
 AddExp      <- MulExp ((PLUS / MINUS) MulExp)*

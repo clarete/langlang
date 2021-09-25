@@ -162,12 +162,11 @@ impl Compiler {
         for (addr, id) in &self.addrs {
             match self.funcs.get(id) {
                 Some(func) => {
-                    let offset = if func.addr > *addr {
-                        func.addr - addr
+                    if func.addr > *addr {
+                        self.code[*addr] = vm::Instruction::Call(func.addr - addr, 0);
                     } else {
-                        addr - func.addr
-                    };
-                    self.code[*addr] = vm::Instruction::Call(offset, 0);
+                        self.code[*addr] = vm::Instruction::CallB(addr - func.addr, 0);
+                    }
                 }
                 None => {
                     let name = self.strings[*id].clone();

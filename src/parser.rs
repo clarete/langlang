@@ -469,6 +469,139 @@ impl Compiler {
     }
 }
 
+/// The first stage of the StandardAlgorithm
+///
+/// This traversal collects two vectors:
+///
+/// 1. all the AST nodes with matchers for recognizable terminals
+/// (`Char`, `Str`, and `Range`).  That's used for building the
+/// eatToken expression.
+///
+/// 2. the names of rules that contain exclusively white spaces or
+/// identifiers to other rules that contain exclusively white
+/// spaces. e.g.:
+///
+/// ```
+/// _   <- ws*
+/// ws  <- eol / sp
+/// eol <- '\n' / '\r\n' / '\r'
+/// sp  <- [ \t]
+/// ```
+///
+/// All the rules above would appear in the result of this function.
+fn stage1(node: &AST) -> (Vec<AST>, Vec<String>) {
+    struct _TraverseEnv {
+        // state for finding rules with whitespaces only
+        definitions_status: HashMap<String, bool>,
+        definitions_4patching: HashMap<String, Vec<String>>,
+        unknown_identifiers_stk: Vec<Vec<String>>,
+        known_space_rules: Vec<String>,
+
+        // state for eatToken
+        lexical_tokens: Vec<AST>,
+    }
+    fn _traverse(env: &mut _TraverseEnv, node: &AST) -> bool {
+        match node {
+            // doesn't matter
+            AST::LabelDefinition(..) => false,
+            // certainly are not spaces
+            AST::Any | AST::Empty => false,
+            // spacing rules should not have identifiers within them?
+            AST::Identifier(id) => {
+                env.unknown_identifiers_stk
+                    .last_mut()
+                    .unwrap()
+                    .push(id.clone());
+                false
+            }
+            // forwards
+            AST::Not(e) => _traverse(env, e),
+            AST::Label(_, e) => _traverse(env, e),
+            AST::Optional(e) | AST::ZeroOrMore(e) | AST::OneOrMore(e) => _traverse(env, e),
+            AST::Grammar(ev) => {
+                ev.into_iter().for_each(|e| {
+                    _traverse(env, e);
+                });
+                // Find all symbols that are themselves rules with only spaces
+                loop {
+                    let mut has_change = false;
+                    for (k, v) in &mut env.definitions_4patching {
+                        let diff = vec_diff(v, &env.known_space_rules);
+                        if !v.is_empty() && diff.is_empty() {
+                            env.known_space_rules.push(k.clone());
+                            has_change = true;
+                            *v = diff;
+                        }
+                    }
+                    if !has_change {
+                        break;
+                    }
+                }
+                // go through the list of possibly patcheable rules and check if any of them
+                // is composed only by rules known to contain only spaces
+                for (definition, identifiers) in &env.definitions_4patching {
+                    if identifiers
+                        .into_iter()
+                        .all(|id| env.known_space_rules.contains(id))
+                    {
+                        env.definitions_status.insert(definition.clone(), true);
+                        env.known_space_rules.push(definition.clone());
+                    }
+                }
+                false
+            }
+            AST::Definition(def, expr) => {
+                // collect identifiers of rules that we're unsure if they're space rules or not
+                env.unknown_identifiers_stk.push(vec![]);
+                let value = _traverse(env, expr);
+                let unknown_identifiers = env.unknown_identifiers_stk.pop().unwrap_or(vec![]);
+                // collect rules that are known to contain just spaces and also collect the
+                // ones we don't know yet, but they could be too
+                if value && unknown_identifiers.is_empty() {
+                    env.known_space_rules.push(def.clone());
+                } else if !unknown_identifiers.is_empty() {
+                    env.definitions_4patching
+                        .insert(def.clone(), unknown_identifiers);
+                }
+                env.definitions_status.insert(def.clone(), value);
+                value
+            }
+            AST::Sequence(expr) | AST::Choice(expr) => expr.iter().all(|e| _traverse(env, e)),
+            AST::Range(a, b) => {
+                env.lexical_tokens.push(AST::Range(*a, *b));
+                char::is_whitespace(*a) && char::is_whitespace(*b)
+            }
+            AST::Str(st) => {
+                env.lexical_tokens.push(AST::Str(st.clone()));
+                st.chars().all(|s| char::is_whitespace(s))
+            }
+            AST::Char(c) => {
+                env.lexical_tokens.push(AST::Char(*c));
+                char::is_whitespace(*c)
+            }
+        }
+    }
+
+    let base_env = &mut _TraverseEnv {
+        definitions_status: HashMap::new(),
+        definitions_4patching: HashMap::new(),
+        known_space_rules: vec![],
+        unknown_identifiers_stk: vec![],
+        lexical_tokens: vec![],
+    };
+
+    _traverse(base_env, node);
+
+    let lt = base_env.lexical_tokens.clone();
+
+    (lt, base_env
+     .definitions_status
+     .iter()
+     .filter(|(_, v)| **v)
+     .map(|(k, _)| k.clone())
+     .collect())
+}
+
 #[derive(Debug)]
 pub enum Error {
     BacktrackError(usize, String),

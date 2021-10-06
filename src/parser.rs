@@ -500,26 +500,33 @@ impl Compiler {
 ///
 /// ```
 /// T <- D "+" D / D "-" D
-/// D <- [0-9]+
+/// D <- [0-9]+ _
+/// _ <- [ \t]*
 /// ```
 ///
-/// In the example above, the rule `T` would be a syntactic rule and
-/// `D` wouldn't.
+/// In the example above, the rule `T` would be a syntactic rule, but
+/// `D` and `_` wouldn't.  Although `D` does contain an identifier to
+/// another rule, is not considered to be a syntactic a because the
+/// identifier it contains points to a rule that is a space rule.
 fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
     #[derive(Clone, Debug, PartialEq)]
-    enum SpaceStatus {
+    enum Status {
         Yes,
         No,
         Maybe,
     }
     struct _TraverseEnv {
-        // state for finding rules with whitespaces only
-        rule_is_space: HashMap<String, SpaceStatus>,
-        rule_unknown_ids: HashMap<String, Vec<String>>,
+        // stack for Identifiers that haven't had their status resolved
         unknown_ids_stk: Vec<Vec<String>>,
-        known_space_rules: Vec<String>,
 
-        // Syntactic Rules
+        // state for finding rules that match whitespace chars only
+        rule_is_space: HashMap<String, Status>,
+        unknown_space_ids: HashMap<String, Vec<String>>,
+        space_rules: Vec<String>,
+
+        // state for finding syntactic rules
+        rule_is_syntactic: HashMap<String, Status>,
+        unknown_syntactic_ids: HashMap<String, Vec<String>>,
         syntactic_rules: Vec<String>,
 
         // state for eatToken
@@ -528,28 +535,31 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
     fn _traverse(
         env: &mut _TraverseEnv,
         node: &AST,
-    ) -> (SpaceStatus /* is_space */, bool /* is_syn */) {
+    ) -> (Status /* is_space */, Status /* is_syn */) {
         match node {
             // doesn't matter
-            AST::LabelDefinition(..) => (SpaceStatus::No, false),
+            AST::LabelDefinition(..) => (Status::No, Status::No),
             // not spaces
-            AST::Any | AST::Empty => (SpaceStatus::No, false),
+            AST::Any | AST::Empty => (Status::No, Status::No),
             // identifiers are a special case for space rules
             AST::Identifier(id) => match env.rule_is_space.get(id) {
-                // if it's a known identifier that points to a space rule, forward
-                Some(SpaceStatus::Yes) => (SpaceStatus::Yes, true),
-                // if it's known to not point to a space rule, also forward
-                Some(SpaceStatus::No) => (SpaceStatus::No, true),
+                // if it's a known identifier that points to a space rule, forward the
+                // space status and invert the is_syn status
+                Some(Status::Yes) => (Status::Yes, Status::No),
+                // if it's known to not point to a space rule, also forward the space
+                // status and negate the is_syn status
+                Some(Status::No) => (Status::No, Status::Yes),
                 // otherwise, add the identifier to the ones that must be checked later
-                Some(SpaceStatus::Maybe) | None => {
+                Some(Status::Maybe) | None => {
                     env.unknown_ids_stk.last_mut().unwrap().push(id.clone());
-                    (SpaceStatus::Maybe, true)
+                    (Status::Maybe, Status::Maybe)
                 }
             },
             // forwards
             AST::Not(e) => _traverse(env, e),
             AST::Label(_, e) => _traverse(env, e),
             AST::Optional(e) | AST::ZeroOrMore(e) | AST::OneOrMore(e) => _traverse(env, e),
+            // specialized
             AST::Grammar(ev) => {
                 ev.into_iter().for_each(|e| {
                     _traverse(env, e);
@@ -561,16 +571,19 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
 
                     // find definitions that are still worth looking into
                     let mut maybe_rules = env.rule_is_space.clone();
-                    maybe_rules.retain(|_, v| *v == SpaceStatus::Maybe);
+                    maybe_rules.retain(|_, v| *v == Status::Maybe);
 
                     for rule in maybe_rules.keys() {
                         // if all the unknown IDs were already resolved and it has been resolved
                         // into a space rule, then we mark the `rule` itself as a space rule.
-                        if env.rule_unknown_ids[rule]
+                        if env.unknown_space_ids[rule]
                             .iter()
-                            .all(|id| env.rule_is_space[id] == SpaceStatus::Yes)
+                            .all(|id| env.rule_is_space[id] == Status::Yes)
                         {
-                            env.rule_is_space.insert(rule.to_string(), SpaceStatus::Yes);
+                            env.rule_is_space.insert(rule.to_string(), Status::Yes);
+                            // knowing for sure that a rule only matches spaces, also gives
+                            // certainty about it not being a syntactic rule
+                            env.rule_is_syntactic.insert(rule.to_string(), Status::No);
                             has_change = true;
                         }
                     }
@@ -579,93 +592,129 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     }
                 }
 
-                (SpaceStatus::No, false)
-            }
-            AST::Definition(def, expr) => {
-                println!("* DEFI: {:?}", def);
+                loop {
+                    let mut has_change = false;
 
-                // collect identifiers of rules that we're unsure if they're space rules or not
-                env.unknown_ids_stk.push(vec![]);
-                let (is_space, is_syn) = _traverse(env, expr);
-                let unknown_identifiers = env.unknown_ids_stk.pop().unwrap_or(vec![]);
+                    // find all rules that we're still uncertain about
+                    let mut maybe_rules = env.rule_is_syntactic.clone();
+                    maybe_rules.retain(|_, v| *v == Status::Maybe);
 
-                println!("   - is_syn: {:?}", is_syn);
-
-                match is_space {
-                    SpaceStatus::Yes => {
-                        env.known_space_rules.push(def.clone());
-                        env.rule_is_space.insert(def.clone(), SpaceStatus::Yes);
+                    for rule in maybe_rules.keys() {
+                        if env.unknown_syntactic_ids[rule]
+                            .iter()
+                            .all(|id| env.rule_is_syntactic[id] == Status::No)
+                        {
+                            env.rule_is_syntactic.insert(rule.to_string(), Status::No);
+                            has_change = true;
+                        }
                     }
-                    SpaceStatus::No => {
-                        env.rule_is_space.insert(def.clone(), SpaceStatus::No);
-                    }
-                    SpaceStatus::Maybe => {
-                        env.rule_unknown_ids
-                            .insert(def.clone(), unknown_identifiers);
-                        env.rule_is_space.insert(def.clone(), SpaceStatus::Maybe);
+                    if !has_change {
+                        break;
                     }
                 }
 
-                if is_syn {
-                    env.syntactic_rules.push(def.clone());
+                env.syntactic_rules.append(&mut env
+                    .rule_is_syntactic
+                    .iter()
+                    .filter(|(_, v)| **v == Status::Maybe)
+                    .map(|(k, _)| k.clone())
+                    .collect());
+
+                (Status::No, Status::No)
+            }
+            AST::Definition(def, expr) => {
+                // collect identifiers of rules that we're unsure if they're space rules or not
+                env.unknown_ids_stk.push(vec![]);
+                let (is_space, mut is_syn) = _traverse(env, expr);
+                let unknown_identifiers = env.unknown_ids_stk.pop().unwrap_or(vec![]);
+
+                env.rule_is_space.insert(def.clone(), is_space.clone());
+                match is_space {
+                    Status::No => {}
+                    Status::Yes => {
+                        env.space_rules.push(def.clone());
+                        // if a rule contains only spaces, we can tell right away that it is not
+                        // a syntactic rule.  This allows us to save some work when patching.
+                        is_syn = Status::No;
+                    }
+                    Status::Maybe => {
+                        env.unknown_space_ids
+                            .insert(def.clone(), unknown_identifiers.clone());
+                    }
+                }
+
+                env.rule_is_syntactic.insert(def.clone(), is_syn.clone());
+                match is_syn {
+                    Status::No => {}
+                    Status::Yes => {
+                        env.syntactic_rules.push(def.clone());
+                    }
+                    Status::Maybe => {
+                        env.unknown_syntactic_ids
+                            .insert(def.clone(), unknown_identifiers);
+                    }
                 }
 
                 (is_space, is_syn)
             }
             AST::Sequence(exprs) | AST::Choice(exprs) => {
-                println!("   - SEQ: exprs {:?}", exprs);
-                let (mut all_spaces, mut all_syns) = (SpaceStatus::Yes, true);
+                let (mut all_spaces, mut all_syns) = (Status::Yes, Status::No);
                 for expr in exprs {
                     let (is_space, is_syn) = _traverse(env, expr);
                     all_spaces = match (is_space, all_spaces) {
-                        (SpaceStatus::Yes, SpaceStatus::Yes) => SpaceStatus::Yes,
-                        (
-                            SpaceStatus::Yes | SpaceStatus::Maybe,
-                            SpaceStatus::Yes | SpaceStatus::Maybe,
-                        ) => SpaceStatus::Maybe,
-                        _ => SpaceStatus::No,
+                        (Status::Yes, Status::Yes) => Status::Yes,
+                        (Status::Yes | Status::Maybe, Status::Yes | Status::Maybe) => Status::Maybe,
+                        _ => Status::No,
                     };
-                    all_syns = all_syns || is_syn;
+
+                    all_syns = match (is_syn, all_syns) {
+                        (Status::Yes, Status::Yes) => Status::Yes,
+                        (Status::No, Status::No) => Status::No,
+                        (Status::Maybe | Status::Yes, Status::Maybe | Status::Yes) => Status::Maybe,
+                        (Status::Maybe | Status::No, Status::Maybe | Status::No) => Status::Maybe,
+                        (Status::Yes | Status::No, Status::Yes | Status::No) => Status::No,
+                    };
                 }
-                println!("       - is_syn: {:?}", all_syns);
                 (all_spaces, all_syns)
             }
             AST::Range(a, b) => {
                 env.lexical_tokens.push(AST::Range(*a, *b));
                 let is_space = if char::is_whitespace(*a) && char::is_whitespace(*b) {
-                    SpaceStatus::Yes
+                    Status::Yes
                 } else {
-                    SpaceStatus::No
+                    Status::No
                 };
-                (is_space, false)
+                (is_space, Status::No)
             }
             AST::Str(st) => {
                 env.lexical_tokens.push(AST::Str(st.clone()));
                 let is_space = if st.chars().all(|s| char::is_whitespace(s)) {
-                    SpaceStatus::Yes
+                    Status::Yes
                 } else {
-                    SpaceStatus::No
+                    Status::No
                 };
-                (is_space, false)
+                (is_space, Status::No)
             }
             AST::Char(c) => {
                 env.lexical_tokens.push(AST::Char(*c));
                 let is_space = if char::is_whitespace(*c) {
-                    SpaceStatus::Yes
+                    Status::Yes
                 } else {
-                    SpaceStatus::No
+                    Status::No
                 };
-                (is_space, false)
+                (is_space, Status::No)
             }
         }
     }
 
     let base_env = &mut _TraverseEnv {
-        rule_is_space: HashMap::new(),
-        rule_unknown_ids: HashMap::new(),
-        known_space_rules: vec![],
-        syntactic_rules: vec![],
         unknown_ids_stk: vec![],
+        rule_is_space: HashMap::new(),
+        unknown_space_ids: HashMap::new(),
+        space_rules: vec![],
+        rule_is_syntactic: HashMap::new(),
+        unknown_syntactic_ids: HashMap::new(),
+        syntactic_rules: vec![],
         lexical_tokens: vec![],
     };
 
@@ -674,7 +723,7 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
     let space_rules: Vec<String> = base_env
         .rule_is_space
         .iter()
-        .filter(|(_, v)| **v == SpaceStatus::Yes)
+        .filter(|(_, v)| **v == Status::Yes)
         .map(|(k, _)| k.clone())
         .collect();
 

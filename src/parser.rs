@@ -504,9 +504,9 @@ impl Compiler {
 /// _ <- [ \t]*
 /// ```
 ///
-/// In the example above, the rule `T` would be a syntactic rule, but
-/// `D` and `_` wouldn't.  Although `D` does contain an identifier to
-/// another rule, is not considered to be a syntactic a because the
+/// In the example above, the rule `T` would be not a lexical rule,
+/// but `D` and `_` wouldn't.  Although `D` does contain an identifier
+/// to another rule, is considered to be a lexical a because the
 /// identifier it contains points to a rule that is a space rule.
 fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
     #[derive(Clone, Debug, PartialEq)]
@@ -524,10 +524,10 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
         unknown_space_ids: HashMap<String, Vec<String>>,
         space_rules: Vec<String>,
 
-        // state for finding syntactic rules
-        rule_is_syntactic: HashMap<String, Status>,
-        unknown_syntactic_ids: HashMap<String, Vec<String>>,
-        syntactic_rules: Vec<String>,
+        // state for finding lexical rules
+        rule_is_lexical: HashMap<String, Status>,
+        unknown_lexical_ids: HashMap<String, Vec<String>>,
+        lexical_rules: Vec<String>,
 
         // state for eatToken
         lexical_tokens: Vec<AST>,
@@ -535,20 +535,19 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
     fn _traverse(
         env: &mut _TraverseEnv,
         node: &AST,
-    ) -> (Status /* is_space */, Status /* is_syn */) {
+    ) -> (Status /* is_space */, Status /* is_lex */) {
         match node {
             // doesn't matter
             AST::LabelDefinition(..) => (Status::No, Status::No),
             // not spaces
-            AST::Any | AST::Empty => (Status::No, Status::No),
+            AST::Any | AST::Empty => (Status::No, Status::Yes),
             // identifiers are a special case for space rules
             AST::Identifier(id) => match env.rule_is_space.get(id) {
-                // if it's a known identifier that points to a space rule, forward the
-                // space status and invert the is_syn status
-                Some(Status::Yes) => (Status::Yes, Status::No),
-                // if it's known to not point to a space rule, also forward the space
-                // status and negate the is_syn status
-                Some(Status::No) => (Status::No, Status::Yes),
+                // if it's a known identifier that points to a space rule, that implies
+                // that it's a lexical rule too
+                Some(Status::Yes) => (Status::Yes, Status::Yes),
+                // if it's known to not point to a space rule, also forward the space status
+                Some(Status::No) => (Status::No, Status::No),
                 // otherwise, add the identifier to the ones that must be checked later
                 Some(Status::Maybe) | None => {
                     env.unknown_ids_stk.last_mut().unwrap().push(id.clone());
@@ -581,9 +580,9 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                             .all(|id| env.rule_is_space[id] == Status::Yes)
                         {
                             env.rule_is_space.insert(rule.to_string(), Status::Yes);
-                            // knowing for sure that a rule only matches spaces, also gives
-                            // certainty about it not being a syntactic rule
-                            env.rule_is_syntactic.insert(rule.to_string(), Status::No);
+                            // knowing for sure that a rule only matches spaces, also confirms
+                            // that it is a lexical rule
+                            env.rule_is_lexical.insert(rule.to_string(), Status::Yes);
                             has_change = true;
                         }
                     }
@@ -596,15 +595,15 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     let mut has_change = false;
 
                     // find all rules that we're still uncertain about
-                    let mut maybe_rules = env.rule_is_syntactic.clone();
+                    let mut maybe_rules = env.rule_is_lexical.clone();
                     maybe_rules.retain(|_, v| *v == Status::Maybe);
 
                     for rule in maybe_rules.keys() {
-                        if env.unknown_syntactic_ids[rule]
+                        if env.unknown_lexical_ids[rule]
                             .iter()
-                            .all(|id| env.rule_is_syntactic[id] == Status::No)
+                            .all(|id| env.rule_is_space[id] == Status::Yes)
                         {
-                            env.rule_is_syntactic.insert(rule.to_string(), Status::No);
+                            env.rule_is_lexical.insert(rule.to_string(), Status::Yes);
                             has_change = true;
                         }
                     }
@@ -613,19 +612,21 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     }
                 }
 
-                env.syntactic_rules.append(&mut env
-                    .rule_is_syntactic
-                    .iter()
-                    .filter(|(_, v)| **v == Status::Maybe)
-                    .map(|(k, _)| k.clone())
-                    .collect());
+                env.lexical_rules.append(
+                    &mut env
+                        .rule_is_lexical
+                        .iter()
+                        .filter(|(_, v)| **v == Status::Maybe)
+                        .map(|(k, _)| k.clone())
+                        .collect(),
+                );
 
                 (Status::No, Status::No)
             }
             AST::Definition(def, expr) => {
                 // collect identifiers of rules that we're unsure if they're space rules or not
                 env.unknown_ids_stk.push(vec![]);
-                let (is_space, mut is_syn) = _traverse(env, expr);
+                let (is_space, mut is_lex) = _traverse(env, expr);
                 let unknown_identifiers = env.unknown_ids_stk.pop().unwrap_or(vec![]);
 
                 env.rule_is_space.insert(def.clone(), is_space.clone());
@@ -633,9 +634,9 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     Status::No => {}
                     Status::Yes => {
                         env.space_rules.push(def.clone());
-                        // if a rule contains only spaces, we can tell right away that it is not
-                        // a syntactic rule.  This allows us to save some work when patching.
-                        is_syn = Status::No;
+                        // if a rule contains only spaces, we can tell right away that it is a
+                        // lexical rule.  This allows us to save some work when patching.
+                        is_lex = Status::Yes;
                     }
                     Status::Maybe => {
                         env.unknown_space_ids
@@ -643,39 +644,37 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     }
                 }
 
-                env.rule_is_syntactic.insert(def.clone(), is_syn.clone());
-                match is_syn {
+                env.rule_is_lexical.insert(def.clone(), is_lex.clone());
+                match is_lex {
                     Status::No => {}
                     Status::Yes => {
-                        env.syntactic_rules.push(def.clone());
+                        env.lexical_rules.push(def.clone());
                     }
                     Status::Maybe => {
-                        env.unknown_syntactic_ids
+                        env.unknown_lexical_ids
                             .insert(def.clone(), unknown_identifiers);
                     }
                 }
 
-                (is_space, is_syn)
+                (is_space, is_lex)
             }
             AST::Sequence(exprs) | AST::Choice(exprs) => {
-                let (mut all_spaces, mut all_syns) = (Status::Yes, Status::No);
+                let (mut all_spaces, mut all_lex) = (Status::Yes, Status::Yes);
                 for expr in exprs {
-                    let (is_space, is_syn) = _traverse(env, expr);
+                    let (is_space, is_lex) = _traverse(env, expr);
                     all_spaces = match (is_space, all_spaces) {
                         (Status::Yes, Status::Yes) => Status::Yes,
                         (Status::Yes | Status::Maybe, Status::Yes | Status::Maybe) => Status::Maybe,
                         _ => Status::No,
                     };
-
-                    all_syns = match (is_syn, all_syns) {
+                    all_lex = match (is_lex, all_lex) {
                         (Status::Yes, Status::Yes) => Status::Yes,
                         (Status::No, Status::No) => Status::No,
-                        (Status::Maybe | Status::Yes, Status::Maybe | Status::Yes) => Status::Maybe,
-                        (Status::Maybe | Status::No, Status::Maybe | Status::No) => Status::Maybe,
-                        (Status::Yes | Status::No, Status::Yes | Status::No) => Status::No,
+                        (Status::Maybe, _) | (_, Status::Maybe) => Status::Maybe,
+                        (Status::Yes, Status::No) | (Status::No, Status::Yes) => Status::Yes,
                     };
                 }
-                (all_spaces, all_syns)
+                (all_spaces, all_lex)
             }
             AST::Range(a, b) => {
                 env.lexical_tokens.push(AST::Range(*a, *b));
@@ -684,7 +683,7 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                 } else {
                     Status::No
                 };
-                (is_space, Status::No)
+                (is_space, Status::Yes)
             }
             AST::Str(st) => {
                 env.lexical_tokens.push(AST::Str(st.clone()));
@@ -693,7 +692,7 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                 } else {
                     Status::No
                 };
-                (is_space, Status::No)
+                (is_space, Status::Yes)
             }
             AST::Char(c) => {
                 env.lexical_tokens.push(AST::Char(*c));
@@ -702,7 +701,7 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                 } else {
                     Status::No
                 };
-                (is_space, Status::No)
+                (is_space, Status::Yes)
             }
         }
     }
@@ -712,9 +711,9 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
         rule_is_space: HashMap::new(),
         unknown_space_ids: HashMap::new(),
         space_rules: vec![],
-        rule_is_syntactic: HashMap::new(),
-        unknown_syntactic_ids: HashMap::new(),
-        syntactic_rules: vec![],
+        rule_is_lexical: HashMap::new(),
+        unknown_lexical_ids: HashMap::new(),
+        lexical_rules: vec![],
         lexical_tokens: vec![],
     };
 
@@ -727,19 +726,16 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
         .map(|(k, _)| k.clone())
         .collect();
 
-    // Filter space rules off of the syntactic_rules found
-    let syntactic_rules: Vec<String> = base_env
-        .syntactic_rules
+    // Collect only rules that contain only lexical matches.  That includes all the space rules.
+    let lexical_rules: Vec<String> = base_env
+        .lexical_rules
         .iter()
         .filter(|r| !space_rules.contains(r))
+        .filter(|r| base_env.rule_is_lexical[*r] != Status::Yes)
         .map(|r| r.clone())
         .collect();
 
-    (
-        base_env.lexical_tokens.clone(),
-        space_rules,
-        syntactic_rules,
-    )
+    (base_env.lexical_tokens.clone(), space_rules, lexical_rules)
 }
 
 #[derive(Debug)]

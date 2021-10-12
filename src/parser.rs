@@ -508,60 +508,87 @@ impl Compiler {
 /// but `D` and `_` wouldn't.  Although `D` does contain an identifier
 /// to another rule, is considered to be a lexical a because the
 /// identifier it contains points to a rule that is a space rule.
-fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
-    #[derive(Clone, Debug, PartialEq)]
-    enum Status {
-        Yes,
-        No,
-        Maybe,
+struct Stage1 {
+    // stack for Identifiers that haven't had their status resolved
+    unknown_ids_stk: Vec<Vec<String>>,
+
+    // state for finding rules that match whitespace chars only
+    rule_is_space: HashMap<String, Option<bool>>,
+    unknown_space_ids: HashMap<String, Vec<String>>,
+    space_rules: Vec<String>,
+
+    // state for finding lexical rules
+    rule_is_lexical: HashMap<String, Option<bool>>,
+    unknown_lexical_ids: HashMap<String, Vec<String>>,
+    lexical_rules: Vec<String>,
+
+    // state for eatToken
+    lexical_tokens: Vec<AST>,
+}
+
+impl Stage1 {
+    fn new() -> Self {
+        Self {
+            unknown_ids_stk: vec![],
+            rule_is_space: HashMap::new(),
+            unknown_space_ids: HashMap::new(),
+            space_rules: vec![],
+            rule_is_lexical: HashMap::new(),
+            unknown_lexical_ids: HashMap::new(),
+            lexical_rules: vec![],
+            lexical_tokens: vec![],
+        }
     }
-    struct _TraverseEnv {
-        // stack for Identifiers that haven't had their status resolved
-        unknown_ids_stk: Vec<Vec<String>>,
 
-        // state for finding rules that match whitespace chars only
-        rule_is_space: HashMap<String, Status>,
-        unknown_space_ids: HashMap<String, Vec<String>>,
-        space_rules: Vec<String>,
+    fn run(&mut self, node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
+        self.traverse(node);
 
-        // state for finding lexical rules
-        rule_is_lexical: HashMap<String, Status>,
-        unknown_lexical_ids: HashMap<String, Vec<String>>,
-        lexical_rules: Vec<String>,
+        let space_rules: Vec<String> = self
+            .rule_is_space
+            .iter()
+            .filter(|(_, v)| **v == Some(true))
+            .map(|(k, _)| k.clone())
+            .collect();
 
-        // state for eatToken
-        lexical_tokens: Vec<AST>,
+        // Collect only rules that contain only lexical matches.  That includes all the space rules.
+        let lexical_rules: Vec<String> = self
+            .lexical_rules
+            .iter()
+            .filter(|r| !space_rules.contains(r))
+            .filter(|r| self.rule_is_lexical[*r] != Some(true))
+            .map(|r| r.clone())
+            .collect();
+
+        (self.lexical_tokens.clone(), space_rules, lexical_rules)
     }
-    fn _traverse(
-        env: &mut _TraverseEnv,
-        node: &AST,
-    ) -> (Status /* is_space */, Status /* is_lex */) {
+
+    fn traverse(&mut self, node: &AST) -> (Option<bool> /* is_space */, Option<bool> /* is_lex */) {
         match node {
             // doesn't matter
-            AST::LabelDefinition(..) => (Status::No, Status::No),
+            AST::LabelDefinition(..) => (None, None),
             // not spaces
-            AST::Any | AST::Empty => (Status::No, Status::Yes),
+            AST::Any | AST::Empty => (None, Some(true)),
             // identifiers are a special case for space rules
-            AST::Identifier(id) => match env.rule_is_space.get(id) {
+            AST::Identifier(id) => match self.rule_is_space.get(id) {
                 // if it's a known identifier that points to a space rule, that implies
                 // that it's a lexical rule too
-                Some(Status::Yes) => (Status::Yes, Status::Yes),
+                Some(Some(true)) => (Some(true), Some(true)),
                 // if it's known to not point to a space rule, also forward the space status
-                Some(Status::No) => (Status::No, Status::No),
+                Some(Some(false)) => (Some(false), Some(false)),
                 // otherwise, add the identifier to the ones that must be checked later
-                Some(Status::Maybe) | None => {
-                    env.unknown_ids_stk.last_mut().unwrap().push(id.clone());
-                    (Status::Maybe, Status::Maybe)
+                Some(None) | None => {
+                    self.unknown_ids_stk.last_mut().unwrap().push(id.clone());
+                    (None, None)
                 }
             },
             // forwards
-            AST::Not(e) => _traverse(env, e),
-            AST::Label(_, e) => _traverse(env, e),
-            AST::Optional(e) | AST::ZeroOrMore(e) | AST::OneOrMore(e) => _traverse(env, e),
+            AST::Not(e) => self.traverse(e),
+            AST::Label(_, e) => self.traverse(e),
+            AST::Optional(e) | AST::ZeroOrMore(e) | AST::OneOrMore(e) => self.traverse(e),
             // specialized
             AST::Grammar(ev) => {
                 ev.into_iter().for_each(|e| {
-                    _traverse(env, e);
+                    self.traverse(e);
                 });
 
                 // Find all symbols that are themselves rules with only spaces
@@ -569,20 +596,20 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     let mut has_change = false;
 
                     // find definitions that are still worth looking into
-                    let mut maybe_rules = env.rule_is_space.clone();
-                    maybe_rules.retain(|_, v| *v == Status::Maybe);
+                    let mut maybe_rules = self.rule_is_space.clone();
+                    maybe_rules.retain(|_, v| *v == None);
 
                     for rule in maybe_rules.keys() {
                         // if all the unknown IDs were already resolved and it has been resolved
                         // into a space rule, then we mark the `rule` itself as a space rule.
-                        if env.unknown_space_ids[rule]
+                        if self.unknown_space_ids[rule]
                             .iter()
-                            .all(|id| env.rule_is_space[id] == Status::Yes)
+                            .all(|id| self.rule_is_space[id] == Some(true))
                         {
-                            env.rule_is_space.insert(rule.to_string(), Status::Yes);
+                            self.rule_is_space.insert(rule.to_string(), Some(true));
                             // knowing for sure that a rule only matches spaces, also confirms
                             // that it is a lexical rule
-                            env.rule_is_lexical.insert(rule.to_string(), Status::Yes);
+                            self.rule_is_lexical.insert(rule.to_string(), Some(true));
                             has_change = true;
                         }
                     }
@@ -595,15 +622,15 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     let mut has_change = false;
 
                     // find all rules that we're still uncertain about
-                    let mut maybe_rules = env.rule_is_lexical.clone();
-                    maybe_rules.retain(|_, v| *v == Status::Maybe);
+                    let mut maybe_rules = self.rule_is_lexical.clone();
+                    maybe_rules.retain(|_, v| *v == None);
 
                     for rule in maybe_rules.keys() {
-                        if env.unknown_lexical_ids[rule]
+                        if self.unknown_lexical_ids[rule]
                             .iter()
-                            .all(|id| env.rule_is_space[id] == Status::Yes)
+                            .all(|id| self.rule_is_space[id] == Some(true))
                         {
-                            env.rule_is_lexical.insert(rule.to_string(), Status::Yes);
+                            self.rule_is_lexical.insert(rule.to_string(), Some(true));
                             has_change = true;
                         }
                     }
@@ -612,46 +639,46 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                     }
                 }
 
-                env.lexical_rules.append(
-                    &mut env
+                self.lexical_rules.append(
+                    &mut self
                         .rule_is_lexical
                         .iter()
-                        .filter(|(_, v)| **v == Status::Maybe)
+                        .filter(|(_, v)| **v == None)
                         .map(|(k, _)| k.clone())
                         .collect(),
                 );
 
-                (Status::No, Status::No)
+                (Some(false), Some(false))
             }
             AST::Definition(def, expr) => {
                 // collect identifiers of rules that we're unsure if they're space rules or not
-                env.unknown_ids_stk.push(vec![]);
-                let (is_space, mut is_lex) = _traverse(env, expr);
-                let unknown_identifiers = env.unknown_ids_stk.pop().unwrap_or(vec![]);
+                self.unknown_ids_stk.push(vec![]);
+                let (is_space, mut is_lex) = self.traverse(expr);
+                let unknown_identifiers = self.unknown_ids_stk.pop().unwrap_or(vec![]);
 
-                env.rule_is_space.insert(def.clone(), is_space.clone());
+                self.rule_is_space.insert(def.clone(), is_space.clone());
                 match is_space {
-                    Status::No => {}
-                    Status::Yes => {
-                        env.space_rules.push(def.clone());
+                    Some(false) => {}
+                    Some(true) => {
+                        self.space_rules.push(def.clone());
                         // if a rule contains only spaces, we can tell right away that it is a
                         // lexical rule.  This allows us to save some work when patching.
-                        is_lex = Status::Yes;
+                        is_lex = Some(true);
                     }
-                    Status::Maybe => {
-                        env.unknown_space_ids
+                    None => {
+                        self.unknown_space_ids
                             .insert(def.clone(), unknown_identifiers.clone());
                     }
                 }
 
-                env.rule_is_lexical.insert(def.clone(), is_lex.clone());
+                self.rule_is_lexical.insert(def.clone(), is_lex.clone());
                 match is_lex {
-                    Status::No => {}
-                    Status::Yes => {
-                        env.lexical_rules.push(def.clone());
+                    Some(false) => {}
+                    Some(true) => {
+                        self.lexical_rules.push(def.clone());
                     }
-                    Status::Maybe => {
-                        env.unknown_lexical_ids
+                    None => {
+                        self.unknown_lexical_ids
                             .insert(def.clone(), unknown_identifiers);
                     }
                 }
@@ -659,83 +686,52 @@ fn stage1(node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
                 (is_space, is_lex)
             }
             AST::Sequence(exprs) | AST::Choice(exprs) => {
-                let (mut all_spaces, mut all_lex) = (Status::Yes, Status::Yes);
+                let (mut all_spaces, mut all_lex) = (Some(true), Some(true));
                 for expr in exprs {
-                    let (is_space, is_lex) = _traverse(env, expr);
+                    let (is_space, is_lex) = self.traverse(expr);
                     all_spaces = match (is_space, all_spaces) {
-                        (Status::Yes, Status::Yes) => Status::Yes,
-                        (Status::Yes | Status::Maybe, Status::Yes | Status::Maybe) => Status::Maybe,
-                        _ => Status::No,
+                        (Some(true), Some(true)) => Some(true),
+                        (Some(true) | None, Some(true) | None) => None,
+                        _ => Some(false),
                     };
                     all_lex = match (is_lex, all_lex) {
-                        (Status::Yes, Status::Yes) => Status::Yes,
-                        (Status::No, Status::No) => Status::No,
-                        (Status::Maybe, _) | (_, Status::Maybe) => Status::Maybe,
-                        (Status::Yes, Status::No) | (Status::No, Status::Yes) => Status::Yes,
+                        (Some(true), Some(true)) => Some(true),
+                        (Some(false), Some(false)) => Some(false),
+                        (None, _) | (_, None) => None,
+                        (Some(true), Some(false)) | (Some(false), Some(true)) => Some(true),
                     };
                 }
                 (all_spaces, all_lex)
             }
             AST::Range(a, b) => {
-                env.lexical_tokens.push(AST::Range(*a, *b));
+                self.lexical_tokens.push(AST::Range(*a, *b));
                 let is_space = if char::is_whitespace(*a) && char::is_whitespace(*b) {
-                    Status::Yes
+                    Some(true)
                 } else {
-                    Status::No
+                    Some(false)
                 };
-                (is_space, Status::Yes)
+                (is_space, Some(true))
             }
             AST::Str(st) => {
-                env.lexical_tokens.push(AST::Str(st.clone()));
+                self.lexical_tokens.push(AST::Str(st.clone()));
                 let is_space = if st.chars().all(|s| char::is_whitespace(s)) {
-                    Status::Yes
+                    Some(true)
                 } else {
-                    Status::No
+                    Some(false)
                 };
-                (is_space, Status::Yes)
+                (is_space, Some(true))
             }
             AST::Char(c) => {
-                env.lexical_tokens.push(AST::Char(*c));
+                self.lexical_tokens.push(AST::Char(*c));
                 let is_space = if char::is_whitespace(*c) {
-                    Status::Yes
+                    Some(true)
                 } else {
-                    Status::No
+                    Some(false)
                 };
-                (is_space, Status::Yes)
+                (is_space, Some(true))
             }
         }
     }
-
-    let base_env = &mut _TraverseEnv {
-        unknown_ids_stk: vec![],
-        rule_is_space: HashMap::new(),
-        unknown_space_ids: HashMap::new(),
-        space_rules: vec![],
-        rule_is_lexical: HashMap::new(),
-        unknown_lexical_ids: HashMap::new(),
-        lexical_rules: vec![],
-        lexical_tokens: vec![],
-    };
-
-    _traverse(base_env, node);
-
-    let space_rules: Vec<String> = base_env
-        .rule_is_space
-        .iter()
-        .filter(|(_, v)| **v == Status::Yes)
-        .map(|(k, _)| k.clone())
-        .collect();
-
-    // Collect only rules that contain only lexical matches.  That includes all the space rules.
-    let lexical_rules: Vec<String> = base_env
-        .lexical_rules
-        .iter()
-        .filter(|r| !space_rules.contains(r))
-        .filter(|r| base_env.rule_is_lexical[*r] != Status::Yes)
-        .map(|r| r.clone())
-        .collect();
-
-    (base_env.lexical_tokens.clone(), space_rules, lexical_rules)
 }
 
 #[derive(Debug)]

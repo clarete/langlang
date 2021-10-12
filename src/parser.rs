@@ -509,6 +509,8 @@ impl Compiler {
 /// to another rule, is considered to be a lexical a because the
 /// identifier it contains points to a rule that is a space rule.
 struct Stage1 {
+    definition_names: Vec<String>,
+
     // stack for Identifiers that haven't had their status resolved
     unknown_ids_stk: Vec<Vec<String>>,
 
@@ -527,12 +529,19 @@ struct Stage1 {
 }
 
 impl Stage1 {
-    fn new() -> Self {
+    fn new_with_space_rules(space_rules: Vec<String>) -> Self {
+        let mut rule_is_space = HashMap::new();
+
+        for s in &space_rules {
+            rule_is_space.insert(s.clone(), Some(true));
+        }
+
         Self {
+            definition_names: vec![],
             unknown_ids_stk: vec![],
-            rule_is_space: HashMap::new(),
+            rule_is_space,
             unknown_space_ids: HashMap::new(),
-            space_rules: vec![],
+            space_rules,
             rule_is_lexical: HashMap::new(),
             unknown_lexical_ids: HashMap::new(),
             lexical_rules: vec![],
@@ -546,7 +555,7 @@ impl Stage1 {
         let space_rules: Vec<String> = self
             .rule_is_space
             .iter()
-            .filter(|(_, v)| **v == Some(true))
+            .filter(|(k, v)| **v == Some(true) && self.definition_names.contains(k))
             .map(|(k, _)| k.clone())
             .collect();
 
@@ -651,12 +660,19 @@ impl Stage1 {
                 (Some(false), Some(false))
             }
             AST::Definition(def, expr) => {
+                self.definition_names.push(def.clone());
+
                 // collect identifiers of rules that we're unsure if they're space rules or not
                 self.unknown_ids_stk.push(vec![]);
                 let (is_space, mut is_lex) = self.traverse(expr);
                 let unknown_identifiers = self.unknown_ids_stk.pop().unwrap_or(vec![]);
 
-                self.rule_is_space.insert(def.clone(), is_space.clone());
+                // Don't override possibly pre-loaded names in this table
+                match self.rule_is_space.get(def) {
+                    None => { self.rule_is_space.insert(def.clone(), is_space.clone()); },
+                    _ => {}
+                }
+
                 match is_space {
                     Some(false) => {}
                     Some(true) => {

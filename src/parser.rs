@@ -555,17 +555,26 @@ impl Stage1 {
         let space_rules: Vec<String> = self
             .rule_is_space
             .iter()
-            .filter(|(k, v)| **v == Some(true) && self.definition_names.contains(k))
-            .map(|(k, _)| k.clone())
+            .filter_map(|(k, v)| {
+                if *v == Some(true) && self.definition_names.contains(k) {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
             .collect();
 
         // Collect only rules that contain only lexical matches.  That includes all the space rules.
         let lexical_rules: Vec<String> = self
             .lexical_rules
             .iter()
-            .filter(|r| !space_rules.contains(r))
-            .filter(|r| self.rule_is_lexical[*r] != Some(true))
-            .map(|r| r.clone())
+            .filter_map(|r| {
+                if !space_rules.contains(r) && self.rule_is_lexical[r] != Some(true) {
+                    Some(r.clone())
+                } else {
+                    None
+                }
+            })
             .collect();
 
         (self.lexical_tokens.clone(), space_rules, lexical_rules)

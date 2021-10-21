@@ -517,12 +517,10 @@ struct Stage1 {
     // state for finding rules that match whitespace chars only
     rule_is_space: HashMap<String, Option<bool>>,
     unknown_space_ids: HashMap<String, Vec<String>>,
-    space_rules: Vec<String>,
 
     // state for finding lexical rules
     rule_is_lexical: HashMap<String, Option<bool>>,
     unknown_lexical_ids: HashMap<String, Vec<String>>,
-    lexical_rules: Vec<String>,
 
     // state for eatToken
     lexical_tokens: Vec<AST>,
@@ -541,10 +539,8 @@ impl Stage1 {
             unknown_ids_stk: vec![],
             rule_is_space,
             unknown_space_ids: HashMap::new(),
-            space_rules,
             rule_is_lexical: HashMap::new(),
             unknown_lexical_ids: HashMap::new(),
-            lexical_rules: vec![],
             lexical_tokens: vec![],
         }
     }
@@ -566,11 +562,11 @@ impl Stage1 {
 
         // Collect only rules that contain only lexical matches.  That includes all the space rules.
         let lexical_rules: Vec<String> = self
-            .lexical_rules
+            .rule_is_lexical
             .iter()
-            .filter_map(|r| {
-                if !space_rules.contains(r) && self.rule_is_lexical[r] != Some(true) {
-                    Some(r.clone())
+            .filter_map(|(k, v)| {
+                if *v == Some(true) {
+                    Some(k.clone())
                 } else {
                     None
                 }
@@ -580,7 +576,13 @@ impl Stage1 {
         (self.lexical_tokens.clone(), space_rules, lexical_rules)
     }
 
-    fn traverse(&mut self, node: &AST) -> (Option<bool> /* is_space */, Option<bool> /* is_lex */) {
+    fn traverse(
+        &mut self,
+        node: &AST,
+    ) -> (
+        Option<bool>, /* is_space */
+        Option<bool>, /* is_lex */
+    ) {
         match node {
             // doesn't matter
             AST::LabelDefinition(..) => (None, None),
@@ -656,16 +658,6 @@ impl Stage1 {
                         break;
                     }
                 }
-
-                self.lexical_rules.append(
-                    &mut self
-                        .rule_is_lexical
-                        .iter()
-                        .filter(|(_, v)| **v == None)
-                        .map(|(k, _)| k.clone())
-                        .collect(),
-                );
-
                 (Some(false), Some(false))
             }
             AST::Definition(def, expr) => {
@@ -678,14 +670,15 @@ impl Stage1 {
 
                 // Don't override possibly pre-loaded names in this table
                 match self.rule_is_space.get(def) {
-                    None => { self.rule_is_space.insert(def.clone(), is_space.clone()); },
+                    None => {
+                        self.rule_is_space.insert(def.clone(), is_space.clone());
+                    }
                     _ => {}
                 }
 
                 match is_space {
                     Some(false) => {}
                     Some(true) => {
-                        self.space_rules.push(def.clone());
                         // if a rule contains only spaces, we can tell right away that it is a
                         // lexical rule.  This allows us to save some work when patching.
                         is_lex = Some(true);
@@ -697,17 +690,10 @@ impl Stage1 {
                 }
 
                 self.rule_is_lexical.insert(def.clone(), is_lex.clone());
-                match is_lex {
-                    Some(false) => {}
-                    Some(true) => {
-                        self.lexical_rules.push(def.clone());
-                    }
-                    None => {
-                        self.unknown_lexical_ids
+                if !is_lex.is_some() {
+                    self.unknown_lexical_ids
                             .insert(def.clone(), unknown_identifiers);
-                    }
                 }
-
                 (is_space, is_lex)
             }
             AST::Sequence(exprs) | AST::Choice(exprs) => {

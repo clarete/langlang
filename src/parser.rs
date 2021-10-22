@@ -545,35 +545,22 @@ impl Stage1 {
         }
     }
 
-    fn run(&mut self, node: &AST) -> (Vec<AST>, Vec<String>, Vec<String>) {
+    fn is_space_rule(&self, name: &String) -> bool {
+        match self.rule_is_space.get(name) {
+            Some(Some(true)) => self.definition_names.contains(name),
+            _ => false,
+        }
+    }
+
+    fn is_lex_rule(&self, name: &str) -> bool {
+        match self.rule_is_lexical.get(name) {
+            Some(Some(is_space)) => *is_space,
+            _ => false,
+        }
+    }
+
+    fn run(&mut self, node: &AST) {
         self.traverse(node);
-
-        let space_rules: Vec<String> = self
-            .rule_is_space
-            .iter()
-            .filter_map(|(k, v)| {
-                if *v == Some(true) && self.definition_names.contains(k) {
-                    Some(k.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        // Collect only rules that contain only lexical matches.  That includes all the space rules.
-        let lexical_rules: Vec<String> = self
-            .rule_is_lexical
-            .iter()
-            .filter_map(|(k, v)| {
-                if *v == Some(true) {
-                    Some(k.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        (self.lexical_tokens.clone(), space_rules, lexical_rules)
     }
 
     fn traverse(
@@ -692,7 +679,7 @@ impl Stage1 {
                 self.rule_is_lexical.insert(def.clone(), is_lex.clone());
                 if !is_lex.is_some() {
                     self.unknown_lexical_ids
-                            .insert(def.clone(), unknown_identifiers);
+                        .insert(def.clone(), unknown_identifiers);
                 }
                 (is_space, is_lex)
             }

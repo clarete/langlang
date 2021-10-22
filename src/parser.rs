@@ -16,7 +16,7 @@ pub struct Location {
     column: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum AST {
     Grammar(Vec<AST>),
     Definition(String, Box<AST>),

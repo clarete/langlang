@@ -1,8 +1,10 @@
+cargo-features = ["edition2021"]
+
 [package]
 name = "langlang"
 version = "0.1.0"
 authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

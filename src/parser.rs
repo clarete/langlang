@@ -1237,6 +1237,62 @@ impl Parser {
 }
 
 #[cfg(test)]
+mod stage1_tests {
+    use super::*;
+
+    #[test]
+    fn a01() {
+        let grammar_text = "
+             A <- B C       # is_space: false, is_lex: false
+             B <- 'a'       # is_space: false, is_lex: true
+             C <- 'b'       # is_space: false, is_lex: true
+             D <- ' '       # is_space: true; literal space
+             E <- '\t'      # is_space: true; escaped tab
+             F <- '\n'      # is_space: true; escaped new line
+             G <- '\r'      # is_space: true; escaped carriage return
+             H <- ' ' G     # is_space: true; identifier points to a space rule
+             I <- ' ' '\t'  # is_space: true; sequence made only of literal spaces
+             J <- '\n'      # is_space: true; all options are literal space chars
+                / '\r\n'
+                / '\r'
+            ";
+        let grammar = Parser::new(grammar_text).parse_grammar().unwrap();
+
+        let mut stage1 = Stage1::new_with_space_rules(vec![]);
+        stage1.run(&grammar);
+
+        let mut lexical_rules = stage1
+            .rule_is_lexical
+            .iter()
+            .filter_map(|(k, v)| if *v == Some(true) { Some(k) } else { None })
+            .collect::<Vec<_>>();
+        lexical_rules.sort_unstable();
+
+        assert_eq!(
+            ["B", "C", "D", "E", "F", "G", "H", "I", "J"]
+                .iter()
+                .map(|i| i.to_owned())
+                .collect::<Vec<_>>(),
+            lexical_rules
+        );
+
+        let mut space_rules = stage1.rule_is_space
+            .iter()
+            .filter_map(|(k, v)| if *v == Some(true) { Some(k) } else { None })
+            .collect::<Vec<_>>();
+        space_rules.sort_unstable();
+
+        assert_eq!(
+            ["D", "E", "F", "G", "H", "I", "J"]
+                .iter()
+                .map(|i| i.to_owned())
+                .collect::<Vec<_>>(),
+            space_rules
+        );
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

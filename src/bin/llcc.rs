@@ -11,7 +11,7 @@ fn run_grammar_on_input_from_cmd() -> Result<(), std::io::Error> {
     }
 
     let p = c.program();
-    println!("Compiled:\n{}", p.to_string());
+    println!("Compiled:\n{}", p);
 
     let input_data = fs::read_to_string(input_file)?;
     let mut m = vm::VM::new(p);
@@ -27,6 +27,6 @@ fn main() {
     env_logger::init();
 
     if let Err(e) = run_grammar_on_input_from_cmd() {
-        println!("{}", e.to_string());
+        println!("{}", e);
     }
 }

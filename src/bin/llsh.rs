@@ -90,6 +90,6 @@ fn main() {
     env_logger::init();
 
     if let Err(e) = shell() {
-        println!("{}", e.to_string());
+        println!("{}", e);
     }
 }

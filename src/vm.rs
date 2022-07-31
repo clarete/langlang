@@ -45,7 +45,7 @@ pub enum Instruction {
     Throw(usize),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
     Fail,
     LeftRec,

@@ -469,6 +469,12 @@ impl Compiler {
     }
 }
 
+impl Default for Compiler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The first stage of the StandardAlgorithm
 ///
 /// This traversal collects following information:
@@ -594,7 +600,7 @@ impl Stage1 {
             AST::Optional(e) | AST::ZeroOrMore(e) | AST::OneOrMore(e) => self.traverse(e),
             // specialized
             AST::Grammar(ev) => {
-                ev.into_iter().for_each(|e| {
+                ev.iter().for_each(|e| {
                     self.traverse(e);
                 });
 
@@ -653,14 +659,11 @@ impl Stage1 {
                 // collect identifiers of rules that we're unsure if they're space rules or not
                 self.unknown_ids_stk.push(vec![]);
                 let (is_space, mut is_lex) = self.traverse(expr);
-                let unknown_identifiers = self.unknown_ids_stk.pop().unwrap_or(vec![]);
+                let unknown_identifiers = self.unknown_ids_stk.pop().unwrap_or_default();
 
                 // Don't override possibly pre-loaded names in this table
-                match self.rule_is_space.get(def) {
-                    None => {
-                        self.rule_is_space.insert(def.clone(), is_space.clone());
-                    }
-                    _ => {}
+                if self.rule_is_space.get(def) == None {
+                    self.rule_is_space.insert(def.clone(), is_space);
                 }
 
                 match is_space {
@@ -676,8 +679,8 @@ impl Stage1 {
                     }
                 }
 
-                self.rule_is_lexical.insert(def.clone(), is_lex.clone());
-                if !is_lex.is_some() {
+                self.rule_is_lexical.insert(def.clone(), is_lex);
+                if is_lex.is_none() {
                     self.unknown_lexical_ids
                         .insert(def.clone(), unknown_identifiers);
                 }
@@ -712,7 +715,7 @@ impl Stage1 {
             }
             AST::Str(st) => {
                 self.lexical_tokens.push(AST::Str(st.clone()));
-                let is_space = if st.chars().all(|s| char::is_whitespace(s)) {
+                let is_space = if st.chars().all(char::is_whitespace) {
                     Some(true)
                 } else {
                     Some(false)

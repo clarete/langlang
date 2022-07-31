@@ -4,17 +4,17 @@ use std::collections::HashMap;
 
 use crate::vm;
 
-#[derive(Debug)]
-pub struct Location {
-    // how many characters have been seen since the begining of
-    // parsing
-    cursor: usize,
-    // how many end-of-line sequences seen since the begining of
-    // parsing
-    line: usize,
-    // how many characters seen since the begining of the line
-    column: usize,
-}
+// #[derive(Debug)]
+// pub struct Location {
+//     // how many characters have been seen since the begining of
+//     // parsing
+//     cursor: usize,
+//     // how many end-of-line sequences seen since the begining of
+//     // parsing
+//     line: usize,
+//     // how many characters seen since the begining of the line
+//     column: usize,
+// }
 
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub enum AST {
@@ -43,12 +43,6 @@ pub struct Fun {
     size: usize,
 }
 
-#[derive(Clone, Debug)]
-pub enum Token {
-    Deferred(usize),
-    StringID(usize),
-}
-
 #[derive(Debug)]
 pub struct Compiler {
     // The index of the last instruction written the `code` vector
@@ -75,21 +69,6 @@ pub struct Compiler {
     // Map from the set of label IDs to the set with the first address
     // of the label's respective recovery expression
     recovery: HashMap<usize, usize>,
-    // Map from the set of addresses to the set of vectors of
-    // terminals that should be expected in case the expression under
-    // the address fails parsing.  This is similar to `final_follows`,
-    // except that this map can contain deferred addresses that still
-    // need to be resolved during backpatching.
-    follows: HashMap<usize, Vec<Token>>,
-    // Same type of map as `follows`, the difference is that follows
-    // map can contain deferred addresses, and this set can't.  All
-    // addresses here are final.
-    final_follows: HashMap<usize, Vec<usize>>,
-    // Stack of sets of firsts, are used to build the follows sets
-    firsts: Vec<Vec<Token>>,
-    // Map of the sets of string IDs of rule names to the sets of
-    // first tokens that appear in a rule
-    rules_firsts: HashMap<usize, Vec<Token>>,
     // Used for printing out debugging messages with the of the
     // structure the call stack the compiler is traversing
     indent_level: usize,
@@ -107,23 +86,18 @@ impl Compiler {
             addrs: HashMap::new(),
             labels: HashMap::new(),
             recovery: HashMap::new(),
-            follows: HashMap::new(),
-            final_follows: HashMap::new(),
-            firsts: vec![],
-            rules_firsts: HashMap::new(),
             indent_level: 0,
         }
     }
 
     /// Takes a PEG string and runs the compilation process, by
     /// parsing the input string, traversing the output grammar to
-    /// emit the code, and then backpatching both call sites and
-    /// follows sets deferred during the code main generation pass.
+    /// emit the code, and then backpatching both call sites deferred
+    /// during the code main generation pass.
     pub fn compile_str(&mut self, s: &str) -> Result<(), Error> {
         let mut p = Parser::new(s);
         self.compile(p.parse_grammar()?)?;
         self.backpatch_callsites()?;
-        self.backpatch_follows();
         Ok(())
     }
 
@@ -132,7 +106,6 @@ impl Compiler {
     pub fn program(self) -> vm::Program {
         vm::Program::new(
             self.identifiers,
-            self.final_follows,
             self.labels,
             self.recovery,
             self.strings,
@@ -180,60 +153,6 @@ impl Compiler {
         Ok(())
     }
 
-    fn backpatch_follows(&mut self) {
-        for (pos, tokens) in &self.follows {
-            let mut addrs = vec![];
-            for token in tokens {
-                addrs.extend(self.resolve_token(token))
-            }
-            addrs.dedup();
-            self.final_follows.insert(*pos, addrs);
-        }
-    }
-
-    fn resolve_token(&self, token: &Token) -> Vec<usize> {
-        match token {
-            Token::StringID(id) => vec![*id],
-            Token::Deferred(id) => {
-                let mut v = vec![];
-                for first in self.rules_firsts[id].clone() {
-                    v.extend(self.resolve_token(&first))
-                }
-                v
-            }
-        }
-    }
-
-    /// Traverse AST node, emit bytecode and find first/follows sets
-    ///
-    /// The first part of the work done by this method is to emit
-    /// bytecode for the Parsing Expression Grammars virtual machine.
-    /// This work is heavily based on the article "A Parsing Machine
-    /// for PEGs" by S. Medeiros, et al.
-    ///
-    /// The second challenge that this method tackles is building the
-    /// follows sets.  Learn more about these sets in the article,
-    /// also by S. Medeiros, named "Syntax Error Recovery in Parsing
-    /// Expression Grammars".  But here's the rough idea:
-    ///
-    ///   follows(G[ε])       = {ε}                   ; empty
-    ///   follows(G[a])       = {ε}                   ; terminal
-    ///   follows(G[p1 / p2]) = {ε}                   ; ordered choice
-    ///   follows(G[A])       = first(G[P(A)])        ; non-terminal
-    ///   follows(G[p1 p2])   = first(p2)             ; sequence
-    ///   follows(G[p*])      = {ε}                   ; repetition
-    ///   follows(G[!p])      =
-    ///
-    ///   first(G[ε])       = {ε}                     ; empty
-    ///   first(G[a])       = {a}                     ; terminal
-    ///   first(G[A])       = first(G[P(A)])          ; non-terminal
-    ///   first(G[p1 p2])   = first(p1)               ; sequence
-    ///   first(G[p1 / p2]) = first(p1) ++ first(p2)  ; ordered choice
-    ///   first(G[p*])      = first(p)                ; repetition
-    ///   first(G[!p])      =
-    ///
-    /// The output of the compilation can be accessed via the
-    /// `program()` method.
     fn compile(&mut self, node: AST) -> Result<(), Error> {
         match node {
             AST::Grammar(rules) => {
@@ -248,22 +167,11 @@ impl Compiler {
                 let addr = self.cursor;
                 let strid = self.push_string(name.clone());
                 self.identifiers.insert(addr, strid);
-
-                let n = format!("Definition {:?}", name);
-                self.pushfff(n.as_str());
                 self.compile(*expr)?;
                 self.emit(vm::Instruction::Return);
 
-                let firsts = self.popfff(n.as_str());
-                self.rules_firsts.insert(strid, firsts);
-                self.funcs.insert(
-                    strid,
-                    Fun {
-                        name,
-                        addr,
-                        size: self.cursor - addr,
-                    },
-                );
+                let size = self.cursor - addr;
+                self.funcs.insert(strid, Fun { name, addr, size });
                 Ok(())
             }
             AST::LabelDefinition(name, message) => {
@@ -284,17 +192,8 @@ impl Compiler {
             }
             AST::Sequence(seq) => {
                 self.indent("Seq");
-                for (i, s) in seq.into_iter().enumerate() {
-                    let pos = self.cursor;
-                    self.pushfff("SeqItem");
+                for s in seq.into_iter() {
                     self.compile(s)?;
-                    let firsts = self.popfff("SeqItem");
-                    if i == 0 {
-                        for f in firsts.clone() {
-                            self.add_first(f);
-                        }
-                    }
-                    self.follows.insert(pos, firsts);
                 }
                 self.dedent("Seq");
                 Ok(())
@@ -312,8 +211,6 @@ impl Compiler {
                 let (mut i, last_choice) = (0, choices.len() - 1);
                 let mut commits = vec![];
 
-                self.pushfff("Choice");
-
                 for choice in choices {
                     if i == last_choice {
                         self.compile(choice)?;
@@ -330,12 +227,6 @@ impl Compiler {
 
                 for commit in commits {
                     self.code[commit] = vm::Instruction::Commit(self.cursor - commit);
-                }
-
-                let firsts = self.popfff("Choice");
-
-                for f in firsts {
-                    self.add_first(f);
                 }
 
                 Ok(())
@@ -373,13 +264,9 @@ impl Compiler {
                 match self.funcs.get(&id) {
                     Some(func) => {
                         let addr = self.cursor - func.addr;
-                        for f in self.rules_firsts[&id].clone() {
-                            self.add_first(f);
-                        }
                         self.emit(vm::Instruction::CallB(addr, 0));
                     }
                     None => {
-                        self.add_first(Token::Deferred(id));
                         self.addrs.insert(self.cursor, id);
                         self.emit(vm::Instruction::Call(0, 0));
                     }
@@ -396,7 +283,6 @@ impl Compiler {
                 let id = self.push_string(s);
                 self.emit(vm::Instruction::Str(id));
                 self.emit(vm::Instruction::Capture);
-                self.add_first(Token::StringID(id));
                 Ok(())
             }
             AST::Char(c) => {
@@ -419,43 +305,10 @@ impl Compiler {
         self.cursor += 1;
     }
 
-    // Helpers for building the "firsts" sets
-
-    fn pushfff(&mut self, msg: &str) {
-        self.indent(msg);
-        self.firsts.push(vec![]);
-    }
-
-    fn popfff(&mut self, msg: &str) -> Vec<Token> {
-        self.dedent(msg);
-        self.firsts.pop().unwrap()
-    }
-
-    fn add_first(&mut self, first: Token) {
-        let l = self.firsts.len();
-        if l > 0 {
-            self.prt_token("first", &first);
-            self.firsts[l - 1].push(first);
-        }
-    }
-
     // Debugging helpers
 
     fn prt(&mut self, msg: &str) {
         debug!("{:indent$}{}", "", msg, indent = self.indent_level);
-    }
-
-    fn prt_token(&mut self, msg: &str, token: &Token) {
-        debug!(
-            "{:width$}{} {}",
-            "",
-            msg,
-            match token {
-                Token::Deferred(id) => format!("Deferred {:#?} {:?}", id, self.strings[*id]),
-                Token::StringID(id) => format!("StringID {:#?} {:?}", id, self.strings[*id]),
-            },
-            width = self.indent_level
-        );
     }
 
     fn indent(&mut self, msg: &str) {
@@ -472,266 +325,6 @@ impl Compiler {
 impl Default for Compiler {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// The first stage of the StandardAlgorithm
-///
-/// This traversal collects following information:
-///
-/// 1. all the AST nodes with matchers for recognizable terminals
-/// (`Char`, `Str`, and `Range`).  That's used for building the
-/// `eatToken` expression.
-///
-/// 2. the names of rules that match exclusively white space
-/// characters or call out identifiers of other rules that match
-/// exclusively white spaces. e.g.:
-///
-/// ```
-/// _   <- ws*
-/// ws  <- eol / sp
-/// eol <- '\n' / '\r\n' / '\r'
-/// sp  <- [ \t]
-/// ```
-///
-/// All the rules above would appear in the result of this function as
-/// space rules.  The rules `_` and `ws` are examples of rules that
-/// contain identifiers, but are still considered space rules because
-/// the identifiers they call out to are rules that only match space
-/// characters (`eol` and `sp`).
-///
-/// 3. the names of rules that contain expressions that match
-/// syntatical structure. Notice that space rules don't ever appear on
-/// this list. e.g.:
-///
-/// ```
-/// T <- D "+" D / D "-" D
-/// D <- [0-9]+ _
-/// _ <- [ \t]*
-/// ```
-///
-/// In the example above, the rule `T` would be not a lexical rule,
-/// but `D` and `_` wouldn't.  Although `D` does contain an identifier
-/// to another rule, is considered to be a lexical a because the
-/// identifier it contains points to a rule that is a space rule.
-struct Stage1 {
-    definition_names: Vec<String>,
-
-    // stack for Identifiers that haven't had their status resolved
-    unknown_ids_stk: Vec<Vec<String>>,
-
-    // state for finding rules that match whitespace chars only
-    rule_is_space: HashMap<String, Option<bool>>,
-    unknown_space_ids: HashMap<String, Vec<String>>,
-
-    // state for finding lexical rules
-    rule_is_lexical: HashMap<String, Option<bool>>,
-    unknown_lexical_ids: HashMap<String, Vec<String>>,
-
-    // state for eatToken
-    lexical_tokens: Vec<AST>,
-}
-
-impl Stage1 {
-    fn new_with_space_rules(space_rules: Vec<String>) -> Self {
-        let mut rule_is_space = HashMap::new();
-
-        for s in &space_rules {
-            rule_is_space.insert(s.clone(), Some(true));
-        }
-
-        Self {
-            definition_names: vec![],
-            unknown_ids_stk: vec![],
-            rule_is_space,
-            unknown_space_ids: HashMap::new(),
-            rule_is_lexical: HashMap::new(),
-            unknown_lexical_ids: HashMap::new(),
-            lexical_tokens: vec![],
-        }
-    }
-
-    fn is_space_rule(&self, name: &String) -> bool {
-        match self.rule_is_space.get(name) {
-            Some(Some(true)) => self.definition_names.contains(name),
-            _ => false,
-        }
-    }
-
-    fn is_lex_rule(&self, name: &str) -> bool {
-        match self.rule_is_lexical.get(name) {
-            Some(Some(is_space)) => *is_space,
-            _ => false,
-        }
-    }
-
-    fn run(&mut self, node: &AST) {
-        self.traverse(node);
-    }
-
-    fn traverse(
-        &mut self,
-        node: &AST,
-    ) -> (
-        Option<bool>, /* is_space */
-        Option<bool>, /* is_lex */
-    ) {
-        match node {
-            // doesn't matter
-            AST::LabelDefinition(..) => (None, None),
-            // not spaces
-            AST::Any | AST::Empty => (None, Some(true)),
-            // identifiers are a special case for space rules
-            AST::Identifier(id) => match self.rule_is_space.get(id) {
-                // if it's a known identifier that points to a space rule, that implies
-                // that it's a lexical rule too
-                Some(Some(true)) => (Some(true), Some(true)),
-                // if it's known to not point to a space rule, also forward the space status
-                Some(Some(false)) => (Some(false), Some(false)),
-                // otherwise, add the identifier to the ones that must be checked later
-                Some(None) | None => {
-                    self.unknown_ids_stk.last_mut().unwrap().push(id.clone());
-                    (None, None)
-                }
-            },
-            // forwards
-            AST::Not(e) => self.traverse(e),
-            AST::Label(_, e) => self.traverse(e),
-            AST::Optional(e) | AST::ZeroOrMore(e) | AST::OneOrMore(e) => self.traverse(e),
-            // specialized
-            AST::Grammar(ev) => {
-                ev.iter().for_each(|e| {
-                    self.traverse(e);
-                });
-
-                // Find all symbols that are themselves rules with only spaces
-                loop {
-                    let mut has_change = false;
-
-                    // find definitions that are still worth looking into
-                    let mut maybe_rules = self.rule_is_space.clone();
-                    maybe_rules.retain(|_, v| *v == None);
-
-                    for rule in maybe_rules.keys() {
-                        // if all the unknown IDs were already resolved and it has been resolved
-                        // into a space rule, then we mark the `rule` itself as a space rule.
-                        if self.unknown_space_ids[rule]
-                            .iter()
-                            .all(|id| self.rule_is_space[id] == Some(true))
-                        {
-                            self.rule_is_space.insert(rule.to_string(), Some(true));
-                            // knowing for sure that a rule only matches spaces, also confirms
-                            // that it is a lexical rule
-                            self.rule_is_lexical.insert(rule.to_string(), Some(true));
-                            has_change = true;
-                        }
-                    }
-                    if !has_change {
-                        break;
-                    }
-                }
-
-                loop {
-                    let mut has_change = false;
-
-                    // find all rules that we're still uncertain about
-                    let mut maybe_rules = self.rule_is_lexical.clone();
-                    maybe_rules.retain(|_, v| *v == None);
-
-                    for rule in maybe_rules.keys() {
-                        if self.unknown_lexical_ids[rule]
-                            .iter()
-                            .all(|id| self.rule_is_space[id] == Some(true))
-                        {
-                            self.rule_is_lexical.insert(rule.to_string(), Some(true));
-                            has_change = true;
-                        }
-                    }
-                    if !has_change {
-                        break;
-                    }
-                }
-                (Some(false), Some(false))
-            }
-            AST::Definition(def, expr) => {
-                self.definition_names.push(def.clone());
-
-                // collect identifiers of rules that we're unsure if they're space rules or not
-                self.unknown_ids_stk.push(vec![]);
-                let (is_space, mut is_lex) = self.traverse(expr);
-                let unknown_identifiers = self.unknown_ids_stk.pop().unwrap_or_default();
-
-                // Don't override possibly pre-loaded names in this table
-                if self.rule_is_space.get(def) == None {
-                    self.rule_is_space.insert(def.clone(), is_space);
-                }
-
-                match is_space {
-                    Some(false) => {}
-                    Some(true) => {
-                        // if a rule contains only spaces, we can tell right away that it is a
-                        // lexical rule.  This allows us to save some work when patching.
-                        is_lex = Some(true);
-                    }
-                    None => {
-                        self.unknown_space_ids
-                            .insert(def.clone(), unknown_identifiers.clone());
-                    }
-                }
-
-                self.rule_is_lexical.insert(def.clone(), is_lex);
-                if is_lex.is_none() {
-                    self.unknown_lexical_ids
-                        .insert(def.clone(), unknown_identifiers);
-                }
-                (is_space, is_lex)
-            }
-            AST::Sequence(exprs) | AST::Choice(exprs) => {
-                let (mut all_spaces, mut all_lex) = (Some(true), Some(true));
-                for expr in exprs {
-                    let (is_space, is_lex) = self.traverse(expr);
-                    all_spaces = match (is_space, all_spaces) {
-                        (Some(true), Some(true)) => Some(true),
-                        (Some(true) | None, Some(true) | None) => None,
-                        _ => Some(false),
-                    };
-                    all_lex = match (is_lex, all_lex) {
-                        (Some(true), Some(true)) => Some(true),
-                        (Some(false), Some(false)) => Some(false),
-                        (None, _) | (_, None) => None,
-                        (Some(true), Some(false)) | (Some(false), Some(true)) => Some(true),
-                    };
-                }
-                (all_spaces, all_lex)
-            }
-            AST::Range(a, b) => {
-                self.lexical_tokens.push(AST::Range(*a, *b));
-                let is_space = if char::is_whitespace(*a) && char::is_whitespace(*b) {
-                    Some(true)
-                } else {
-                    Some(false)
-                };
-                (is_space, Some(true))
-            }
-            AST::Str(st) => {
-                self.lexical_tokens.push(AST::Str(st.clone()));
-                let is_space = if st.chars().all(char::is_whitespace) {
-                    Some(true)
-                } else {
-                    Some(false)
-                };
-                (is_space, Some(true))
-            }
-            AST::Char(c) => {
-                self.lexical_tokens.push(AST::Char(*c));
-                let is_space = if char::is_whitespace(*c) {
-                    Some(true)
-                } else {
-                    Some(false)
-                };
-                (is_space, Some(true))
-            }
-        }
     }
 }
 
@@ -1240,62 +833,6 @@ impl Parser {
 }
 
 #[cfg(test)]
-mod stage1_tests {
-    use super::*;
-
-    #[test]
-    fn a01() {
-        let grammar_text = "
-             A <- B C       # is_space: false, is_lex: false
-             B <- 'a'       # is_space: false, is_lex: true
-             C <- 'b'       # is_space: false, is_lex: true
-             D <- ' '       # is_space: true; literal space
-             E <- '\t'      # is_space: true; escaped tab
-             F <- '\n'      # is_space: true; escaped new line
-             G <- '\r'      # is_space: true; escaped carriage return
-             H <- ' ' G     # is_space: true; identifier points to a space rule
-             I <- ' ' '\t'  # is_space: true; sequence made only of literal spaces
-             J <- '\n'      # is_space: true; all options are literal space chars
-                / '\r\n'
-                / '\r'
-            ";
-        let grammar = Parser::new(grammar_text).parse_grammar().unwrap();
-
-        let mut stage1 = Stage1::new_with_space_rules(vec![]);
-        stage1.run(&grammar);
-
-        let mut lexical_rules = stage1
-            .rule_is_lexical
-            .iter()
-            .filter_map(|(k, v)| if *v == Some(true) { Some(k) } else { None })
-            .collect::<Vec<_>>();
-        lexical_rules.sort_unstable();
-
-        assert_eq!(
-            ["B", "C", "D", "E", "F", "G", "H", "I", "J"]
-                .iter()
-                .map(|i| i.to_owned())
-                .collect::<Vec<_>>(),
-            lexical_rules
-        );
-
-        let mut space_rules = stage1.rule_is_space
-            .iter()
-            .filter_map(|(k, v)| if *v == Some(true) { Some(k) } else { None })
-            .collect::<Vec<_>>();
-        space_rules.sort_unstable();
-
-        assert_eq!(
-            ["D", "E", "F", "G", "H", "I", "J"]
-                .iter()
-                .map(|i| i.to_owned())
-                .collect::<Vec<_>>(),
-            space_rules
-        );
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -1324,101 +861,6 @@ mod tests {
                 ),
             ]),
             out.unwrap()
-        );
-    }
-
-    #[test]
-    fn follows_1() {
-        let mut c = Compiler::new();
-        let out = c.compile_str(
-            "
-            A <- 'a'
-            B <- 'b' 'k' 'l'
-            C <- ('m' / 'n') 'o'
-            TerminalAfterIdentifier    <- A ';'
-            ChoiceAfterIdentifier      <- A ('a' 'x' / 'b' 'y' / 'c' 'z')
-            IdentifierAfterIdentifier  <- A B ('k' / 'l')
-            IdChoiceAfterIdentifier    <- A C ('k' / 'l')
-            EOFAfterId                 <- A !.
-            ForwardIdentifier          <- A After
-            After                      <- '1' / '2'
-            ",
-        );
-
-        // This should be how the First sets look for the above
-        // grammar:
-        //
-        //     First(A) = {'JustATerminal'}
-        //     First(B) = {'b'}
-        //     First(C) = {'m' 'n'}
-        //     First(TerminalAfterIdentifier)              = First(A)
-        //     First(ChoiceAfterIdentifier)                = First(A)
-        //        First(ChoiceAfterIdentifier + A)         = {'a' 'b' 'c'}
-        //     First(IdentifierAfterIdentifier)            = First(A)
-        //        First(IdentifierAfterIdentifier + A + B) = {'k' 'l'}
-        //     First(IdChoiceAfterIdentifier)              = First(A)
-        //        First(IdChoiceAfterIdentifier + A)       = First(C)
-        //        First(IdChoiceAfterIdentifier + A + C)   = {'k' 'l'}
-        //     First(ForwardIdentifier)                    = First(A)
-        //        First(ForwardIdentifier + A)             = First(After)
-        //     First(After) = {'1' '2'}
-        //
-        // These asserts are looking at the follow set for the call
-        // site of the production A within productions `*Identifier`
-
-        assert!(out.is_ok());
-        let fns: HashMap<String, usize> = c
-            .funcs
-            .iter()
-            .map(|(k, v)| (c.strings[*k].clone(), v.addr + 2)) // 2 for call+capture
-            .collect();
-        let p = c.program();
-
-        assert_eq!(
-            vec![";".to_string()],
-            p.expected(fns["TerminalAfterIdentifier"])
-        );
-        assert_eq!(
-            vec!["a".to_string(), "b".to_string(), "c".to_string()],
-            p.expected(fns["ChoiceAfterIdentifier"])
-        );
-        assert_eq!(
-            vec!["b".to_string()],
-            p.expected(fns["IdentifierAfterIdentifier"])
-        );
-        assert_eq!(
-            vec!["m".to_string(), "n".to_string()],
-            p.expected(fns["IdChoiceAfterIdentifier"])
-        );
-        assert_eq!(
-            vec!["1".to_string(), "2".to_string()],
-            p.expected(fns["ForwardIdentifier"])
-        );
-    }
-
-    #[test]
-    fn follows_2() {
-        let mut c = Compiler::new();
-        let out = c.compile_str(
-            "
-            A <- B / C
-            B <- 'b' / C
-            C <- 'c'
-            IDAfterIDWithChoiceWithIDs <- A A
-            ",
-        );
-
-        assert!(out.is_ok());
-        let fns: HashMap<String, usize> = c
-            .funcs
-            .iter()
-            .map(|(k, v)| (c.strings[*k].clone(), v.addr + 2)) // 2 for call+capture
-            .collect();
-        let p = c.program();
-
-        assert_eq!(
-            vec!["b".to_string(), "c".to_string()],
-            p.expected(fns["IDAfterIDWithChoiceWithIDs"])
         );
     }
 

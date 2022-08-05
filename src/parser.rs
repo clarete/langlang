@@ -571,7 +571,7 @@ impl Parser {
     // TODO: duplicated the above code as I can't pass the quote as a
     // parameter to a more generic function. The `zero_or_more` parser
     // and all the other parsers expect a function pointer, not a
-    // closure.
+    // closure, and ~const Q: &'static str~ isn't allowed by default.
     fn parse_double_quote(&mut self) -> Result<String, Error> {
         self.expect('"')?;
         let r = self

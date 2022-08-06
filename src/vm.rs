@@ -405,7 +405,6 @@ impl VM {
                     if matches == s.len() {
                         self.accumulator = Some(Value::Str(s));
                     } else {
-                        // println!("STR OIA PROCE VE FI: {:?}", self.program_counter);
                         self.cursor = Err(Error::Matching(self.ffp, s));
                     }
                     self.program_counter += 1;
@@ -580,7 +579,6 @@ impl VM {
             Err(e) => e,
             Ok(_) => Error::Fail,
         };
-        //println!("FAIA OIA PROCE VE FI: {:?}", self.program_counter);
         let frame = loop {
             debug!("       . pop");
             match self.stack.pop() {

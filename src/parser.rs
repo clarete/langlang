@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use crate::vm;
 
+const DEFAULT_CALL_PRECEDENCE: usize = 0;
+
 // #[derive(Debug)]
 // pub struct Location {
 //     // how many characters have been seen since the begining of
@@ -136,9 +138,9 @@ impl Compiler {
             match self.funcs.get(id) {
                 Some(func) => {
                     if func.addr > *addr {
-                        self.code[*addr] = vm::Instruction::Call(func.addr - addr, 0);
+                        self.code[*addr] = vm::Instruction::Call(func.addr - addr, DEFAULT_CALL_PRECEDENCE);
                     } else {
-                        self.code[*addr] = vm::Instruction::CallB(addr - func.addr, 0);
+                        self.code[*addr] = vm::Instruction::CallB(addr - func.addr, DEFAULT_CALL_PRECEDENCE);
                     }
                 }
                 None => {
@@ -156,7 +158,7 @@ impl Compiler {
     fn compile(&mut self, node: AST) -> Result<(), Error> {
         match node {
             AST::Grammar(rules) => {
-                self.emit(vm::Instruction::Call(2, 0));
+                self.emit(vm::Instruction::Call(2, DEFAULT_CALL_PRECEDENCE));
                 self.emit(vm::Instruction::Halt);
                 for r in rules {
                     self.compile(r)?;
@@ -264,11 +266,11 @@ impl Compiler {
                 match self.funcs.get(&id) {
                     Some(func) => {
                         let addr = self.cursor - func.addr;
-                        self.emit(vm::Instruction::CallB(addr, 0));
+                        self.emit(vm::Instruction::CallB(addr, DEFAULT_CALL_PRECEDENCE));
                     }
                     None => {
                         self.addrs.insert(self.cursor, id);
-                        self.emit(vm::Instruction::Call(0, 0));
+                        self.emit(vm::Instruction::Call(0, DEFAULT_CALL_PRECEDENCE));
                     }
                 }
                 self.emit(vm::Instruction::Capture);

@@ -1,4 +1,4 @@
-Prog        <- PUBLIC CLASS NAME LCUR PUBLIC STATIC VOID MAIN LPAR STRING LBRA RBRA NAME RPAR BlockStmt
+Prog        <- _ PUBLIC CLASS NAME LCUR PUBLIC STATIC VOID MAIN LPAR STRING LBRA RBRA NAME RPAR BlockStmt
 BlockStmt   <- LCUR Stmt* RCUR^rcblk
 Stmt        <- IfStmt / WhileStmt / PrintStmt / DecStmt / AssignStmt / BlockStmt
 IfStmt      <- IF LPAR^lpif Exp^condi RPAR^rpif Stmt^then (ELSE Stmt^else)?
@@ -47,7 +47,8 @@ EQ          <- '=='     _
 LT          <- '<'      _
 SEMI        <- ';'      _
 
-_           <- Space*
+_           <- (Space / Comment)*
+Comment     <- '//' (!EndOfLine .)* (EndOfLine / EndOfFile)
 Space       <- ' ' / '\t'/ EndOfLine
 EndOfLine   <- '\r\n'/ '\n' / '\r'
 EndOfFile   <- !.

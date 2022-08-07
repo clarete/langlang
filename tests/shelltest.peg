@@ -1,7 +1,9 @@
-# Execute `cargo run -- shell` and try this out
-Value <- SP
+# Execute `RUST_LOG=debug cargo run --bin llsh tests/zom.peg` and try
+# this out
 
-SP <- '\\20'
+# Top level production for testing parsing hex numbers with a custom
+# error message or a list of emojies
+Value <- HexNum / Emoji
 
 # Read hex numbers.  The label hexDigit is there to say that if the
 # parser sees 0x, it MUST then succeed parsing the expression that
@@ -12,6 +14,3 @@ HexNum <- '0x' [a-fA-F0-9]+^hexDigit
 
 # We do emojies too, try an animal
 Emoji  <- [🦄🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵]
-
-# Make sure we can still create rules named "label"
-label  <- 'a label'

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::vm;
 
-const DEFAULT_CALL_PRECEDENCE: usize = 0;
+const DEFAULT_CALL_PRECEDENCE: usize = 1;
 
 // #[derive(Debug)]
 // pub struct Location {

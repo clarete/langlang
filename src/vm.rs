@@ -350,7 +350,10 @@ impl VM {
                 Err(_) => (Instruction::Fail, 0),
             };
 
-            debug!("[{:?},{:?}] I: {:?}", self.program_counter, cursor, instruction);
+            debug!(
+                "[{:?},{:?}] I: {:?}",
+                self.program_counter, cursor, instruction
+            );
 
             match instruction {
                 Instruction::Halt => break,

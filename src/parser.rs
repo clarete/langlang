@@ -138,9 +138,11 @@ impl Compiler {
             match self.funcs.get(id) {
                 Some(func) => {
                     if func.addr > *addr {
-                        self.code[*addr] = vm::Instruction::Call(func.addr - addr, DEFAULT_CALL_PRECEDENCE);
+                        self.code[*addr] =
+                            vm::Instruction::Call(func.addr - addr, DEFAULT_CALL_PRECEDENCE);
                     } else {
-                        self.code[*addr] = vm::Instruction::CallB(addr - func.addr, DEFAULT_CALL_PRECEDENCE);
+                        self.code[*addr] =
+                            vm::Instruction::CallB(addr - func.addr, DEFAULT_CALL_PRECEDENCE);
                     }
                 }
                 None => {

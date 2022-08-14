@@ -287,11 +287,11 @@ impl VM {
     // stack management
 
     fn stkpeek(&mut self) -> Result<&mut StackFrame, Error> {
-        let len = self.stack.len();
-        if len < 1 {
-            Err(Error::Overflow)
+        if !self.call_frames.is_empty() {
+            let idx = self.call_frames[self.call_frames.len() - 1];
+            Ok(&mut self.stack[idx])
         } else {
-            Ok(&mut self.stack[len - 1])
+            Err(Error::Overflow)
         }
     }
 
@@ -319,8 +319,11 @@ impl VM {
         if !self.call_frames.is_empty() {
             let idx = self.call_frames[self.call_frames.len() - 1];
             self.stack[idx].captures.push(v);
+            debug!("[capture]: {:#?}", self.stack[idx]);
+            Ok(())
+        } else {
+            Err(Error::Overflow)
         }
-        Ok(())
     }
 
     fn num_captures(&self) -> usize {
@@ -545,7 +548,10 @@ impl VM {
         if frame.result.is_err() || cursor > frame.result.clone()? {
             debug!("       . {{lvar, inc}}.1");
 
+            // keep tabs on how many entries were captured so far
+            frame.capture = frame.captures.len();
             frame.result = Ok(cursor);
+            debug!("       . captures so far: {:?}", frame.captures);
 
             let frame_cursor = frame.cursor.clone();
             let frame_precedence = frame.precedence;
@@ -564,7 +570,11 @@ impl VM {
             let pc = frame.program_counter;
             self.cursor = frame.result;
             self.program_counter = pc;
-            frame.captures.pop();
+            debug!("       . captures so far: {:?}", frame.captures);
+
+            // drain the previous attempts
+            frame.captures.drain(frame.capture..frame.captures.len());
+
             self.accumulator = Some(Value::Node {
                 name: self.program.identifier(address),
                 children: frame.captures,

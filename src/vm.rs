@@ -201,7 +201,7 @@ impl StackFrame {
         }
     }
 
-    fn new_lrcall(cursor: usize, pc: usize, address: usize, precedence: usize) -> Self {
+    fn new_lrcall(cursor: usize, pc: usize, address: usize, precedence: usize, capture: usize) -> Self {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
@@ -209,7 +209,7 @@ impl StackFrame {
             result: Err(Error::LeftRec),
             address,
             precedence,
-            capture: 0,
+            capture,
             captures: vec![],
             predicate: false,
         }
@@ -316,14 +316,12 @@ impl VM {
     // functions for capturing matched values
 
     fn capture(&mut self, v: Value) -> Result<(), Error> {
-        if !self.call_frames.is_empty() {
+        if !self.call_frames.is_empty() && !self.within_predicate {
             let idx = self.call_frames[self.call_frames.len() - 1];
             self.stack[idx].captures.push(v);
             debug!("[capture]: {:#?}", self.stack[idx]);
-            Ok(())
-        } else {
-            Err(Error::Overflow)
         }
+        Ok(())
     }
 
     fn num_captures(&self) -> usize {
@@ -502,6 +500,7 @@ impl VM {
                     self.program_counter + 1,
                     address,
                     precedence,
+                    self.num_captures(),
                 ));
                 self.program_counter = address;
                 self.lrmemo.insert(
@@ -573,7 +572,7 @@ impl VM {
             let pc = frame.program_counter;
             self.cursor = frame.result;
             self.program_counter = pc;
-            debug!("       . captures so far: {:?}", frame.captures);
+            debug!("       . captures so far: {:#?}", frame.captures);
 
             // drain the previous attempts
             frame.captures.drain(frame.capture..frame.captures.len());
@@ -593,7 +592,6 @@ impl VM {
             Ok(_) => Error::Fail,
         };
         let frame = loop {
-            debug!("       . pop");
             match self.stack.pop() {
                 None => {
                     debug!("       . none");
@@ -601,6 +599,7 @@ impl VM {
                     return Err(error);
                 }
                 Some(f) => {
+                    debug!("       . pop {:#?}", f);
                     if let Ok(cursor) = f.cursor {
                         self.cursor = Ok(cursor);
                     }
@@ -625,10 +624,15 @@ impl VM {
 
         self.program_counter = frame.program_counter;
 
-        if !self.call_frames.is_empty() {
-            let len = self.num_captures();
-            let idx = self.call_frames[self.call_frames.len() - 1];
-            self.stack[idx].captures.drain(frame.capture..len);
+        let idx = self.call_frames[self.call_frames.len() - 1];
+
+        match self.stack[idx].result {
+            Err(Error::LeftRec) => {},
+            _ => {
+                let len = self.stack[idx].captures.len();
+                debug!("fail[{:?},{:?}]: {:#?}", frame.capture, len, self.stack[idx].captures);
+                self.stack[idx].captures.drain(frame.capture..len);
+            }
         }
 
         Ok(())

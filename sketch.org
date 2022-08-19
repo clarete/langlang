@@ -1,0 +1,465 @@
+* Introduction
+
+  langlang is a parser generator and aspires to provide a toolbox for
+  interacting with computer languages in a more general way
+
+* Roadmap
+** Compiler (pre-bootstrap)
+   * [X] Parser for the original PEG syntax
+   * [X] Generate bytecode with original PEG semantics
+   * [X] Compile labeled failures
+   - [ ] define precedence for left recursive calls
+   * [ ] compile non-left recursive rules with precedence of 0
+   * [ ] first and follows set for error synchronization
+   * [ ] error recovery expression generation
+** VM
+   - [X] original PEG semantics
+   - [X] error reporting with labels
+   - [X] value captures
+   - [-] left recursion: buggy for indirect left recursion
+   - [-] error recovery
+   - [ ] match data structures
+   - [ ] higher-order rules?
+   - [ ] parameterized rules?
+   - [ ] semantic actions?
+   - [ ] packages and import system?
+   - [ ] optimizations?
+** Standard Library
+   * [-] ABNF
+   * [ ] C
+   * [ ] C++
+   * [X] CSV
+   * [ ] CSS
+   * [ ] Go
+   * [X] JSON
+   * [ ] Java
+   * [ ] JavaScript
+   * [ ] JSX
+   * [ ] HTML (tolerant to failures -- invalid)
+   * [ ] Python
+   * [X] PEG
+   * [ ] PEGX?
+   * [ ] RFC3986
+   * [ ] Rust
+   * [ ] TypeScript
+   * [ ] XML
+** Object Database
+   * [ ] Undo/Redo
+   * [ ] LSP Server
+   * [ ] CRDT Storage
+   * [ ] AST diff
+** Editor
+   * [ ] Language Server Protocol
+   * [ ] Text Editing
+   * [ ] Rendering Engine
+   * [ ] Configuration Language
+* Implemented Design
+** Captures
+
+   Currently, the Virtual Machine captures all values matched, there's
+   no opting out.  All opcodes that implement matching of terminals
+   (~Any~, ~Char~, ~Span~) feed an accumulator register with the value
+   they match.
+
+   The opcode ~Return~ feeds the accumulator with a ~Node~ value built
+   with the vector of captures taken from the call frame that has just
+   been popped off the stack.
+
+   The ~Capture~ opcode takes the value from the accumulator and feeds
+   the call stack's vector of captured values.
+
+   Both ~Return~ and ~Fail~ will drain the vector of captured values
+   from the last point saved.
+
+   #+begin_src text
+                                   Char a
+                   <pc,a:s,e,c,d> --------------> <pc+1,s,e,a,d>
+                                   Char a
+                   <pc,b:s,e,c,d> --------------> Fail<e>, a != b
+                                   Char a
+                     <pc,ε,e,c,d> --------------> Fail<e>
+                                   Any
+                   <pc,a:s,e,c,d> --------------> <pc+1,s,e,a,d>
+                                   Any
+                     <pc,ε,e,c,d> --------------> Fail<e>
+                                   Capture
+                     <pc,ε,e,c,d> --------------> <pc+1,s,e,ε,d:c>
+                                   Choice i
+                     <pc,s,e,c,d> --------------> <pc+1,s,(pc+i,s,c,d):e,c,d>
+                                   Commit l
+                   <pc,s,h:e,c,d> --------------> <pc+l,s,e,c,d>
+                                   Jump l
+                     <pc,s,e,c,d> --------------> <pc+l,s,e,c,d>
+
+
+                                   Call l k
+                     <pc,s,e,c,d> --------------> <pc+l,s,(pc+1,pc+l,s,fail,k):e,c,d>, where (pc+l,s) ∉ 𝓛e
+                                   Call l k
+                     <pc,s,e,c,d> --------------> Fail<e>, where 𝓛e(pc+l,s) = fail
+                                   Call l k
+                     <pc,s,e,c,d> --------------> <pc+1,s',e,c,d>, where 𝓛e(pc+l,s) = (s',k') and k >= k'
+                                   Call l k
+                     <pc,s,e,c,d> --------------> Fail<e>, where 𝓛e(pc+l,s) = (s',k') and k < k'
+
+
+                                   Return
+   <pc,s",(pcr,pcA,s,s',k):e,c,d> --------------> <pcA,s,(pcr,pcA,s,s",k):e>, where |s"| < |s'| or s' = fail
+                                   Return
+   <pc,s",(pcr,pcA,s,s',k):e,c,d> --------------> <pcr,s',e,c,d>, where |s"| >= |s'|
+
+     Fail<(pcr,pcA,s,s',k):e,c,d> --------------> <pcr,s',e>
+
+                   Fail<pc:e,c,d> --------------> Fail<e>
+
+               Fail<(pc,s):e,c,d> --------------> <pc,s,e>
+
+
+    Without Left Recursion
+    -----------------------------------------------------------------------------
+
+                                   Call l
+                 <pc, s, e, c, d> --------------> <pc+l, s, (pc+1, c):e, c>
+                                   Return
+            <pc1, s, pc2:e, c, d> --------------> <pc2, s, e, c>
+                                    Fail
+                 <pc, s, e, c, d> --------------> Fail<e>
+
+                 Fail<pc:e, c, d> --------------> Fail<e>
+
+            Fail<(pc, s):e, c, d> --------------> <pc, s, e>
+
+       Fail<(pc, s, c1):e, c1, d> --------------> <pc, s, e, c1>
+
+   #+end_src
+
+   Empty
+     ~G[ε] X  -> (X, {}, {})~
+
+   Terminal
+     ~G[a] ax -> (x, {a}, {})~
+
+   Capture
+     ~G[@] X  -> (X, {}, {a})~
+
+   Non Terminal
+    #+BEGIN_SRC u
+    G[P(A)] x -> (X, {("A" y)}, {})
+    --------------
+       G[A] x -> (X, {("A" y)}, {})
+    #+END_SRC
+** Error Handling
+
+   In the original definition of Parsing Expression Grammars,
+   backtracking is used to reset the input cursor to where it was
+   before trying a different parsing expression.  If there is no
+   match, the backtracking fails and the cursor is left at the
+   position it was at the beginning of the last *Ordered Choice*.
+
+   To improve error reporting, there's a heuristic mechanism called
+   the *Farther Failure Position* that introduces a new register in
+   the Virtual Machine to keep track of the cursor up to the last
+   successful match that is immune to backtracking.  With that, a more
+   accurate position is picked when reporting an error.
+
+   Still in error reporting, the *Throw Operator* is also provided, so
+   grammar authors can control how a matching error will be reported
+   in certain places.  It comes with the burden of having to annotate
+   the grammar, and to pay attention to the fact that overly
+   annotating a grammar is to take less advantage of some PEG features
+   provided by its infinite look ahead.
+
+   The general place where a *Throw Operator* would be desired is the
+   earlier position on an expression where it's known that a following
+   match wouldn't move the cursor. e.g.:
+
+   Consider the following piece of a grammar:
+
+   #+begin_src peg
+     IfStatement <- IF LEFTP Expression RIGHTP Body
+     AllStatements <- IfStatement / ForStatement / WhileStatement ...
+   #+end_src
+
+   The following inputs are examples of inputs that would
+   unnecessarily trigger the backtrack mechanism in the *Ordered
+   Choice* of ~AllStatements~:
+
+     'if x', 'if (', 'if (x'
+
+   Even though there is no path to a successful match with the above
+   inputs, and the *Ordered Choice* will still try all the
+   alternatives.  With the *Throw Operator*, one can signal that no
+   more matches should be attempted and interrupt parsing right away
+   if that one expression fails.  e.g.:
+
+   #+begin_src peg
+     IfStatement <- IF LEFTP^ Expression^ RIGHTP^ Body
+   #+end_src
+
+   The *Throw Operator* can also take an optional parameter with a
+   custom error message. e.g.:
+
+   #+begin_src peg
+     IfStatement <- IF LEFTP^ Expression^"Missing Expression" RIGHTP^ Body
+   #+end_src
+
+   Note: the *Throw Operator* in the input language ~expr^l~ is syntax
+   sugar for ~(expr / ⇑l)~.
+
+* Ideas
+** Incremental Parsing
+
+   The parser will fail at the first error by default (as Parsing
+   Expression Grammars do originally).  But an incremental parsing
+   mode is also included, but with annotation costs traded for
+   precision.
+
+   When parsing is done incrementally, the *Throw Operator* won't
+   interrupt parsing right away.  It will instead add a special node
+   to the tree returned by the parser storing information about the
+   error.  The parser will then execute the *Recovery Expression*
+   associated with the (implicitly created) label behind the *Throw
+   Operator*, which should consume the input until where the matching
+   of another expression can be attempted.
+
+   The default *Recovery Expression* of a label of an instance of the
+   *Throw Operator* is the following:
+
+   #+begin_src peg
+   #+end_src   
+
+   Annotation costs come from the 
+
+** Input Validation
+*** URL
+
+    $ lib::rfc3986 "https://clarete.li/langlang"
+
+*** Email
+
+    $ lib::rfc3986 "lincoln@clarete.li"
+** Modules
+
+   In langlang, modules are recursive containers for other modules and
+   for grammars.
+
+   #+begin_src rust
+     type Offset usize;
+     type SymbolName String;
+     struct Module {
+       // module in which this module was declared
+       parent: Option<Module>,
+       // modules declared within this module
+       modules: Vec<Module>,
+       // symbols provided by this module
+       symbols: HashMap<SymbolName, Offset>,
+       // symbols used in this module but declared somewhere else
+       missing: HashMap<SymbolName, Offset>,
+     }
+   #+end_src
+
+   #+begin_src shell
+     $ mkdir -p ./lib/base                                    # directory structure for user defined grammars
+     $ edit ./lib/base/rule.langlang                          # write a grammar
+     $ llsh lib::base::rule https://url.with.test/case        # a file lib/base/rule.binlang will be created
+     $ llsh -i. lib::base::rule https://url.with.test/case    # previous example worked because `-i./' is implicit
+     $ llsh -i./lib base::rule https://url.with.test/case     # full name differs depending on where the root starts
+     $ MODULE_SEARCH_PATH=./lib llsh base::rule https://url.with.test/case # search path can be extended via env var
+   #+end_src
+
+   When a symbol is requested, a look up to the symbol table is issued
+   and, if it is present there, its address is returned.  If it is
+   not, then the ~BinaryLoader~ looks for it within the bytecode
+   cache, and if it's not there, it will go through each search path
+   and try to find it in the file system.
+
+** Shell
+
+   #+BEGIN_SRC shell
+     # from stdin
+     echo https://clarete.li/langlang | llsh lib::rfc3986
+
+     # from a file
+     llsh lib::rfc5234 ~/lib/rfc3986.abnf
+
+     # from a URL
+     llsh lib::json https://jsonplaceholder.typicode.com/users
+
+     # interactive
+     llsh lib::peg
+     >> S <- 'a' / 'b'
+   #+END_SRC
+* Sketch
+** Matching
+*** Literal Strings
+*** Left Recursion
+*** Captures
+    state = <pc, s, e, c>
+
+      <pc, s, e, c>    -- Char a --> <pc+1, s, e, a:c>
+      <pc, s, e, c>  -- Choice i --> <pc+1, s, (pc+i,s,c):e, c>
+
+** Error Handling
+
+   Success
+
+               Throw f
+   <pc,s,e> -----------→ Fail<f,s,e>
+
+   - inside choice
+
+     #+begin_src text
+     p / throw(label)
+     #+end_src
+
+     when ~p~ fails:
+         -> log error tuple ~(location(), label)~
+         -> run expression within ~R(label)~
+
+   - inside predicate
+
+     #+begin_src text
+      !(p / throw(label))
+     #+end_src
+     
+     when ~p~ succeeds:
+         -> return label ~fail~
+     when ~p~ fails:
+         -> ~R~ is empty for predicates, so return ~throw~ doesn't do
+           anything, ~label~ is discarded and the operation succeeds.
+
+   Once an expression fails to be parsed and ~throw~ is called, a look
+   up for ~label~ is made within ~R~.  If a recovery expression is
+   found, it's executed with the goal of moving the parser's input
+   cursor to right before the first symbol of the next parsing
+   expression.
+
+   Follow Sets
+
+   An Expression ~e~ has a ~FOLLOW~ set of symbols that can be
+   intuitively described as the list of possible characters to be
+   matched after matching ~e~.
+
+   1. Base Case
+
+      #+begin_src peg
+      G <- (E / ⇑l) "x"
+      #+end_src
+
+      The symbol ~x~ would be the only element of the ~FOLLOW~ set of
+      symbols of ~E~.
+
+   2. Recursive Case
+
+      #+begin_src peg
+      G <- (E / ⇑l) (A / B)
+      A <- "x" / "y"
+      B <- "z" / "k"
+      #+end_src
+
+      The ~FOLLOW~ set of ~E~ in this case is ~x, y, z, k~, since any
+      of these symbols could appear right after parsing ~E~.
+
+** Grammar
+*** Wats up
+
+    #+begin_src peg
+    Expr  = Expr:1  PLUS Expr:2
+          / Expr:1 MINUS Expr:2
+          / Expr:2  STAR Expr:3
+          / Expr:2 SLASH Expr:3
+          / Expr:3 POWER Expr:3
+          / (MINUS Expr^):4
+          / (PLUS  Expr^):4
+          / LPAR   Expr:1^ RPAR^
+          / Value
+
+    Value = (FLOAT / HEX / BIN / DEC) _
+    FLOAT = [0-9]? "." [0-9]
+    HEX   = "0x" [0-9a-fA-F]+
+    BIN   = "0b" [0-1]+
+    DEC   = [0-9]+
+
+    PLUS  = "+"  _
+    MINUS = "-"  _
+    STAR  = "*"  _
+    SLASH = "/"  _
+    POWER = "**" _
+    LPAR  = "("  _
+    RPAR  = ")"  _
+    _     = [ \n\r\t]*
+    #+end_src
+
+*** Calculator
+    #+begin_src peg
+
+    lang Calc {
+      Expr    = Expr:1  PLUS Expr:2
+              / Expr:1 MINUS Expr:2
+              / Expr:2  STAR Expr:3
+              / Expr:2 SLASH Expr:3
+              / Expr:3 POWER Expr:3
+              / MINUS Expr:4
+              / PAROP Expr:1 PARCL
+              / Value
+
+      Value   = (FLOAT / HEX / BIN / DEC) _
+      FLOAT   = [0-9]? "." [0-9]
+      HEX     = "0x" [0-9a-fA-F]+
+      BIN     = "0b" [0-1]+
+      DEC     = [0-9]+
+
+      PLUS    = "+"  _
+      MINUS   = "-"  _
+      STAR    = "*"  _
+      SLASH   = "/"  _
+      POWER   = "**" _
+      PAROP   = "("  _
+      PARCL   = ")"  _
+      _       = [ \n\r\t]*
+    }
+
+    #+end_src
+
+
+    [  OP_CALL    0x0000002]
+    [  OP_JUMP    0x0000013]
+
+    [OP_CHOICE    0x0000005]
+    [  OP_CALL    0x7ffffff]
+    [  OP_ATOM    0x0000000]
+    [  OP_CALL    0x7fffffd]
+    [OP_COMMIT    0x0000007]
+
+    [OP_CHOICE    0x0000005]
+    [  OP_CALL    0x7fffffa]
+    [  OP_ATOM    0x0000001]
+    [  OP_CALL    0x7fffff8]
+    [OP_COMMIT    0x0000002]
+
+    [  OP_CALL    0x0000002]
+    [OP_RETURN             ]
+
+    [OP_CHOICE    0x0000003]
+    [  OP_ATOM    0x0000002]
+    [OP_COMMIT    0x0000002]
+    [  OP_ATOM    0x0000003]
+    [OP_RETURN             ]
+    [  OP_HALT             ]
+ 
+** Packages
+
+   +--------+
+   | Module |
+   |--------|
+   | Rule1  |
+   | Rule2  |
+   | RuleN  |
+   +--------+
+
+   A module is packed into a struct
+
+   #+BEGIN_SRC rust
+     struct Module {
+       filename: String,
+     }
+   #+END_SRC

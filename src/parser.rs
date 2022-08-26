@@ -275,28 +275,23 @@ impl Compiler {
                         self.emit(vm::Instruction::Call(0, DEFAULT_CALL_PRECEDENCE));
                     }
                 }
-                self.emit(vm::Instruction::Capture);
                 Ok(())
             }
             AST::Range(a, b) => {
                 self.emit(vm::Instruction::Span(a, b));
-                self.emit(vm::Instruction::Capture);
                 Ok(())
             }
             AST::Str(s) => {
                 let id = self.push_string(s);
                 self.emit(vm::Instruction::Str(id));
-                self.emit(vm::Instruction::Capture);
                 Ok(())
             }
             AST::Char(c) => {
                 self.emit(vm::Instruction::Char(c));
-                self.emit(vm::Instruction::Capture);
                 Ok(())
             }
             AST::Any => {
                 self.emit(vm::Instruction::Any);
-                self.emit(vm::Instruction::Capture);
                 Ok(())
             }
             AST::Empty => Ok(()),

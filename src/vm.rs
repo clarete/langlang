@@ -24,7 +24,6 @@ pub enum Value {
 pub enum Instruction {
     Halt,
     Any,
-    Capture,
     Char(char),
     Span(char, char),
     Str(usize),
@@ -124,7 +123,6 @@ impl std::fmt::Display for Program {
             match instruction {
                 Instruction::Halt => writeln!(f, "halt"),
                 Instruction::Any => writeln!(f, "any"),
-                Instruction::Capture => writeln!(f, "capture"),
                 Instruction::Fail => writeln!(f, "fail"),
                 Instruction::Return => writeln!(f, "return"),
                 Instruction::Char(c) => writeln!(f, "char {:?}", c),
@@ -166,7 +164,7 @@ struct StackFrame {
     result: Result<usize, Error>, // X
     address: usize,               // pc+l
     precedence: usize,            // k
-    capture: usize,
+    last_capture_committed: usize,
     captures: Vec<Value>,
     predicate: bool,
 }
@@ -176,7 +174,7 @@ impl StackFrame {
         StackFrame {
             ftype: StackFrameType::Backtrack,
             program_counter: pc,
-            capture,
+            last_capture_committed: capture,
             cursor: Ok(cursor),
             // fields not used for backtrack frames
             address: 0,
@@ -195,13 +193,19 @@ impl StackFrame {
             result: Err(Error::Fail),
             address,
             precedence,
-            capture: 0,
+            last_capture_committed: 0,
             captures: vec![],
             predicate: false,
         }
     }
 
-    fn new_lrcall(cursor: usize, pc: usize, address: usize, precedence: usize, capture: usize) -> Self {
+    fn new_lrcall(
+        cursor: usize,
+        pc: usize,
+        address: usize,
+        precedence: usize,
+        capture: usize,
+    ) -> Self {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
@@ -209,7 +213,7 @@ impl StackFrame {
             result: Err(Error::LeftRec),
             address,
             precedence,
-            capture,
+            last_capture_committed: capture,
             captures: vec![],
             predicate: false,
         }
@@ -253,8 +257,10 @@ pub struct VM {
     call_frames: Vec<usize>,
     // Memoized position of left recursive results
     lrmemo: HashMap<LeftRecTableKey, LeftRecTableEntry>,
-    // Where value returned from successful match operation is stored
-    accumulator: Option<Value>,
+    // Where values returned from successful match operations are stored
+    captures: Vec<Value>,
+    // last capture commited
+    last_capture_committed: usize,
     // boolean flag that remembers if the VM is within a predicate
     within_predicate: bool,
 }
@@ -270,7 +276,8 @@ impl VM {
             stack: vec![],
             call_frames: vec![],
             lrmemo: HashMap::new(),
-            accumulator: None,
+            captures: vec![],
+            last_capture_committed: 0,
             within_predicate: false,
         }
     }
@@ -286,10 +293,19 @@ impl VM {
 
     // stack management
 
-    fn stkpeek(&mut self) -> Result<&mut StackFrame, Error> {
+    fn stkpeek_mut(&mut self) -> Result<&mut StackFrame, Error> {
         if !self.call_frames.is_empty() {
             let idx = self.call_frames[self.call_frames.len() - 1];
             Ok(&mut self.stack[idx])
+        } else {
+            Err(Error::Overflow)
+        }
+    }
+
+    fn stkpeek(&self) -> Result<&StackFrame, Error> {
+        if !self.call_frames.is_empty() {
+            let idx = self.call_frames[self.call_frames.len() - 1];
+            Ok(&self.stack[idx])
         } else {
             Err(Error::Overflow)
         }
@@ -316,21 +332,30 @@ impl VM {
     // functions for capturing matched values
 
     fn capture(&mut self, v: Value) -> Result<(), Error> {
-        if !self.call_frames.is_empty() && !self.within_predicate {
-            let idx = self.call_frames[self.call_frames.len() - 1];
-            self.stack[idx].captures.push(v);
-            debug!("[capture]: {:#?}", self.stack[idx]);
+        if self.call_frames.is_empty() {
+            self.captures.push(v);
+        } else {
+            self.stkpeek_mut()?.captures.push(v);
         }
         Ok(())
     }
 
-    fn num_captures(&self) -> usize {
-        if !self.call_frames.is_empty() {
-            let idx = self.call_frames[self.call_frames.len() - 1];
-            self.stack[idx].captures.len()
+    fn num_captures(&self) -> Result<usize, Error> {
+        if self.call_frames.is_empty() {
+            Ok(self.captures.len())
         } else {
-            0
+            Ok(self.stkpeek()?.captures.len())
         }
+    }
+
+    fn commit_captures(&mut self) -> Result<(), Error> {
+        if self.call_frames.is_empty() {
+            self.last_capture_committed = self.captures.len();
+        } else {
+            let mut f = self.stkpeek_mut()?;
+            f.last_capture_committed = f.captures.len();
+        }
+        Ok(())
     }
 
     // evaluation
@@ -359,7 +384,7 @@ impl VM {
                     if cursor >= self.source.len() {
                         self.cursor = Err(Error::EOF);
                     } else {
-                        self.accumulator = Some(Value::Chr(self.source[cursor]));
+                        self.capture(Value::Chr(self.source[cursor]))?;
                         self.advance_cursor()?;
                         self.program_counter += 1;
                     }
@@ -374,7 +399,7 @@ impl VM {
                         self.cursor = Err(Error::Matching(self.ffp, expected.to_string()));
                         continue;
                     }
-                    self.accumulator = Some(Value::Chr(self.source[cursor]));
+                    self.capture(Value::Chr(self.source[cursor]))?;
                     self.advance_cursor()?;
                     self.program_counter += 1;
                 }
@@ -385,7 +410,7 @@ impl VM {
                     }
                     let current = self.source[cursor];
                     if current >= start && current <= end {
-                        self.accumulator = Some(Value::Chr(self.source[cursor]));
+                        self.capture(Value::Chr(self.source[cursor]))?;
                         self.advance_cursor()?;
                         self.program_counter += 1;
                         continue;
@@ -407,7 +432,7 @@ impl VM {
                         }
                     }
                     if matches == s.len() {
-                        self.accumulator = Some(Value::Str(s));
+                        self.capture(Value::Str(s))?;
                     } else {
                         self.cursor = Err(Error::Matching(self.ffp, s));
                     }
@@ -417,7 +442,7 @@ impl VM {
                     self.stkpush(StackFrame::new_backtrack(
                         cursor,
                         self.program_counter + offset,
-                        self.num_captures(),
+                        self.num_captures()?,
                         false,
                     ));
                     self.program_counter += 1;
@@ -426,7 +451,7 @@ impl VM {
                     self.stkpush(StackFrame::new_backtrack(
                         cursor,
                         self.program_counter + offset,
-                        self.num_captures(),
+                        self.num_captures()?,
                         true,
                     ));
                     self.program_counter += 1;
@@ -435,10 +460,12 @@ impl VM {
                 Instruction::Commit(offset) => {
                     self.stkpop()?;
                     self.program_counter += offset;
+                    self.commit_captures()?;
                 }
                 Instruction::CommitB(offset) => {
                     self.stkpop()?;
                     self.program_counter -= offset;
+                    self.commit_captures()?;
                 }
                 Instruction::Fail => {
                     self.fail()?;
@@ -467,16 +494,14 @@ impl VM {
                         }
                     }
                 }
-                Instruction::Capture => {
-                    if let Some(v) = self.accumulator.take() {
-                        self.capture(v)?;
-                    }
-                    self.program_counter += 1;
-                }
             }
         }
 
-        Ok(self.accumulator.as_ref())
+        if self.captures.len() > 0 {
+            Ok(Some(&self.captures[0]))
+        } else {
+            Ok(None)
+        }
     }
 
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
@@ -500,7 +525,7 @@ impl VM {
                     self.program_counter + 1,
                     address,
                     precedence,
-                    self.num_captures(),
+                    self.num_captures()?,
                 ));
                 self.program_counter = address;
                 self.lrmemo.insert(
@@ -534,16 +559,16 @@ impl VM {
 
     fn inst_return(&mut self) -> Result<(), Error> {
         let cursor = self.cursor.clone()?;
-        let mut frame = self.stkpeek()?;
+        let mut frame = self.stkpeek_mut()?;
         let address = frame.address;
 
         if frame.precedence == 0 {
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
-            self.accumulator = Some(Value::Node {
+            self.capture(Value::Node {
                 name: self.program.identifier(address),
                 children: frame.captures,
-            });
+            })?;
             return Ok(());
         }
 
@@ -551,7 +576,7 @@ impl VM {
             debug!("       . {{lvar, inc}}.1");
 
             // keep tabs on how many entries were captured so far
-            frame.capture = frame.captures.len();
+            // frame.last_capture_committed = frame.captures.len();
             frame.result = Ok(cursor);
             debug!("       . captures so far: {:?}", frame.captures);
 
@@ -568,19 +593,11 @@ impl VM {
             self.program_counter = address;
         } else {
             debug!("       . inc.3");
-            let mut frame = self.stkpop()?;
+            let frame = self.stkpop()?;
             let pc = frame.program_counter;
             self.cursor = frame.result;
             self.program_counter = pc;
             debug!("       . captures so far: {:#?}", frame.captures);
-
-            // drain the previous attempts
-            frame.captures.drain(frame.capture..frame.captures.len());
-
-            self.accumulator = Some(Value::Node {
-                name: self.program.identifier(address),
-                children: frame.captures,
-            });
         }
         Ok(())
     }
@@ -607,6 +624,17 @@ impl VM {
                         if f.predicate {
                             self.within_predicate = false;
                         }
+
+                        let len = self.num_captures()?;
+                        if self.call_frames.is_empty() {
+                            let first = std::cmp::min(self.last_capture_committed, len);
+                            self.captures.drain(first..len);
+                        } else {
+                            let first = std::cmp::min(f.last_capture_committed, len);
+                            let top = self.stkpeek_mut()?;
+                            top.captures.drain(first..len);
+                        }
+
                         break f;
                     } else {
                         self.call_frames.pop();
@@ -623,17 +651,6 @@ impl VM {
         };
 
         self.program_counter = frame.program_counter;
-
-        let idx = self.call_frames[self.call_frames.len() - 1];
-
-        match self.stack[idx].result {
-            Err(Error::LeftRec) => {},
-            _ => {
-                let len = self.stack[idx].captures.len();
-                debug!("fail[{:?},{:?}]: {:#?}", frame.capture, len, self.stack[idx].captures);
-                self.stack[idx].captures.drain(frame.capture..len);
-            }
-        }
 
         Ok(())
     }
@@ -1315,7 +1332,6 @@ mod tests {
                 Instruction::Call(2, 0),
                 Instruction::Halt,
                 Instruction::Str(1),
-                Instruction::Capture,
                 Instruction::Return,
             ],
         };
@@ -1326,13 +1342,12 @@ mod tests {
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(7, vm.cursor.unwrap());
-        assert!(vm.accumulator.is_some());
         assert_eq!(
-            Value::Node {
+            vec![Value::Node {
                 name: "G".to_string(),
                 children: vec![Value::Str("abacate".to_string())],
-            },
-            vm.accumulator.unwrap(),
+            }],
+            vm.captures
         );
     }
 
@@ -1362,10 +1377,10 @@ mod tests {
     }
 
     #[test]
-    fn capture_choice() {
+    fn capture_choice_0() {
         // G <- 'abacate' / 'abada'
         let identifiers = [(2, 0)].iter().cloned().collect();
-        #[rustfmt::skip]
+
         let program = Program {
             identifiers,
             labels: HashMap::new(),
@@ -1376,20 +1391,20 @@ mod tests {
                 Instruction::Call(2, 0),
                 Instruction::Halt,
                 // Body of production G
-                Instruction::Choice(16),
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('b'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('c'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('t'), Instruction::Capture,
-                Instruction::Char('e'), Instruction::Capture,
-                Instruction::Commit(11),
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('b'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('d'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
+                Instruction::Choice(9),
+                Instruction::Char('a'),
+                Instruction::Char('b'),
+                Instruction::Char('a'),
+                Instruction::Char('c'),
+                Instruction::Char('a'),
+                Instruction::Char('t'),
+                Instruction::Char('e'),
+                Instruction::Commit(6),
+                Instruction::Char('a'),
+                Instruction::Char('b'),
+                Instruction::Char('a'),
+                Instruction::Char('d'),
+                Instruction::Char('a'),
                 Instruction::Return,
             ],
         };
@@ -1400,9 +1415,8 @@ mod tests {
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(5, vm.cursor.unwrap());
-        assert!(vm.accumulator.is_some());
         assert_eq!(
-            Value::Node {
+            vec![Value::Node {
                 name: "G".to_string(),
                 children: vec![
                     Value::Chr('a'),
@@ -1411,8 +1425,8 @@ mod tests {
                     Value::Chr('d'),
                     Value::Chr('a'),
                 ]
-            },
-            vm.accumulator.unwrap()
+            }],
+            vm.captures
         );
     }
 
@@ -1420,27 +1434,24 @@ mod tests {
     fn capture_choice_within_var() {
         // G <- D
         // D <- '0' / '1'
-        let identifiers = [(2, 0), (5, 1)].iter().cloned().collect();
+        let identifiers = [(2, 0), (4, 1)].iter().cloned().collect();
         let program = Program {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
             strings: vec!["G".to_string(), "D".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
-                Instruction::Halt,
+                /* 00 */ Instruction::Call(2, 0),
+                /* 01 */ Instruction::Halt,
                 // G
-                Instruction::Call(3, 0),
-                Instruction::Capture,
-                Instruction::Return,
+                /* 02 */ Instruction::Call(2, 0),
+                /* 03 */ Instruction::Return,
                 // D
-                Instruction::Choice(4),
-                Instruction::Char('0'),
-                Instruction::Capture,
-                Instruction::Commit(3),
-                Instruction::Char('1'),
-                Instruction::Capture,
-                Instruction::Return,
+                /* 04 */ Instruction::Choice(3),
+                /* 05 */ Instruction::Char('0'),
+                /* 06 */ Instruction::Commit(2),
+                /* 07 */ Instruction::Char('1'),
+                /* 08 */ Instruction::Return,
             ],
         };
 
@@ -1450,16 +1461,15 @@ mod tests {
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(1, vm.cursor.unwrap());
-        assert!(vm.accumulator.is_some());
         assert_eq!(
-            Value::Node {
+            vec![Value::Node {
                 name: "G".to_string(),
                 children: vec![Value::Node {
                     name: "D".to_string(),
                     children: vec![Value::Chr('1')],
                 }],
-            },
-            vm.accumulator.unwrap()
+            }],
+            vm.captures
         );
     }
 
@@ -1467,48 +1477,45 @@ mod tests {
     fn capture_choice_within_repeat() {
         // G <- ('abacate' / 'abada')+
         let identifiers = [(2, 0)].iter().cloned().collect();
-        #[rustfmt::skip]
         let program = Program {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                // Call to first production follwed by the end of the matching
-                Instruction::Call(2, 0),
-                Instruction::Halt,
-                Instruction::Choice(16),
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('b'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('c'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('t'), Instruction::Capture,
-                Instruction::Char('e'),
-                Instruction::Capture,
-                Instruction::Commit(11),
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('b'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('d'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Choice(28),
-                Instruction::Choice(16),
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('b'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('c'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('t'), Instruction::Capture,
-                Instruction::Char('e'), Instruction::Capture,
-                Instruction::Commit(11),
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('b'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::Char('d'), Instruction::Capture,
-                Instruction::Char('a'), Instruction::Capture,
-                Instruction::CommitB(27),
-                Instruction::Return,
+                /* 00 */ Instruction::Call(2, 0),
+                /* 01 */ Instruction::Halt,
+                /* 02 */ Instruction::Choice(9),
+                /* 03 */ Instruction::Char('a'),
+                /* 04 */ Instruction::Char('b'),
+                /* 05 */ Instruction::Char('a'),
+                /* 06 */ Instruction::Char('c'),
+                /* 07 */ Instruction::Char('a'),
+                /* 08 */ Instruction::Char('t'),
+                /* 09 */ Instruction::Char('e'),
+                /* 10 */ Instruction::Commit(6),
+                /* 11 */ Instruction::Char('a'),
+                /* 12 */ Instruction::Char('b'),
+                /* 13 */ Instruction::Char('a'),
+                /* 14 */ Instruction::Char('d'),
+                /* 15 */ Instruction::Char('a'),
+                /* 16 */ Instruction::Choice(16),
+                /* 17 */ Instruction::Choice(9),
+                /* 18 */ Instruction::Char('a'),
+                /* 19 */ Instruction::Char('b'),
+                /* 20 */ Instruction::Char('a'),
+                /* 21 */ Instruction::Char('c'),
+                /* 22 */ Instruction::Char('a'),
+                /* 23 */ Instruction::Char('t'),
+                /* 24 */ Instruction::Char('e'),
+                /* 25 */ Instruction::Commit(6),
+                /* 26 */ Instruction::Char('a'),
+                /* 27 */ Instruction::Char('b'),
+                /* 28 */ Instruction::Char('a'),
+                /* 29 */ Instruction::Char('d'),
+                /* 30 */ Instruction::Char('a'),
+                /* 31 */ Instruction::CommitB(15),
+                /* 32 */ Instruction::Return,
             ],
         };
 
@@ -1518,9 +1525,8 @@ mod tests {
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(5, vm.cursor.unwrap());
-        assert!(vm.accumulator.is_some());
         assert_eq!(
-            Value::Node {
+            vec![Value::Node {
                 name: "G".to_string(),
                 children: vec![
                     Value::Chr('a'),
@@ -1529,8 +1535,8 @@ mod tests {
                     Value::Chr('d'),
                     Value::Chr('a'),
                 ]
-            },
-            vm.accumulator.unwrap()
+            }],
+            vm.captures
         );
     }
 
@@ -1540,45 +1546,40 @@ mod tests {
         //    / E:2 '*' E:3
         //    / D
         // D <- [0-9]+
-        let identifiers = [(2, 0), (21, 1)].iter().cloned().collect();
+        let identifiers = [(2, 0), (14, 1)].iter().cloned().collect();
         let program = Program {
             identifiers,
             labels: HashMap::new(),
             recovery: HashMap::new(),
             strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
-                Instruction::Call(2, 1),
-                Instruction::Halt,
+                /* 00 */ Instruction::Call(2, 1),
+                /* 01 */ Instruction::Halt,
+
                 // / E:1 '+' E:2
-                Instruction::Choice(8),
-                Instruction::CallB(1, 1),
-                Instruction::Capture,
-                Instruction::Char('+'),
-                Instruction::Capture,
-                Instruction::CallB(5, 2),
-                Instruction::Capture,
-                Instruction::Commit(10),
+                /* 02 */ Instruction::Choice(5),
+                /* 03 */ Instruction::CallB(1, 1),
+                /* 04 */ Instruction::Char('+'),
+                /* 05 */ Instruction::CallB(3, 2),
+                /* 06 */ Instruction::Commit(7),
+
                 // / E:2 '*' E:2
-                Instruction::Choice(8),
-                Instruction::CallB(9, 2),
-                Instruction::Capture,
-                Instruction::Char('*'),
-                Instruction::Capture,
-                Instruction::CallB(13, 3),
-                Instruction::Capture,
-                Instruction::Commit(3),
+                /* 07 */ Instruction::Choice(5),
+                /* 08 */ Instruction::CallB(6, 2),
+                /* 09 */ Instruction::Char('*'),
+                /* 10 */ Instruction::CallB(8, 3),
+                /* 11 */ Instruction::Commit(2),
+
                 // / D
-                Instruction::Call(3, 0),
-                Instruction::Capture,
-                Instruction::Return,
+                /* 12 */ Instruction::Call(2, 0),
+                /* 13 */ Instruction::Return,
+
                 // D
-                Instruction::Span('0', '9'),
-                Instruction::Capture,
-                Instruction::Choice(4),
-                Instruction::Span('0', '9'),
-                Instruction::Capture,
-                Instruction::CommitB(3),
-                Instruction::Return,
+                /* 14 */ Instruction::Span('0', '9'),
+                /* 15 */ Instruction::Choice(3),
+                /* 16 */ Instruction::Span('0', '9'),
+                /* 17 */ Instruction::CommitB(2),
+                /* 18 */ Instruction::Return,
             ],
         };
 
@@ -1588,10 +1589,9 @@ mod tests {
         assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(8, vm.cursor.unwrap());
-        assert!(vm.accumulator.is_some());
 
         assert_eq!(
-            Value::Node {
+            vec![Value::Node {
                 name: "E".to_string(),
                 children: vec![
                     Value::Node {
@@ -1617,8 +1617,8 @@ mod tests {
                         ],
                     }
                 ],
-            },
-            vm.accumulator.unwrap()
+            }],
+            vm.captures
         );
     }
 }

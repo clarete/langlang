@@ -1,2 +1,3 @@
+# lr3.peg --- mutually left and right recursion
 E <- M '+' E / M
 M <- M '-n' / 'n'

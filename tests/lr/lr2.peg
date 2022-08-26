@@ -1,3 +1,4 @@
+# lr2.peg --- left and right recursion default associativity
 E <- E "+" E
    / E "*" E
    / 'n'

@@ -1,2 +1,2 @@
-# Left Recursion
+# lr0.peg --- simple left recursion
 E <- E '+n' / 'n'

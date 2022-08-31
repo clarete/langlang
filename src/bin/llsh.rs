@@ -47,7 +47,7 @@ fn shell() -> Result<(), ShellError> {
     println!("welcome to langlang. use Ctrl-D to get outta here.");
     println!("loaded: {}", file_name);
 
-    let mut c = parser::Compiler::new();
+    let mut c = parser::Compiler::default();
     c.compile_str(data.as_str())?;
     let p = c.program();
     println!("{}", p);

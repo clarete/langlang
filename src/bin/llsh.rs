@@ -50,6 +50,7 @@ fn shell() -> Result<(), ShellError> {
     let mut c = parser::Compiler::new();
     c.compile_str(data.as_str())?;
     let p = c.program();
+    println!("{}", p);
 
     loop {
         // display prompt

@@ -1,11 +1,12 @@
 use std::fs;
 use std::io::{self, Write};
 
-use langlang::{parser, vm};
+use langlang::{compiler, parser, vm};
 
 #[derive(Debug)]
 pub enum ShellError {
-    ParsingError(parser::Error),
+    CompilerError(compiler::Error),
+    ParserError(parser::Error),
     RuntimeError(vm::Error),
     IOError(io::Error),
 }
@@ -13,7 +14,8 @@ pub enum ShellError {
 impl std::fmt::Display for ShellError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ShellError::ParsingError(e) => write!(f, "Parsing Error: {:#?}", e),
+            ShellError::ParserError(e) => write!(f, "Parsing Error: {:#?}", e),
+            ShellError::CompilerError(e) => write!(f, "Compiler Error: {:#?}", e),
             ShellError::RuntimeError(e) => write!(f, "Runtime Error: {:#?}", e),
             ShellError::IOError(e) => write!(f, "Input/Output Error: {:#?}", e),
         }
@@ -28,9 +30,15 @@ impl From<io::Error> for ShellError {
     }
 }
 
+impl From<compiler::Error> for ShellError {
+    fn from(e: compiler::Error) -> Self {
+        ShellError::CompilerError(e)
+    }
+}
+
 impl From<parser::Error> for ShellError {
     fn from(e: parser::Error) -> Self {
-        ShellError::ParsingError(e)
+        ShellError::ParserError(e)
     }
 }
 
@@ -47,10 +55,12 @@ fn shell() -> Result<(), ShellError> {
     println!("welcome to langlang. use Ctrl-D to get outta here.");
     println!("loaded: {}", file_name);
 
-    let mut c = parser::Compiler::default();
-    c.compile_str(data.as_str())?;
-    let p = c.program();
-    println!("{}", p);
+    let mut p = parser::Parser::new(data.as_str());
+    let ast = p.parse_grammar()?;
+
+    let mut compiler = compiler::Compiler::default();
+    let program = compiler.compile(ast)?;
+    println!("{}", program);
 
     loop {
         // display prompt
@@ -76,7 +86,7 @@ fn shell() -> Result<(), ShellError> {
         line.pop();
 
         // run the line
-        let mut m = vm::VM::new(p.clone());
+        let mut m = vm::VM::new(program.clone());
         match m.run(&line) {
             Ok(Some(v)) => println!("{:#?}", v),
             Ok(None) => println!("not much"),

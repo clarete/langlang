@@ -46,7 +46,20 @@ pub struct Fun {
 }
 
 #[derive(Debug)]
+pub struct CompilerConfig {
+    pub optimize: u8,
+}
+
+impl Default for CompilerConfig {
+    fn default() -> Self {
+        Self { optimize: 0 }
+    }
+}
+
+#[derive(Debug)]
 pub struct Compiler {
+    // Enable configuring the compiler to some extent
+    config: CompilerConfig,
     // The index of the last instruction written the `code` vector
     cursor: usize,
     // Vector where the compiler writes down the instructions
@@ -77,8 +90,9 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    pub fn new() -> Self {
+    pub fn new(config: CompilerConfig) -> Self {
         Compiler {
+            config,
             cursor: 0,
             code: vec![],
             strings: vec![],
@@ -323,7 +337,7 @@ impl Compiler {
 
 impl Default for Compiler {
     fn default() -> Self {
-        Self::new()
+        Self::new(CompilerConfig::default())
     }
 }
 

@@ -22,12 +22,25 @@ impl std::fmt::Display for Error {
 
 #[derive(Debug)]
 pub struct Config {
-    pub optimize: u8,
+    optimize: u8,
 }
 
 impl Default for Config {
     fn default() -> Self {
+        Self::o0()
+    }
+}
+
+impl Config {
+    /// o0 disables all optimizations
+    pub fn o0() -> Self {
         Self { optimize: 0 }
+    }
+
+    /// o1 enables some optimizations: `failtwice`, `partialcommit`,
+    /// `backcommit`, `testchar` and `testany`
+    pub fn o1() -> Self {
+        Self { optimize: 1 }
     }
 }
 
@@ -216,11 +229,37 @@ impl Compiler {
             }
             AST::Not(expr) => {
                 let pos = self.cursor;
-                self.emit(vm::Instruction::ChoiceP(0));
-                self.compile_node(*expr)?;
-                self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 2);
-                self.emit(vm::Instruction::Commit(1));
-                self.emit(vm::Instruction::Fail);
+                match self.config.optimize {
+                    1 => {
+                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.compile_node(*expr)?;
+                        self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 1);
+                        self.emit(vm::Instruction::FailTwice);
+                    }
+                    _ => {
+                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.compile_node(*expr)?;
+                        self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 2);
+                        self.emit(vm::Instruction::Commit(1));
+                        self.emit(vm::Instruction::Fail);
+                    }
+                }
+                Ok(())
+            }
+            AST::And(expr) => {
+                match self.config.optimize {
+                    1 => {
+                        let pos0 = self.cursor;
+                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.compile_node(*expr)?;
+                        let pos1 = self.cursor;
+                        self.code[pos0] = vm::Instruction::ChoiceP(pos1 - pos0);
+                        self.emit(vm::Instruction::BackCommit(0));
+                        self.emit(vm::Instruction::Fail);
+                        self.code[pos1] = vm::Instruction::BackCommit(self.cursor - pos1);
+                    }
+                    _ => self.compile_node(AST::Not(Box::new(AST::Not(expr))))?,
+                }
                 Ok(())
             }
             AST::ZeroOrMore(expr) => {
@@ -229,17 +268,16 @@ impl Compiler {
                 self.compile_node(*expr)?;
                 let size = self.cursor - pos;
                 self.code[pos] = vm::Instruction::Choice(size + 1);
-                self.emit(vm::Instruction::CommitB(size));
+                match self.config.optimize {
+                    1 => self.emit(vm::Instruction::PartialCommit(size - 1)),
+                    _ => self.emit(vm::Instruction::CommitB(size)),
+                }
                 Ok(())
             }
             AST::OneOrMore(expr) => {
                 let e = *expr;
                 self.compile_node(e.clone())?;
-                let pos = self.cursor;
-                self.emit(vm::Instruction::Choice(0));
-                self.compile_node(e)?;
-                self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 1);
-                self.emit(vm::Instruction::CommitB(self.cursor - pos));
+                self.compile_node(AST::ZeroOrMore(Box::new(e)))?;
                 Ok(())
             }
             AST::Identifier(name) => {

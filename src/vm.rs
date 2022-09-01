@@ -32,9 +32,9 @@ pub enum Instruction {
     Commit(usize),
     CommitB(usize),
     Fail,
-    // FailTwice,
-    // PartialCommit,
-    // BackCommit,
+    FailTwice,
+    PartialCommit(usize),
+    BackCommit(usize),
     // TestChar,
     // TestAny,
     Jump(usize),
@@ -124,6 +124,7 @@ impl std::fmt::Display for Program {
                 Instruction::Halt => writeln!(f, "halt"),
                 Instruction::Any => writeln!(f, "any"),
                 Instruction::Fail => writeln!(f, "fail"),
+                Instruction::FailTwice => writeln!(f, "failtwice"),
                 Instruction::Return => writeln!(f, "return"),
                 Instruction::Char(c) => writeln!(f, "char {:?}", c),
                 Instruction::Str(i) => writeln!(f, "str {:?} {:?}", self.strings[*i], i),
@@ -132,6 +133,8 @@ impl std::fmt::Display for Program {
                 Instruction::ChoiceP(o) => writeln!(f, "choicep {:?}", o),
                 Instruction::Commit(o) => writeln!(f, "commit {:?}", o),
                 Instruction::CommitB(o) => writeln!(f, "commitb {:?}", o),
+                Instruction::PartialCommit(u) => writeln!(f, "partialcommit {:?}", u),
+                Instruction::BackCommit(u) => writeln!(f, "backcommit {:?}", u),
                 Instruction::Jump(addr) => writeln!(f, "jump {:?}", addr),
                 Instruction::Throw(label) => writeln!(f, "throw {:?}", label),
                 Instruction::Call(addr, precedence) => {
@@ -332,6 +335,9 @@ impl VM {
     // functions for capturing matched values
 
     fn capture(&mut self, v: Value) -> Result<(), Error> {
+        if self.within_predicate {
+            return Ok(())
+        }
         if self.call_frames.is_empty() {
             self.captures.push(v);
         } else {
@@ -467,7 +473,29 @@ impl VM {
                     self.program_counter -= offset;
                     self.commit_captures()?;
                 }
+                Instruction::PartialCommit(offset) => {
+                    let idx = self.stack.len() - 1;
+                    let ncaptures = self.num_captures()?;
+                    let mut f = &mut self.stack[idx];
+                    f.cursor = self.cursor.clone();
+                    f.last_capture_committed = ncaptures;
+                    // always subtracts: this opcode is currently only
+                    // used when compiling the star operator (*),
+                    // which always needs to send the program counter
+                    // backwards.
+                    self.program_counter -= offset;
+                    self.commit_captures()?;
+                }
+                Instruction::BackCommit(offset) => {
+                    let f = self.stkpop()?;
+                    self.cursor = f.cursor;
+                    self.program_counter += offset;
+                }
                 Instruction::Fail => {
+                    self.fail()?;
+                }
+                Instruction::FailTwice => {
+                    self.stkpop()?;
                     self.fail()?;
                 }
                 Instruction::Jump(index) => {

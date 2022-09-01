@@ -109,7 +109,7 @@ impl Parser {
         ]);
         let labeled = self.parse_labeled()?;
         Ok(match prefix {
-            Ok("&") => AST::Not(Box::new(AST::Not(Box::new(labeled)))),
+            Ok("&") => AST::And(Box::new(labeled)),
             Ok("!") => AST::Not(Box::new(labeled)),
             _ => labeled,
         })

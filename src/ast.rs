@@ -19,6 +19,7 @@ pub enum AST {
     LabelDefinition(String, String),
     Sequence(Vec<AST>),
     Choice(Vec<AST>),
+    And(Box<AST>),
     Not(Box<AST>),
     Optional(Box<AST>),
     ZeroOrMore(Box<AST>),

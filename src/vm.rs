@@ -360,7 +360,7 @@ impl VM {
 
     // evaluation
 
-    pub fn run(&mut self, input: &str) -> Result<Option<&Value>, Error> {
+    pub fn run(&mut self, input: &str) -> Result<Option<Value>, Error> {
         self.source = input.chars().collect();
 
         loop {
@@ -498,7 +498,7 @@ impl VM {
         }
 
         if self.captures.len() > 0 {
-            Ok(Some(&self.captures[0]))
+            Ok(Some(self.captures.remove(0)))
         } else {
             Ok(None)
         }
@@ -826,7 +826,7 @@ mod tests {
         let result = vm.run("");
 
         assert!(result.is_err());
-        assert_eq!(Error::EOF, result.clone().unwrap_err());
+        assert_eq!(Error::EOF, result.unwrap_err());
         assert!(vm.cursor.is_err());
         //assert_eq!(vm.cursor.unwrap_err(), result.unwrap_err())
     }
@@ -1339,15 +1339,18 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("abacate");
 
-        assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(7, vm.cursor.unwrap());
+
+        assert!(result.is_ok());
+        let r = result.unwrap();
+        assert!(r.is_some());
         assert_eq!(
-            vec![Value::Node {
+            Value::Node {
                 name: "G".to_string(),
                 children: vec![Value::Str("abacate".to_string())],
-            }],
-            vm.captures
+            },
+            r.unwrap()
         );
     }
 
@@ -1412,11 +1415,14 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("abada");
 
-        assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(5, vm.cursor.unwrap());
+
+        assert!(result.is_ok());
+        let r = result.unwrap();
+        assert!(r.is_some());
         assert_eq!(
-            vec![Value::Node {
+            Value::Node {
                 name: "G".to_string(),
                 children: vec![
                     Value::Chr('a'),
@@ -1425,8 +1431,8 @@ mod tests {
                     Value::Chr('d'),
                     Value::Chr('a'),
                 ]
-            }],
-            vm.captures
+            },
+            r.unwrap()
         );
     }
 
@@ -1458,18 +1464,21 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("1");
 
-        assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(1, vm.cursor.unwrap());
+
+        assert!(result.is_ok());
+        let r = result.unwrap();
+        assert!(r.is_some());
         assert_eq!(
-            vec![Value::Node {
+            Value::Node {
                 name: "G".to_string(),
                 children: vec![Value::Node {
                     name: "D".to_string(),
                     children: vec![Value::Chr('1')],
                 }],
-            }],
-            vm.captures
+            },
+            r.unwrap(),
         );
     }
 
@@ -1522,11 +1531,14 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("abada");
 
-        assert!(result.is_ok());
         assert!(vm.cursor.is_ok());
         assert_eq!(5, vm.cursor.unwrap());
+
+        assert!(result.is_ok());
+        let r = result.unwrap();
+        assert!(r.is_some());
         assert_eq!(
-            vec![Value::Node {
+            Value::Node {
                 name: "G".to_string(),
                 children: vec![
                     Value::Chr('a'),
@@ -1535,8 +1547,8 @@ mod tests {
                     Value::Chr('d'),
                     Value::Chr('a'),
                 ]
-            }],
-            vm.captures
+            },
+            r.unwrap()
         );
     }
 

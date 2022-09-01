@@ -32,13 +32,6 @@ impl Default for Config {
 }
 
 #[derive(Debug)]
-pub struct Fun {
-    name: String,
-    addr: usize,
-    size: usize,
-}
-
-#[derive(Debug)]
 pub struct Compiler {
     // Enable configuring the compiler to some extent
     config: Config,
@@ -52,7 +45,7 @@ pub struct Compiler {
     strings_map: HashMap<String, usize>,
     // Map from set of production string ids to the set of metadata
     // about the production
-    funcs: HashMap<usize, Fun>,
+    funcs: HashMap<usize, usize>,
     // Map from set of positions of the first instruction of rules to
     // the position of their index in the strings map
     identifiers: HashMap<usize, usize>,
@@ -124,13 +117,13 @@ impl Compiler {
     fn backpatch_callsites(&mut self) -> Result<(), Error> {
         for (addr, id) in &self.addrs {
             match self.funcs.get(id) {
-                Some(func) => {
-                    if func.addr > *addr {
+                Some(func_addr) => {
+                    if func_addr > addr {
                         self.code[*addr] =
-                            vm::Instruction::Call(func.addr - addr, DEFAULT_CALL_PRECEDENCE);
+                            vm::Instruction::Call(func_addr - addr, DEFAULT_CALL_PRECEDENCE);
                     } else {
                         self.code[*addr] =
-                            vm::Instruction::CallB(addr - func.addr, DEFAULT_CALL_PRECEDENCE);
+                            vm::Instruction::CallB(addr - func_addr, DEFAULT_CALL_PRECEDENCE);
                     }
                 }
                 None => {
@@ -161,9 +154,7 @@ impl Compiler {
                 self.identifiers.insert(addr, strid);
                 self.compile_node(*expr)?;
                 self.emit(vm::Instruction::Return);
-
-                let size = self.cursor - addr;
-                self.funcs.insert(strid, Fun { name, addr, size });
+                self.funcs.insert(strid, addr);
                 Ok(())
             }
             AST::LabelDefinition(name, message) => {
@@ -254,8 +245,8 @@ impl Compiler {
             AST::Identifier(name) => {
                 let id = self.push_string(name);
                 match self.funcs.get(&id) {
-                    Some(func) => {
-                        let addr = self.cursor - func.addr;
+                    Some(func_addr) => {
+                        let addr = self.cursor - func_addr;
                         self.emit(vm::Instruction::CallB(addr, DEFAULT_CALL_PRECEDENCE));
                     }
                     None => {

@@ -1,3 +1,6 @@
+; Uniform Resource Identifier (URI): Generic Syntax
+; https://datatracker.ietf.org/doc/html/rfc3986
+
 URI           = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
 
 hier-part     = "//" authority path-abempty
@@ -17,7 +20,6 @@ relative-part = "//" authority path-abempty
               / path-empty
 
 scheme        = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-
 
 authority     = [ userinfo "@" ] host [ ":" port ]
 userinfo      = *( unreserved / pct-encoded / sub-delims / ":" )
@@ -80,4 +82,3 @@ reserved      = gen-delims / sub-delims
 gen-delims    = ":" / "/" / "?" / "#" / "[" / "]" / "@"
 sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
               / "*" / "+" / "," / ";" / "="
-

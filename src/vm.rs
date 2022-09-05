@@ -623,9 +623,11 @@ impl VM {
             debug!("       . inc.3");
             let frame = self.stkpop()?;
             let pc = frame.program_counter;
+            let key = (frame.address, frame.cursor?);
             self.cursor = frame.result;
             self.program_counter = pc;
             debug!("       . captures so far: {:#?}", frame.captures);
+            self.lrmemo.remove(&key);
         }
         Ok(())
     }
@@ -647,6 +649,11 @@ impl VM {
                     debug!("       . pop {:#?}", f);
                     if let Ok(cursor) = f.cursor {
                         self.cursor = Ok(cursor);
+                    }
+                    if matches!(f.result, Err(Error::LeftRec)) {
+                        let key = (f.address, f.cursor.clone()?);
+                        debug!("       . lrfail: {:?}", key);
+                        self.lrmemo.remove(&key);
                     }
                     if f.ftype == StackFrameType::Backtrack {
                         if f.predicate {

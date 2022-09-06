@@ -600,19 +600,12 @@ impl VM {
             return Ok(());
         }
 
-        if frame.result.is_err() || cursor > frame.result.clone()? {
-            debug!("       . {{lvar, inc}}.1");
-
-            // keep tabs on how many entries were captured so far
-            // frame.last_capture_committed = frame.captures.len();
+        if matches!(frame.result, Err(Error::LeftRec)) || cursor > frame.result.clone()? {
             frame.result = Ok(cursor);
-            debug!("       . captures so far: {:?}", frame.captures);
-
             let frame_cursor = frame.cursor.clone();
             let frame_precedence = frame.precedence;
-            let key = (frame.address, frame_cursor.clone().unwrap());
+            let key = (address, frame_cursor.clone()?);
             let mut entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;
-
             entry.cursor = Ok(cursor);
             entry.bound += 1;
             entry.precedence = frame_precedence;

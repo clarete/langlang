@@ -565,22 +565,16 @@ impl VM {
                     },
                 );
             }
-            Some(entry) => match entry.cursor {
-                Err(_) => {
-                    debug!("       . lvar.3");
+            Some(entry) => {
+                if matches!(entry.cursor, Err(_)) || precedence < entry.precedence {
+                    debug!("       . lvar.{{3,5}}");
                     self.fail()?;
+                } else {
+                    debug!("       . lvar.4");
+                    self.program_counter += 1;
+                    self.cursor = Ok(entry.cursor.clone()?);
                 }
-                Ok(cursor) => {
-                    if entry.precedence >= precedence {
-                        debug!("       . lvar.4");
-                        self.cursor = Ok(cursor);
-                        self.program_counter += 1;
-                    } else {
-                        debug!("       . lvar.5");
-                        self.fail()?;
-                    }
-                }
-            },
+            }
         }
         Ok(())
     }
@@ -1595,25 +1589,21 @@ mod tests {
             code: vec![
                 /* 00 */ Instruction::Call(2, 1),
                 /* 01 */ Instruction::Halt,
-
                 // / E:1 '+' E:2
                 /* 02 */ Instruction::Choice(5),
                 /* 03 */ Instruction::CallB(1, 1),
                 /* 04 */ Instruction::Char('+'),
                 /* 05 */ Instruction::CallB(3, 2),
                 /* 06 */ Instruction::Commit(7),
-
                 // / E:2 '*' E:2
                 /* 07 */ Instruction::Choice(5),
                 /* 08 */ Instruction::CallB(6, 2),
                 /* 09 */ Instruction::Char('*'),
                 /* 10 */ Instruction::CallB(8, 3),
                 /* 11 */ Instruction::Commit(2),
-
                 // / D
                 /* 12 */ Instruction::Call(2, 0),
                 /* 13 */ Instruction::Return,
-
                 // D
                 /* 14 */ Instruction::Span('0', '9'),
                 /* 15 */ Instruction::Choice(3),

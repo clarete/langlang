@@ -163,7 +163,7 @@ enum StackFrameType {
 struct StackFrame {
     ftype: StackFrameType,
     program_counter: usize,       // pc
-    cursor: Result<usize, Error>, // s
+    cursor: usize,                // s
     result: Result<usize, Error>, // X
     address: usize,               // pc+l
     precedence: usize,            // k
@@ -178,7 +178,7 @@ impl StackFrame {
             ftype: StackFrameType::Backtrack,
             program_counter: pc,
             last_capture_committed: capture,
-            cursor: Ok(cursor),
+            cursor,
             // fields not used for backtrack frames
             address: 0,
             precedence: 0,
@@ -192,7 +192,7 @@ impl StackFrame {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
-            cursor: Err(Error::Fail),
+            cursor: 0,
             result: Err(Error::Fail),
             address,
             precedence,
@@ -212,7 +212,7 @@ impl StackFrame {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
-            cursor: Ok(cursor),
+            cursor,
             result: Err(Error::LeftRec),
             address,
             precedence,
@@ -244,8 +244,8 @@ struct LeftRecTableEntry {
 
 #[derive(Debug)]
 pub struct VM {
-    // Cursor within input, error means matching failed
-    cursor: Result<usize, Error>,
+    // Cursor position at the input
+    cursor: usize,
     // Farther Failure Position
     ffp: usize,
     // Input source
@@ -272,7 +272,7 @@ impl VM {
     pub fn new(program: Program) -> Self {
         VM {
             ffp: 0,
-            cursor: Ok(0),
+            cursor: 0,
             source: vec![],
             program,
             program_counter: 0,
@@ -286,11 +286,11 @@ impl VM {
     }
 
     fn advance_cursor(&mut self) -> Result<(), Error> {
-        let cursor = self.cursor.clone()? + 1;
+        let cursor = self.cursor + 1;
         if cursor > self.ffp {
             self.ffp = cursor;
         }
-        self.cursor = Ok(cursor);
+        self.cursor = cursor;
         Ok(())
     }
 
@@ -336,7 +336,7 @@ impl VM {
 
     fn capture(&mut self, v: Value) -> Result<(), Error> {
         if self.within_predicate {
-            return Ok(())
+            return Ok(());
         }
         if self.call_frames.is_empty() {
             self.captures.push(v);
@@ -370,60 +370,52 @@ impl VM {
         self.source = input.chars().collect();
 
         loop {
-            if self.program_counter >= self.program.code.len() {
-                return Err(Error::Overflow);
-            }
-
-            let (instruction, cursor) = match self.cursor {
-                Ok(c) => (self.program.code[self.program_counter].clone(), c),
-                Err(_) => (Instruction::Fail, 0),
-            };
-
+            let cursor = self.cursor;
             debug!(
-                "[{:?},{:?}] I: {:?}",
-                self.program_counter, cursor, instruction
+                "[{:>04?},{:>04?}] I: {:?}",
+                self.program_counter, cursor, self.program.code[self.program_counter],
             );
-
-            match instruction {
+            match self.program.code[self.program_counter] {
                 Instruction::Halt => break,
                 Instruction::Any => {
+                    self.program_counter += 1;
                     if cursor >= self.source.len() {
-                        self.cursor = Err(Error::EOF);
+                        self.fail(Error::EOF)?;
                     } else {
                         self.capture(Value::Chr(self.source[cursor]))?;
                         self.advance_cursor()?;
-                        self.program_counter += 1;
                     }
                 }
                 Instruction::Char(expected) => {
+                    self.program_counter += 1;
                     if cursor >= self.source.len() {
-                        self.cursor = Err(Error::EOF);
+                        self.fail(Error::EOF)?;
                         continue;
                     }
                     let current = self.source[cursor];
                     if current != expected {
-                        self.cursor = Err(Error::Matching(self.ffp, expected.to_string()));
+                        self.fail(Error::Matching(self.ffp, expected.to_string()))?;
                         continue;
                     }
-                    self.capture(Value::Chr(self.source[cursor]))?;
+                    self.capture(Value::Chr(current))?;
                     self.advance_cursor()?;
-                    self.program_counter += 1;
                 }
                 Instruction::Span(start, end) => {
+                    self.program_counter += 1;
                     if cursor >= self.source.len() {
-                        self.cursor = Err(Error::EOF);
+                        self.fail(Error::EOF)?;
                         continue;
                     }
                     let current = self.source[cursor];
                     if current >= start && current <= end {
-                        self.capture(Value::Chr(self.source[cursor]))?;
+                        self.capture(Value::Chr(current))?;
                         self.advance_cursor()?;
-                        self.program_counter += 1;
                         continue;
                     }
-                    self.cursor = Err(Error::Matching(self.ffp, format!("[{}-{}]", start, end)));
+                    self.fail(Error::Matching(self.ffp, format!("[{}-{}]", start, end)))?;
                 }
                 Instruction::Str(id) => {
+                    self.program_counter += 1;
                     let s = self.program.string_at(id);
                     let mut matches = 0;
                     for (i, expected) in s.chars().enumerate() {
@@ -440,9 +432,8 @@ impl VM {
                     if matches == s.len() {
                         self.capture(Value::Str(s))?;
                     } else {
-                        self.cursor = Err(Error::Matching(self.ffp, s));
+                        self.fail(Error::Matching(self.ffp, s))?;
                     }
-                    self.program_counter += 1;
                 }
                 Instruction::Choice(offset) => {
                     self.stkpush(StackFrame::new_backtrack(
@@ -477,7 +468,7 @@ impl VM {
                     let idx = self.stack.len() - 1;
                     let ncaptures = self.num_captures()?;
                     let mut f = &mut self.stack[idx];
-                    f.cursor = self.cursor.clone();
+                    f.cursor = cursor;
                     f.last_capture_committed = ncaptures;
                     // always subtracts: this opcode is currently only
                     // used when compiling the star operator (*),
@@ -492,11 +483,11 @@ impl VM {
                     self.program_counter += offset;
                 }
                 Instruction::Fail => {
-                    self.fail()?;
+                    self.fail(Error::Fail)?;
                 }
                 Instruction::FailTwice => {
                     self.stkpop()?;
-                    self.fail()?;
+                    self.fail(Error::Fail)?;
                 }
                 Instruction::Jump(index) => {
                     self.program_counter = index;
@@ -513,7 +504,7 @@ impl VM {
                 Instruction::Throw(label) => {
                     self.program_counter += 1;
                     if self.within_predicate {
-                        self.fail()?;
+                        self.fail(Error::Fail)?;
                     } else {
                         let message = self.program.label(label);
                         match self.program.recovery.get(&label) {
@@ -534,7 +525,7 @@ impl VM {
 
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
         debug!("       . call({:?})", self.program.identifier(address));
-        let cursor = self.cursor.clone()?;
+        let cursor = self.cursor;
         if precedence == 0 {
             self.stkpush(StackFrame::new_call(
                 self.program_counter + 1,
@@ -568,11 +559,11 @@ impl VM {
             Some(entry) => {
                 if matches!(entry.cursor, Err(_)) || precedence < entry.precedence {
                     debug!("       . lvar.{{3,5}}");
-                    self.fail()?;
+                    self.fail(Error::Fail)?;
                 } else {
                     debug!("       . lvar.4");
                     self.program_counter += 1;
-                    self.cursor = Ok(entry.cursor.clone()?);
+                    self.cursor = entry.cursor.clone()?;
                 }
             }
         }
@@ -580,7 +571,7 @@ impl VM {
     }
 
     fn inst_return(&mut self) -> Result<(), Error> {
-        let cursor = self.cursor.clone()?;
+        let cursor = self.cursor;
         let mut frame = self.stkpeek_mut()?;
         let address = frame.address;
 
@@ -598,7 +589,7 @@ impl VM {
             frame.result = Ok(cursor);
             let frame_cursor = frame.cursor.clone();
             let frame_precedence = frame.precedence;
-            let key = (address, frame_cursor.clone()?);
+            let key = (address, frame_cursor);
             let mut entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;
             entry.cursor = Ok(cursor);
             entry.bound += 1;
@@ -610,8 +601,8 @@ impl VM {
             debug!("       . inc.3");
             let frame = self.stkpop()?;
             let pc = frame.program_counter;
-            let key = (frame.address, frame.cursor?);
-            self.cursor = frame.result;
+            let key = (frame.address, frame.cursor);
+            self.cursor = frame.result?;
             self.program_counter = pc;
             debug!("       . captures so far: {:#?}", frame.captures);
             self.lrmemo.remove(&key);
@@ -619,26 +610,18 @@ impl VM {
         Ok(())
     }
 
-    fn fail(&mut self) -> Result<(), Error> {
+    fn fail(&mut self, error: Error) -> Result<(), Error> {
         debug!("       . fail");
-        let error = match self.cursor.clone() {
-            Err(e) => e,
-            Ok(_) => Error::Fail,
-        };
         let frame = loop {
             match self.stack.pop() {
                 None => {
                     debug!("       . none");
-                    self.cursor = Err(error.clone());
                     return Err(error);
                 }
                 Some(f) => {
                     debug!("       . pop {:#?}", f);
-                    if let Ok(cursor) = f.cursor {
-                        self.cursor = Ok(cursor);
-                    }
                     if matches!(f.result, Err(Error::LeftRec)) {
-                        let key = (f.address, f.cursor.clone()?);
+                        let key = (f.address, f.cursor);
                         debug!("       . lrfail: {:?}", key);
                         self.lrmemo.remove(&key);
                     }
@@ -664,7 +647,7 @@ impl VM {
                     if let Ok(result) = f.result {
                         if result > 0 {
                             debug!("       . inc.2");
-                            self.cursor = Ok(result);
+                            self.cursor = result;
                             break f;
                         }
                     }
@@ -673,6 +656,7 @@ impl VM {
         };
 
         self.program_counter = frame.program_counter;
+        self.cursor = frame.cursor;
 
         Ok(())
     }
@@ -707,8 +691,7 @@ mod tests {
         let result = vm.run("a");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(1, vm.cursor.unwrap());
+        assert_eq!(1, vm.cursor);
     }
 
     // (ch.2)
@@ -764,8 +747,7 @@ mod tests {
         let result = vm.run("a");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(1, vm.cursor.unwrap());
+        assert_eq!(1, vm.cursor);
     }
 
     // (span.2)
@@ -821,8 +803,7 @@ mod tests {
         let result = vm.run("abcd");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(3, vm.cursor.unwrap());
+        assert_eq!(3, vm.cursor);
     }
 
     // (any.2)
@@ -849,7 +830,7 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(Error::EOF, result.unwrap_err());
-        assert!(vm.cursor.is_err());
+        // assert!(vm.cursor.is_err());
         //assert_eq!(vm.cursor.unwrap_err(), result.unwrap_err())
     }
 
@@ -880,8 +861,7 @@ mod tests {
         let result = vm.run("foo");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(0, vm.cursor.unwrap());
+        assert_eq!(0, vm.cursor);
         assert_eq!(0, vm.ffp);
     }
 
@@ -913,7 +893,7 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(Error::Fail, result.unwrap_err());
-        assert!(vm.cursor.is_err());
+        // assert!(vm.cursor.is_err());
         assert_eq!(1, vm.ffp);
     }
 
@@ -977,8 +957,7 @@ mod tests {
         let result = vm.run("a");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(1, vm.cursor.unwrap());
+        assert_eq!(1, vm.cursor);
     }
 
     // (ord.3)
@@ -1009,8 +988,7 @@ mod tests {
         let result = vm.run("b");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(1, vm.cursor.unwrap());
+        assert_eq!(1, vm.cursor);
         assert_eq!(1, vm.ffp);
     }
 
@@ -1040,8 +1018,7 @@ mod tests {
         let result = vm.run("aab");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(2, vm.cursor.unwrap());
+        assert_eq!(2, vm.cursor);
         assert_eq!(2, vm.ffp);
     }
 
@@ -1071,8 +1048,7 @@ mod tests {
         let result = vm.run("b");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(0, vm.cursor.unwrap());
+        assert_eq!(0, vm.cursor);
         assert_eq!(0, vm.ffp);
     }
 
@@ -1111,8 +1087,7 @@ mod tests {
         let result = vm.run("1+1");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(3, vm.cursor.unwrap());
+        assert_eq!(3, vm.cursor);
         assert_eq!(3, vm.ffp);
     }
 
@@ -1181,7 +1156,7 @@ mod tests {
         let result = vm.run("321");
 
         assert!(result.is_err());
-        assert!(vm.cursor.is_err());
+        // assert!(vm.cursor.is_err());
         assert_eq!(0, vm.ffp);
     }
 
@@ -1213,8 +1188,7 @@ mod tests {
         let result = vm.run("n+n+n");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(5, vm.cursor.unwrap());
+        assert_eq!(5, vm.cursor);
     }
 
     #[test]
@@ -1254,8 +1228,7 @@ mod tests {
         let result = vm.run("0+1");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(3, vm.cursor.unwrap());
+        assert_eq!(3, vm.cursor);
     }
 
     #[test]
@@ -1302,8 +1275,7 @@ mod tests {
         let result = vm.run("0+1*1");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(5, vm.cursor.unwrap());
+        assert_eq!(5, vm.cursor);
     }
 
     #[test]
@@ -1361,9 +1333,7 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("abacate");
 
-        assert!(vm.cursor.is_ok());
-        assert_eq!(7, vm.cursor.unwrap());
-
+        assert_eq!(7, vm.cursor);
         assert!(result.is_ok());
         let r = result.unwrap();
         assert!(r.is_some());
@@ -1437,8 +1407,7 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("abada");
 
-        assert!(vm.cursor.is_ok());
-        assert_eq!(5, vm.cursor.unwrap());
+        assert_eq!(5, vm.cursor);
 
         assert!(result.is_ok());
         let r = result.unwrap();
@@ -1486,8 +1455,7 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("1");
 
-        assert!(vm.cursor.is_ok());
-        assert_eq!(1, vm.cursor.unwrap());
+        assert_eq!(1, vm.cursor);
 
         assert!(result.is_ok());
         let r = result.unwrap();
@@ -1553,8 +1521,7 @@ mod tests {
         let mut vm = VM::new(program);
         let result = vm.run("abada");
 
-        assert!(vm.cursor.is_ok());
-        assert_eq!(5, vm.cursor.unwrap());
+        assert_eq!(5, vm.cursor);
 
         assert!(result.is_ok());
         let r = result.unwrap();
@@ -1617,8 +1584,7 @@ mod tests {
         let result = vm.run("12+34*56");
 
         assert!(result.is_ok());
-        assert!(vm.cursor.is_ok());
-        assert_eq!(8, vm.cursor.unwrap());
+        assert_eq!(8, vm.cursor);
 
         assert_eq!(
             vec![Value::Node {

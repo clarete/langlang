@@ -9,21 +9,20 @@
    * [X] Generate bytecode with original PEG semantics
    * [X] Compile labeled failures
    - [ ] define precedence for left recursive calls
-   * [ ] compile non-left recursive rules with precedence of 0
+   * [ ] compile non-left recursive rules with zero precedence
    * [ ] first and follows set for error synchronization
    * [ ] error recovery expression generation
 ** VM
    - [X] original PEG semantics
    - [X] error reporting with labels
-   - [X] value captures
-   - [-] left recursion: buggy for indirect left recursion
-   - [-] error recovery
+   - [X] left recursion
+   - [-] value captures: buggy for left recursion
+   - [-] error recovery: work in progress
    - [ ] match data structures
    - [ ] higher-order rules?
    - [ ] parameterized rules?
    - [ ] semantic actions?
    - [ ] packages and import system?
-   - [ ] optimizations?
 ** Standard Library
    * [-] ABNF
    * [ ] C
@@ -36,7 +35,7 @@
    * [ ] JavaScript
    * [ ] JSX
    * [ ] HTML (tolerant to failures -- invalid)
-   * [ ] Python
+   * [ ] Python (relative space)
    * [X] PEG
    * [ ] PEGX?
    * [ ] RFC3986

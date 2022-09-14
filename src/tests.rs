@@ -15,7 +15,7 @@ mod tests {
 
     #[test]
     fn test_char() {
-        let cc = compiler::Config::default();
+        let cc = compiler::Config::default().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- 'a'", "a");
         assert_eq!(
             Some(vm::Value::Node {
@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn test_not_0() {
-        let cc = compiler::Config::o0();
+        let cc = compiler::Config::o0().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- (!('a' / 'b') .)", "c");
         assert_eq!(
             Some(vm::Value::Node {
@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     fn test_not_opt() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::o1().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- (!('a' / 'b') .)", "c");
         assert_eq!(
             Some(vm::Value::Node {
@@ -54,7 +54,7 @@ mod tests {
 
     #[test]
     fn test_and_0() {
-        let cc = compiler::Config::o0();
+        let cc = compiler::Config::o0().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- (&('a' / 'b') .)", "a");
         assert_eq!(
             Some(vm::Value::Node {
@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_and_opt() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::o1().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- &'a' .", "a");
         assert_eq!(
             Some(vm::Value::Node {
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_star_opt() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::o1().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- .*", "abab");
         assert_eq!(
             Some(vm::Value::Node {

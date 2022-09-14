@@ -23,6 +23,7 @@ impl std::fmt::Display for Error {
 #[derive(Debug)]
 pub struct Config {
     optimize: u8,
+    default_call_precedence: usize,
 }
 
 impl Default for Config {
@@ -34,13 +35,30 @@ impl Default for Config {
 impl Config {
     /// o0 disables all optimizations
     pub fn o0() -> Self {
-        Self { optimize: 0 }
+        Self {
+            optimize: 0,
+            default_call_precedence: DEFAULT_CALL_PRECEDENCE,
+        }
     }
 
     /// o1 enables some optimizations: `failtwice`, `partialcommit`,
     /// `backcommit`, `testchar` and `testany`
     pub fn o1() -> Self {
-        Self { optimize: 1 }
+        Self {
+            optimize: 1,
+            default_call_precedence: DEFAULT_CALL_PRECEDENCE,
+        }
+    }
+
+    /// with_disabled_precedence returns a new instance of Config with
+    /// all the fields copied over from the current instance, with the
+    /// exception of `default_call_precedence` that will always be
+    /// zeroed here.
+    pub fn with_disabled_precedence(&self) -> Self {
+        Self {
+            optimize: self.optimize,
+            default_call_precedence: 0,
+        }
     }
 }
 
@@ -132,11 +150,15 @@ impl Compiler {
             match self.funcs.get(id) {
                 Some(func_addr) => {
                     if func_addr > addr {
-                        self.code[*addr] =
-                            vm::Instruction::Call(func_addr - addr, DEFAULT_CALL_PRECEDENCE);
+                        self.code[*addr] = vm::Instruction::Call(
+                            func_addr - addr,
+                            self.config.default_call_precedence,
+                        );
                     } else {
-                        self.code[*addr] =
-                            vm::Instruction::CallB(addr - func_addr, DEFAULT_CALL_PRECEDENCE);
+                        self.code[*addr] = vm::Instruction::CallB(
+                            addr - func_addr,
+                            self.config.default_call_precedence,
+                        );
                     }
                 }
                 None => {
@@ -154,7 +176,10 @@ impl Compiler {
     fn compile_node(&mut self, node: AST) -> Result<(), Error> {
         match node {
             AST::Grammar(rules) => {
-                self.emit(vm::Instruction::Call(2, DEFAULT_CALL_PRECEDENCE));
+                self.emit(vm::Instruction::Call(
+                    2,
+                    self.config.default_call_precedence,
+                ));
                 self.emit(vm::Instruction::Halt);
                 for r in rules {
                     self.compile_node(r)?;
@@ -285,11 +310,17 @@ impl Compiler {
                 match self.funcs.get(&id) {
                     Some(func_addr) => {
                         let addr = self.cursor - func_addr;
-                        self.emit(vm::Instruction::CallB(addr, DEFAULT_CALL_PRECEDENCE));
+                        self.emit(vm::Instruction::CallB(
+                            addr,
+                            self.config.default_call_precedence,
+                        ));
                     }
                     None => {
                         self.addrs.insert(self.cursor, id);
-                        self.emit(vm::Instruction::Call(0, DEFAULT_CALL_PRECEDENCE));
+                        self.emit(vm::Instruction::Call(
+                            0,
+                            self.config.default_call_precedence,
+                        ));
                     }
                 }
                 Ok(())

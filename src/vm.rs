@@ -202,13 +202,7 @@ impl StackFrame {
         }
     }
 
-    fn new_lrcall(
-        cursor: usize,
-        pc: usize,
-        address: usize,
-        precedence: usize,
-        capture: usize,
-    ) -> Self {
+    fn new_lrcall(cursor: usize, pc: usize, address: usize, precedence: usize) -> Self {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
@@ -216,7 +210,7 @@ impl StackFrame {
             result: Err(Error::LeftRec),
             address,
             precedence,
-            last_capture_committed: capture,
+            last_capture_committed: 0,
             captures: vec![],
             predicate: false,
         }
@@ -544,7 +538,6 @@ impl VM {
                     self.program_counter + 1,
                     address,
                     precedence,
-                    self.num_captures()?,
                 ));
                 self.program_counter = address;
                 self.lrmemo.insert(

@@ -256,8 +256,6 @@ pub struct VM {
     lrmemo: HashMap<LeftRecTableKey, LeftRecTableEntry>,
     // Where values returned from successful match operations are stored
     captures: Vec<Value>,
-    // last capture commited
-    last_capture_committed: usize,
     // boolean flag that remembers if the VM is within a predicate
     within_predicate: bool,
 }
@@ -274,7 +272,6 @@ impl VM {
             call_frames: vec![],
             lrmemo: HashMap::new(),
             captures: vec![],
-            last_capture_committed: 0,
             within_predicate: false,
         }
     }
@@ -332,30 +329,29 @@ impl VM {
         if self.within_predicate {
             return Ok(());
         }
-        if self.call_frames.is_empty() {
-            self.captures.push(v);
-        } else {
+        if self.call_frames.len() > 0 {
             self.stkpeek_mut()?.captures.push(v);
+        } else {
+            self.captures.push(v);
         }
         Ok(())
     }
 
     fn num_captures(&self) -> Result<usize, Error> {
-        if self.call_frames.is_empty() {
-            Ok(self.captures.len())
-        } else {
-            Ok(self.stkpeek()?.captures.len())
-        }
+        Ok(self.stkpeek()?.captures.len())
     }
 
     fn commit_captures(&mut self) -> Result<(), Error> {
-        if self.call_frames.is_empty() {
-            self.last_capture_committed = self.captures.len();
-        } else {
-            let mut f = self.stkpeek_mut()?;
-            f.last_capture_committed = f.captures.len();
-        }
+        let mut f = self.stkpeek_mut()?;
+        f.last_capture_committed = f.captures.len();
         Ok(())
+    }
+
+    fn drain_captures(&mut self) -> Result<Vec<Value>, Error> {
+        let len = self.num_captures()?;
+        let top = self.stkpeek_mut()?;
+        let first = std::cmp::min(top.last_capture_committed, len);
+        Ok(top.captures.drain(first..len).collect())
     }
 
     // evaluation

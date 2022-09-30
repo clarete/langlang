@@ -44,6 +44,31 @@ pub enum Instruction {
     Throw(usize),
 }
 
+impl std::fmt::Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Instruction::Halt => write!(f, "halt"),
+            Instruction::Any => write!(f, "any"),
+            Instruction::Fail => write!(f, "fail"),
+            Instruction::FailTwice => write!(f, "failtwice"),
+            Instruction::Return => write!(f, "return"),
+            Instruction::Char(c) => write!(f, "char {:?}", c),
+            Instruction::Str(i) => write!(f, "str {:?}", i),
+            Instruction::Span(a, b) => write!(f, "span {:?} {:?}", a, b),
+            Instruction::Choice(o) => write!(f, "choice {:?}", o),
+            Instruction::ChoiceP(o) => write!(f, "choicep {:?}", o),
+            Instruction::Commit(o) => write!(f, "commit {:?}", o),
+            Instruction::CommitB(o) => write!(f, "commitb {:?}", o),
+            Instruction::PartialCommit(u) => write!(f, "partialcommit {:?}", u),
+            Instruction::BackCommit(u) => write!(f, "backcommit {:?}", u),
+            Instruction::Jump(addr) => write!(f, "jump {:?}", addr),
+            Instruction::Throw(label) => write!(f, "throw {:?}", label),
+            Instruction::Call(addr, k) => write!(f, "call {:?} {:?}", addr, k),
+            Instruction::CallB(addr, k) => write!(f, "callb {:?} {:?}", addr, k),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
     // Backtracking
@@ -115,42 +140,22 @@ impl Program {
     }
 }
 
+fn instruction_to_string(p: &Program, instruction: &Instruction, pc: usize) -> String {
+    match instruction {
+        Instruction::Str(i) => format!("str {:?}", p.strings[*i]),
+        Instruction::Call(addr, _) => format!("call {:?}", p.identifier(pc + addr)),
+        Instruction::CallB(addr, _) => format!("callb {:?}", p.identifier(pc - addr)),
+        instruction => format!("{}", instruction),
+    }
+}
+
 impl std::fmt::Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "Labels: {:#?}", self.labels)?;
         writeln!(f, "Strings: {:#?}", self.strings)?;
-
         for (i, instruction) in self.code.iter().enumerate() {
             write!(f, "{:#03} ", i)?;
-
-            match instruction {
-                Instruction::Halt => writeln!(f, "halt"),
-                Instruction::Any => writeln!(f, "any"),
-                Instruction::Fail => writeln!(f, "fail"),
-                Instruction::FailTwice => writeln!(f, "failtwice"),
-                Instruction::Return => writeln!(f, "return"),
-                Instruction::Char(c) => writeln!(f, "char {:?}", c),
-                Instruction::Str(i) => writeln!(f, "str {:?} {:?}", self.strings[*i], i),
-                Instruction::Span(a, b) => writeln!(f, "span {:?} {:?}", a, b),
-                Instruction::Choice(o) => writeln!(f, "choice {:?}", o),
-                Instruction::ChoiceP(o) => writeln!(f, "choicep {:?}", o),
-                Instruction::Commit(o) => writeln!(f, "commit {:?}", o),
-                Instruction::CommitB(o) => writeln!(f, "commitb {:?}", o),
-                Instruction::PartialCommit(u) => writeln!(f, "partialcommit {:?}", u),
-                Instruction::BackCommit(u) => writeln!(f, "backcommit {:?}", u),
-                Instruction::Jump(addr) => writeln!(f, "jump {:?}", addr),
-                Instruction::Throw(label) => writeln!(f, "throw {:?}", label),
-                Instruction::Call(addr, precedence) => {
-                    let fn_addr = i + (*addr);
-                    let fn_name = self.identifier(fn_addr);
-                    writeln!(f, "call {:?} {:?} {:?}", fn_name, fn_addr, *precedence)
-                }
-                Instruction::CallB(addr, precedence) => {
-                    let fn_addr = i - (*addr);
-                    let fn_name = self.identifier(fn_addr);
-                    writeln!(f, "callb {:?} {:?} {:?}", fn_name, fn_addr, *precedence)
-                }
-            }?;
+            writeln!(f, "{}", instruction_to_string(self, instruction, i))?;
         }
         write!(f, "")
     }

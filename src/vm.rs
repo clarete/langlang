@@ -46,9 +46,12 @@ pub enum Instruction {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
+    // Backtracking
     Fail,
+    // Initial state of left recursive call
     LeftRec,
-    Overflow,
+    // Something was incorrectly indexed
+    Index,
     // Error matching the input (ffp, expected)
     Matching(usize, String),
     // End of file
@@ -292,7 +295,7 @@ impl VM {
             let idx = self.call_frames[self.call_frames.len() - 1];
             Ok(&mut self.stack[idx])
         } else {
-            Err(Error::Overflow)
+            Err(Error::Index)
         }
     }
 
@@ -301,7 +304,7 @@ impl VM {
             let idx = self.call_frames[self.call_frames.len() - 1];
             Ok(&self.stack[idx])
         } else {
-            Err(Error::Overflow)
+            Err(Error::Index)
         }
     }
 
@@ -313,9 +316,9 @@ impl VM {
     }
 
     fn stkpop(&mut self) -> Result<StackFrame, Error> {
-        let frame = self.stack.pop().ok_or(Error::Overflow)?;
+        let frame = self.stack.pop().ok_or(Error::Index)?;
         if frame.ftype == StackFrameType::Call {
-            self.call_frames.pop().ok_or(Error::Overflow)?;
+            self.call_frames.pop().ok_or(Error::Index)?;
         }
         if frame.predicate {
             self.within_predicate = false;

@@ -1,5 +1,5 @@
-use std::boxed::Box;
 use crate::ast::AST;
+use std::boxed::Box;
 
 #[derive(Debug)]
 pub enum Error {
@@ -130,33 +130,62 @@ impl Parser {
         self.parse_identifier()
     }
 
-    // GR: Suffix  <- Primary (QUESTION / STAR / PLUS)?
+    // GR: Suffix  <- Primary (QUESTION / STAR / PLUS / Superscript)?
     fn parse_suffix(&mut self) -> Result<AST, Error> {
         let primary = self.parse_primary()?;
         let suffix = self.choice(vec![
             |p| {
                 p.expect_str("?")?;
                 p.parse_spacing()?;
-                Ok("?")
+                Ok("?".to_string())
             },
             |p| {
                 p.expect_str("*")?;
                 p.parse_spacing()?;
-                Ok("*")
+                Ok("*".to_string())
             },
             |p| {
                 p.expect_str("+")?;
                 p.parse_spacing()?;
-                Ok("+")
+                Ok("+".to_string())
             },
-            |_| Ok(""),
-        ]);
-        Ok(match suffix {
-            Ok("?") => AST::Optional(Box::new(primary)),
-            Ok("*") => AST::ZeroOrMore(Box::new(primary)),
-            Ok("+") => AST::OneOrMore(Box::new(primary)),
+            |p| {
+                let sup = p.parse_superscript()?;
+                p.parse_spacing()?;
+                Ok(sup)
+            },
+            |_| Ok("".to_string()),
+        ])?;
+        Ok(match suffix.as_ref() {
+            "?" => AST::Optional(Box::new(primary)),
+            "*" => AST::ZeroOrMore(Box::new(primary)),
+            "+" => AST::OneOrMore(Box::new(primary)),
+            "¹" => AST::Precedence(Box::new(primary), 1),
+            "²" => AST::Precedence(Box::new(primary), 2),
+            "³" => AST::Precedence(Box::new(primary), 3),
+            "⁴" => AST::Precedence(Box::new(primary), 4),
+            "⁵" => AST::Precedence(Box::new(primary), 5),
+            "⁶" => AST::Precedence(Box::new(primary), 6),
+            "⁷" => AST::Precedence(Box::new(primary), 7),
+            "⁸" => AST::Precedence(Box::new(primary), 8),
+            "⁹" => AST::Precedence(Box::new(primary), 9),
             _ => primary,
         })
+    }
+
+    // GR: Superscript <- [¹-⁹]
+    fn parse_superscript(&mut self) -> Result<String, Error> {
+        self.choice(vec![
+            |p| Ok(p.expect_str("¹")?),
+            |p| Ok(p.expect_str("²")?),
+            |p| Ok(p.expect_str("³")?),
+            |p| Ok(p.expect_str("⁴")?),
+            |p| Ok(p.expect_str("⁵")?),
+            |p| Ok(p.expect_str("⁶")?),
+            |p| Ok(p.expect_str("⁷")?),
+            |p| Ok(p.expect_str("⁸")?),
+            |p| Ok(p.expect_str("⁹")?),
+        ])
     }
 
     // GR: Primary <- Identifier !(LEFTARROW / (Identifier EQ))
@@ -504,6 +533,31 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_precedence_syntax() {
+        let mut p = Parser::new(
+            "
+            A <- A¹ '+' A² / 'n'
+            ",
+        );
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!(
+            AST::Grammar(vec![AST::Definition(
+                "A".to_string(),
+                Box::new(AST::Choice(vec![
+                    AST::Sequence(vec![
+                        AST::Precedence(Box::new(AST::Identifier("A".to_string(),)), 1),
+                        AST::Str("+".to_string()),
+                        AST::Precedence(Box::new(AST::Identifier("A".to_string(),)), 2),
+                    ]),
+                    AST::Sequence(vec![AST::Str("n".to_string()),])
+                ])),
+            ),]),
+            ast.unwrap(),
+        );
+    }
 
     #[test]
     fn structure_empty() {

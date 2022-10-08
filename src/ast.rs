@@ -25,6 +25,7 @@ pub enum AST {
     ZeroOrMore(Box<AST>),
     OneOrMore(Box<AST>),
     Identifier(String),
+    Precedence(Box<AST>, usize),
     Str(String),
     Range(char, char),
     Char(char),

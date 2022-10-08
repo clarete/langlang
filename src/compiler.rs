@@ -9,6 +9,7 @@ const DEFAULT_CALL_PRECEDENCE: usize = 1;
 #[derive(Debug)]
 pub enum Error {
     NotFound(String),
+    Semantic(String),
 }
 
 impl std::fmt::Display for Error {
@@ -16,6 +17,7 @@ impl std::fmt::Display for Error {
         write!(f, "Compiler Error")?;
         match self {
             Error::NotFound(msg) => write!(f, "[NotFound]: {}", msg),
+            Error::Semantic(msg) => write!(f, "[Semantic]: {}", msg),
         }
     }
 }
@@ -149,17 +151,17 @@ impl Compiler {
         for (addr, id) in &self.addrs {
             match self.funcs.get(id) {
                 Some(func_addr) => {
-                    if func_addr > addr {
-                        self.code[*addr] = vm::Instruction::Call(
-                            func_addr - addr,
-                            self.config.default_call_precedence,
-                        );
-                    } else {
-                        self.code[*addr] = vm::Instruction::CallB(
-                            addr - func_addr,
-                            self.config.default_call_precedence,
-                        );
-                    }
+                    self.code[*addr] = match self.code[*addr] {
+                        vm::Instruction::Call(_, precedence)
+                        | vm::Instruction::CallB(_, precedence) => {
+                            if func_addr > addr {
+                                vm::Instruction::Call(func_addr - addr, precedence)
+                            } else {
+                                vm::Instruction::CallB(addr - func_addr, precedence)
+                            }
+                        }
+                        _ => unreachable!(),
+                    };
                 }
                 None => {
                     let name = self.strings[*id].clone();
@@ -323,6 +325,21 @@ impl Compiler {
                         ));
                     }
                 }
+                Ok(())
+            }
+            AST::Precedence(n, precedence) => {
+                let pos = self.cursor;
+                self.compile_node(*n)?;
+                // rewrite the above node with the precedence level
+                self.code[pos] = match self.code[pos] {
+                    vm::Instruction::Call(addr, _) => vm::Instruction::Call(addr, precedence),
+                    vm::Instruction::CallB(addr, _) => vm::Instruction::CallB(addr, precedence),
+                    _ => {
+                        return Err(Error::Semantic(format!(
+                            "Precedence suffix should only be used at Identifiers",
+                        )))
+                    }
+                };
                 Ok(())
             }
             AST::Range(a, b) => {

@@ -78,4 +78,104 @@ mod tests {
         let value = compile_and_run(cc, "A <- .*", "abab");
         assert_success("A[abab]", value);
     }
+
+    #[test]
+    fn test_lr0() {
+        let cc = compiler::Config::o1();
+        let program = compile(cc, "E <- E '+n' / 'n'");
+        assert_success("E[n]", run(program.clone(), "n"));
+        assert_success("E[E[n]+n]", run(program.clone(), "n+n"));
+        assert_success("E[E[E[n]+n]+n]", run(program, "n+n+n"));
+    }
+
+    #[test]
+    fn test_lr1() {
+        let cc = compiler::Config::o1();
+        let program = compile(cc, "E <- E '+' E / 'n'");
+        assert_success("E[n]", run(program.clone(), "n"));
+        assert_success("E[E[n]+E[n]]", run(program.clone(), "n+n"));
+        assert_success("E[E[n]+E[E[n]+E[n]]]", run(program.clone(), "n+n+n"));
+        assert_success("E[E[n]+E[E[n]+E[E[n]+E[n]]]]", run(program, "n+n+n+n"));
+    }
+
+    #[test]
+    fn test_lr2() {
+        let cc = compiler::Config::o1();
+        let program = compile(cc, "
+          E <- M '+' E / M
+          M <- M '-n' / 'n'
+        ");
+        assert_success("E[M[n]]", run(program.clone(), "n"));
+        assert_success("E[M[M[n]-n]]", run(program.clone(), "n-n"));
+        assert_success("E[M[M[M[n]-n]-n]]", run(program.clone(), "n-n-n"));
+        assert_success("E[M[n]+E[M[n]+E[M[n]]]]", run(program.clone(), "n+n+n"));
+    }
+
+    #[test]
+    fn test_lr3() {
+        let cc = compiler::Config::o1();
+        let program = compile(cc, "
+          E <- E '+' E
+             / E '-' E
+             / E '*' E
+             / E '/' E
+             / 'n'
+        ");
+        // Right associative, as E is both left and right recursive,
+        // without precedence
+        assert_success("E[n]", run(program.clone(), "n"));
+        assert_success("E[E[n]+E[n]]", run(program.clone(), "n+n"));
+        assert_success("E[E[n]+E[E[n]+E[n]]]", run(program.clone(), "n+n+n"));
+        assert_success("E[E[n]-E[n]]", run(program.clone(), "n-n"));
+        assert_success("E[E[n]-E[E[n]-E[n]]]", run(program.clone(), "n-n-n"));
+        assert_success("E[E[n]*E[n]]", run(program.clone(), "n*n"));
+        assert_success("E[E[n]*E[E[n]*E[n]]]", run(program.clone(), "n*n*n"));
+        assert_success("E[E[n]/E[n]]", run(program.clone(), "n/n"));
+        assert_success("E[E[n]/E[E[n]/E[n]]]", run(program.clone(), "n/n/n"));
+        assert_success("E[E[n]-E[E[n]+E[n]]]", run(program.clone(), "n-n+n"));
+        assert_success("E[E[n]+E[E[n]-E[n]]]", run(program.clone(), "n+n-n"));
+        assert_success("E[E[n]+E[E[n]*E[n]]]", run(program.clone(), "n+n*n"));
+        assert_success("E[E[n]*E[E[n]+E[n]]]", run(program.clone(), "n*n+n"));
+        assert_success("E[E[n]/E[E[n]+E[n]]]", run(program.clone(), "n/n+n"));
+    }
+
+    #[test]
+    fn test_lr4() {
+        let cc = compiler::Config::o0();
+        let program = compile(cc, "
+          E <- E¹ '+' E²
+             / E¹ '-' E²
+             / E² '*' E³
+             / E² '/' E³
+             / '-' E⁴
+             / '(' E¹ ')'
+             / [0-9]
+        ");
+
+        // left associative with different precedences
+        assert_success("E[1]", run(program.clone(), "1"));
+        assert_success("E[E[3]+E[5]]", run(program.clone(), "3+5"));
+        assert_success("E[E[3]-E[5]]", run(program.clone(), "3-5"));
+        // same precedence between addition (+) and subtraction (-)
+        assert_success("E[E[E[3]-E[5]]+E[2]]", run(program.clone(), "3-5+2"));
+        assert_success("E[E[E[3]+E[5]]-E[2]]", run(program.clone(), "3+5-2"));
+        // higher precedence for multiplication (*) over addition (+) and subtraction (-)
+        assert_success("E[E[3]+E[E[5]*E[2]]]", run(program.clone(), "3+5*2"));
+        assert_success("E[E[E[5]*E[2]]-E[3]]", run(program.clone(), "5*2-3"));
+        assert_success("E[E[E[E[1]*E[5]]*E[2]]+E[3]]", run(program.clone(), "1*5*2+3"));
+        // unary operator
+        assert_success("E[-E[1]]", run(program.clone(), "-1"));
+        // highest precedence parenthesis
+        assert_success("E[(E[E[3]+E[5]])*E[2]]", run(program.clone(), "(3+5)*2"));
+    }
+
+    #[test]
+    fn test_lr5() {
+        let cc = compiler::Config::o1();
+        let value = compile_and_run(cc, "
+L <- P '.x' / 'x'
+P <- P '(n)' / L
+", "x(n)(n).x(n).x");
+        assert_success("L[xP[L[P[P[(n)](n)]]].xP[L[P[(n)]]].x]", value);
+    }
 }

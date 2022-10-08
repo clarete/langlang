@@ -22,7 +22,7 @@ impl std::fmt::Display for Error {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     optimize: u8,
     default_call_precedence: usize,
@@ -64,7 +64,7 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Compiler {
     // Enable configuring the compiler to some extent
     config: Config,

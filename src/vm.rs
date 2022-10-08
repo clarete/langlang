@@ -143,8 +143,8 @@ impl Program {
 fn instruction_to_string(p: &Program, instruction: &Instruction, pc: usize) -> String {
     match instruction {
         Instruction::Str(i) => format!("str {:?}", p.strings[*i]),
-        Instruction::Call(addr, _) => format!("call {:?}", p.identifier(pc + addr)),
-        Instruction::CallB(addr, _) => format!("callb {:?}", p.identifier(pc - addr)),
+        Instruction::Call(addr, k) => format!("call {:?} {}", p.identifier(pc + addr), k),
+        Instruction::CallB(addr, k) => format!("callb {:?} {}", p.identifier(pc - addr), k),
         instruction => format!("{}", instruction),
     }
 }

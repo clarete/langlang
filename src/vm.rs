@@ -647,6 +647,7 @@ impl VM {
             let mut frame = self.stkpop()?;
             let pc = frame.program_counter;
             let key = (frame.address, frame.cursor);
+            self.lrmemo.remove(&key);
             self.program_counter = pc;
 
             if frame.last_capture_committed > 0 {
@@ -661,8 +662,6 @@ impl VM {
                 );
 
                 let name = self.program.identifier(address);
-
-                self.lrmemo.remove(&key);
 
                 match &children[..] {
                     [] => {} // no wrapping if there are no nodes

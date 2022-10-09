@@ -535,7 +535,7 @@ impl VM {
         }
 
         if self.captures.len() > 0 {
-            Ok(Some(self.captures.remove(self.captures.len() - 1)))
+            Ok(self.captures.pop())
         } else {
             Ok(None)
         }

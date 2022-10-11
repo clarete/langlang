@@ -7,6 +7,8 @@
 // compiled to programs, but how programs get executted as patterns.
 //
 
+#[cfg(debug_assertions)]
+use crate::format;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -708,6 +710,21 @@ impl VM {
         Ok(())
     }
 
+    #[cfg(not(debug_assertions))]
+    fn dbg(&self, _: &str) {}
+
+    #[cfg(not(debug_assertions))]
+    fn dbg_instruction(&self) {}
+
+    #[cfg(not(debug_assertions))]
+    fn dbg_instruction_fail(&self) {}
+
+    #[cfg(not(debug_assertions))]
+    fn dbg_captures(&self) -> Result<(), Error> {
+        Ok(())
+    }
+
+    #[cfg(debug_assertions)]
     fn dbg(&self, m: &str) {
         for _ in 0..self.call_frames.len() {
             print!("    ");
@@ -715,6 +732,7 @@ impl VM {
         println!("{}", m);
     }
 
+    #[cfg(debug_assertions)]
     fn dbg_instruction(&self) {
         self.dbg(&instruction_to_string(
             &self.program,
@@ -723,6 +741,7 @@ impl VM {
         ));
     }
 
+    #[cfg(debug_assertions)]
     fn dbg_instruction_fail(&self) {
         for _ in 0..self.call_frames.len() {
             print!("    ");
@@ -730,6 +749,7 @@ impl VM {
         println!("fail");
     }
 
+    #[cfg(debug_assertions)]
     fn dbg_captures(&self) -> Result<(), Error> {
         let (caps, l) = if self.call_frames.len() > 0 {
             let framo = self.stkpeek()?;
@@ -737,7 +757,17 @@ impl VM {
         } else {
             (&self.captures, 0)
         };
-        self.dbg(format!("- captures[{}]: {:?}", l, caps).as_str());
+        self.dbg(
+            format!(
+                "- captures[{}]: {:?}",
+                l,
+                caps.into_iter()
+                    .map(format::value_fmt1)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+            .as_str(),
+        );
         Ok(())
     }
 }

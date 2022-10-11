@@ -751,7 +751,7 @@ impl VM {
 
     #[cfg(debug_assertions)]
     fn dbg_captures(&self) -> Result<(), Error> {
-        let (caps, l) = if self.call_frames.len() > 0 {
+        let (caps, l) = if !self.call_frames.is_empty() {
             let framo = self.stkpeek()?;
             (&framo.captures, framo.last_capture_committed)
         } else {
@@ -761,7 +761,7 @@ impl VM {
             format!(
                 "- captures[{}]: {:?}",
                 l,
-                caps.into_iter()
+                caps.iter()
                     .map(format::value_fmt1)
                     .collect::<Vec<_>>()
                     .join(", ")

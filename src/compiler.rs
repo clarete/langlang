@@ -190,7 +190,7 @@ impl Compiler {
             }
             AST::Definition(name, expr) => {
                 let addr = self.cursor;
-                let strid = self.push_string(name.clone());
+                let strid = self.push_string(name);
                 self.identifiers.insert(addr, strid);
                 self.compile_node(*expr)?;
                 self.emit(vm::Instruction::Return);
@@ -335,9 +335,9 @@ impl Compiler {
                     vm::Instruction::Call(addr, _) => vm::Instruction::Call(addr, precedence),
                     vm::Instruction::CallB(addr, _) => vm::Instruction::CallB(addr, precedence),
                     _ => {
-                        return Err(Error::Semantic(format!(
-                            "Precedence suffix should only be used at Identifiers",
-                        )))
+                        return Err(Error::Semantic(
+                            "Precedence suffix should only be used at Identifiers".to_string(),
+                        ))
                     }
                 };
                 Ok(())

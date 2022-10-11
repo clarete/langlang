@@ -335,7 +335,7 @@ impl VM {
         if self.within_predicate {
             return Ok(());
         }
-        if self.call_frames.len() > 0 {
+        if !self.call_frames.is_empty() {
             let f = self.stkpeek_mut()?;
             f.captures.push(v);
         } else {
@@ -345,14 +345,14 @@ impl VM {
     }
 
     fn num_captures(&self) -> Result<usize, Error> {
-        if self.call_frames.len() > 0 {
+        if !self.call_frames.is_empty() {
             return Ok(self.stkpeek()?.captures.len());
         }
         Ok(self.captures.len())
     }
 
     fn commit_captures(&mut self) -> Result<(), Error> {
-        if self.call_frames.len() > 0 {
+        if !self.call_frames.is_empty() {
             let rof = self.stkpeek()?;
             self.dbg(
                 format!(
@@ -531,7 +531,7 @@ impl VM {
             }
         }
 
-        if self.captures.len() > 0 {
+        if !self.captures.is_empty() {
             Ok(self.captures.pop())
         } else {
             Ok(None)
@@ -625,7 +625,7 @@ impl VM {
             self.dbg("- {{lvar,inc}}.1");
             let mut frame = self.stkpeek_mut()?;
             frame.result = Ok(cursor);
-            let frame_cursor = frame.cursor.clone();
+            let frame_cursor = frame.cursor;
             let frame_precedence = frame.precedence;
             let key = (address, frame_cursor);
             let mut entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;

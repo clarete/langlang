@@ -23,7 +23,7 @@ fn run_grammar_on_input_from_cmd() -> Result<(), std::io::Error> {
     let fmt = formatter(
         std::env::args()
             .nth(3)
-            .unwrap_or("fmt0".to_string())
+            .unwrap_or_else(|| "fmt0".to_string())
             .as_str(),
     );
     let grammar_data = fs::read_to_string(grammar_file)?;

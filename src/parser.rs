@@ -176,15 +176,15 @@ impl Parser {
     // GR: Superscript <- [¹-⁹]
     fn parse_superscript(&mut self) -> Result<String, Error> {
         self.choice(vec![
-            |p| Ok(p.expect_str("¹")?),
-            |p| Ok(p.expect_str("²")?),
-            |p| Ok(p.expect_str("³")?),
-            |p| Ok(p.expect_str("⁴")?),
-            |p| Ok(p.expect_str("⁵")?),
-            |p| Ok(p.expect_str("⁶")?),
-            |p| Ok(p.expect_str("⁷")?),
-            |p| Ok(p.expect_str("⁸")?),
-            |p| Ok(p.expect_str("⁹")?),
+            |p| p.expect_str("¹"),
+            |p| p.expect_str("²"),
+            |p| p.expect_str("³"),
+            |p| p.expect_str("⁴"),
+            |p| p.expect_str("⁵"),
+            |p| p.expect_str("⁶"),
+            |p| p.expect_str("⁷"),
+            |p| p.expect_str("⁸"),
+            |p| p.expect_str("⁹"),
         ])
     }
 

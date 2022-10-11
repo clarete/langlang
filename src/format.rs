@@ -50,7 +50,7 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 s.push_str(name);
                 s.push_str(" {");
-                if children.len() > 0 {
+                if !children.is_empty() {
                     s.push('\n');
                     for (i, c) in children.iter().enumerate() {
                         s.push_str(f(c, indent + 1).as_str());
@@ -62,7 +62,7 @@ pub fn value_fmt2(value: &Value) -> String {
                         s.push_str("    ");
                     }
                 }
-                s.push_str("}");
+                s.push('}');
             }
         }
         s

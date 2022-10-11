@@ -234,12 +234,13 @@ impl StackFrame {
 //    s: subject, cursor index
 type LeftRecTableKey = (usize, usize);
 
-//         s': subject in left recursive call
-// precedence: precedence level in recursive call
 #[derive(Debug)]
 struct LeftRecTableEntry {
+    // cursor (s'): subject in left recursive call
     cursor: Result<usize, Error>,
+    // precedence: precedence level in recursive call
     precedence: usize,
+    // counter of how deep a recursive call is
     bound: usize,
 }
 

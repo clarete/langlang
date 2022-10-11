@@ -294,22 +294,21 @@ impl VM {
 
     // stack management
 
-    fn stkpeek_mut(&mut self) -> Result<&mut StackFrame, Error> {
-        if !self.call_frames.is_empty() {
-            let idx = self.call_frames[self.call_frames.len() - 1];
-            Ok(&mut self.stack[idx])
-        } else {
-            Err(Error::Index)
+    fn stktop(&self) -> Result<usize, Error> {
+        if self.call_frames.is_empty() {
+            return Err(Error::Index);
         }
+        Ok(self.call_frames[self.call_frames.len() - 1])
+    }
+
+    fn stkpeek_mut(&mut self) -> Result<&mut StackFrame, Error> {
+        let idx = self.stktop()?;
+        Ok(&mut self.stack[idx])
     }
 
     fn stkpeek(&self) -> Result<&StackFrame, Error> {
-        if !self.call_frames.is_empty() {
-            let idx = self.call_frames[self.call_frames.len() - 1];
-            Ok(&self.stack[idx])
-        } else {
-            Err(Error::Index)
-        }
+        let idx = self.stktop()?;
+        Ok(&self.stack[idx])
     }
 
     fn stkpush(&mut self, frame: StackFrame) {

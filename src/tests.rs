@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_lr4() {
-        let cc = compiler::Config::o0();
+        let cc = compiler::Config::o1();
         let program = compile(cc, "
           E <- E¹ '+' E²
              / E¹ '-' E²
@@ -166,7 +166,7 @@ mod tests {
         // unary operator
         assert_success("E[-E[1]]", run(program.clone(), "-1"));
         // highest precedence parenthesis
-        assert_success("E[(E[E[3]+E[5]])*E[2]]", run(program.clone(), "(3+5)*2"));
+        assert_success("E[E[(E[E[3]+E[5]])]*E[2]]", run(program.clone(), "(3+5)*2"));
     }
 
     #[test]

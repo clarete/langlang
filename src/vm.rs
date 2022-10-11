@@ -552,7 +552,7 @@ impl VM {
             return Ok(());
         }
         let key = (address, cursor);
-        match self.lrmemo.get_mut(&key) {
+        match self.lrmemo.get(&key) {
             None => {
                 self.stkpush(StackFrame::new_lrcall(
                     cursor,
@@ -604,7 +604,6 @@ impl VM {
                 }
             }
         }
-
         self.dbg_captures()?;
         Ok(())
     }
@@ -615,8 +614,8 @@ impl VM {
         let address = frame.address;
 
         if frame.precedence == 0 {
-            let frame = self.stkpop()?;
             self.dbg("- var.2");
+            let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
             self.capture(Value::Node {
                 name: self.program.identifier(address),
@@ -624,7 +623,6 @@ impl VM {
             })?;
             return Ok(());
         }
-
         if matches!(frame.result, Err(Error::LeftRec)) || cursor > frame.result.clone()? {
             self.dbg("- {{lvar,inc}}.1");
             let mut frame = self.stkpeek_mut()?;
@@ -641,46 +639,36 @@ impl VM {
             // increment the left recursive bound once more
             self.program_counter = address;
             self.cursor = frame_cursor;
-        } else {
-            self.dbg("- inc.3");
-            let mut frame = self.stkpop()?;
-            let pc = frame.program_counter;
-            let key = (frame.address, frame.cursor);
-            self.lrmemo.remove(&key);
-            self.program_counter = pc;
-
-            if frame.last_capture_committed > 0 {
-                let children: Vec<_> = frame
-                    .captures
-                    .drain(..frame.last_capture_committed)
-                    .collect();
-
-                println!(
-                    "CAPftuRezs[{}]: {:?}",
-                    frame.last_capture_committed, children
-                );
-
-                let name = self.program.identifier(address);
-
-                match &children[..] {
-                    [] => {} // no wrapping if there are no nodes
-                    [Value::Node {
-                        name: n,
-                        children: _ch,
-                    }] if *n == name => {
-                        // flatten left recursive calls with just themselves stacked
-                        self.capture(children[0].clone())?;
-                    }
-                    _ => self.capture(Value::Node { name, children })?,
+            return Ok(());
+        }
+        self.dbg("- inc.3");
+        let mut frame = self.stkpop()?;
+        let pc = frame.program_counter;
+        let key = (frame.address, frame.cursor);
+        self.lrmemo.remove(&key);
+        self.program_counter = pc;
+        if frame.last_capture_committed > 0 {
+            let name = self.program.identifier(address);
+            let children: Vec<_> = frame
+                .captures
+                .drain(..frame.last_capture_committed)
+                .collect();
+            match &children[..] {
+                [] => {} // no wrapping if there are no nodes
+                [Value::Node {
+                    name: n,
+                    children: _ch,
+                }] if *n == name => {
+                    // flatten left recursive calls with just themselves stacked
+                    self.capture(children[0].clone())?;
                 }
+                _ => self.capture(Value::Node { name, children })?,
             }
-
-            self.commit_captures()?;
-            self.cursor = frame.result?;
         }
 
+        self.cursor = frame.result?;
+        self.commit_captures()?;
         self.dbg_captures()?;
-
         Ok(())
     }
 

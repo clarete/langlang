@@ -476,12 +476,10 @@ impl VM {
                 Instruction::Commit(offset) => {
                     self.stkpop()?;
                     self.program_counter += offset;
-                    self.commit_captures()?;
                 }
                 Instruction::CommitB(offset) => {
                     self.stkpop()?;
                     self.program_counter -= offset;
-                    self.commit_captures()?;
                 }
                 Instruction::PartialCommit(offset) => {
                     let idx = self.stack.len() - 1;
@@ -578,13 +576,13 @@ impl VM {
                 } else {
                     self.program_counter += 1;
                     self.cursor = entry.cursor.clone()?;
-                    self.commit_captures()?;
                     let name = self.program.identifier(address);
                     let frame = self.stkpeek_mut()?;
                     let children: Vec<_> = frame
                         .captures
                         .drain(..frame.last_capture_committed)
                         .collect();
+                    frame.captures.clear();
                     match &children[..] {
                         [] => {} // no wrapping if there are no nodes
                         [Value::Node {
@@ -667,7 +665,6 @@ impl VM {
         }
 
         self.cursor = frame.result?;
-        self.commit_captures()?;
         self.dbg_captures()?;
         Ok(())
     }

@@ -80,6 +80,18 @@ mod tests {
     }
 
     #[test]
+    fn test_var0() {
+        let cc = compiler::Config::default();
+        let value = compile_and_run(cc, "
+          A <- B C D
+          B <- '1'
+          C <- '2'
+          D <- '3'
+        ", "123");
+        assert_success("A[B[1]C[2]D[3]]", value);
+    }
+
+    #[test]
     fn test_lr0() {
         let cc = compiler::Config::o1();
         let program = compile(cc, "E <- E '+n' / 'n'");

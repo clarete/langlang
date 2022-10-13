@@ -640,6 +640,7 @@ impl VM {
             // increment the left recursive bound once more
             self.program_counter = address;
             self.cursor = frame_cursor;
+            self.commit_captures()?;
             return Ok(());
         }
         self.dbg("- inc.3");

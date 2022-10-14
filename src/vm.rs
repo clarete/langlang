@@ -176,24 +176,20 @@ struct StackFrame {
     result: Result<usize, Error>, // X
     address: usize,               // pc+l
     precedence: usize,            // k
-    last_capture_committed: usize,
-    captures: Vec<Value>,
     predicate: bool,
 }
 
 impl StackFrame {
-    fn new_backtrack(cursor: usize, pc: usize, capture: usize, predicate: bool) -> Self {
+    fn new_backtrack(cursor: usize, pc: usize, predicate: bool) -> Self {
         StackFrame {
             ftype: StackFrameType::Backtrack,
             program_counter: pc,
-            last_capture_committed: capture,
             cursor,
+            predicate,
             // fields not used for backtrack frames
             address: 0,
             precedence: 0,
-            result: Err(Error::Fail),
-            captures: vec![],
-            predicate,
+            result: Ok(0),
         }
     }
 
@@ -203,11 +199,9 @@ impl StackFrame {
             program_counter: pc,
             cursor: 0,
             result: Err(Error::Fail),
+            predicate: false,
             address,
             precedence,
-            last_capture_committed: 0,
-            captures: vec![],
-            predicate: false,
         }
     }
 
@@ -215,13 +209,26 @@ impl StackFrame {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
-            cursor,
             result: Err(Error::LeftRec),
+            predicate: false,
+            cursor,
             address,
             precedence,
-            last_capture_committed: 0,
-            captures: vec![],
-            predicate: false,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct CapStackFrame {
+    index: usize,
+    values: Vec<Value>,
+}
+
+impl Default for CapStackFrame {
+    fn default() -> Self {
+        Self {
+            index: 0,
+            values: vec![],
         }
     }
 }
@@ -265,7 +272,7 @@ pub struct VM {
     // Memoized position of left recursive results
     lrmemo: HashMap<LeftRecTableKey, LeftRecTableEntry>,
     // Where values returned from successful match operations are stored
-    captures: Vec<Value>,
+    captures: Vec<CapStackFrame>,
     // boolean flag that remembers if the VM is within a predicate
     within_predicate: bool,
 }
@@ -334,56 +341,65 @@ impl VM {
 
     // functions for capturing matched values
 
+    fn capstktop(&self) -> Result<&CapStackFrame, Error> {
+        if self.captures.is_empty() {
+            return Err(Error::Index);
+        }
+        Ok(&self.captures[self.captures.len() - 1])
+    }
+
+    fn capstktop_mut(&mut self) -> Result<&mut CapStackFrame, Error> {
+        if self.captures.is_empty() {
+            return Err(Error::Index);
+        }
+        let idx = self.captures.len() - 1;
+        Ok(&mut self.captures[idx])
+    }
+
+    fn capstkpush(&mut self) {
+        self.captures.push(CapStackFrame::default())
+    }
+
+    fn capstkpop(&mut self) -> Result<CapStackFrame, Error> {
+        self.captures.pop().ok_or(Error::Index)
+    }
+
+    /// pushes a new value onto the frame on top of the capture stack
     fn capture(&mut self, v: Value) -> Result<(), Error> {
         if self.within_predicate {
             return Ok(());
         }
-        if !self.call_frames.is_empty() {
-            let f = self.stkpeek_mut()?;
-            f.captures.push(v);
-        } else {
-            self.captures.push(v);
+        self.dbg(&format!("capture {:?}", format::value_fmt1(&v)));
+        self.capstktop_mut()?.values.push(v);
+        Ok(())
+    }
+
+    fn capture_flatten(&mut self, name: &str, children: Vec<Value>) -> Result<(), Error> {
+        match &children[..] {
+            [] => {}
+            [Value::Node {
+                name: n,
+                children: _,
+            }] if *n == name => {
+                self.capture(children[0].clone())?;
+            }
+            _ => {
+                let name = name.to_string();
+                self.capture(Value::Node { name, children })?;
+            }
         }
         Ok(())
     }
 
-    fn num_captures(&self) -> Result<usize, Error> {
-        if !self.call_frames.is_empty() {
-            return Ok(self.stkpeek()?.captures.len());
-        }
-        Ok(self.captures.len())
-    }
-
+    /// mark all values captured on the top of the stack as commited
     fn commit_captures(&mut self) -> Result<(), Error> {
-        if !self.call_frames.is_empty() {
-            let rof = self.stkpeek()?;
-            self.dbg(
-                format!(
-                    " - cap commit[{}]: {}",
-                    rof.last_capture_committed,
-                    rof.captures.len()
-                )
-                .as_str(),
-            );
-            let mut f = self.stkpeek_mut()?;
-            f.last_capture_committed = f.captures.len();
+        let top = self.capstktop_mut()?;
+        let (idx, len) = (top.index, top.values.len());
+        top.index = len;
+        if idx != len {
+            self.dbg(&format!("- cap commit: {} -> {}", idx, len,));
+            self.dbg_captures()?;
         }
-        Ok(())
-    }
-
-    fn drain_captures(&mut self) -> Result<(), Error> {
-        let top = self.stkpeek_mut()?;
-        top.captures.drain(top.last_capture_committed..);
-        top.last_capture_committed = top.captures.len();
-        let rotop = self.stkpeek()?;
-        self.dbg(
-            format!(
-                " - cap commit[{}]: {}",
-                rotop.last_capture_committed,
-                rotop.captures.len()
-            )
-            .as_str(),
-        );
         Ok(())
     }
 
@@ -391,6 +407,7 @@ impl VM {
 
     pub fn run(&mut self, input: &str) -> Result<Option<Value>, Error> {
         self.source = input.chars().collect();
+        self.capstkpush();
 
         loop {
             self.dbg_instruction();
@@ -460,17 +477,14 @@ impl VM {
                     self.stkpush(StackFrame::new_backtrack(
                         cursor,
                         self.program_counter + offset,
-                        self.num_captures()?,
                         false,
                     ));
                     self.program_counter += 1;
                 }
                 Instruction::ChoiceP(offset) => {
-                    self.commit_captures()?;
                     self.stkpush(StackFrame::new_backtrack(
                         cursor,
                         self.program_counter + offset,
-                        self.num_captures()?,
                         true,
                     ));
                     self.program_counter += 1;
@@ -535,7 +549,8 @@ impl VM {
         }
 
         if !self.captures.is_empty() {
-            Ok(self.captures.pop())
+            self.dbg_captures()?;
+            Ok(self.capstkpop()?.values.pop())
         } else {
             Ok(None)
         }
@@ -544,6 +559,7 @@ impl VM {
     fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
         let cursor = self.cursor;
         if precedence == 0 {
+            self.capstkpush();
             self.stkpush(StackFrame::new_call(
                 self.program_counter + 1,
                 address,
@@ -555,20 +571,21 @@ impl VM {
         let key = (address, cursor);
         match self.lrmemo.get(&key) {
             None => {
+                self.dbg("- lvar.{{1, 2}}");
+                self.capstkpush();
                 self.stkpush(StackFrame::new_lrcall(
                     cursor,
                     self.program_counter + 1,
                     address,
                     precedence,
                 ));
-                self.dbg("- lvar.{{1, 2}}");
                 self.program_counter = address;
                 self.lrmemo.insert(
                     key,
                     LeftRecTableEntry {
                         cursor: Err(Error::LeftRec),
-                        precedence,
                         bound: 0,
+                        precedence,
                     },
                 );
             }
@@ -577,31 +594,15 @@ impl VM {
                     self.dbg("- lvar.{{3,5}}");
                     self.fail(Error::Fail)?;
                 } else {
+                    self.dbg("- lvar.4");
                     self.program_counter += 1;
                     self.cursor = entry.cursor.clone()?;
                     let name = self.program.identifier(address);
-                    let frame = self.stkpeek_mut()?;
-                    let children: Vec<_> = frame
-                        .captures
-                        .drain(..frame.last_capture_committed)
-                        .collect();
-                    frame.captures.clear();
-                    match &children[..] {
-                        [] => {} // no wrapping if there are no nodes
-                        [Value::Node {
-                            name: n,
-                            children: _,
-                        }] if *n == name && children.len() == 1 => {
-                            // flatten left recursive calls with just themselves stacked
-                            self.capture(children[0].clone())?;
-                        }
-                        // base case
-                        _ => {
-                            self.capture(Value::Node { name, children })?;
-                        }
-                    }
+                    let frame = self.capstktop_mut()?;
+                    let children: Vec<_> = frame.values.drain(..frame.index).collect();
+                    frame.values.clear();
+                    self.capture_flatten(&name, children)?;
                     self.commit_captures()?;
-                    self.dbg("- lvar.4");
                 }
             }
         }
@@ -615,13 +616,13 @@ impl VM {
         let address = frame.address;
 
         if frame.precedence == 0 {
-            self.dbg("- var.2");
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
-            self.capture(Value::Node {
-                name: self.program.identifier(address),
-                children: frame.captures,
-            })?;
+            let children = self.capstkpop()?.values;
+            if !children.is_empty() {
+                let name = self.program.identifier(address);
+                self.capture(Value::Node { name, children })?;
+            }
             return Ok(());
         }
         if matches!(frame.result, Err(Error::LeftRec)) || cursor > frame.result.clone()? {
@@ -644,31 +645,18 @@ impl VM {
             return Ok(());
         }
         self.dbg("- inc.3");
-        let mut frame = self.stkpop()?;
-        let pc = frame.program_counter;
+        let frame = self.stkpop()?;
+        self.cursor = frame.result?;
+        self.program_counter = frame.program_counter;
         let key = (frame.address, frame.cursor);
         self.lrmemo.remove(&key);
-        self.program_counter = pc;
-        if frame.last_capture_committed > 0 {
+        let mut capframe = self.capstkpop()?;
+        if capframe.index > 0 {
             let name = self.program.identifier(address);
-            let children: Vec<_> = frame
-                .captures
-                .drain(..frame.last_capture_committed)
-                .collect();
-            match &children[..] {
-                [] => {} // no wrapping if there are no nodes
-                [Value::Node {
-                    name: n,
-                    children: _ch,
-                }] if *n == name => {
-                    // flatten left recursive calls with just themselves stacked
-                    self.capture(children[0].clone())?;
-                }
-                _ => self.capture(Value::Node { name, children })?,
-            }
+            let children: Vec<_> = capframe.values.drain(..capframe.index).collect();
+            capframe.values.clear();
+            self.capture_flatten(&name, children)?;
         }
-
-        self.cursor = frame.result?;
         self.dbg_captures()?;
         Ok(())
     }
@@ -676,23 +664,22 @@ impl VM {
     fn fail(&mut self, error: Error) -> Result<(), Error> {
         self.dbg_instruction_fail();
         let frame = loop {
-            match self.stack.pop() {
-                None => return Err(error),
-                Some(f) => {
+            match self.stkpop() {
+                Err(_) => return Err(error),
+                Ok(f) => {
                     if matches!(f.result, Err(Error::LeftRec)) {
                         self.dbg("- lvar.2");
                         let key = (f.address, f.cursor);
                         self.lrmemo.remove(&key);
                     }
                     if f.ftype == StackFrameType::Backtrack {
-                        if f.predicate {
-                            self.within_predicate = false;
-                        }
-                        self.drain_captures()?;
+                        let top = self.capstktop_mut()?;
+                        top.values.drain(top.index..);
+                        self.commit_captures()?;
                         self.dbg_captures()?;
                         break f;
                     } else {
-                        self.call_frames.pop();
+                        self.capstkpop()?;
                     }
                     if let Ok(result) = f.result {
                         if result > 0 {
@@ -704,10 +691,8 @@ impl VM {
                 }
             }
         };
-
         self.program_counter = frame.program_counter;
         self.cursor = frame.cursor;
-
         Ok(())
     }
 
@@ -752,23 +737,19 @@ impl VM {
 
     #[cfg(debug_assertions)]
     fn dbg_captures(&self) -> Result<(), Error> {
-        let (caps, l) = if !self.call_frames.is_empty() {
-            let framo = self.stkpeek()?;
-            (&framo.captures, framo.last_capture_committed)
-        } else {
-            (&self.captures, 0)
-        };
-        self.dbg(
-            format!(
-                "- captures[{}]: {:?}",
-                l,
-                caps.iter()
-                    .map(format::value_fmt1)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-            .as_str(),
-        );
+        let top = self.capstktop()?;
+        if top.values.is_empty() {
+            return Ok(());
+        }
+        self.dbg(&format!(
+            "- captures[{}]: {:?}",
+            top.index,
+            top.values
+                .iter()
+                .map(format::value_fmt1)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
         Ok(())
     }
 }

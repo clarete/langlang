@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_lr4() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::default();
         let program = compile(cc, "
           E <- E¹ '+' E²
              / E¹ '-' E²

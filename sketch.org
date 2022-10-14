@@ -8,7 +8,7 @@
    * [X] Parser for the original PEG syntax
    * [X] Generate bytecode with original PEG semantics
    * [X] Compile labeled failures
-   - [ ] define precedence for left recursive calls
+   * [X] define precedence for left recursive calls
    * [ ] compile non-left recursive rules with zero precedence
    * [ ] first and follows set for error synchronization
    * [ ] error recovery expression generation

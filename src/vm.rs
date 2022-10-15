@@ -223,19 +223,10 @@ impl StackFrame {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct CapStackFrame {
     index: usize,
     values: Vec<Value>,
-}
-
-impl Default for CapStackFrame {
-    fn default() -> Self {
-        Self {
-            index: 0,
-            values: vec![],
-        }
-    }
 }
 
 // #[derive(Debug)]

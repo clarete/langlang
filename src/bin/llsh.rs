@@ -56,7 +56,7 @@ fn shell() -> Result<(), ShellError> {
     println!("loaded: {}", file_name);
 
     let mut p = parser::Parser::new(data.as_str());
-    let ast = p.parse_grammar()?;
+    let ast = p.parse()?;
 
     let mut compiler = compiler::Compiler::default();
     let program = compiler.compile(ast)?;

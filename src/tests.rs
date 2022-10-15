@@ -5,7 +5,7 @@ mod tests {
 
     fn compile(cc: compiler::Config, grammar: &str) -> vm::Program {
         let mut p = parser::Parser::new(grammar);
-        let ast = p.parse_grammar().unwrap();
+        let ast = p.parse().unwrap();
         let mut c = compiler::Compiler::new(cc);
         let program = c.compile(ast).unwrap();
         debug!("p: {}", program);
@@ -113,10 +113,13 @@ mod tests {
     #[test]
     fn test_lr2() {
         let cc = compiler::Config::o1();
-        let program = compile(cc, "
-          E <- M '+' E / M
-          M <- M '-n' / 'n'
-        ");
+        let program = compile(
+            cc,
+            "
+             E <- M '+' E / M
+             M <- M '-n' / 'n'
+            ",
+        );
         assert_success("E[M[n]]", run(program.clone(), "n"));
         assert_success("E[M[M[n]-n]]", run(program.clone(), "n-n"));
         assert_success("E[M[M[M[n]-n]-n]]", run(program.clone(), "n-n-n"));
@@ -126,13 +129,16 @@ mod tests {
     #[test]
     fn test_lr3() {
         let cc = compiler::Config::o1();
-        let program = compile(cc, "
-          E <- E '+' E
-             / E '-' E
-             / E '*' E
-             / E '/' E
-             / 'n'
-        ");
+        let program = compile(
+            cc,
+            "
+             E <- E '+' E
+                / E '-' E
+                / E '*' E
+                / E '/' E
+                / 'n'
+            ",
+        );
         // Right associative, as E is both left and right recursive,
         // without precedence
         assert_success("E[n]", run(program.clone(), "n"));
@@ -154,15 +160,18 @@ mod tests {
     #[test]
     fn test_lr4() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "
-          E <- E¹ '+' E²
-             / E¹ '-' E²
-             / E² '*' E³
-             / E² '/' E³
-             / '-' E⁴
-             / '(' E¹ ')'
-             / [0-9]
-        ");
+        let program = compile(
+            cc,
+            "
+             E <- E¹ '+' E²
+                / E¹ '-' E²
+                / E² '*' E³
+                / E² '/' E³
+                / '-' E⁴
+                / '(' E¹ ')'
+                / [0-9]
+            ",
+        );
 
         // left associative with different precedences
         assert_success("E[1]", run(program.clone(), "1"));
@@ -174,7 +183,10 @@ mod tests {
         // higher precedence for multiplication (*) over addition (+) and subtraction (-)
         assert_success("E[E[3]+E[E[5]*E[2]]]", run(program.clone(), "3+5*2"));
         assert_success("E[E[E[5]*E[2]]-E[3]]", run(program.clone(), "5*2-3"));
-        assert_success("E[E[E[E[1]*E[5]]*E[2]]+E[3]]", run(program.clone(), "1*5*2+3"));
+        assert_success(
+            "E[E[E[E[1]*E[5]]*E[2]]+E[3]]",
+            run(program.clone(), "1*5*2+3"),
+        );
         // unary operator
         assert_success("E[-E[1]]", run(program.clone(), "-1"));
         // highest precedence parenthesis
@@ -184,10 +196,14 @@ mod tests {
     #[test]
     fn test_lr5() {
         let cc = compiler::Config::o1();
-        let value = compile_and_run(cc, "
-L <- P '.x' / 'x'
-P <- P '(n)' / L
-", "x(n)(n).x(n).x");
+        let value = compile_and_run(
+            cc,
+            "
+             L <- P '.x' / 'x'
+             P <- P '(n)' / L
+            ",
+            "x(n)(n).x(n).x",
+        );
         assert_success("L[xP[L[P[P[(n)](n)]]].xP[L[P[(n)]]].x]", value);
     }
 }

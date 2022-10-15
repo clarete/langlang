@@ -29,7 +29,7 @@ fn run_grammar_on_input_from_cmd() -> Result<(), std::io::Error> {
     let grammar_data = fs::read_to_string(grammar_file)?;
 
     let mut p = parser::Parser::new(grammar_data.as_str());
-    let ast = match p.parse_grammar() {
+    let ast = match p.parse() {
         Ok(a) => a,
         Err(e) => {
             return Err(std::io::Error::new(

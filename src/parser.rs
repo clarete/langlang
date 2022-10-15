@@ -33,8 +33,14 @@ impl Parser {
         };
     }
 
+    /// Traverse the input string fed into the parser's constructor
+    /// and return an AST node when parsing succeeds
+    pub fn parse(&mut self) -> Result<AST, Error> {
+        self.parse_grammar()
+    }
+
     // GR: Grammar <- Spacing (Definition / LabelDefinition)+ EndOfFile
-    pub fn parse_grammar(&mut self) -> Result<AST, Error> {
+    fn parse_grammar(&mut self) -> Result<AST, Error> {
         self.parse_spacing()?;
         let defs = self.one_or_more(|p| {
             p.choice(vec![|p| p.parse_label_definition(), |p| {

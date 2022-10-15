@@ -73,6 +73,14 @@ mod tests {
     }
 
     #[test]
+    fn test_star_0() {
+        env_logger::init();
+        let cc = compiler::Config::o0().with_disabled_precedence();
+        let value = compile_and_run(cc, "A <- .*", "abab");
+        assert_success("A[abab]", value);
+    }
+
+    #[test]
     fn test_star_opt() {
         let cc = compiler::Config::o1().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- .*", "abab");

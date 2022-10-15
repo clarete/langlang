@@ -16,7 +16,7 @@
    - [X] original PEG semantics
    - [X] error reporting with labels
    - [X] left recursion
-   - [-] value captures: buggy for left recursion
+   - [X] value captures
    - [-] error recovery: work in progress
    - [ ] match data structures
    - [ ] higher-order rules?
@@ -42,12 +42,31 @@
    * [ ] Rust
    * [ ] TypeScript
    * [ ] XML
-** Object Database
+** Tools
+*** Pretty Print
+   * [X] Parse both files and get their AST
+   * [ ] How to generate pretty print traversal from grammar?
+   * [ ] Command line usage
+
+      #+begin_src shell
+      langlang pprint file.js
+      #+end_src
+*** Diff
+   * [X] Parse both files and get their AST
+   * [ ] Apply tree diff algorithm
+   * [ ] Display results
+   * [ ] Command line usage
+
+      #+begin_src shell
+      langlang diff file_v1.py file_v2.py
+      langlang diff file.py file.js
+      #+end_src
+*** Object Database
    * [ ] Undo/Redo
    * [ ] LSP Server
    * [ ] CRDT Storage
    * [ ] AST diff
-** Editor
+*** Editor
    * [ ] Language Server Protocol
    * [ ] Text Editing
    * [ ] Rendering Engine
@@ -146,6 +165,7 @@
     --------------
        G[A] x -> (X, {("A" y)}, {})
     #+END_SRC
+
 ** Error Handling
 
    In the original definition of Parsing Expression Grammars,

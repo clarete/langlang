@@ -222,12 +222,15 @@ impl Compiler {
                 Ok(())
             }
             AST::Optional(op) => {
+                self.emit(vm::Instruction::CapPush);
                 let pos = self.cursor;
                 self.emit(vm::Instruction::Choice(0));
                 self.compile_node(*op)?;
                 let size = self.cursor - pos;
                 self.code[pos] = vm::Instruction::Choice(size + 1);
                 self.emit(vm::Instruction::Commit(1));
+                self.emit(vm::Instruction::CapCommit);
+                self.emit(vm::Instruction::CapPop);
                 Ok(())
             }
             AST::Choice(choices) => {

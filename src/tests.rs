@@ -74,7 +74,6 @@ mod tests {
 
     #[test]
     fn test_star_0() {
-        env_logger::init();
         let cc = compiler::Config::o0().with_disabled_precedence();
         let value = compile_and_run(cc, "A <- .*", "abab");
         assert_success("A[abab]", value);
@@ -95,10 +94,20 @@ mod tests {
     }
 
     #[test]
-    fn test_var1() {
+    fn test_var_ending_with_zero_or_more() {
         let cc = compiler::Config::default();
-        let value = compile_and_run(cc, "A <- '1'+", "1");
-        assert_success("A[1]", value);
+        let program = compile(cc, "A <- '1'+");
+        assert_success("A[111]", run(program.clone(), "111"));
+        assert_success("A[11]", run(program.clone(), "11"));
+        assert_success("A[1]", run(program.clone(), "1"));
+    }
+
+    #[test]
+    fn test_var_ending_with_option() {
+        let cc = compiler::Config::default();
+        let program = compile(cc, "A <- '1' '1'?");
+        assert_success("A[11]", run(program.clone(), "11"));
+        assert_success("A[1]", run(program.clone(), "1"));
     }
 
     #[test]

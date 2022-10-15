@@ -90,13 +90,15 @@ mod tests {
     #[test]
     fn test_var0() {
         let cc = compiler::Config::default();
-        let value = compile_and_run(cc, "
-          A <- B C D
-          B <- '1'
-          C <- '2'
-          D <- '3'
-        ", "123");
-        assert_success("A[B[1]C[2]D[3]]", value);
+        let value = compile_and_run(cc, "A <- '1' '1'", "11");
+        assert_success("A[11]", value);
+    }
+
+    #[test]
+    fn test_var1() {
+        let cc = compiler::Config::default();
+        let value = compile_and_run(cc, "A <- '1'+", "1");
+        assert_success("A[1]", value);
     }
 
     #[test]
@@ -111,7 +113,7 @@ mod tests {
     #[test]
     fn test_lr1() {
         let cc = compiler::Config::o1();
-        let program = compile(cc, "E <- E '+' E / 'n'");
+        let program = compile(cc, "E <- E '+' E / 'n'+");
         assert_success("E[n]", run(program.clone(), "n"));
         assert_success("E[E[n]+E[n]]", run(program.clone(), "n+n"));
         assert_success("E[E[n]+E[E[n]+E[n]]]", run(program.clone(), "n+n+n"));
@@ -177,12 +179,12 @@ mod tests {
                 / E² '/' E³
                 / '-' E⁴
                 / '(' E¹ ')'
-                / [0-9]
+                / [0-9]+
             ",
         );
 
         // left associative with different precedences
-        assert_success("E[1]", run(program.clone(), "1"));
+        assert_success("E[21]", run(program.clone(), "21"));
         assert_success("E[E[3]+E[5]]", run(program.clone(), "3+5"));
         assert_success("E[E[3]-E[5]]", run(program.clone(), "3-5"));
         // same precedence between addition (+) and subtraction (-)

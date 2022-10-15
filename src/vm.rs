@@ -43,6 +43,9 @@ pub enum Instruction {
     CallB(usize, usize),
     Return,
     Throw(usize),
+    CapPush,
+    CapPop,
+    CapCommit,
 }
 
 impl std::fmt::Display for Instruction {
@@ -66,6 +69,9 @@ impl std::fmt::Display for Instruction {
             Instruction::Throw(label) => write!(f, "throw {:?}", label),
             Instruction::Call(addr, k) => write!(f, "call {:?} {:?}", addr, k),
             Instruction::CallB(addr, k) => write!(f, "callb {:?} {:?}", addr, k),
+            Instruction::CapPush => write!(f, "cappush"),
+            Instruction::CapPop => write!(f, "cappop"),
+            Instruction::CapCommit => write!(f, "capcommit"),
         }
     }
 }
@@ -414,6 +420,20 @@ impl VM {
             let cursor = self.cursor;
             match self.program.code[self.program_counter] {
                 Instruction::Halt => break,
+                Instruction::CapPush => {
+                    self.program_counter += 1;
+                    self.capstkpush();
+                }
+                Instruction::CapPop => {
+                    self.program_counter += 1;
+                    for c in self.capstkpop()?.values {
+                        self.capture(c)?;
+                    }
+                }
+                Instruction::CapCommit => {
+                    self.program_counter += 1;
+                    self.commit_captures()?;
+                }
                 Instruction::Any => {
                     self.program_counter += 1;
                     if cursor >= self.source.len() {
@@ -473,7 +493,6 @@ impl VM {
                     }
                 }
                 Instruction::Choice(offset) => {
-                    self.commit_captures()?;
                     self.stkpush(StackFrame::new_backtrack(
                         cursor,
                         self.program_counter + offset,
@@ -507,7 +526,6 @@ impl VM {
                     // which always needs to send the program counter
                     // backwards.
                     self.program_counter -= offset;
-                    self.commit_captures()?;
                 }
                 Instruction::BackCommit(offset) => {
                     let f = self.stkpop()?;
@@ -1561,75 +1579,6 @@ mod tests {
                 }],
             },
             r.unwrap(),
-        );
-    }
-
-    #[test]
-    fn capture_choice_within_repeat() {
-        // G <- ('abacate' / 'abada')+
-        let identifiers = [(2, 0)].iter().cloned().collect();
-        let program = Program {
-            identifiers,
-            labels: HashMap::new(),
-            recovery: HashMap::new(),
-            strings: vec!["G".to_string()],
-            code: vec![
-                /* 00 */ Instruction::Call(2, 0),
-                /* 01 */ Instruction::Halt,
-                /* 02 */ Instruction::Choice(9),
-                /* 03 */ Instruction::Char('a'),
-                /* 04 */ Instruction::Char('b'),
-                /* 05 */ Instruction::Char('a'),
-                /* 06 */ Instruction::Char('c'),
-                /* 07 */ Instruction::Char('a'),
-                /* 08 */ Instruction::Char('t'),
-                /* 09 */ Instruction::Char('e'),
-                /* 10 */ Instruction::Commit(6),
-                /* 11 */ Instruction::Char('a'),
-                /* 12 */ Instruction::Char('b'),
-                /* 13 */ Instruction::Char('a'),
-                /* 14 */ Instruction::Char('d'),
-                /* 15 */ Instruction::Char('a'),
-                /* 16 */ Instruction::Choice(16),
-                /* 17 */ Instruction::Choice(9),
-                /* 18 */ Instruction::Char('a'),
-                /* 19 */ Instruction::Char('b'),
-                /* 20 */ Instruction::Char('a'),
-                /* 21 */ Instruction::Char('c'),
-                /* 22 */ Instruction::Char('a'),
-                /* 23 */ Instruction::Char('t'),
-                /* 24 */ Instruction::Char('e'),
-                /* 25 */ Instruction::Commit(6),
-                /* 26 */ Instruction::Char('a'),
-                /* 27 */ Instruction::Char('b'),
-                /* 28 */ Instruction::Char('a'),
-                /* 29 */ Instruction::Char('d'),
-                /* 30 */ Instruction::Char('a'),
-                /* 31 */ Instruction::CommitB(15),
-                /* 32 */ Instruction::Return,
-            ],
-        };
-
-        let mut vm = VM::new(program);
-        let result = vm.run("abada");
-
-        assert_eq!(5, vm.cursor);
-
-        assert!(result.is_ok());
-        let r = result.unwrap();
-        assert!(r.is_some());
-        assert_eq!(
-            Value::Node {
-                name: "G".to_string(),
-                children: vec![
-                    Value::Chr('a'),
-                    Value::Chr('b'),
-                    Value::Chr('a'),
-                    Value::Chr('d'),
-                    Value::Chr('a'),
-                ]
-            },
-            r.unwrap()
         );
     }
 }

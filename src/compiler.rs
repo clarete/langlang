@@ -290,15 +290,19 @@ impl Compiler {
                 Ok(())
             }
             AST::ZeroOrMore(expr) => {
+                self.emit(vm::Instruction::CapPush);
                 let pos = self.cursor;
                 self.emit(vm::Instruction::Choice(0));
                 self.compile_node(*expr)?;
+                self.emit(vm::Instruction::CapCommit);
                 let size = self.cursor - pos;
                 self.code[pos] = vm::Instruction::Choice(size + 1);
                 match self.config.optimize {
                     1 => self.emit(vm::Instruction::PartialCommit(size - 1)),
                     _ => self.emit(vm::Instruction::CommitB(size)),
                 }
+                self.emit(vm::Instruction::CapCommit);
+                self.emit(vm::Instruction::CapPop);
                 Ok(())
             }
             AST::OneOrMore(expr) => {

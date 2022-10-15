@@ -72,99 +72,42 @@
    * [ ] Rendering Engine
    * [ ] Configuration Language
 * Implemented Design
+
 ** Captures
 
    Currently, the Virtual Machine captures all values matched, there's
-   no opting out.  All opcodes that implement matching of terminals
-   (~Any~, ~Char~, ~Span~) feed an accumulator register with the value
-   they match.
+   no opting out.  The captured values are stored in a stack that is
+   separate from the stack used in the Call/Backtracking mechanism.
 
-   The opcode ~Return~ feeds the accumulator with a ~Node~ value built
-   with the vector of captures taken from the call frame that has just
-   been popped off the stack.
+   The machine pushes a frame onto the capture stack before it starts
+   looping the bytecode.  Opcodes that implement matching of terminals
+   (~Any~, ~Char~, ~Span~) push matched values onto the current
+   capture stack frame.
 
-   The ~Capture~ opcode takes the value from the accumulator and feeds
-   the call stack's vector of captured values.
+   When popping a backtrack frame from the stack, the ~Fail~
+   instruction will drain the values not committed from the frame on
+   top of the capture stack.  That's how backtracking the *values*
+   captured is implemented.  Notice that the ~Fail~ instruction also
+   pops frames off the capture stack when it pops a call frame from
+   the main stack to keep it ballanced with the capture frame pushed
+   by the opcode ~Call~ that's popped by ~Return~ when there's no
+   failure.
 
-   Both ~Return~ and ~Fail~ will drain the vector of captured values
-   from the last point saved.
+   The ~Return~ instruction will pop the frame on top of the capture
+   stack, wrap all its captures in a ~Value::Node~ with the name of
+   the call and its captured values.
 
-   #+begin_src text
-                                   Char a
-                   <pc,a:s,e,c,d> --------------> <pc+1,s,e,a,d>
-                                   Char a
-                   <pc,b:s,e,c,d> --------------> Fail<e>, a != b
-                                   Char a
-                     <pc,ε,e,c,d> --------------> Fail<e>
-                                   Any
-                   <pc,a:s,e,c,d> --------------> <pc+1,s,e,a,d>
-                                   Any
-                     <pc,ε,e,c,d> --------------> Fail<e>
-                                   Capture
-                     <pc,ε,e,c,d> --------------> <pc+1,s,e,ε,d:c>
-                                   Choice i
-                     <pc,s,e,c,d> --------------> <pc+1,s,(pc+i,s,c,d):e,c,d>
-                                   Commit l
-                   <pc,s,h:e,c,d> --------------> <pc+l,s,e,c,d>
-                                   Jump l
-                     <pc,s,e,c,d> --------------> <pc+l,s,e,c,d>
+   In order to support left recursive calls, the ~Call~ instruction
+   will commit all captured values before trying to increment the left
+   recursive bound (rule ~inc.1~).  And ~Call~ will also pop all
+   currently commited values of the frame on the top of the capture
+   stack and wrap them in a ~Value::Node~ to be pushed onto the same
+   frame (rule ~lvar.4~).
 
-
-                                   Call l k
-                     <pc,s,e,c,d> --------------> <pc+l,s,(pc+1,pc+l,s,fail,k):e,c,d>, where (pc+l,s) ∉ 𝓛e
-                                   Call l k
-                     <pc,s,e,c,d> --------------> Fail<e>, where 𝓛e(pc+l,s) = fail
-                                   Call l k
-                     <pc,s,e,c,d> --------------> <pc+1,s',e,c,d>, where 𝓛e(pc+l,s) = (s',k') and k >= k'
-                                   Call l k
-                     <pc,s,e,c,d> --------------> Fail<e>, where 𝓛e(pc+l,s) = (s',k') and k < k'
-
-
-                                   Return
-   <pc,s",(pcr,pcA,s,s',k):e,c,d> --------------> <pcA,s,(pcr,pcA,s,s",k):e>, where |s"| < |s'| or s' = fail
-                                   Return
-   <pc,s",(pcr,pcA,s,s',k):e,c,d> --------------> <pcr,s',e,c,d>, where |s"| >= |s'|
-
-     Fail<(pcr,pcA,s,s',k):e,c,d> --------------> <pcr,s',e>
-
-                   Fail<pc:e,c,d> --------------> Fail<e>
-
-               Fail<(pc,s):e,c,d> --------------> <pc,s,e>
-
-
-    Without Left Recursion
-    -----------------------------------------------------------------------------
-
-                                   Call l
-                 <pc, s, e, c, d> --------------> <pc+l, s, (pc+1, c):e, c>
-                                   Return
-            <pc1, s, pc2:e, c, d> --------------> <pc2, s, e, c>
-                                    Fail
-                 <pc, s, e, c, d> --------------> Fail<e>
-
-                 Fail<pc:e, c, d> --------------> Fail<e>
-
-            Fail<(pc, s):e, c, d> --------------> <pc, s, e>
-
-       Fail<(pc, s, c1):e, c1, d> --------------> <pc, s, e, c1>
-
-   #+end_src
-
-   Empty
-     ~G[ε] X  -> (X, {}, {})~
-
-   Terminal
-     ~G[a] ax -> (x, {a}, {})~
-
-   Capture
-     ~G[@] X  -> (X, {}, {a})~
-
-   Non Terminal
-    #+BEGIN_SRC u
-    G[P(A)] x -> (X, {("A" y)}, {})
-    --------------
-       G[A] x -> (X, {("A" y)}, {})
-    #+END_SRC
+   Both ~Optional~ (~?~) and ~ZeroOrMore~ (~*~) operators are
+   surrounded by a pair of ~CapPush~ and ~CapPop~ instructions, and
+   have a ~CapCommit~ instruction that executes after the whole
+   operation is done, upon (handled) failure or success.
 
 ** Error Handling
 
@@ -224,7 +167,8 @@
    Note: the *Throw Operator* in the input language ~expr^l~ is syntax
    sugar for ~(expr / ⇑l)~.
 
-* Ideas
+* Rambling
+** Semantic Actions
 ** Incremental Parsing
 
    The parser will fail at the first error by default (as Parsing

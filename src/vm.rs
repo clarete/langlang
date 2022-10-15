@@ -7,7 +7,6 @@
 // compiled to programs, but how programs get executted as patterns.
 //
 
-#[cfg(debug_assertions)]
 use crate::format;
 use std::collections::HashMap;
 
@@ -346,13 +345,6 @@ impl VM {
     }
 
     // functions for capturing matched values
-
-    fn capstktop(&self) -> Result<&CapStackFrame, Error> {
-        if self.captures.is_empty() {
-            return Err(Error::Index);
-        }
-        Ok(&self.captures[self.captures.len() - 1])
-    }
 
     fn capstktop_mut(&mut self) -> Result<&mut CapStackFrame, Error> {
         if self.captures.is_empty() {
@@ -755,7 +747,11 @@ impl VM {
 
     #[cfg(debug_assertions)]
     fn dbg_captures(&self) -> Result<(), Error> {
-        let top = self.capstktop()?;
+        let top = if self.captures.is_empty() {
+            return Err(Error::Index);
+        } else {
+            &self.captures[self.captures.len() - 1]
+        };
         if top.values.is_empty() {
             return Ok(());
         }

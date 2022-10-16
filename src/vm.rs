@@ -714,9 +714,9 @@ impl VM {
     #[cfg(debug_assertions)]
     fn dbg(&self, m: &str) {
         for _ in 0..self.call_frames.len() {
-            print!("    ");
+            eprint!("    ");
         }
-        println!("{}", m);
+        eprintln!("{}", m);
     }
 
     #[cfg(debug_assertions)]
@@ -731,9 +731,9 @@ impl VM {
     #[cfg(debug_assertions)]
     fn dbg_instruction_fail(&self) {
         for _ in 0..self.call_frames.len() {
-            print!("    ");
+            eprint!("    ");
         }
-        println!("fail");
+        eprintln!("fail");
     }
 
     #[cfg(debug_assertions)]

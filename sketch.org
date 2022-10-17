@@ -43,13 +43,15 @@
    * [ ] TypeScript
    * [ ] XML
 ** Tools
-*** Pretty Print
-   * [X] Parse both files and get their AST
-   * [ ] How to generate pretty print traversal from grammar?
+*** Pretty Print / Minifier
+   * [X] Parse input file with language grammar and get an AST
+   * [ ] Generate the tree traversal grammar off the original grammar
+   * [ ] Merge overrides to the default settings of the code emitter
+   * [ ] Traverse AST with tree traversal Grammar and emit code
    * [ ] Command line usage
 
       #+begin_src shell
-      langlang pprint file.js
+      langlang print [OPTIONS] FILE
       #+end_src
 *** Diff
    * [X] Parse both files and get their AST
@@ -72,7 +74,6 @@
    * [ ] Rendering Engine
    * [ ] Configuration Language
 * Implemented Design
-
 ** Captures
 
    Currently, the Virtual Machine captures all values matched, there's
@@ -128,7 +129,7 @@
    in certain places.  It comes with the burden of having to annotate
    the grammar, and to pay attention to the fact that overly
    annotating a grammar is to take less advantage of some PEG features
-   provided by its infinite look ahead.
+   provided by its unlimited look ahead.
 
    The general place where a *Throw Operator* would be desired is the
    earlier position on an expression where it's known that a following
@@ -167,31 +168,95 @@
    Note: the *Throw Operator* in the input language ~expr^l~ is syntax
    sugar for ~(expr / ⇑l)~.
 
-* Rambling
-** Semantic Actions
-** Incremental Parsing
+** Pretty Print / Minifier
 
-   The parser will fail at the first error by default (as Parsing
-   Expression Grammars do originally).  But an incremental parsing
-   mode is also included, but with annotation costs traded for
-   precision.
+   Suppose we can parse a ~.ln~ file with a given grammar ~lang.peg~.
+   That'd give us an AST as output.  One option is to write the
+   translator as a tree traversal for that AST that emits code.  That
+   will take one of those traversals per language that needs to be
+   supported.  That'd double the burden on the user's side, since
+   there was already the need of putting together the language
+   grammar.
 
-   When parsing is done incrementally, the *Throw Operator* won't
-   interrupt parsing right away.  It will instead add a special node
-   to the tree returned by the parser storing information about the
-   error.  The parser will then execute the *Recovery Expression*
-   associated with the (implicitly created) label behind the *Throw
-   Operator*, which should consume the input until where the matching
-   of another expression can be attempted.
-
-   The default *Recovery Expression* of a label of an instance of the
-   *Throw Operator* is the following:
+   In order to automate some of the process, one could maybe take the
+   ~lang.peg~ file as input and produce a ~lang.translator.peg~, in
+   which rules that *output* trees would be translated into rules that
+   could also take structured data as *input*.  Take the following
+   rules as an example:
 
    #+begin_src peg
-   #+end_src   
+   Program    <- _ Statement+ EndOfFile
+   Statement  <- IfStm / WhileStm / AssignStm / Expression
+   AssignStm  <- Identifier EQ Expression
+   IfStm      <- IF PAROP Expression PARCL Body
+   WhileStm   <- WHILE PAROP Expression PARCL Body
+   Body       <- Statement / (CUROP Statement* CURCL)
+   # (...)
+   IF         <- 'if'    _
+   WHILE      <- 'while' _
+   EQ         <- 'eq'    _
+   PAROP      <- '('     _
+   PARCL      <- ')'     _
+   CUROP      <- '{'     _
+   CURCL      <- '}'     _
+   # (...)
+   #+end_src
 
-   Annotation costs come from the 
+   The following output would be generated:
 
+   #+begin_src peg
+   Program    <- { "Program" _ Statement+ EndOfFile }
+   Statement  <- { "Statement" IfStm / WhileStm / AssignStm / Expression }
+   AssignStm  <- { "AssignStm" Identifier EQ Expression  }
+   IfStm      <- { "IfStm" IF PAROP Expression PARCL Body }
+   WhileStm   <- { "WhileStm" WHILE PAROP Expression PARCL Body }
+   Body       <- { "Body" Statement / (CUROP Statement* CURCL) }
+   # (...)
+   IF         <- { "IF" Atom }
+   WHILE      <- { "WHILE" Atom }
+   EQ         <- { "EQ" Atom }
+   PAROP      <- { "PAROP" Atom }
+   PARCL      <- { "PARCL" Atom }
+   CUROP      <- { "CUROP" Atom }
+   CURCL      <- { "CURCL" Atom }
+   # (...)
+   Atom       <- !{ .* } .
+   #+end_src
+
+   With that, we'd know how to traverse any tree returned by the
+   original ~lang.peg~.  We could then build a general traversal that
+   walks down the tree, printing out what was matched.
+
+   There is one type of information that is not available in the
+   original grammar though.  The specifics of each language!  For
+   example, in Python, default values for named arguments aren't
+   supposed to have spaces surrounding the equal sign e.g.:
+
+   #+begin_src python
+   def complex(real, imag=0.0):
+       return # (...)
+   #+end_src
+
+   But that's not the same as in JavaScript:
+
+   #+begin_src javascript
+   function multiply(a, b = 1) {
+     return a * b;
+   }
+   #+end_src
+
+   To the same extent, minification rules for Python would be
+   different from most other languages as well, given its indentation
+   based definition of scopes.
+
+   The good news is that most of these differences, if not all, can be
+   encoded as options available for all languages, leaving the user
+   with a much smaller burden of defining only the overrides for each
+   language that demands options that differ from the defaults in the
+   code emitter.
+
+* Rambling
+** Semantic Actions
 ** Input Validation
 *** URL
 
@@ -205,10 +270,19 @@
    In langlang, modules are recursive containers for other modules and
    for grammars.
 
+   +--------+
+   | Module |
+   |--------|
+   | Rule1  |
+   | Rule2  |
+   | RuleN  |
+   +--------+
+
    #+begin_src rust
      type Offset usize;
      type SymbolName String;
      struct Module {
+       filename: String,
        // module in which this module was declared
        parent: Option<Module>,
        // modules declared within this module
@@ -251,7 +325,6 @@
      llsh lib::peg
      >> S <- 'a' / 'b'
    #+END_SRC
-* Sketch
 ** Matching
 *** Literal Strings
 *** Left Recursion
@@ -322,107 +395,25 @@
       The ~FOLLOW~ set of ~E~ in this case is ~x, y, z, k~, since any
       of these symbols could appear right after parsing ~E~.
 
-** Grammar
-*** Wats up
+** Incremental Parsing
 
-    #+begin_src peg
-    Expr  = Expr:1  PLUS Expr:2
-          / Expr:1 MINUS Expr:2
-          / Expr:2  STAR Expr:3
-          / Expr:2 SLASH Expr:3
-          / Expr:3 POWER Expr:3
-          / (MINUS Expr^):4
-          / (PLUS  Expr^):4
-          / LPAR   Expr:1^ RPAR^
-          / Value
+   The parser will fail at the first error by default (as Parsing
+   Expression Grammars do originally).  But an incremental parsing
+   mode is also included, but with annotation costs traded for
+   precision.
 
-    Value = (FLOAT / HEX / BIN / DEC) _
-    FLOAT = [0-9]? "." [0-9]
-    HEX   = "0x" [0-9a-fA-F]+
-    BIN   = "0b" [0-1]+
-    DEC   = [0-9]+
+   When parsing is done incrementally, the *Throw Operator* won't
+   interrupt parsing right away.  It will instead add a special node
+   to the tree returned by the parser storing information about the
+   error.  The parser will then execute the *Recovery Expression*
+   associated with the (implicitly created) label behind the *Throw
+   Operator*, which should consume the input until where the matching
+   of another expression can be attempted.
 
-    PLUS  = "+"  _
-    MINUS = "-"  _
-    STAR  = "*"  _
-    SLASH = "/"  _
-    POWER = "**" _
-    LPAR  = "("  _
-    RPAR  = ")"  _
-    _     = [ \n\r\t]*
-    #+end_src
+   The default *Recovery Expression* of a label of an instance of the
+   *Throw Operator* is the following:
 
-*** Calculator
-    #+begin_src peg
+   #+begin_src peg
+   #+end_src   
 
-    lang Calc {
-      Expr    = Expr:1  PLUS Expr:2
-              / Expr:1 MINUS Expr:2
-              / Expr:2  STAR Expr:3
-              / Expr:2 SLASH Expr:3
-              / Expr:3 POWER Expr:3
-              / MINUS Expr:4
-              / PAROP Expr:1 PARCL
-              / Value
-
-      Value   = (FLOAT / HEX / BIN / DEC) _
-      FLOAT   = [0-9]? "." [0-9]
-      HEX     = "0x" [0-9a-fA-F]+
-      BIN     = "0b" [0-1]+
-      DEC     = [0-9]+
-
-      PLUS    = "+"  _
-      MINUS   = "-"  _
-      STAR    = "*"  _
-      SLASH   = "/"  _
-      POWER   = "**" _
-      PAROP   = "("  _
-      PARCL   = ")"  _
-      _       = [ \n\r\t]*
-    }
-
-    #+end_src
-
-
-    [  OP_CALL    0x0000002]
-    [  OP_JUMP    0x0000013]
-
-    [OP_CHOICE    0x0000005]
-    [  OP_CALL    0x7ffffff]
-    [  OP_ATOM    0x0000000]
-    [  OP_CALL    0x7fffffd]
-    [OP_COMMIT    0x0000007]
-
-    [OP_CHOICE    0x0000005]
-    [  OP_CALL    0x7fffffa]
-    [  OP_ATOM    0x0000001]
-    [  OP_CALL    0x7fffff8]
-    [OP_COMMIT    0x0000002]
-
-    [  OP_CALL    0x0000002]
-    [OP_RETURN             ]
-
-    [OP_CHOICE    0x0000003]
-    [  OP_ATOM    0x0000002]
-    [OP_COMMIT    0x0000002]
-    [  OP_ATOM    0x0000003]
-    [OP_RETURN             ]
-    [  OP_HALT             ]
- 
-** Packages
-
-   +--------+
-   | Module |
-   |--------|
-   | Rule1  |
-   | Rule2  |
-   | RuleN  |
-   +--------+
-
-   A module is packed into a struct
-
-   #+BEGIN_SRC rust
-     struct Module {
-       filename: String,
-     }
-   #+END_SRC
+   Annotation costs come from the 

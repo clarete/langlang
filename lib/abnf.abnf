@@ -11,7 +11,10 @@ defined-as     =  *c-wsp ("=" / "=/") *c-wsp
                                 ; basic rules definition and
                                 ;  incremental alternatives
 
-elements       =  alternation *c-wsp
+
+elements       =  alternation *WSP
+                                ; use WSP instead of c-wsp as per
+                                ; https://www.rfc-editor.org/errata/rfc5234
 
 c-wsp          =  WSP / (c-nl WSP)
 

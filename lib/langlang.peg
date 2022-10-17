@@ -1,0 +1,45 @@
+# Parsing Expression Expression implementing the same `src/parser.rs'
+
+# Hierarchical syntax
+Grammar    <- _ Definition+ EndOfFile
+Definition <- Identifier LEFTARROW Expression
+
+Expression <- Sequence (SLASH Sequence)*
+Sequence   <- Prefix*
+Prefix     <- (AND / NOT)? Labeled
+Labeled    <- Suffix (LABEL Identifier)?
+Suffix     <- Primary (QUESTION / STAR / PLUS / Superscript)?
+Primary    <- Identifier !LEFTARROW
+            / OPEN Expression CLOSE
+            / Literal / Class / DOT
+
+# Lexical syntax
+Identifier <- [a-zA-Z_][a-zA-Z0-9_]* _
+Literal    <- ['] (!['] Char)* [']   _
+            / ["] (!["] Char)* ["]   _
+Class      <- '[' (!']' Range)* ']'  _
+Range      <- Char '-' Char / Char
+Char       <- '\\' [nrt'"\[\]\\]
+            / '\\' [0-2][0-7][0-7]
+            / '\\' [0-7][0-7]?
+            / !'\\' .
+Superscript<- [¹²³⁴⁵⁶⁷⁸⁹] _
+
+LEFTARROW  <- '<-' _
+SLASH      <- '/'  _
+AND        <- '&'  _
+NOT        <- '!'  _
+QUESTION   <- '?'  _
+STAR       <- '*'  _
+PLUS       <- '+'  _
+OPEN       <- '('  _
+CLOSE      <- ')'  _
+DOT        <- '.'  _
+LABEL      <- [^⇑] _
+
+
+_    <- (Space / Comment)*
+Comment    <- '#' (!EndOfLine .)* EndOfLine
+Space      <- ' ' / '\t' / EndOfLine
+EndOfLine  <- '\r\n' / '\n' / '\r'
+EndOfFile  <- !.

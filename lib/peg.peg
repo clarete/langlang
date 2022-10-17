@@ -1,9 +1,6 @@
 # This grammar is a direct extract from "Parsing Expression Grammars:
 # A Recognition-Based Syntactic Foundation" by Brian Ford,
 # 2004. Chapter 2.
-#
-# All the other PEG grammars like PEGx are initially defined using
-# this grammar.
 
 # Hierarchical syntax
 Grammar    <- Spacing Definition+ EndOfFile

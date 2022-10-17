@@ -1,0 +1,3 @@
+# lr5.peg --- mutual and indirect left recursion
+L <- P ".x" / "x"
+P <- P "(n)" / L

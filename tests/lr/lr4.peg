@@ -1,3 +1,8 @@
-# lr4.peg --- mutual and indirect left recursion
-L <- P ".x" / "x"
-P <- P "(n)" / L
+# lr4.peg --- operator precedence
+E <- E¹ '+' E²
+   / E¹ '-' E²
+   / E² '*' E³
+   / E² '/' E³
+   / '-' E⁴
+   / '(' E¹ ')'
+   / 'n'

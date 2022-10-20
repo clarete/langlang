@@ -19,12 +19,12 @@
    - [X] value captures
    - [-] error recovery: work in progress
    - [ ] match data structures
-   - [ ] higher-order rules?
    - [ ] parameterized rules?
+   - [ ] higher-order rules?
    - [ ] semantic actions?
    - [ ] packages and import system?
 ** Standard Library
-   * [-] ABNF
+   * [X] ABNF (RFC-5234)
    * [ ] C
    * [ ] C++
    * [X] CSV
@@ -37,8 +37,7 @@
    * [ ] HTML (tolerant to failures -- invalid)
    * [ ] Python (relative space)
    * [X] PEG
-   * [ ] PEGX?
-   * [ ] RFC3986
+   * [ ] Uniform Resource Identifier (URI): Generic Syntax (RFC-3986)
    * [ ] Rust
    * [ ] TypeScript
    * [ ] XML
@@ -47,12 +46,29 @@
    * [X] Parse input file with language grammar and get an AST
    * [ ] Generate the tree traversal grammar off the original grammar
    * [ ] Merge overrides to the default settings of the code emitter
-   * [ ] Traverse AST with tree traversal Grammar and emit code
+   * [ ] Traverse AST with traversal grammar and emit code
    * [ ] Command line usage
 
-      #+begin_src shell
-      langlang print [OPTIONS] FILE
-      #+end_src
+     #+begin_src text
+       Usage: langlang print [OPTIONS] INPUT_FILE
+
+       OPTIONS
+
+       [-g|--grammar] GRAMMAR
+           Grammar file used to parse INPUT_FILE
+
+       [-o|--output] OUTPUT
+           Writes output into OUTPUT file
+
+       --cfg-tab-width NUMBER
+           Configure indentation size
+
+       --cfg-max-line-width NUMBER
+           Maximum number of characters in a single line
+
+       --cfg-add-trailing-comma
+           Add trailing comma to the end of last list entry
+     #+end_src
 *** Diff
    * [X] Parse both files and get their AST
    * [ ] Apply tree diff algorithm
@@ -73,6 +89,8 @@
    * [ ] Text Editing
    * [ ] Rendering Engine
    * [ ] Configuration Language
+** Chores
+   * [ ] Allocation for captures should happen within an arena
 * Implemented Design
 ** Captures
 

@@ -9,7 +9,7 @@
    * [X] Generate bytecode with original PEG semantics
    * [X] Compile labeled failures
    * [X] define precedence for left recursive calls
-   * [ ] compile non-left recursive rules with zero precedence
+   * [X] compile non-left recursive rules with zero precedence
    * [ ] first and follows set for error synchronization
    * [ ] error recovery expression generation
 ** VM
@@ -27,12 +27,13 @@
    * [X] ABNF (RFC-5234)
    * [ ] C
    * [ ] C++
+   * [ ] CPP
    * [X] CSV
    * [ ] CSS
    * [ ] Go
-   * [X] JSON
    * [ ] Java
    * [ ] JavaScript
+   * [X] JSON
    * [ ] JSX
    * [ ] HTML (tolerant to failures -- invalid)
    * [ ] Python (relative space)

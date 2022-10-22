@@ -4,8 +4,6 @@ use log::debug;
 
 use crate::{ast::AST, vm};
 
-const DEFAULT_CALL_PRECEDENCE: usize = 1;
-
 #[derive(Debug)]
 pub enum Error {
     NotFound(String),
@@ -25,7 +23,6 @@ impl std::fmt::Display for Error {
 #[derive(Debug, Clone)]
 pub struct Config {
     optimize: u8,
-    default_call_precedence: usize,
 }
 
 impl Default for Config {
@@ -37,30 +34,13 @@ impl Default for Config {
 impl Config {
     /// o0 disables all optimizations
     pub fn o0() -> Self {
-        Self {
-            optimize: 0,
-            default_call_precedence: DEFAULT_CALL_PRECEDENCE,
-        }
+        Self { optimize: 0 }
     }
 
     /// o1 enables some optimizations: `failtwice`, `partialcommit`,
     /// `backcommit`, `testchar` and `testany`
     pub fn o1() -> Self {
-        Self {
-            optimize: 1,
-            default_call_precedence: DEFAULT_CALL_PRECEDENCE,
-        }
-    }
-
-    /// with_disabled_precedence returns a new instance of Config with
-    /// all the fields copied over from the current instance, with the
-    /// exception of `default_call_precedence` that will always be
-    /// zeroed here.
-    pub fn with_disabled_precedence(&self) -> Self {
-        Self {
-            optimize: self.optimize,
-            default_call_precedence: 0,
-        }
+        Self { optimize: 1 }
     }
 }
 
@@ -95,9 +75,14 @@ pub struct Compiler {
     // Used for printing out debugging messages with the of the
     // structure the call stack the compiler is traversing
     indent_level: usize,
+    // Map from the set of names of functions to the boolean defining
+    // if the function is left recursive or not
+    left_rec: HashMap<String, bool>,
 }
 
 impl Compiler {
+    /// Return a new instance of the Compiler with default values and
+    /// a Config instance attached to it
     pub fn new(config: Config) -> Self {
         Compiler {
             config,
@@ -111,12 +96,14 @@ impl Compiler {
             labels: HashMap::new(),
             recovery: HashMap::new(),
             indent_level: 0,
+            left_rec: HashMap::new(),
         }
     }
 
     /// Access the output of the compilation process.  Call this
     /// method after calling `compile_str()`.
     pub fn compile(&mut self, ast: AST) -> Result<vm::Program, Error> {
+        DetectLeftRec::default().run(&ast, &mut self.left_rec)?;
         self.compile_node(ast)?;
         self.backpatch_callsites()?;
 
@@ -172,16 +159,22 @@ impl Compiler {
                 }
             }
         }
+        let main = &self.strings[self.identifiers[&(2 as usize)]];
+        if self.left_rec[main] {
+            self.code[0] = match self.code[0] {
+                vm::Instruction::Call(..) => vm::Instruction::Call(2, 1),
+                vm::Instruction::CallB(..) => vm::Instruction::CallB(2, 1),
+                _ => unreachable!(),
+            }
+        }
         Ok(())
     }
 
+    /// Take an AST node and emit node into the private code vector
     fn compile_node(&mut self, node: AST) -> Result<(), Error> {
         match node {
             AST::Grammar(rules) => {
-                self.emit(vm::Instruction::Call(
-                    2,
-                    self.config.default_call_precedence,
-                ));
+                self.emit(vm::Instruction::Call(2, 0));
                 self.emit(vm::Instruction::Halt);
                 for r in rules {
                     self.compile_node(r)?;
@@ -315,21 +308,16 @@ impl Compiler {
                 Ok(())
             }
             AST::Identifier(name) => {
+                let precedence = if self.left_rec[&name] { 1 } else { 0 };
                 let id = self.push_string(name);
                 match self.funcs.get(&id) {
                     Some(func_addr) => {
                         let addr = self.cursor - func_addr;
-                        self.emit(vm::Instruction::CallB(
-                            addr,
-                            self.config.default_call_precedence,
-                        ));
+                        self.emit(vm::Instruction::CallB(addr, precedence));
                     }
                     None => {
                         self.addrs.insert(self.cursor, id);
-                        self.emit(vm::Instruction::Call(
-                            0,
-                            self.config.default_call_precedence,
-                        ));
+                        self.emit(vm::Instruction::Call(0, precedence));
                     }
                 }
                 Ok(())
@@ -370,6 +358,8 @@ impl Compiler {
         }
     }
 
+    /// Push `instruction` into the internal code vector and increment
+    /// the cursor that points at the next instruction
     fn emit(&mut self, instruction: vm::Instruction) {
         self.prt(format!("emit {:?} {:?}", self.cursor, instruction).as_str());
         self.code.push(instruction);
@@ -396,5 +386,191 @@ impl Compiler {
 impl Default for Compiler {
     fn default() -> Self {
         Self::new(Config::default())
+    }
+}
+
+#[derive(Default)]
+struct DetectLeftRec<'a> {
+    stack: Vec<&'a str>,
+}
+
+impl<'a> DetectLeftRec<'a> {
+    fn run(&mut self, node: &'a AST, found: &mut HashMap<String, bool>) -> Result<(), Error> {
+        let mut rules: HashMap<&'a String, &'a AST> = HashMap::new();
+        match node {
+            AST::Grammar(definitions) => {
+                for definition in definitions {
+                    match definition {
+                        AST::Definition(n, expr) => {
+                            rules.insert(n, expr);
+                        }
+                        r => {
+                            return Err(Error::Semantic(
+                                format!("Expected Definition rule, not {:#?}", r).to_string(),
+                            ))
+                        }
+                    }
+                }
+            }
+            r => {
+                return Err(Error::Semantic(
+                    format!("Expected Grammar rule, not {:#?}", r).to_string(),
+                ))
+            }
+        }
+        for (name, expr) in &rules {
+            let is_lr = self.is_left_recursive(name, expr, &rules);
+            found.insert(name.to_string(), is_lr);
+        }
+        Ok(())
+    }
+
+    fn is_left_recursive(
+        &mut self,
+        name: &'a str,
+        expr: &'a AST,
+        rules: &HashMap<&'a String, &'a AST>,
+    ) -> bool {
+        match expr {
+            AST::Identifier(n) => {
+                // for detecting mutual recursion
+                if !self.stack.is_empty() && self.stack[self.stack.len() - 1] == n {
+                    return true;
+                }
+                if n != name {
+                    self.stack.push(n);
+                    let r = self.is_left_recursive(name, &rules[n], rules);
+                    self.stack.pop();
+                    return r;
+                }
+                true
+            }
+            AST::Choice(choices) => {
+                for c in choices {
+                    if self.is_left_recursive(name, c, rules) {
+                        return true;
+                    }
+                }
+                false
+            }
+            AST::Sequence(seq) => {
+                let mut i = 0;
+                while i < seq.len() && is_empty_possible(&seq[i]) {
+                    i += 1;
+                }
+                if i < seq.len() {
+                    return self.is_left_recursive(name, &seq[i], rules);
+                }
+                false
+            }
+            AST::Precedence(n, _) => self.is_left_recursive(name, n, rules),
+            _ => false,
+        }
+    }
+}
+
+fn is_empty_possible(node: &AST) -> bool {
+    matches!(node, AST::ZeroOrMore(..) | AST::Optional(..))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser;
+
+    fn assert_detectlr(input: &str, expected: HashMap<String, bool>) {
+        let node = parser::Parser::new(input).parse().unwrap();
+        let mut dlr = DetectLeftRec::default();
+        let mut found = HashMap::new();
+        dlr.run(&node, &mut found).unwrap();
+        assert_eq!(found, expected);
+    }
+
+    #[test]
+    fn detect_left_recursion() {
+        // input is consumed before A calls itself, so not lr
+        assert_detectlr("A <- 'foo' A", HashMap::from([("A".to_string(), false)]));
+        assert_detectlr("A <- 'foo'+ A", HashMap::from([("A".to_string(), false)]));
+        assert_detectlr(
+            "A <- 'a' A / 'b' A",
+            HashMap::from([("A".to_string(), false)]),
+        );
+        assert_detectlr(
+            "A <- B
+             B <- 'x' A",
+            HashMap::from([("A".to_string(), false), ("B".to_string(), false)]),
+        );
+        assert_detectlr(
+            "A <- B
+             B <- C
+             C <- 'x' A",
+            HashMap::from([
+                ("A".to_string(), false),
+                ("B".to_string(), false),
+                ("C".to_string(), false),
+            ]),
+        );
+        // Direct left recursion
+        assert_detectlr("A <- A", HashMap::from([("A".to_string(), true)]));
+        // Direct left recursion: the first expression in both cases
+        // can return successfully without consuming input
+        assert_detectlr("A <- 'foo'? A", HashMap::from([("A".to_string(), true)]));
+        assert_detectlr("A <- 'foo'* A", HashMap::from([("A".to_string(), true)]));
+        // Direct left recursion: no branches of a top level choice
+        // can start with a left recursive call
+        assert_detectlr("A <- 'foo' / A", HashMap::from([("A".to_string(), true)]));
+        assert_detectlr(
+            "A <- 'foo' / 'bar'/ A",
+            HashMap::from([("A".to_string(), true)]),
+        );
+        assert_detectlr(
+            "A <- 'foo' / 'bar' / 'baz'? A",
+            HashMap::from([("A".to_string(), true)]),
+        );
+        // Indirect left recursion
+        assert_detectlr(
+            "A <- B / 'x'
+             B <- A",
+            HashMap::from([("A".to_string(), true), ("B".to_string(), true)]),
+        );
+        assert_detectlr(
+            "A <- 'x' / B
+             B <- A",
+            HashMap::from([("A".to_string(), true), ("B".to_string(), true)]),
+        );
+        assert_detectlr(
+            "A <- B 'x'
+             B <- 'x'? A",
+            HashMap::from([("A".to_string(), true), ("B".to_string(), true)]),
+        );
+        assert_detectlr(
+            "A <- B 'x'
+             B <- C 'y'
+             C <- D 'z'
+             D <- E 'a'
+             E <- 'x'* A",
+            HashMap::from([
+                ("A".to_string(), true),
+                ("B".to_string(), true),
+                ("C".to_string(), true),
+                ("D".to_string(), true),
+                ("E".to_string(), true),
+            ]),
+        );
+        // Mutual recursion
+        assert_detectlr(
+            "A <- B '+' A / B
+             B <- B '-n' / 'n'",
+            HashMap::from([("A".to_string(), true), ("B".to_string(), true)]),
+        );
+        // With wrapping precedence
+        assert_detectlr(
+            "
+            E <- E¹ '+' E²
+               / E¹ '-' E²
+               / 'n'
+            ",
+            HashMap::from([("E".to_string(), true)]),
+        );
     }
 }

@@ -32,56 +32,56 @@ mod tests {
 
     #[test]
     fn test_char() {
-        let cc = compiler::Config::default().with_disabled_precedence();
+        let cc = compiler::Config::default();
         let value = compile_and_run(cc, "A <- 'a'", "a");
         assert_success("A[a]", value);
     }
 
     #[test]
     fn test_not_0() {
-        let cc = compiler::Config::o0().with_disabled_precedence();
+        let cc = compiler::Config::o0();
         let value = compile_and_run(cc, "A <- (!('a' / 'b') .)", "c");
         assert_success("A[c]", value);
     }
 
     #[test]
     fn test_not_opt() {
-        let cc = compiler::Config::o1().with_disabled_precedence();
+        let cc = compiler::Config::o1();
         let value = compile_and_run(cc, "A <- (!('a' / 'b') .)", "c");
         assert_success("A[c]", value);
     }
 
     #[test]
     fn test_and_0() {
-        let cc = compiler::Config::o0().with_disabled_precedence();
+        let cc = compiler::Config::o0();
         let value = compile_and_run(cc, "A <- (&('a' / 'b') .)", "a");
         assert_success("A[a]", value);
     }
 
     #[test]
     fn test_and_opt() {
-        let cc = compiler::Config::o1().with_disabled_precedence();
+        let cc = compiler::Config::o1();
         let value = compile_and_run(cc, "A <- &'a' .", "a");
         assert_success("A[a]", value);
     }
 
     #[test]
     fn test_choice_within_repeat() {
-        let cc = compiler::Config::o0().with_disabled_precedence();
+        let cc = compiler::Config::o0();
         let value = compile_and_run(cc, "A <- ('abacate' / 'abada')+", "abada");
         assert_success("A[abada]", value);
     }
 
     #[test]
     fn test_star_0() {
-        let cc = compiler::Config::o0().with_disabled_precedence();
+        let cc = compiler::Config::o0();
         let value = compile_and_run(cc, "A <- .*", "abab");
         assert_success("A[abab]", value);
     }
 
     #[test]
     fn test_star_opt() {
-        let cc = compiler::Config::o1().with_disabled_precedence();
+        let cc = compiler::Config::o1();
         let value = compile_and_run(cc, "A <- .*", "abab");
         assert_success("A[abab]", value);
     }

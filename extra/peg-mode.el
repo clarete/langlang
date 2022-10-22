@@ -51,9 +51,8 @@
      ;; ! & * + ? ( ) / are operators
      ("!\\|&\\|*\\|+\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
      ;; Color for label
-     ("\\(\\^[a-zA-Z_][a-zA-Z0-9_]*\\)" 1 'font-lock-constant-face)
-     ;; Color for assignment of a name to a piece of the expression.
-     ("\\(:[^\s]+\\)" 1 'font-lock-variable-name-face))))
+     ("\\(⇑[^\s]+\\)" 1 'font-lock-variable-name-face)
+     ("\\(\\^[^\s]+\\)" 1 'font-lock-variable-name-face))))
 
 ;;;###autoload
 (define-derived-mode peg-mode prog-mode "PEG Mode"

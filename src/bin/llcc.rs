@@ -27,7 +27,6 @@ fn run_grammar_on_input_from_cmd() -> Result<(), std::io::Error> {
             .as_str(),
     );
     let grammar_data = fs::read_to_string(grammar_file)?;
-
     let mut p = parser::Parser::new(grammar_data.as_str());
     let ast = match p.parse() {
         Ok(a) => a,
@@ -49,9 +48,6 @@ fn run_grammar_on_input_from_cmd() -> Result<(), std::io::Error> {
             ))
         }
     };
-
-    println!("Compiled:\n{}", program);
-
     let input_data = fs::read_to_string(input_file)?;
     let mut m = vm::VM::new(program);
     match m.run(&input_data) {

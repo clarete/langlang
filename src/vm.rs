@@ -6,7 +6,7 @@
 // machine.  This module has nothing to do with how patterns get
 // compiled to programs, but how programs get executted as patterns.
 //
-
+#[cfg(debug_assertions)]
 use crate::format;
 use std::collections::HashMap;
 
@@ -358,7 +358,6 @@ impl VM {
         if self.within_predicate {
             return Ok(());
         }
-        self.dbg(&format!("capture {:?}", format::value_fmt1(&v)));
         self.capstktop_mut()?.values.push(v);
         Ok(())
     }
@@ -386,7 +385,6 @@ impl VM {
         let (idx, len) = (top.index, top.values.len());
         top.index = len;
         if idx != len {
-            self.dbg(&format!("- cap commit: {} -> {}", idx, len,));
             self.dbg_captures()?;
         }
         Ok(())

@@ -61,7 +61,6 @@ fn shell() -> Result<(), ShellError> {
     let mut compiler = compiler::Compiler::default();
     let program = compiler.compile(ast)?;
     println!("{}", program);
-
     loop {
         // display prompt
         print!("langlang% ");

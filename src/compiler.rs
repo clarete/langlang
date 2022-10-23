@@ -337,6 +337,9 @@ impl Compiler {
                 };
                 Ok(())
             }
+            AST::List(..) => {
+                Ok(())
+            }
             AST::Range(a, b) => {
                 self.emit(vm::Instruction::Span(a, b));
                 Ok(())

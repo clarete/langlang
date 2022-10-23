@@ -196,7 +196,7 @@ impl Parser {
 
     // GR: Primary <- Identifier !(LEFTARROW / (Identifier EQ))
     // GR:          / OPEN Expression CLOSE
-    // GR:          / Literal / Class / DOT
+    // GR:          / List / Literal / Class / DOT
     fn parse_primary(&mut self) -> Result<AST, Error> {
         self.choice(vec![
             |p| {
@@ -221,6 +221,7 @@ impl Parser {
                 p.parse_spacing()?;
                 Ok(expr)
             },
+            |p| p.parse_list(),
             |p| Ok(AST::Str(p.parse_literal()?)),
             |p| Ok(AST::Choice(p.parse_class()?)),
             |p| {
@@ -228,6 +229,19 @@ impl Parser {
                 Ok(AST::Any)
             },
         ])
+    }
+
+    // GR: List <- OPENC (!CLOSEC Expression)* CLOSEC
+    fn parse_list(&mut self) -> Result<AST, Error> {
+        self.expect('{')?;
+        self.parse_spacing()?;
+        let exprs = self.zero_or_more(|p| {
+            p.not(|p| p.expect('}'))?;
+            p.parse_expression()
+        })?;
+        self.expect('}')?;
+        self.parse_spacing()?;
+        Ok(AST::List(exprs))
     }
 
     // GR: Identifier <- IdentStart IdentCont* Spacing

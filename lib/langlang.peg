@@ -11,8 +11,8 @@ Labeled    <- Suffix (LABEL Identifier)?
 Suffix     <- Primary (QUESTION / STAR / PLUS / Superscript)?
 Primary    <- Identifier !LEFTARROW
             / OPEN Expression CLOSE
-            / Literal / Class / DOT
-
+            / List / Literal / Class / DOT
+List       <- OPENC (!CLOSEC Expression)* CLOSEC
 # Lexical syntax
 Identifier <- [a-zA-Z_][a-zA-Z0-9_]* _
 Literal    <- ['] (!['] Char)* [']   _
@@ -34,6 +34,8 @@ STAR       <- '*'  _
 PLUS       <- '+'  _
 OPEN       <- '('  _
 CLOSE      <- ')'  _
+OPENC      <- '{'  _
+CLOSEC     <- '}'  _
 DOT        <- '.'  _
 LABEL      <- [^⇑] _
 

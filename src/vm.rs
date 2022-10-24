@@ -255,8 +255,6 @@ pub struct VM {
     cursor: usize,
     // Farther Failure Position
     ffp: usize,
-    // Input source
-    source: Vec<char>,
     // Vector of instructions and tables with literal values
     program: Program,
     // Cursor within the program
@@ -278,7 +276,6 @@ impl VM {
         VM {
             ffp: 0,
             cursor: 0,
-            source: vec![],
             program,
             program_counter: 0,
             stack: vec![],
@@ -393,7 +390,7 @@ impl VM {
     // evaluation
 
     pub fn run(&mut self, input: &str) -> Result<Option<Value>, Error> {
-        self.source = input.chars().collect();
+        let source = input.chars().collect::<Vec<char>>();
         self.capstkpush();
 
         loop {
@@ -417,20 +414,20 @@ impl VM {
                 }
                 Instruction::Any => {
                     self.program_counter += 1;
-                    if cursor >= self.source.len() {
+                    if cursor >= source.len() {
                         self.fail(Error::EOF)?;
                     } else {
-                        self.capture(Value::Chr(self.source[cursor]))?;
+                        self.capture(Value::Chr(source[cursor]))?;
                         self.advance_cursor()?;
                     }
                 }
                 Instruction::Char(expected) => {
                     self.program_counter += 1;
-                    if cursor >= self.source.len() {
+                    if cursor >= source.len() {
                         self.fail(Error::EOF)?;
                         continue;
                     }
-                    let current = self.source[cursor];
+                    let current = source[cursor];
                     if current != expected {
                         self.fail(Error::Matching(self.ffp, expected.to_string()))?;
                         continue;
@@ -440,11 +437,11 @@ impl VM {
                 }
                 Instruction::Span(start, end) => {
                     self.program_counter += 1;
-                    if cursor >= self.source.len() {
+                    if cursor >= source.len() {
                         self.fail(Error::EOF)?;
                         continue;
                     }
-                    let current = self.source[cursor];
+                    let current = source[cursor];
                     if current >= start && current <= end {
                         self.capture(Value::Chr(current))?;
                         self.advance_cursor()?;
@@ -458,10 +455,10 @@ impl VM {
                     let mut matches = 0;
                     for (i, expected) in s.chars().enumerate() {
                         let local_cursor = cursor + i;
-                        if local_cursor >= self.source.len() {
+                        if local_cursor >= source.len() {
                             break;
                         }
-                        let current = self.source[local_cursor];
+                        let current = source[local_cursor];
                         if current == expected {
                             self.advance_cursor()?;
                             matches += 1;

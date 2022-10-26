@@ -692,30 +692,18 @@ impl VM {
         Ok(())
     }
 
-    #[cfg(not(debug_assertions))]
-    fn dbg(&self, _: &str) {}
-
-    #[cfg(not(debug_assertions))]
-    fn dbg_instruction(&self) {}
-
-    #[cfg(not(debug_assertions))]
-    fn dbg_instruction_fail(&self) {}
-
-    #[cfg(not(debug_assertions))]
-    fn dbg_captures(&self) -> Result<(), Error> {
-        Ok(())
-    }
-
-    #[cfg(debug_assertions)]
-    fn dbg(&self, m: &str) {
-        for _ in 0..self.call_frames.len() {
-            eprint!("    ");
+    fn dbg(&self, _m: &str) {
+        #[cfg(debug_assertions)]
+        {
+            for _ in 0..self.call_frames.len() {
+                eprint!("    ");
+            }
+            eprintln!("{}", _m);
         }
-        eprintln!("{}", m);
     }
 
-    #[cfg(debug_assertions)]
     fn dbg_instruction(&self) {
+        #[cfg(debug_assertions)]
         self.dbg(&instruction_to_string(
             &self.program,
             &self.program.code[self.program_counter],
@@ -723,33 +711,37 @@ impl VM {
         ));
     }
 
-    #[cfg(debug_assertions)]
     fn dbg_instruction_fail(&self) {
-        for _ in 0..self.call_frames.len() {
-            eprint!("    ");
+        #[cfg(debug_assertions)]
+        {
+            for _ in 0..self.call_frames.len() {
+                eprint!("    ");
+            }
+            eprintln!("fail");
         }
-        eprintln!("fail");
     }
 
-    #[cfg(debug_assertions)]
     fn dbg_captures(&self) -> Result<(), Error> {
-        let top = if self.captures.is_empty() {
-            return Err(Error::Index);
-        } else {
-            &self.captures[self.captures.len() - 1]
-        };
-        if top.values.is_empty() {
-            return Ok(());
+        #[cfg(debug_assertions)]
+        {
+            let top = if self.captures.is_empty() {
+                return Err(Error::Index);
+            } else {
+                &self.captures[self.captures.len() - 1]
+            };
+            if top.values.is_empty() {
+                return Ok(());
+            }
+            self.dbg(&format!(
+                "- captures[{}]: {:?}",
+                top.index,
+                top.values
+                    .iter()
+                    .map(format::value_fmt1)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
-        self.dbg(&format!(
-            "- captures[{}]: {:?}",
-            top.index,
-            top.values
-                .iter()
-                .map(format::value_fmt1)
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
         Ok(())
     }
 }

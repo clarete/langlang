@@ -86,7 +86,7 @@ fn shell() -> Result<(), ShellError> {
 
         // run the line
         let mut m = vm::VM::new(program.clone());
-        match m.run(&line) {
+        match m.run_str(&line) {
             Ok(Some(v)) => println!("{:#?}", v),
             Ok(None) => println!("not much"),
             Err(e) => return Err(ShellError::RuntimeError(e)),

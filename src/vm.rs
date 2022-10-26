@@ -10,14 +10,14 @@
 use crate::format;
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
     Chr(char),
     Str(String),
     // I64(i64),
     // U64(u64),
     // F64(f64),
-    Node { name: String, children: Vec<Value> },
+    List(Vec<Value>),
 }
 
 #[derive(Clone, Debug)]
@@ -389,10 +389,13 @@ impl VM {
 
     // evaluation
 
-    pub fn run(&mut self, input: &str) -> Result<Option<Value>, Error> {
-        let source = input.chars().collect::<Vec<char>>();
-        self.capstkpush();
+    pub fn run_str(&mut self, input: &str) -> Result<Option<Value>, Error> {
+        let source = input.chars().map(|c| Value::Chr(c)).collect::<Vec<Value>>();
+        self.run(source)
+    }
 
+    pub fn run(&mut self, source: Vec<Value>) -> Result<Option<Value>, Error> {
+        self.capstkpush();
         loop {
             self.dbg_instruction();
             let cursor = self.cursor;
@@ -417,7 +420,7 @@ impl VM {
                     if cursor >= source.len() {
                         self.fail(Error::EOF)?;
                     } else {
-                        self.capture(Value::Chr(source[cursor]))?;
+                        self.capture(source[cursor].clone())?;
                         self.advance_cursor()?;
                     }
                 }
@@ -427,12 +430,12 @@ impl VM {
                         self.fail(Error::EOF)?;
                         continue;
                     }
-                    let current = source[cursor];
-                    if current != expected {
+                    let current = &source[cursor];
+                    if current != &Value::Chr(expected) {
                         self.fail(Error::Matching(self.ffp, expected.to_string()))?;
                         continue;
                     }
-                    self.capture(Value::Chr(current))?;
+                    self.capture(current.clone())?;
                     self.advance_cursor()?;
                 }
                 Instruction::Span(start, end) => {
@@ -441,9 +444,9 @@ impl VM {
                         self.fail(Error::EOF)?;
                         continue;
                     }
-                    let current = source[cursor];
-                    if current >= start && current <= end {
-                        self.capture(Value::Chr(current))?;
+                    let current = &source[cursor];
+                    if current >= &Value::Chr(start) && current <= &Value::Chr(end) {
+                        self.capture(current.clone())?;
                         self.advance_cursor()?;
                         continue;
                     }
@@ -458,8 +461,8 @@ impl VM {
                         if local_cursor >= source.len() {
                             break;
                         }
-                        let current = source[local_cursor];
-                        if current == expected {
+                        let current = &source[local_cursor];
+                        if current == &Value::Chr(expected) {
                             self.advance_cursor()?;
                             matches += 1;
                         }
@@ -772,7 +775,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("a");
+        let result = vm.run_str("a");
 
         assert!(result.is_ok());
         assert_eq!(1, vm.cursor);
@@ -800,7 +803,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("b");
+        let result = vm.run_str("b");
 
         assert!(result.is_err());
         assert_eq!(Error::Matching(0, "a".to_string()), result.unwrap_err());
@@ -828,7 +831,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("a");
+        let result = vm.run_str("a");
 
         assert!(result.is_ok());
         assert_eq!(1, vm.cursor);
@@ -856,7 +859,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("9");
+        let result = vm.run_str("9");
 
         assert!(result.is_err());
         assert_eq!(Error::Matching(0, "[a-z]".to_string()), result.unwrap_err());
@@ -884,7 +887,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("abcd");
+        let result = vm.run_str("abcd");
 
         assert!(result.is_ok());
         assert_eq!(3, vm.cursor);
@@ -910,7 +913,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("");
+        let result = vm.run_str("");
 
         assert!(result.is_err());
         assert_eq!(Error::EOF, result.unwrap_err());
@@ -942,7 +945,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("foo");
+        let result = vm.run_str("foo");
 
         assert!(result.is_ok());
         assert_eq!(0, vm.cursor);
@@ -973,7 +976,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("foo");
+        let result = vm.run_str("foo");
 
         assert!(result.is_err());
         assert_eq!(Error::Fail, result.unwrap_err());
@@ -1006,7 +1009,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("c");
+        let result = vm.run_str("c");
 
         assert!(result.is_err());
         // currently shows the last error
@@ -1038,7 +1041,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("a");
+        let result = vm.run_str("a");
 
         assert!(result.is_ok());
         assert_eq!(1, vm.cursor);
@@ -1069,7 +1072,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("b");
+        let result = vm.run_str("b");
 
         assert!(result.is_ok());
         assert_eq!(1, vm.cursor);
@@ -1099,7 +1102,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("aab");
+        let result = vm.run_str("aab");
 
         assert!(result.is_ok());
         assert_eq!(2, vm.cursor);
@@ -1129,7 +1132,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("b");
+        let result = vm.run_str("b");
 
         assert!(result.is_ok());
         assert_eq!(0, vm.cursor);
@@ -1168,7 +1171,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("1+1");
+        let result = vm.run_str("1+1");
 
         assert!(result.is_ok());
         assert_eq!(3, vm.cursor);
@@ -1207,7 +1210,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("1+2");
+        let result = vm.run_str("1+2");
 
         assert!(result.is_err());
         assert_eq!(Error::Matching(2, "1".to_string()), result.unwrap_err());
@@ -1237,7 +1240,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("321");
+        let result = vm.run_str("321");
 
         assert!(result.is_err());
         // assert!(vm.cursor.is_err());
@@ -1269,7 +1272,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("n+n+n");
+        let result = vm.run_str("n+n+n");
 
         assert!(result.is_ok());
         assert_eq!(5, vm.cursor);
@@ -1309,7 +1312,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("0+1");
+        let result = vm.run_str("0+1");
 
         assert!(result.is_ok());
         assert_eq!(3, vm.cursor);
@@ -1356,7 +1359,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("0+1*1");
+        let result = vm.run_str("0+1*1");
 
         assert!(result.is_ok());
         assert_eq!(5, vm.cursor);
@@ -1390,7 +1393,7 @@ mod tests {
             ],
         };
         let mut vm = VM::new(program);
-        let result = vm.run("axyz");
+        let result = vm.run_str("axyz");
 
         assert!(result.is_err());
         assert_eq!(
@@ -1415,7 +1418,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("abacate");
+        let result = vm.run_str("abacate");
 
         assert_eq!(7, vm.cursor);
         assert!(result.is_ok());
@@ -1446,7 +1449,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("abacaxi");
+        let result = vm.run_str("abacaxi");
 
         assert!(result.is_err());
         assert_eq!(
@@ -1489,7 +1492,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("abada");
+        let result = vm.run_str("abada");
 
         assert_eq!(5, vm.cursor);
 
@@ -1537,7 +1540,7 @@ mod tests {
         };
 
         let mut vm = VM::new(program);
-        let result = vm.run("1");
+        let result = vm.run_str("1");
 
         assert_eq!(1, vm.cursor);
 

@@ -14,7 +14,7 @@ mod tests {
 
     fn run(program: vm::Program, input: &str) -> Option<vm::Value> {
         let mut machine = vm::VM::new(program);
-        match machine.run(input) {
+        match machine.run_str(input) {
             Ok(opt) => opt,
             Err(err) => panic!("Unexpected Error: {:?}", err),
         }

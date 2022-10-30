@@ -49,7 +49,7 @@ fn run_grammar_on_input_from_cmd() -> Result<(), std::io::Error> {
         }
     };
     let input_data = fs::read_to_string(input_file)?;
-    let mut m = vm::VM::new(program);
+    let mut m = vm::VM::new(&program);
     match m.run_str(&input_data) {
         Ok(Some(v)) => println!("{}", fmt(&v)),
         Ok(None) => println!("not much"),

@@ -85,7 +85,7 @@ fn shell() -> Result<(), ShellError> {
         line.pop();
 
         // run the line
-        let mut m = vm::VM::new(program.clone());
+        let mut m = vm::VM::new(&program);
         match m.run_str(&line) {
             Ok(Some(v)) => println!("{:#?}", v),
             Ok(None) => println!("not much"),

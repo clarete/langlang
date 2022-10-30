@@ -12,17 +12,15 @@ mod tests {
         program
     }
 
-    fn run(program: vm::Program, input: &str) -> Option<vm::Value> {
+    fn run(program: &vm::Program, input: &str) -> Option<vm::Value> {
         let mut machine = vm::VM::new(program);
-        match machine.run_str(input) {
-            Ok(opt) => opt,
-            Err(err) => panic!("Unexpected Error: {:?}", err),
-        }
+        machine.run_str(input).expect("Unexpected")
     }
 
-    fn compile_and_run(cc: compiler::Config, grammar: &str, input: &str) -> Option<vm::Value> {
-        let program = compile(cc, grammar);
-        run(program, input)
+    fn cc_run(cc: compiler::Config, grammar: &str, input: &str) -> Option<vm::Value> {
+        let prog = compile(cc, grammar);
+        let mut machine = vm::VM::new(&prog);
+        machine.run_str(input).expect("Unexpected")
     }
 
     fn assert_success(expected: &str, value: Option<vm::Value>) {
@@ -33,105 +31,99 @@ mod tests {
     #[test]
     fn test_char() {
         let cc = compiler::Config::default();
-        let value = compile_and_run(cc, "A <- 'a'", "a");
-        assert_success("A[a]", value);
+        assert_success("A[a]", cc_run(cc, "A <- 'a'", "a"));
     }
 
     #[test]
     fn test_not_0() {
         let cc = compiler::Config::o0();
-        let value = compile_and_run(cc, "A <- (!('a' / 'b') .)", "c");
-        assert_success("A[c]", value);
+        assert_success("A[c]", cc_run(cc, "A <- (!('a' / 'b') .)", "c"));
     }
 
     #[test]
     fn test_not_opt() {
         let cc = compiler::Config::o1();
-        let value = compile_and_run(cc, "A <- (!('a' / 'b') .)", "c");
-        assert_success("A[c]", value);
+        assert_success("A[c]", cc_run(cc, "A <- (!('a' / 'b') .)", "c"));
     }
 
     #[test]
     fn test_and_0() {
         let cc = compiler::Config::o0();
-        let value = compile_and_run(cc, "A <- (&('a' / 'b') .)", "a");
-        assert_success("A[a]", value);
+        assert_success("A[a]", cc_run(cc, "A <- (&('a' / 'b') .)", "a"));
     }
 
     #[test]
     fn test_and_opt() {
         let cc = compiler::Config::o1();
-        let value = compile_and_run(cc, "A <- &'a' .", "a");
-        assert_success("A[a]", value);
+        assert_success("A[a]", cc_run(cc, "A <- &'a' .", "a"));
     }
 
     #[test]
     fn test_choice_within_repeat() {
         let cc = compiler::Config::o0();
-        let value = compile_and_run(cc, "A <- ('abacate' / 'abada')+", "abada");
-        assert_success("A[abada]", value);
+        assert_success(
+            "A[abada]",
+            cc_run(cc, "A <- ('abacate' / 'abada')+", "abada"),
+        );
     }
 
     #[test]
     fn test_star_0() {
         let cc = compiler::Config::o0();
-        let value = compile_and_run(cc, "A <- .*", "abab");
-        assert_success("A[abab]", value);
+        assert_success("A[abab]", cc_run(cc, "A <- .*", "abab"));
     }
 
     #[test]
     fn test_star_opt() {
         let cc = compiler::Config::o1();
-        let value = compile_and_run(cc, "A <- .*", "abab");
-        assert_success("A[abab]", value);
+        assert_success("A[abab]", cc_run(cc, "A <- .*", "abab"));
     }
 
     #[test]
     fn test_var0() {
         let cc = compiler::Config::default();
-        let value = compile_and_run(cc, "A <- '1' '1'", "11");
-        assert_success("A[11]", value);
+        assert_success("A[11]", cc_run(cc, "A <- '1' '1'", "11"));
     }
 
     #[test]
     fn test_var_ending_with_zero_or_more() {
         let cc = compiler::Config::default();
         let program = compile(cc, "A <- '1'+");
-        assert_success("A[111]", run(program.clone(), "111"));
-        assert_success("A[11]", run(program.clone(), "11"));
-        assert_success("A[1]", run(program.clone(), "1"));
+        assert_success("A[111]", run(&program, "111"));
+        assert_success("A[11]", run(&program, "11"));
+        assert_success("A[1]", run(&program, "1"));
     }
 
     #[test]
     fn test_var_ending_with_option() {
         let cc = compiler::Config::default();
         let program = compile(cc, "A <- '1' '1'?");
-        assert_success("A[11]", run(program.clone(), "11"));
-        assert_success("A[1]", run(program.clone(), "1"));
+        assert_success("A[11]", run(&program, "11"));
+        assert_success("A[1]", run(&program, "1"));
     }
 
     #[test]
     fn test_lr0() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::default();
         let program = compile(cc, "E <- E '+n' / 'n'");
-        assert_success("E[n]", run(program.clone(), "n"));
-        assert_success("E[E[n]+n]", run(program.clone(), "n+n"));
-        assert_success("E[E[E[n]+n]+n]", run(program, "n+n+n"));
+        assert_success("E[n]", run(&program, "n"));
+        assert_success("E[E[n]+n]", run(&program, "n+n"));
+        assert_success("E[E[E[n]+n]+n]", run(&program, "n+n+n"));
     }
 
     #[test]
     fn test_lr1() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::default();
         let program = compile(cc, "E <- E '+' E / 'n'+");
-        assert_success("E[n]", run(program.clone(), "n"));
-        assert_success("E[E[n]+E[n]]", run(program.clone(), "n+n"));
-        assert_success("E[E[n]+E[E[n]+E[n]]]", run(program.clone(), "n+n+n"));
-        assert_success("E[E[n]+E[E[n]+E[E[n]+E[n]]]]", run(program, "n+n+n+n"));
+        assert_success("E[n]", run(&program, "n"));
+        assert_success("E[E[n]+E[n]]", run(&program, "n+n"));
+        assert_success("E[E[n]+E[E[n]+E[n]]]", run(&program, "n+n+n"));
+        assert_success("E[E[n]+E[E[n]+E[E[n]+E[n]]]]", run(&program, "n+n+n+n"));
     }
 
     #[test]
     fn test_lr2() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::default();
         let program = compile(
             cc,
             "
@@ -139,15 +131,15 @@ mod tests {
              M <- M '-n' / 'n'
             ",
         );
-        assert_success("E[M[n]]", run(program.clone(), "n"));
-        assert_success("E[M[M[n]-n]]", run(program.clone(), "n-n"));
-        assert_success("E[M[M[M[n]-n]-n]]", run(program.clone(), "n-n-n"));
-        assert_success("E[M[n]+E[M[n]+E[M[n]]]]", run(program.clone(), "n+n+n"));
+        assert_success("E[M[n]]", run(&program, "n"));
+        assert_success("E[M[M[n]-n]]", run(&program, "n-n"));
+        assert_success("E[M[M[M[n]-n]-n]]", run(&program, "n-n-n"));
+        assert_success("E[M[n]+E[M[n]+E[M[n]]]]", run(&program, "n+n+n"));
     }
 
     #[test]
     fn test_lr3() {
-        let cc = compiler::Config::o1();
+        let cc = compiler::Config::default();
         let program = compile(
             cc,
             "
@@ -160,20 +152,20 @@ mod tests {
         );
         // Right associative, as E is both left and right recursive,
         // without precedence
-        assert_success("E[n]", run(program.clone(), "n"));
-        assert_success("E[E[n]+E[n]]", run(program.clone(), "n+n"));
-        assert_success("E[E[n]+E[E[n]+E[n]]]", run(program.clone(), "n+n+n"));
-        assert_success("E[E[n]-E[n]]", run(program.clone(), "n-n"));
-        assert_success("E[E[n]-E[E[n]-E[n]]]", run(program.clone(), "n-n-n"));
-        assert_success("E[E[n]*E[n]]", run(program.clone(), "n*n"));
-        assert_success("E[E[n]*E[E[n]*E[n]]]", run(program.clone(), "n*n*n"));
-        assert_success("E[E[n]/E[n]]", run(program.clone(), "n/n"));
-        assert_success("E[E[n]/E[E[n]/E[n]]]", run(program.clone(), "n/n/n"));
-        assert_success("E[E[n]-E[E[n]+E[n]]]", run(program.clone(), "n-n+n"));
-        assert_success("E[E[n]+E[E[n]-E[n]]]", run(program.clone(), "n+n-n"));
-        assert_success("E[E[n]+E[E[n]*E[n]]]", run(program.clone(), "n+n*n"));
-        assert_success("E[E[n]*E[E[n]+E[n]]]", run(program.clone(), "n*n+n"));
-        assert_success("E[E[n]/E[E[n]+E[n]]]", run(program.clone(), "n/n+n"));
+        assert_success("E[n]", run(&program, "n"));
+        assert_success("E[E[n]+E[n]]", run(&program, "n+n"));
+        assert_success("E[E[n]+E[E[n]+E[n]]]", run(&program, "n+n+n"));
+        assert_success("E[E[n]-E[n]]", run(&program, "n-n"));
+        assert_success("E[E[n]-E[E[n]-E[n]]]", run(&program, "n-n-n"));
+        assert_success("E[E[n]*E[n]]", run(&program, "n*n"));
+        assert_success("E[E[n]*E[E[n]*E[n]]]", run(&program, "n*n*n"));
+        assert_success("E[E[n]/E[n]]", run(&program, "n/n"));
+        assert_success("E[E[n]/E[E[n]/E[n]]]", run(&program, "n/n/n"));
+        assert_success("E[E[n]-E[E[n]+E[n]]]", run(&program, "n-n+n"));
+        assert_success("E[E[n]+E[E[n]-E[n]]]", run(&program, "n+n-n"));
+        assert_success("E[E[n]+E[E[n]*E[n]]]", run(&program, "n+n*n"));
+        assert_success("E[E[n]*E[E[n]+E[n]]]", run(&program, "n*n+n"));
+        assert_success("E[E[n]/E[E[n]+E[n]]]", run(&program, "n/n+n"));
     }
 
     #[test]
@@ -193,36 +185,35 @@ mod tests {
         );
 
         // left associative with different precedences
-        assert_success("E[21]", run(program.clone(), "21"));
-        assert_success("E[E[3]+E[5]]", run(program.clone(), "3+5"));
-        assert_success("E[E[3]-E[5]]", run(program.clone(), "3-5"));
+        assert_success("E[21]", run(&program, "21"));
+        assert_success("E[E[3]+E[5]]", run(&program, "3+5"));
+        assert_success("E[E[3]-E[5]]", run(&program, "3-5"));
         // same precedence between addition (+) and subtraction (-)
-        assert_success("E[E[E[3]-E[5]]+E[2]]", run(program.clone(), "3-5+2"));
-        assert_success("E[E[E[3]+E[5]]-E[2]]", run(program.clone(), "3+5-2"));
+        assert_success("E[E[E[3]-E[5]]+E[2]]", run(&program, "3-5+2"));
+        assert_success("E[E[E[3]+E[5]]-E[2]]", run(&program, "3+5-2"));
         // higher precedence for multiplication (*) over addition (+) and subtraction (-)
-        assert_success("E[E[3]+E[E[5]*E[2]]]", run(program.clone(), "3+5*2"));
-        assert_success("E[E[E[5]*E[2]]-E[3]]", run(program.clone(), "5*2-3"));
-        assert_success(
-            "E[E[E[E[1]*E[5]]*E[2]]+E[3]]",
-            run(program.clone(), "1*5*2+3"),
-        );
+        assert_success("E[E[3]+E[E[5]*E[2]]]", run(&program, "3+5*2"));
+        assert_success("E[E[E[5]*E[2]]-E[3]]", run(&program, "5*2-3"));
+        assert_success("E[E[E[E[1]*E[5]]*E[2]]+E[3]]", run(&program, "1*5*2+3"));
         // unary operator
-        assert_success("E[-E[1]]", run(program.clone(), "-1"));
+        assert_success("E[-E[1]]", run(&program, "-1"));
         // highest precedence parenthesis
-        assert_success("E[E[(E[E[3]+E[5]])]*E[2]]", run(program.clone(), "(3+5)*2"));
+        assert_success("E[E[(E[E[3]+E[5]])]*E[2]]", run(&program, "(3+5)*2"));
     }
 
     #[test]
     fn test_lr5() {
-        let cc = compiler::Config::o1();
-        let value = compile_and_run(
-            cc,
-            "
-             L <- P '.x' / 'x'
-             P <- P '(n)' / L
-            ",
-            "x(n)(n).x(n).x",
+        let cc = compiler::Config::default();
+        assert_success(
+            "L[xP[L[P[P[(n)](n)]]].xP[L[P[(n)]]].x]",
+            cc_run(
+                cc,
+                "
+                L <- P '.x' / 'x'
+                P <- P '(n)' / L
+                ",
+                "x(n)(n).x(n).x",
+            ),
         );
-        assert_success("L[xP[L[P[P[(n)](n)]]].xP[L[P[(n)]]].x]", value);
     }
 }

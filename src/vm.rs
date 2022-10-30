@@ -250,13 +250,13 @@ struct LeftRecTableEntry {
 }
 
 #[derive(Debug)]
-pub struct VM {
+pub struct VM<'a> {
     // Cursor position at the input
     cursor: usize,
     // Farther Failure Position
     ffp: usize,
     // Vector of instructions and tables with literal values
-    program: Program,
+    program: &'a Program,
     // Cursor within the program
     program_counter: usize,
     // Stack of both backtrack and call frames
@@ -271,12 +271,12 @@ pub struct VM {
     within_predicate: bool,
 }
 
-impl VM {
-    pub fn new(program: Program) -> Self {
+impl<'a> VM<'a> {
+    pub fn new(program: &'a Program) -> Self {
         VM {
+            program,
             ffp: 0,
             cursor: 0,
-            program,
             program_counter: 0,
             stack: vec![],
             call_frames: vec![],
@@ -774,7 +774,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("a");
 
         assert!(result.is_ok());
@@ -802,7 +802,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("b");
 
         assert!(result.is_err());
@@ -830,7 +830,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("a");
 
         assert!(result.is_ok());
@@ -858,7 +858,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("9");
 
         assert!(result.is_err());
@@ -886,7 +886,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("abcd");
 
         assert!(result.is_ok());
@@ -912,7 +912,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("");
 
         assert!(result.is_err());
@@ -944,7 +944,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("foo");
 
         assert!(result.is_ok());
@@ -975,7 +975,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("foo");
 
         assert!(result.is_err());
@@ -1008,7 +1008,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("c");
 
         assert!(result.is_err());
@@ -1040,7 +1040,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("a");
 
         assert!(result.is_ok());
@@ -1071,7 +1071,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("b");
 
         assert!(result.is_ok());
@@ -1101,7 +1101,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("aab");
 
         assert!(result.is_ok());
@@ -1131,7 +1131,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("b");
 
         assert!(result.is_ok());
@@ -1170,7 +1170,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("1+1");
 
         assert!(result.is_ok());
@@ -1209,7 +1209,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("1+2");
 
         assert!(result.is_err());
@@ -1239,7 +1239,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("321");
 
         assert!(result.is_err());
@@ -1271,7 +1271,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("n+n+n");
 
         assert!(result.is_ok());
@@ -1311,7 +1311,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("0+1");
 
         assert!(result.is_ok());
@@ -1358,7 +1358,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("0+1*1");
 
         assert!(result.is_ok());
@@ -1392,7 +1392,7 @@ mod tests {
                 Instruction::Return,
             ],
         };
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("axyz");
 
         assert!(result.is_err());
@@ -1417,7 +1417,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("abacate");
 
         assert_eq!(7, vm.cursor);
@@ -1448,7 +1448,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("abacaxi");
 
         assert!(result.is_err());
@@ -1491,7 +1491,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("abada");
 
         assert_eq!(5, vm.cursor);
@@ -1539,7 +1539,7 @@ mod tests {
             ],
         };
 
-        let mut vm = VM::new(program);
+        let mut vm = VM::new(&program);
         let result = vm.run_str("1");
 
         assert_eq!(1, vm.cursor);

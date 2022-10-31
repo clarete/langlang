@@ -159,7 +159,7 @@ impl Compiler {
                 }
             }
         }
-        let main = &self.strings[self.identifiers[&(2 as usize)]];
+        let main = &self.strings[self.identifiers[&2_usize]];
         if self.left_rec[main] {
             self.code[0] = match self.code[0] {
                 vm::Instruction::Call(..) => vm::Instruction::Call(2, 1),
@@ -337,7 +337,12 @@ impl Compiler {
                 };
                 Ok(())
             }
-            AST::List(..) => {
+            AST::List(items) => {
+                self.emit(vm::Instruction::Open);
+                for i in items {
+                    self.compile_node(i)?;
+                }
+                self.emit(vm::Instruction::Close);
                 Ok(())
             }
             AST::Range(a, b) => {
@@ -409,7 +414,7 @@ impl<'a> DetectLeftRec<'a> {
                         }
                         r => {
                             return Err(Error::Semantic(
-                                format!("Expected Definition rule, not {:#?}", r).to_string(),
+                                format!("Expected Definition rule, not {:#?}", r),
                             ))
                         }
                     }
@@ -417,7 +422,7 @@ impl<'a> DetectLeftRec<'a> {
             }
             r => {
                 return Err(Error::Semantic(
-                    format!("Expected Grammar rule, not {:#?}", r).to_string(),
+                    format!("Expected Grammar rule, not {:#?}", r),
                 ))
             }
         }
@@ -442,7 +447,7 @@ impl<'a> DetectLeftRec<'a> {
                 }
                 if n != name {
                     self.stack.push(n);
-                    let r = self.is_left_recursive(name, &rules[n], rules);
+                    let r = self.is_left_recursive(name, rules[n], rules);
                     self.stack.pop();
                     return r;
                 }

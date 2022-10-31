@@ -42,6 +42,8 @@ pub enum Instruction {
     CallB(usize, usize),
     Return,
     Throw(usize),
+    Open,
+    Close,
     CapPush,
     CapPop,
     CapCommit,
@@ -68,6 +70,8 @@ impl std::fmt::Display for Instruction {
             Instruction::Throw(label) => write!(f, "throw {:?}", label),
             Instruction::Call(addr, k) => write!(f, "call {:?} {:?}", addr, k),
             Instruction::CallB(addr, k) => write!(f, "callb {:?} {:?}", addr, k),
+            Instruction::Open => write!(f, "open"),
+            Instruction::Close => write!(f, "close"),
             Instruction::CapPush => write!(f, "cappush"),
             Instruction::CapPop => write!(f, "cappop"),
             Instruction::CapCommit => write!(f, "capcommit"),
@@ -171,6 +175,7 @@ impl std::fmt::Display for Program {
 enum StackFrameType {
     Backtrack,
     Call,
+    List,
 }
 
 #[derive(Debug)]
@@ -182,6 +187,7 @@ struct StackFrame {
     address: usize,               // pc+l
     precedence: usize,            // k
     predicate: bool,
+    list: Option<Vec<Value>>,
 }
 
 impl StackFrame {
@@ -195,6 +201,7 @@ impl StackFrame {
             address: 0,
             precedence: 0,
             result: Ok(0),
+            list: None,
         }
     }
 
@@ -205,6 +212,7 @@ impl StackFrame {
             cursor: 0,
             result: Err(Error::Fail),
             predicate: false,
+            list: None,
             address,
             precedence,
         }
@@ -216,9 +224,24 @@ impl StackFrame {
             program_counter: pc,
             result: Err(Error::LeftRec),
             predicate: false,
+            list: None,
             cursor,
             address,
             precedence,
+        }
+    }
+
+    fn new_list(cursor: usize, pc: usize, list: Vec<Value>) -> Self {
+        StackFrame {
+            ftype: StackFrameType::List,
+            program_counter: pc,
+            cursor,
+            list: Some(list),
+            // fields not used for list frames
+            predicate: false,
+            address: 0,
+            precedence: 0,
+            result: Ok(0),
         }
     }
 }
@@ -359,18 +382,17 @@ impl<'a> VM<'a> {
         Ok(())
     }
 
-    fn capture_flatten(&mut self, name: &str, children: Vec<Value>) -> Result<(), Error> {
+    fn capture_flatten(&mut self, address: usize, children: Vec<Value>) -> Result<(), Error> {
+        let name = self.program.identifier(address);
         match &children[..] {
             [] => {}
-            [Value::Node {
-                name: n,
-                children: _,
-            }] if *n == name => {
+            [Value::List(ch)] if ch.len() == 2 && ch[0] == Value::Str(name) => {
                 self.capture(children[0].clone())?;
             }
             _ => {
-                let name = name.to_string();
-                self.capture(Value::Node { name, children })?;
+                let name = self.program.identifier(address);
+                let items = vec![Value::Str(name), Value::List(children)];
+                self.capture(Value::List(items))?;
             }
         }
         Ok(())
@@ -390,25 +412,29 @@ impl<'a> VM<'a> {
     // evaluation
 
     pub fn run_str(&mut self, input: &str) -> Result<Option<Value>, Error> {
-        let source = input.chars().map(|c| Value::Chr(c)).collect::<Vec<Value>>();
+        let source = input.chars().map(Value::Chr).collect::<Vec<Value>>();
         self.run(source)
     }
 
-    pub fn run(&mut self, source: Vec<Value>) -> Result<Option<Value>, Error> {
+    pub fn run(&mut self, input: Vec<Value>) -> Result<Option<Value>, Error> {
+        let mut source = input;
         self.capstkpush();
         loop {
             self.dbg_instruction();
-            let cursor = self.cursor;
             match self.program.code[self.program_counter] {
                 Instruction::Halt => break,
                 Instruction::CapPush => {
                     self.program_counter += 1;
-                    self.capstkpush();
+                    if !self.within_predicate {
+                        self.capstkpush();
+                    }
                 }
                 Instruction::CapPop => {
                     self.program_counter += 1;
-                    for c in self.capstkpop()?.values {
-                        self.capture(c)?;
+                    if !self.within_predicate {
+                        for c in self.capstkpop()?.values {
+                            self.capture(c)?;
+                        }
                     }
                 }
                 Instruction::CapCommit => {
@@ -417,20 +443,20 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Any => {
                     self.program_counter += 1;
-                    if cursor >= source.len() {
+                    if self.cursor >= source.len() {
                         self.fail(Error::EOF)?;
                     } else {
-                        self.capture(source[cursor].clone())?;
+                        self.capture(source[self.cursor].clone())?;
                         self.advance_cursor()?;
                     }
                 }
                 Instruction::Char(expected) => {
                     self.program_counter += 1;
-                    if cursor >= source.len() {
+                    if self.cursor >= source.len() {
                         self.fail(Error::EOF)?;
                         continue;
                     }
-                    let current = &source[cursor];
+                    let current = &source[self.cursor];
                     if current != &Value::Chr(expected) {
                         self.fail(Error::Matching(self.ffp, expected.to_string()))?;
                         continue;
@@ -440,11 +466,11 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Span(start, end) => {
                     self.program_counter += 1;
-                    if cursor >= source.len() {
+                    if self.cursor >= source.len() {
                         self.fail(Error::EOF)?;
                         continue;
                     }
-                    let current = &source[cursor];
+                    let current = &source[self.cursor];
                     if current >= &Value::Chr(start) && current <= &Value::Chr(end) {
                         self.capture(current.clone())?;
                         self.advance_cursor()?;
@@ -456,12 +482,11 @@ impl<'a> VM<'a> {
                     self.program_counter += 1;
                     let s = self.program.string_at(id);
                     let mut matches = 0;
-                    for (i, expected) in s.chars().enumerate() {
-                        let local_cursor = cursor + i;
-                        if local_cursor >= source.len() {
+                    for expected in s.chars() {
+                        if self.cursor >= source.len() {
                             break;
                         }
-                        let current = &source[local_cursor];
+                        let current = &source[self.cursor];
                         if current == &Value::Chr(expected) {
                             self.advance_cursor()?;
                             matches += 1;
@@ -475,7 +500,7 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Choice(offset) => {
                     self.stkpush(StackFrame::new_backtrack(
-                        cursor,
+                        self.cursor,
                         self.program_counter + offset,
                         false,
                     ));
@@ -483,7 +508,7 @@ impl<'a> VM<'a> {
                 }
                 Instruction::ChoiceP(offset) => {
                     self.stkpush(StackFrame::new_backtrack(
-                        cursor,
+                        self.cursor,
                         self.program_counter + offset,
                         true,
                     ));
@@ -501,7 +526,7 @@ impl<'a> VM<'a> {
                 Instruction::PartialCommit(offset) => {
                     let idx = self.stack.len() - 1;
                     let mut f = &mut self.stack[idx];
-                    f.cursor = cursor;
+                    f.cursor = self.cursor;
                     // always subtracts: this opcode is currently only
                     // used when compiling the star operator (*),
                     // which always needs to send the program counter
@@ -543,6 +568,29 @@ impl<'a> VM<'a> {
                             Some(addr) => self.program_counter = *addr,
                         }
                     }
+                }
+                Instruction::Open => {
+                    self.program_counter += 1;
+                    match &source[self.cursor] {
+                        Value::List(ref items) => {
+                            self.capstkpush();
+                            self.stkpush(StackFrame::new_list(
+                                self.cursor,
+                                self.program_counter,
+                                source.to_vec(),
+                            ));
+                            source = items.to_vec();
+                        }
+                        _ => self.fail(Error::Matching(self.ffp, "Not a list".to_string()))?,
+                    }
+                }
+                Instruction::Close => {
+                    self.program_counter += 1;
+                    let capsframe = self.capstkpop()?;
+                    self.capture(Value::List(capsframe.values))?;
+                    let frame = self.stkpop()?;
+                    self.cursor = frame.cursor + 1;
+                    source = frame.list.ok_or(Error::Index)?;
                 }
             }
         }
@@ -596,11 +644,10 @@ impl<'a> VM<'a> {
                     self.dbg("- lvar.4");
                     self.program_counter += 1;
                     self.cursor = entry.cursor.clone()?;
-                    let name = self.program.identifier(address);
                     let frame = self.capstktop_mut()?;
                     let children: Vec<_> = frame.values.drain(..frame.index).collect();
                     frame.values.clear();
-                    self.capture_flatten(&name, children)?;
+                    self.capture_flatten(address, children)?;
                     self.commit_captures()?;
                 }
             }
@@ -620,7 +667,8 @@ impl<'a> VM<'a> {
             let children = self.capstkpop()?.values;
             if !children.is_empty() {
                 let name = self.program.identifier(address);
-                self.capture(Value::Node { name, children })?;
+                let items = vec![Value::Str(name), Value::List(children)];
+                self.capture(Value::List(items))?;
             }
             return Ok(());
         }
@@ -651,10 +699,9 @@ impl<'a> VM<'a> {
         self.lrmemo.remove(&key);
         let mut capframe = self.capstkpop()?;
         if capframe.index > 0 {
-            let name = self.program.identifier(address);
             let children: Vec<_> = capframe.values.drain(..capframe.index).collect();
             capframe.values.clear();
-            self.capture_flatten(&name, children)?;
+            self.capture_flatten(address, children)?;
         }
         self.dbg_captures()?;
         Ok(())
@@ -708,7 +755,7 @@ impl<'a> VM<'a> {
     fn dbg_instruction(&self) {
         #[cfg(debug_assertions)]
         self.dbg(&instruction_to_string(
-            &self.program,
+            self.program,
             &self.program.code[self.program_counter],
             self.program_counter,
         ));
@@ -1425,10 +1472,10 @@ mod tests {
         let r = result.unwrap();
         assert!(r.is_some());
         assert_eq!(
-            Value::Node {
-                name: "G".to_string(),
-                children: vec![Value::Str("abacate".to_string())],
-            },
+            Value::List(vec![
+                Value::Str("G".to_string()),
+                Value::List(vec![Value::Str("abacate".to_string()),]),
+            ]),
             r.unwrap()
         );
     }
@@ -1500,17 +1547,17 @@ mod tests {
         let r = result.unwrap();
         assert!(r.is_some());
         assert_eq!(
-            Value::Node {
-                name: "G".to_string(),
-                children: vec![
+            Value::List(vec![
+                Value::Str("G".to_string()),
+                Value::List(vec![
                     Value::Chr('a'),
                     Value::Chr('b'),
                     Value::Chr('a'),
                     Value::Chr('d'),
                     Value::Chr('a'),
-                ]
-            },
-            r.unwrap()
+                ])
+            ]),
+            r.unwrap(),
         );
     }
 
@@ -1548,13 +1595,13 @@ mod tests {
         let r = result.unwrap();
         assert!(r.is_some());
         assert_eq!(
-            Value::Node {
-                name: "G".to_string(),
-                children: vec![Value::Node {
-                    name: "D".to_string(),
-                    children: vec![Value::Chr('1')],
-                }],
-            },
+            Value::List(vec![
+                Value::Str("G".to_string()),
+                Value::List(vec![Value::List(vec![
+                    Value::Str("D".to_string()),
+                    Value::List(vec![Value::Chr('1'),]),
+                ]),]),
+            ]),
             r.unwrap(),
         );
     }

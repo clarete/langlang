@@ -216,4 +216,54 @@ mod tests {
             ),
         );
     }
+
+    #[test]
+    fn test_list_with_no_list() {
+        let cc = compiler::Config::default();
+        let program = compile(cc, "A <- { 'aba' }");
+        let result = vm::VM::new(&program).run(vec![
+            vm::Value::Chr('a'),
+            vm::Value::Chr('b'),
+            vm::Value::Chr('a'),
+        ]);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            vm::Error::Matching(0, "Not a list".to_string())
+        );
+    }
+
+    #[test]
+    fn test_list_0() {
+        let cc = compiler::Config::default();
+        let program = compile(cc, "A <- { 'aba' }");
+        let value = vm::VM::new(&program)
+            .run(vec![vm::Value::List(vec![
+                vm::Value::Chr('a'),
+                vm::Value::Chr('b'),
+                vm::Value::Chr('a'),
+            ])])
+            .unwrap();
+        assert_success("A[[aba]]", value);
+    }
+
+    #[test]
+    fn test_list_nested_0() {
+        let cc = compiler::Config::default();
+        let program = compile(cc, "A <- { { 'aba' } 'cate' }");
+        let value = vm::VM::new(&program)
+            .run(vec![vm::Value::List(vec![
+                vm::Value::List(vec![
+                    vm::Value::Chr('a'),
+                    vm::Value::Chr('b'),
+                    vm::Value::Chr('a'),
+                ]),
+                vm::Value::Chr('c'),
+                vm::Value::Chr('a'),
+                vm::Value::Chr('t'),
+                vm::Value::Chr('e'),
+            ])])
+            .unwrap();
+        assert_success("A[[[aba]cate]]", value);
+    }
 }

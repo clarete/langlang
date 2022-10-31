@@ -11,14 +11,24 @@ pub fn value_fmt1(value: &Value) -> String {
     match value {
         Value::Chr(v) => s.push(*v),
         Value::Str(v) => s.push_str(v),
-        Value::Node { name, children } => {
-            s.push_str(name);
-            s.push('[');
-            for c in children {
-                s.push_str(value_fmt1(c).as_str())
+        Value::List(items) => match &items[..] {
+            [] => s.push_str("[]"),
+            [Value::Str(name), Value::List(children)] => {
+                s.push_str(name);
+                s.push('[');
+                for c in children {
+                    s.push_str(value_fmt1(c).as_str())
+                }
+                s.push(']');
             }
-            s.push(']');
-        }
+            children => {
+                s.push('[');
+                for c in children {
+                    s.push_str(value_fmt1(c).as_str())
+                }
+                s.push(']');
+            }
+        },
     }
     s
 }
@@ -44,23 +54,34 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 s.push_str(format!(r"{:#?}", v).as_str());
             }
-            Value::Node { name, children } => {
+            Value::List(items) => {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
-                s.push_str(name);
-                s.push_str(" {");
-                if !children.is_empty() {
-                    s.push('\n');
-                    for (i, c) in children.iter().enumerate() {
-                        s.push_str(f(c, indent + 1).as_str());
-                        if i < children.len() {
+                match &items[..] {
+                    [] => s.push('{'),
+                    [Value::Str(name), Value::List(children)] => {
+                        s.push_str(name);
+                        s.push_str(" {");
+                        if !children.is_empty() {
                             s.push('\n');
+                            for (i, c) in children.iter().enumerate() {
+                                s.push_str(f(c, indent + 1).as_str());
+                                if i < children.len() {
+                                    s.push('\n');
+                                }
+                            }
                         }
                     }
-                    for _ in 0..indent {
-                        s.push_str("    ");
+                    children => {
+                        s.push('{');
+                        for c in children {
+                            s.push_str(f(c, indent + 1).as_str())
+                        }
                     }
+                }
+                for _ in 0..indent {
+                    s.push_str("    ");
                 }
                 s.push('}');
             }

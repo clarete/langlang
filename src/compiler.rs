@@ -369,7 +369,7 @@ impl Compiler {
     /// Push `instruction` into the internal code vector and increment
     /// the cursor that points at the next instruction
     fn emit(&mut self, instruction: vm::Instruction) {
-        self.prt(format!("emit {:?} {:?}", self.cursor, instruction).as_str());
+        self.prt(&format!("emit {:?} {:?}", self.cursor, instruction));
         self.code.push(instruction);
         self.cursor += 1;
     }

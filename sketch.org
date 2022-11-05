@@ -10,19 +10,23 @@
    * [X] Compile labeled failures
    * [X] define precedence for left recursive calls
    * [X] compile non-left recursive rules with zero precedence
+   * [ ] don't emit capture instructions in match-only
+   * [ ] selective capture mode, input grammar defines captures
    * [ ] first and follows set for error synchronization
    * [ ] error recovery expression generation
 ** VM
-   - [X] original PEG semantics
-   - [X] error reporting with labels
-   - [X] left recursion
-   - [X] value captures
-   - [-] error recovery: work in progress
-   - [ ] match data structures
-   - [ ] parameterized rules?
-   - [ ] higher-order rules?
-   - [ ] semantic actions?
-   - [ ] packages and import system?
+   * [X] original PEG semantics
+   * [X] error reporting with labels
+   * [X] left recursion
+   * [X] match data structures
+   * [X] value captures: captures all values, no opting out
+   * [ ] match-only mode, where captures are disabled
+   * [ ] selective capture mode, input grammar defines captures
+   * [-] error recovery: work in progress
+   * [ ] parameterized rules?
+   * [ ] higher-order rules?
+   * [ ] semantic actions?
+   * [ ] packages and import system?
 ** Standard Library
    * [X] ABNF (RFC-5234)
    * [ ] C
@@ -128,6 +132,16 @@
    surrounded by a pair of ~CapPush~ and ~CapPop~ instructions, and
    have a ~CapCommit~ instruction that executes after the whole
    operation is done, upon (handled) failure or success.
+
+   Not implemented yet:
+
+   1. Match-only mode: Captures are disabled within the virtual
+      machine.  It will also be nice to tweak the compiler to not emit
+      ~Cap*~ instructions.
+
+   2. Selective capture mode: No values are captured by default.
+      Maybe the input PEG grammar can contain marks that delimit how
+      values are captured.
 
 ** Error Handling
 

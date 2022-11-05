@@ -481,21 +481,24 @@ impl<'a> VM<'a> {
                 Instruction::Str(id) => {
                     self.program_counter += 1;
                     let s = self.program.string_at(id);
-                    let mut matches = 0;
-                    for expected in s.chars() {
-                        if self.cursor >= source.len() {
-                            break;
+                    let count = s.chars().count();
+                    if count > 0 {
+                        let mut matches = 0;
+                        for expected in s.chars() {
+                            if self.cursor >= source.len() {
+                                break;
+                            }
+                            let current = &source[self.cursor];
+                            if current == &Value::Chr(expected) {
+                                self.advance_cursor()?;
+                                matches += 1;
+                            }
                         }
-                        let current = &source[self.cursor];
-                        if current == &Value::Chr(expected) {
-                            self.advance_cursor()?;
-                            matches += 1;
+                        if matches == count {
+                            self.capture(Value::Str(s))?;
+                        } else {
+                            self.fail(Error::Matching(self.ffp, s))?;
                         }
-                    }
-                    if matches == s.len() {
-                        self.capture(Value::Str(s))?;
-                    } else {
-                        self.fail(Error::Matching(self.ffp, s))?;
                     }
                 }
                 Instruction::Choice(offset) => {

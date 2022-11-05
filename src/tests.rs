@@ -29,6 +29,12 @@ mod tests {
     }
 
     #[test]
+    fn test_empty() {
+        let cc = compiler::Config::default();
+        assert!(cc_run(&cc, "A <- ''", "").is_none());
+    }
+
+    #[test]
     fn test_char() {
         let cc = compiler::Config::default();
         assert_success("A[a]", cc_run(&cc, "A <- 'a'", "a"));
@@ -100,6 +106,15 @@ mod tests {
         let program = compile(&cc, "A <- '1' '1'?");
         assert_success("A[11]", run(&program, "11"));
         assert_success("A[1]", run(&program, "1"));
+    }
+
+    // -- Unicode --------------------------------------------------------------
+
+    #[test]
+    fn test_unicode_0() {
+        let cc = compiler::Config::default();
+        assert_success("A[♡]", cc_run(&cc, "A <- [♡]", "♡"));
+        assert_success("A[♡]", cc_run(&cc, "A <- '♡'", "♡"));
     }
 
     // -- Left Recursion -------------------------------------------------------

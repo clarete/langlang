@@ -3,10 +3,10 @@ mod tests {
     use crate::{compiler, format, parser, vm};
     use log::debug;
 
-    fn compile(cc: compiler::Config, grammar: &str) -> vm::Program {
+    fn compile(cc: &compiler::Config, grammar: &str) -> vm::Program {
         let mut p = parser::Parser::new(grammar);
         let ast = p.parse().unwrap();
-        let mut c = compiler::Compiler::new(cc);
+        let mut c = compiler::Compiler::new(cc.clone());
         let program = c.compile(ast).unwrap();
         debug!("p: {}", program);
         program
@@ -17,7 +17,7 @@ mod tests {
         machine.run_str(input).expect("Unexpected")
     }
 
-    fn cc_run(cc: compiler::Config, grammar: &str, input: &str) -> Option<vm::Value> {
+    fn cc_run(cc: &compiler::Config, grammar: &str, input: &str) -> Option<vm::Value> {
         let prog = compile(cc, grammar);
         let mut machine = vm::VM::new(&prog);
         machine.run_str(input).expect("Unexpected")
@@ -31,31 +31,31 @@ mod tests {
     #[test]
     fn test_char() {
         let cc = compiler::Config::default();
-        assert_success("A[a]", cc_run(cc, "A <- 'a'", "a"));
+        assert_success("A[a]", cc_run(&cc, "A <- 'a'", "a"));
     }
 
     #[test]
     fn test_not_0() {
         let cc = compiler::Config::o0();
-        assert_success("A[c]", cc_run(cc, "A <- (!('a' / 'b') .)", "c"));
+        assert_success("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
     }
 
     #[test]
     fn test_not_opt() {
         let cc = compiler::Config::o1();
-        assert_success("A[c]", cc_run(cc, "A <- (!('a' / 'b') .)", "c"));
+        assert_success("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
     }
 
     #[test]
     fn test_and_0() {
         let cc = compiler::Config::o0();
-        assert_success("A[a]", cc_run(cc, "A <- (&('a' / 'b') .)", "a"));
+        assert_success("A[a]", cc_run(&cc, "A <- (&('a' / 'b') .)", "a"));
     }
 
     #[test]
     fn test_and_opt() {
         let cc = compiler::Config::o1();
-        assert_success("A[a]", cc_run(cc, "A <- &'a' .", "a"));
+        assert_success("A[a]", cc_run(&cc, "A <- &'a' .", "a"));
     }
 
     #[test]
@@ -63,32 +63,32 @@ mod tests {
         let cc = compiler::Config::o0();
         assert_success(
             "A[abada]",
-            cc_run(cc, "A <- ('abacate' / 'abada')+", "abada"),
+            cc_run(&cc, "A <- ('abacate' / 'abada')+", "abada"),
         );
     }
 
     #[test]
     fn test_star_0() {
         let cc = compiler::Config::o0();
-        assert_success("A[abab]", cc_run(cc, "A <- .*", "abab"));
+        assert_success("A[abab]", cc_run(&cc, "A <- .*", "abab"));
     }
 
     #[test]
     fn test_star_opt() {
         let cc = compiler::Config::o1();
-        assert_success("A[abab]", cc_run(cc, "A <- .*", "abab"));
+        assert_success("A[abab]", cc_run(&cc, "A <- .*", "abab"));
     }
 
     #[test]
     fn test_var0() {
         let cc = compiler::Config::default();
-        assert_success("A[11]", cc_run(cc, "A <- '1' '1'", "11"));
+        assert_success("A[11]", cc_run(&cc, "A <- '1' '1'", "11"));
     }
 
     #[test]
     fn test_var_ending_with_zero_or_more() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "A <- '1'+");
+        let program = compile(&cc, "A <- '1'+");
         assert_success("A[111]", run(&program, "111"));
         assert_success("A[11]", run(&program, "11"));
         assert_success("A[1]", run(&program, "1"));
@@ -97,15 +97,17 @@ mod tests {
     #[test]
     fn test_var_ending_with_option() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "A <- '1' '1'?");
+        let program = compile(&cc, "A <- '1' '1'?");
         assert_success("A[11]", run(&program, "11"));
         assert_success("A[1]", run(&program, "1"));
     }
 
+    // -- Left Recursion -------------------------------------------------------
+
     #[test]
     fn test_lr0() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "E <- E '+n' / 'n'");
+        let program = compile(&cc, "E <- E '+n' / 'n'");
         assert_success("E[n]", run(&program, "n"));
         assert_success("E[E[n]+n]", run(&program, "n+n"));
         assert_success("E[E[E[n]+n]+n]", run(&program, "n+n+n"));
@@ -114,7 +116,7 @@ mod tests {
     #[test]
     fn test_lr1() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "E <- E '+' E / 'n'+");
+        let program = compile(&cc, "E <- E '+' E / 'n'+");
         assert_success("E[n]", run(&program, "n"));
         assert_success("E[E[n]+E[n]]", run(&program, "n+n"));
         assert_success("E[E[n]+E[E[n]+E[n]]]", run(&program, "n+n+n"));
@@ -125,7 +127,7 @@ mod tests {
     fn test_lr2() {
         let cc = compiler::Config::default();
         let program = compile(
-            cc,
+            &cc,
             "
              E <- M '+' E / M
              M <- M '-n' / 'n'
@@ -141,7 +143,7 @@ mod tests {
     fn test_lr3() {
         let cc = compiler::Config::default();
         let program = compile(
-            cc,
+            &cc,
             "
              E <- E '+' E
                 / E '-' E
@@ -172,7 +174,7 @@ mod tests {
     fn test_lr4() {
         let cc = compiler::Config::default();
         let program = compile(
-            cc,
+            &cc,
             "
              E <- E¹ '+' E²
                 / E¹ '-' E²
@@ -207,7 +209,7 @@ mod tests {
         assert_success(
             "L[xP[L[P[P[(n)](n)]]].xP[L[P[(n)]]].x]",
             cc_run(
-                cc,
+                &cc,
                 "
                 L <- P '.x' / 'x'
                 P <- P '(n)' / L
@@ -217,10 +219,12 @@ mod tests {
         );
     }
 
+    // -- Lists ----------------------------------------------------------------
+
     #[test]
     fn test_list_with_no_list() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "A <- { 'aba' }");
+        let program = compile(&cc, "A <- { 'aba' }");
         let result = vm::VM::new(&program).run(vec![
             vm::Value::Chr('a'),
             vm::Value::Chr('b'),
@@ -236,7 +240,7 @@ mod tests {
     #[test]
     fn test_list_0() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "A <- { 'aba' }");
+        let program = compile(&cc, "A <- { 'aba' }");
         let value = vm::VM::new(&program)
             .run(vec![vm::Value::List(vec![
                 vm::Value::Chr('a'),
@@ -250,7 +254,7 @@ mod tests {
     #[test]
     fn test_list_nested_0() {
         let cc = compiler::Config::default();
-        let program = compile(cc, "A <- { { 'aba' } 'cate' }");
+        let program = compile(&cc, "A <- { { 'aba' } 'cate' }");
         let value = vm::VM::new(&program)
             .run(vec![vm::Value::List(vec![
                 vm::Value::List(vec![

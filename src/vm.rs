@@ -488,10 +488,16 @@ impl<'a> VM<'a> {
                             if self.cursor >= source.len() {
                                 break;
                             }
-                            let current = &source[self.cursor];
-                            if current == &Value::Chr(expected) {
-                                self.advance_cursor()?;
-                                matches += 1;
+                            match &source[self.cursor] {
+                                &Value::Chr(c) if c == expected => {
+                                    self.advance_cursor()?;
+                                    matches += 1;
+                                },
+                                &Value::Str(ref ss) if ss == &s => {
+                                    self.advance_cursor()?;
+                                    matches += count;
+                                }
+                                _ => {},
                             }
                         }
                         if matches == count {

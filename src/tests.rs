@@ -41,6 +41,15 @@ mod tests {
     }
 
     #[test]
+    fn test_str() {
+        let cc = compiler::Config::default();
+        let value = vm::VM::new(&compile(&cc, "A <- 'abada'"))
+            .run(vec![vm::Value::Str("abada".to_string())])
+            .unwrap();
+        assert_success("A[abada]", value);
+    }
+
+    #[test]
     fn test_not_0() {
         let cc = compiler::Config::o0();
         assert_success("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));

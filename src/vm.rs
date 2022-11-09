@@ -480,32 +480,35 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Str(id) => {
                     self.program_counter += 1;
-                    let s = self.program.string_at(id);
-                    let count = s.chars().count();
-                    if count > 0 {
-                        let mut matches = 0;
-                        for expected in s.chars() {
-                            if self.cursor >= source.len() {
-                                break;
-                            }
-                            match &source[self.cursor] {
-                                &Value::Chr(c) if c == expected => {
-                                    self.advance_cursor()?;
-                                    matches += 1;
-                                },
-                                &Value::Str(ref ss) if ss == &s => {
-                                    self.advance_cursor()?;
-                                    matches += count;
-                                }
-                                _ => {},
-                            }
-                        }
-                        if matches == count {
-                            self.capture(Value::Str(s))?;
-                        } else {
-                            self.fail(Error::Matching(self.ffp, s))?;
-                        }
+                    if self.cursor >= source.len() {
+                        self.fail(Error::EOF)?;
+                        continue;
                     }
+                    let s = self.program.string_at(id);
+                    if &source[self.cursor] == &Value::Str(s.clone()) {
+                        self.capture(Value::Str(s))?;
+                        self.advance_cursor()?;
+                        continue;
+                    }
+                    let (mut count, mut matches) = (0, 0);
+                    for c in s.chars() {
+                        count += 1;
+                        if self.cursor >= source.len() {
+                            self.fail(Error::EOF)?;
+                            break;
+                        }
+                        if &source[self.cursor] == &Value::Chr(c) {
+                            matches += 1;
+                            self.advance_cursor()?;
+                            continue;
+                        }
+                        break;
+                    }
+                    if count == matches {
+                        self.capture(Value::Str(s))?;
+                        continue;
+                    }
+                    self.fail(Error::Matching(self.ffp, s))?;
                 }
                 Instruction::Choice(offset) => {
                     self.stkpush(StackFrame::new_backtrack(
@@ -1512,6 +1515,28 @@ mod tests {
             Error::Matching(5, "abacate".to_string()),
             result.unwrap_err(),
         );
+    }
+
+    #[test]
+    fn str_3() {
+        let program = Program {
+            identifiers: [(2, 0)].iter().cloned().collect(),
+            labels: HashMap::new(),
+            recovery: HashMap::new(),
+            strings: vec!["G".to_string(), "abacate".to_string()],
+            code: vec![
+                Instruction::Call(2, 0),
+                Instruction::Halt,
+                Instruction::Str(1),
+                Instruction::Return,
+            ],
+        };
+
+        let mut vm = VM::new(&program);
+        let result = vm.run_str("a");
+
+        assert!(result.is_err());
+        assert_eq!(Error::EOF, result.unwrap_err());
     }
 
     #[test]

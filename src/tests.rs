@@ -29,12 +29,6 @@ mod tests {
     }
 
     #[test]
-    fn test_empty() {
-        let cc = compiler::Config::default();
-        assert!(cc_run(&cc, "A <- ''", "").is_none());
-    }
-
-    #[test]
     fn test_char() {
         let cc = compiler::Config::default();
         assert_success("A[a]", cc_run(&cc, "A <- 'a'", "a"));

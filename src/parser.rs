@@ -550,6 +550,23 @@ impl Parser {
     }
 }
 
+pub fn expand(ast: AST) -> Result<AST, Error> {
+    Ok(match ast {
+        AST::Grammar(definitions) => {
+            let defs = definitions
+                .into_iter()
+                .filter_map(|a| expand(a).ok())
+                .collect();
+            AST::Grammar(defs)
+        }
+        AST::Definition(name, expr) => AST::Definition(
+            name.clone(),
+            Box::new(AST::List(vec![AST::Str(name), AST::List(vec![*expr])])),
+        ),
+        n => n,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

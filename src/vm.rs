@@ -592,6 +592,7 @@ impl<'a> VM<'a> {
                                 source.to_vec(),
                             ));
                             source = items.to_vec();
+                            self.cursor = 0;
                         }
                         _ => self.fail(Error::Matching(self.ffp, "Not a list".to_string()))?,
                     }

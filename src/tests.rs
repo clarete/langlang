@@ -311,4 +311,28 @@ mod tests {
             vm::VM::new(&p).run(input_with_str).unwrap(),
         );
     }
+
+    // -- Expand Grammar -------------------------------------------------------
+
+    #[test]
+    fn test_expand_tree_0() -> Result<(), parser::Error> {
+        let cc = compiler::Config::default();
+
+        // Program that parses the initial input
+        let input_grammar = "A <- 'F'";
+        let program = compile(&cc, input_grammar);
+        let output = run(&program, "F");
+
+        // Program that parses the output obtained upon successful
+        // parsing with the initial program
+        let original_ast = parser::Parser::new(input_grammar).parse()?;
+        let rewrite = parser::expand(original_ast)?;
+        let mut c = compiler::Compiler::new(cc);
+        let list_program = c.compile(rewrite).unwrap();
+        let value = vm::VM::new(&list_program)
+            .run(vec![output.unwrap()])
+            .unwrap();
+        assert_success("A[A[F]]", value);
+        Ok(())
+    }
 }

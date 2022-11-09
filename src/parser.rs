@@ -568,9 +568,9 @@ mod tests {
                 "A".to_string(),
                 Box::new(AST::Choice(vec![
                     AST::Sequence(vec![
-                        AST::Precedence(Box::new(AST::Identifier("A".to_string(),)), 1),
+                        AST::Precedence(Box::new(AST::Identifier("A".to_string())), 1),
                         AST::Str("+".to_string()),
-                        AST::Precedence(Box::new(AST::Identifier("A".to_string(),)), 2),
+                        AST::Precedence(Box::new(AST::Identifier("A".to_string())), 2),
                     ]),
                     AST::Sequence(vec![AST::Str("n".to_string()),])
                 ])),

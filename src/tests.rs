@@ -103,6 +103,16 @@ mod tests {
     #[test]
     fn test_var_ending_with_zero_or_more() {
         let cc = compiler::Config::default();
+        let program = compile(&cc, "A <- '1'*");
+        assert_success("A[111]", run(&program, "111"));
+        assert_success("A[11]", run(&program, "11"));
+        assert_success("A[1]", run(&program, "1"));
+        assert!(run(&program, "").is_none())
+    }
+
+    #[test]
+    fn test_var_ending_with_one_or_more() {
+        let cc = compiler::Config::default();
         let program = compile(&cc, "A <- '1'+");
         assert_success("A[111]", run(&program, "111"));
         assert_success("A[11]", run(&program, "11"));

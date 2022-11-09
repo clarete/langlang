@@ -268,34 +268,47 @@ mod tests {
     #[test]
     fn test_list_0() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "A <- { 'aba' }");
-        let value = vm::VM::new(&program)
-            .run(vec![vm::Value::List(vec![
-                vm::Value::Chr('a'),
-                vm::Value::Chr('b'),
-                vm::Value::Chr('a'),
-            ])])
-            .unwrap();
-        assert_success("A[[aba]]", value);
+        let p = compile(&cc, "A <- { 'aba' }");
+
+        let input_with_chr = vec![vm::Value::List(vec![
+            vm::Value::Chr('a'),
+            vm::Value::Chr('b'),
+            vm::Value::Chr('a'),
+        ])];
+        assert_success("A[[aba]]", vm::VM::new(&p).run(input_with_chr).unwrap());
+
+        let input_with_str = vec![vm::Value::List(vec![vm::Value::Str("aba".to_string())])];
+        assert_success("A[[aba]]", vm::VM::new(&p).run(input_with_str).unwrap())
     }
 
     #[test]
     fn test_list_nested_0() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "A <- { { 'aba' } 'cate' }");
-        let value = vm::VM::new(&program)
-            .run(vec![vm::Value::List(vec![
-                vm::Value::List(vec![
-                    vm::Value::Chr('a'),
-                    vm::Value::Chr('b'),
-                    vm::Value::Chr('a'),
-                ]),
-                vm::Value::Chr('c'),
+        let p = compile(&cc, "A <- { { 'aba' } 'cate' }");
+
+        let input_with_chr = vec![vm::Value::List(vec![
+            vm::Value::List(vec![
                 vm::Value::Chr('a'),
-                vm::Value::Chr('t'),
-                vm::Value::Chr('e'),
-            ])])
-            .unwrap();
-        assert_success("A[[[aba]cate]]", value);
+                vm::Value::Chr('b'),
+                vm::Value::Chr('a'),
+            ]),
+            vm::Value::Chr('c'),
+            vm::Value::Chr('a'),
+            vm::Value::Chr('t'),
+            vm::Value::Chr('e'),
+        ])];
+        assert_success(
+            "A[[[aba]cate]]",
+            vm::VM::new(&p).run(input_with_chr).unwrap(),
+        );
+
+        let input_with_str = vec![vm::Value::List(vec![
+            vm::Value::List(vec![vm::Value::Str("aba".to_string())]),
+            vm::Value::Str("cate".to_string()),
+        ])];
+        assert_success(
+            "A[[[aba]cate]]",
+            vm::VM::new(&p).run(input_with_str).unwrap(),
+        );
     }
 }

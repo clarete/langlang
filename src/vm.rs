@@ -445,10 +445,10 @@ impl<'a> VM<'a> {
                     self.program_counter += 1;
                     if self.cursor >= source.len() {
                         self.fail(Error::EOF)?;
-                    } else {
-                        self.capture(source[self.cursor].clone())?;
-                        self.advance_cursor()?;
+                        continue;
                     }
+                    self.capture(source[self.cursor].clone())?;
+                    self.advance_cursor()?;
                 }
                 Instruction::Char(expected) => {
                     self.program_counter += 1;

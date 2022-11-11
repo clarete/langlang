@@ -308,7 +308,13 @@ impl Compiler {
                 Ok(())
             }
             AST::Identifier(name) => {
-                let precedence = if self.left_rec[&name] { 1 } else { 0 };
+                //let precedence = if self.left_rec[&name] { 1 } else { 0 };
+                let precedence = match self.left_rec.get(&name) {
+                    Some(v) => if *v { 1 } else { 0 },
+                    None => return Err(Error::Semantic(
+                        format!("Rule {:#?} not found in grammar", name),
+                    ))
+                };
                 let id = self.push_string(name);
                 match self.funcs.get(&id) {
                     Some(func_addr) => {
@@ -427,7 +433,7 @@ impl<'a> DetectLeftRec<'a> {
             }
         }
         for (name, expr) in &rules {
-            let is_lr = self.is_left_recursive(name, expr, &rules);
+            let is_lr = self.is_left_recursive(name, expr, &rules)?;
             found.insert(name.to_string(), is_lr);
         }
         Ok(())
@@ -438,28 +444,33 @@ impl<'a> DetectLeftRec<'a> {
         name: &'a str,
         expr: &'a AST,
         rules: &HashMap<&'a String, &'a AST>,
-    ) -> bool {
+    ) -> Result<bool, Error> {
         match expr {
             AST::Identifier(n) => {
                 // for detecting mutual recursion
                 if !self.stack.is_empty() && self.stack[self.stack.len() - 1] == n {
-                    return true;
+                    return Ok(true);
                 }
                 if n != name {
                     self.stack.push(n);
-                    let r = self.is_left_recursive(name, rules[n], rules);
+                    let r = match rules.get(&n) {
+                        Some(rule) => self.is_left_recursive(name, rule, rules)?,
+                        None => return Err(Error::Semantic(
+                            format!("Rule {:#?} not found in grammar", n),
+                        ))
+                    };
                     self.stack.pop();
-                    return r;
+                    return Ok(r);
                 }
-                true
+                Ok(true)
             }
             AST::Choice(choices) => {
                 for c in choices {
-                    if self.is_left_recursive(name, c, rules) {
-                        return true;
+                    if self.is_left_recursive(name, c, rules)? {
+                        return Ok(true);
                     }
                 }
-                false
+                Ok(false)
             }
             AST::Sequence(seq) => {
                 let mut i = 0;
@@ -469,10 +480,10 @@ impl<'a> DetectLeftRec<'a> {
                 if i < seq.len() {
                     return self.is_left_recursive(name, &seq[i], rules);
                 }
-                false
+                Ok(false)
             }
             AST::Precedence(n, _) => self.is_left_recursive(name, n, rules),
-            _ => false,
+            _ => Ok(false),
         }
     }
 }

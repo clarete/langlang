@@ -309,7 +309,7 @@ impl Compiler {
             }
             AST::Identifier(name) => {
                 let precedence = match self.left_rec.get(&name) {
-                    Some(v) => if *v { 1 } else { 0 },
+                    Some(v) => usize::from(*v),
                     None => return Err(Error::Semantic(
                         format!("Rule {:#?} not found in grammar", name),
                     ))

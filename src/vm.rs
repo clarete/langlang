@@ -513,6 +513,7 @@ impl<'a> VM<'a> {
                     }
                 }
                 Instruction::Choice(offset) => {
+                    self.commit_captures()?;
                     self.stkpush(StackFrame::new_backtrack(
                         self.cursor,
                         self.program_counter + offset,
@@ -736,7 +737,6 @@ impl<'a> VM<'a> {
                     if f.ftype == StackFrameType::Backtrack {
                         let top = self.capstktop_mut()?;
                         top.values.drain(top.index..);
-                        self.commit_captures()?;
                         self.dbg_captures()?;
                         break f;
                     } else {

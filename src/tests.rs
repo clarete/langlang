@@ -12,9 +12,21 @@ mod tests {
     #[test]
     fn test_str() {
         let cc = compiler::Config::default();
-        let p = compile(&cc, "A <- 'abada'");
-        let value = run(&p, vec![vm::Value::Str("abada".to_string())]).unwrap();
-        assert_success("A[abada]", value);
+        let p = compile(&cc, "A <- '0x' [0-9a-fA-F]+ / '0'");
+
+        assert_success("A[0xff]", run_str(&p, "0xff"));
+        assert_success("A[0]", run_str(&p, "0"));
+
+        let value = run(&p, vec![
+            vm::Value::Chr('0'),
+            vm::Value::Chr('x'),
+            vm::Value::Chr('f'),
+            vm::Value::Chr('f'),
+        ]);
+        assert_success("A[0xff]", value.unwrap());
+
+        let value = run(&p, vec![vm::Value::Str("0".to_string())]);
+        assert_success("A[0]", value.unwrap());
     }
 
     #[test]

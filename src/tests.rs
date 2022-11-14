@@ -14,17 +14,29 @@ mod tests {
         let cc = compiler::Config::default();
         let p = compile(&cc, "A <- '0x' [0-9a-fA-F]+ / '0'");
 
+        // Note: run_str uses VM::run_str, which maps each character
+        // of the input string into a `Value::Chr`, and the fact that
+        // `Instruction::Str` can read both an entire string or a set
+        // of chars allows this example to work, as the `0x` piece is
+        // compiled into an `Instruction::Str` call.
         assert_success("A[0xff]", run_str(&p, "0xff"));
         assert_success("A[0]", run_str(&p, "0"));
 
+        // This won't work because "0x" is tested against "0xff" which
+        // fails right away:
+        //let value = run(&p, vec![vm::Value::Str("0xff".to_string())]);
+        //assert_success("A[0xff]", value.unwrap());
+
+        // This works as both `f` chars get consummed by [a-f]+ one at
+        // a time.
         let value = run(&p, vec![
-            vm::Value::Chr('0'),
-            vm::Value::Chr('x'),
+            vm::Value::Str("0x".to_string()),
             vm::Value::Chr('f'),
             vm::Value::Chr('f'),
         ]);
         assert_success("A[0xff]", value.unwrap());
 
+        // Easiest case
         let value = run(&p, vec![vm::Value::Str("0".to_string())]);
         assert_success("A[0]", value.unwrap());
     }

@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::{self, Write};
 
-use langlang::{compiler, parser, vm};
+use langlang::{compiler, format, parser, vm};
 
 #[derive(Debug)]
 pub enum ShellError {
@@ -60,7 +60,7 @@ fn shell() -> Result<(), ShellError> {
 
     let mut compiler = compiler::Compiler::default();
     let program = compiler.compile(ast)?;
-    println!("{}", program);
+
     loop {
         // display prompt
         print!("langlang% ");
@@ -87,7 +87,7 @@ fn shell() -> Result<(), ShellError> {
         // run the line
         let mut m = vm::VM::new(&program);
         match m.run_str(&line) {
-            Ok(Some(v)) => println!("{:#?}", v),
+            Ok(Some(v)) => println!("{}", format::value_fmt1(&v)),
             Ok(None) => println!("not much"),
             Err(e) => return Err(ShellError::RuntimeError(e)),
         }

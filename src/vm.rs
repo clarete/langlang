@@ -484,31 +484,33 @@ impl<'a> VM<'a> {
                         self.fail(Error::EOF)?;
                         continue;
                     }
-                    let s = self.program.string_at(id);
-                    if &source[self.cursor] == &Value::Str(s.clone()) {
-                        self.capture(Value::Str(s))?;
-                        self.advance_cursor()?;
-                        continue;
-                    }
-                    let (mut count, mut matches) = (0, 0);
-                    for c in s.chars() {
-                        count += 1;
-                        if self.cursor >= source.len() {
-                            self.fail(Error::EOF)?;
-                            break;
-                        }
-                        if &source[self.cursor] == &Value::Chr(c) {
-                            matches += 1;
+                    let expected = self.program.string_at(id);
+                    match &source[self.cursor] {
+                        Value::Str(s) if s == &expected => {
+                            self.capture(Value::Str(expected))?;
                             self.advance_cursor()?;
                             continue;
                         }
-                        break;
+                        _ => {
+                            let mut expected_chars = expected.chars();
+                            match loop {
+                                let current_char = match expected_chars.next() {
+                                    None => break Ok(()),
+                                    Some(c) => c,
+                                };
+                                if self.cursor >= source.len() {
+                                    break Err(Error::EOF);
+                                }
+                                if source[self.cursor] != Value::Chr(current_char) {
+                                    break Err(Error::Matching(self.ffp, expected.clone()));
+                                }
+                                self.advance_cursor()?;
+                            } {
+                                Ok(()) => self.capture(Value::Str(expected))?,
+                                Err(e) => self.fail(e)?,
+                            }
+                        }
                     }
-                    if count == matches {
-                        self.capture(Value::Str(s))?;
-                        continue;
-                    }
-                    self.fail(Error::Matching(self.ffp, s))?;
                 }
                 Instruction::Choice(offset) => {
                     self.stkpush(StackFrame::new_backtrack(

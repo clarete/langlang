@@ -49,7 +49,7 @@
 ** Tools
 *** Pretty Print / Minifier
    * [X] Parse input file with language grammar and get an AST
-   * [ ] Generate the tree traversal grammar off the original grammar
+   * [X] Generate the tree traversal grammar off the original grammar
    * [ ] Merge overrides to the default settings of the code emitter
    * [ ] Traverse AST with traversal grammar and emit code
    * [ ] Command line usage

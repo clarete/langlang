@@ -1,0 +1,123 @@
+* langlang
+
+** Intro
+
+langlang is a parser generator based on [[https://en.wikipedia.org/wiki/Parsing_expression_grammar][Parsing Expression Grammars]]
+
+** Usage
+
+Provide an input grammar and an input to be parsed with the grammar.
+
+Let's look at an example in which the data to be parsed is in a form
+of comma separated values.  Here's the simplest expression that could
+parse input in such format:
+
+#+begin_src peg
+File <- Line*
+Line <- Val (',' Val)* '\n'
+Val  <- (![,\n] .)*
+#+end_src
+
+If the above grammar is fed with the following input:
+
+#+begin_src text
+c1,c2
+10,20
+30,40
+#+end_src
+
+This is the output returned
+
+#+begin_src text
+File {
+    Line {
+        Val {
+            "c"
+            "1"
+        }
+        ","
+        Val {
+            "c"
+            "2"
+        }
+        "\n"
+    }
+    Line {
+        Val {
+            "1"
+            "0"
+        }
+        ","
+        Val {
+            "2"
+            "0"
+        }
+        "\n"
+    }
+    Line {
+        Val {
+            "3"
+            "0"
+        }
+        ","
+        Val {
+            "4"
+            "0"
+        }
+        "\n"
+    }
+}
+#+end_src
+
+** Line by line
+
+Parsing expression grammars are interpreted top-down, and left to
+right.  The identifiers before the left arrow are called _rules_ or
+_productions_, and at the right side of the arrow are the
+_expressions_.  These expressions borrow a whole lot from [[https://en.wikipedia.org/wiki/Regular_expression][Regular
+Expressions]].
+
+*** File
+
+#+begin_src peg
+File <- Line*
+#+end_src
+
+The STAR (~*~) operator for once, has the exact same semantics.  It is
+going to try to match the expression ~Line~ *one or more* times.  The
+identifiers in the expression side are how productions *call* other
+productions.  Notice that ~File~ is the first production to be called
+because it is the first one to appear in the input.
+
+*** Line
+
+#+begin_src peg
+Line <- Val (',' Val)* '\n'
+#+end_src
+
+Both ~File~ and ~Line~ productions is the STAR operator and call out
+to other productions.  ~Line~ introduces the use of parenthesizing
+that intuitively will try to match the COMMA (~,~) character followed
+by a ~Val~ call *one or more* times.  And it has to end with the
+NEWLINE (~\n~) escape char.
+
+*** Var
+
+#+begin_src peg
+Val  <- (![,\n] .)*
+#+end_src
+
+The production ~Val~ demonstrates another similarity with *Regular
+Expressions* in the usage of the Char class selector (~[]~).  That
+same selector also takes ranges (e.g.: ~[0-9]~, ~[a-zA-Z]~, etc).  It
+also demonstrates the use of the ANY (~.~) matcher, that succeeds on
+any input, and only fails if matched against ~EOF~.
+
+But this same production also includes the operator NOT (~!~) that,
+although may be syntactically similar to the one in *Regular
+Expressions*, its meaning is significantly different in *Parsing
+Expression Grammars*.  The NOT (~!~) operator has a very special
+property: it doesn't consume input any input, even when it succeeds.
+So, the use of the NOT operator is followed with something that will
+actually consume the input.  In the above case, it the expression will
+match anything that isn't either a COMMA (~,~) or a NEWLINE (~\n~).

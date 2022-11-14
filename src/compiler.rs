@@ -308,7 +308,6 @@ impl Compiler {
                 Ok(())
             }
             AST::Identifier(name) => {
-                //let precedence = if self.left_rec[&name] { 1 } else { 0 };
                 let precedence = match self.left_rec.get(&name) {
                     Some(v) => if *v { 1 } else { 0 },
                     None => return Err(Error::Semantic(

@@ -1,5 +1,5 @@
-# Execute `RUST_LOG=debug cargo run --bin llsh tests/zom.peg` and try
-# this out
+# Execute `RUST_LOG=debug cargo run --bin llsh tests/shelltest.peg`
+# and try this out
 
 # Top level production for testing parsing hex numbers with a custom
 # error message or a list of emojies
@@ -9,7 +9,7 @@ Value <- HexNum / Emoji
 # parser sees 0x, it MUST then succeed parsing the expression that
 # follows it ([a-fA-F0-9]+).  If it doesn't, the following message
 # will be shown instead of the automated one
-label hexDigit = 'Hexadecimals (started with 0x) require digits in the ranges of [a-f][0-9]'
+label hexDigit = 'Hexadecimals require digits matching [0-9a-fA-F]'
 HexNum <- '0x' [a-fA-F0-9]+^hexDigit
 
 # We do emojies too, try an animal

@@ -29,11 +29,14 @@ mod tests {
 
         // This works as both `f` chars get consummed by [a-f]+ one at
         // a time.
-        let value = run(&p, vec![
-            vm::Value::Str("0x".to_string()),
-            vm::Value::Chr('f'),
-            vm::Value::Chr('f'),
-        ]);
+        let value = run(
+            &p,
+            vec![
+                vm::Value::Str("0x".to_string()),
+                vm::Value::Chr('f'),
+                vm::Value::Chr('f'),
+            ],
+        );
         assert_success("A[0xff]", value.unwrap());
 
         // Easiest case
@@ -310,7 +313,7 @@ mod tests {
     // -- Expand Grammar -------------------------------------------------------
 
     #[test]
-    fn test_expand_tree_0() -> Result<(), parser::Error> {
+    fn test_expand_tree_0() {
         let cc = compiler::Config::default();
 
         // Program that parses the initial input
@@ -320,13 +323,12 @@ mod tests {
 
         // Program that parses the output obtained upon successful
         // parsing with the initial program
-        let original_ast = parser::Parser::new(input_grammar).parse()?;
-        let rewrite = parser::expand(original_ast)?;
+        let original_ast = parser::Parser::new(input_grammar).parse().unwrap();
+        let rewrite = parser::expand(original_ast).unwrap();
         let mut c = compiler::Compiler::new(cc);
         let list_program = c.compile(rewrite).unwrap();
         let value = run(&list_program, vec![output.unwrap()]).unwrap();
         assert_success("A[A[F]]", value);
-        Ok(())
     }
 
     // -- Test Helpers ---------------------------------------------------------

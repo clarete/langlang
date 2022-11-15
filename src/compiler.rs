@@ -417,6 +417,7 @@ impl<'a> DetectLeftRec<'a> {
                         AST::Definition(n, expr) => {
                             rules.insert(n, expr);
                         }
+                        AST::LabelDefinition(..) => {},
                         r => {
                             return Err(Error::Semantic(
                                 format!("Expected Definition rule, not {:#?}", r),

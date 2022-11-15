@@ -382,16 +382,16 @@ impl<'a> VM<'a> {
         Ok(())
     }
 
-    fn capture_flatten(&mut self, address: usize, children: Vec<Value>) -> Result<(), Error> {
+    fn capture_flatten(&mut self, address: usize, values: Vec<Value>) -> Result<(), Error> {
         let name = self.program.identifier(address);
-        match &children[..] {
+        match &values[..] {
             [] => {}
             [Value::List(ch)] if ch.len() == 2 && ch[0] == Value::Str(name) => {
-                self.capture(children[0].clone())?;
+                self.capture(values[0].clone())?;
             }
             _ => {
                 let name = self.program.identifier(address);
-                let items = vec![Value::Str(name), Value::List(children)];
+                let items = vec![Value::Str(name), Value::List(values)];
                 self.capture(Value::List(items))?;
             }
         }
@@ -661,9 +661,9 @@ impl<'a> VM<'a> {
                     self.program_counter += 1;
                     self.cursor = entry.cursor.clone()?;
                     let frame = self.capstktop_mut()?;
-                    let children: Vec<_> = frame.values.drain(..frame.index).collect();
+                    let values = frame.values.drain(..frame.index).collect();
                     frame.values.clear();
-                    self.capture_flatten(address, children)?;
+                    self.capture_flatten(address, values)?;
                     self.commit_captures()?;
                 }
             }
@@ -680,10 +680,10 @@ impl<'a> VM<'a> {
         if frame.precedence == 0 {
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
-            let children = self.capstkpop()?.values;
-            if !children.is_empty() {
+            let values = self.capstkpop()?.values;
+            if !values.is_empty() {
                 let name = self.program.identifier(address);
-                let items = vec![Value::Str(name), Value::List(children)];
+                let items = vec![Value::Str(name), Value::List(values)];
                 self.capture(Value::List(items))?;
             }
             return Ok(());
@@ -715,9 +715,9 @@ impl<'a> VM<'a> {
         self.lrmemo.remove(&key);
         let mut capframe = self.capstkpop()?;
         if capframe.index > 0 {
-            let children: Vec<_> = capframe.values.drain(..capframe.index).collect();
+            let values = capframe.values.drain(..capframe.index).collect();
             capframe.values.clear();
-            self.capture_flatten(address, children)?;
+            self.capture_flatten(address, values)?;
         }
         self.dbg_captures()?;
         Ok(())

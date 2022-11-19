@@ -522,6 +522,7 @@ impl<'a> VM<'a> {
                     self.program_counter += 1;
                 }
                 Instruction::ChoiceP(offset) => {
+                    self.commit_captures()?;
                     self.stkpush(StackFrame::new_backtrack(
                         self.cursor,
                         self.program_counter + offset,

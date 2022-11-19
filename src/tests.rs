@@ -57,6 +57,20 @@ mod tests {
     }
 
     #[test]
+    fn test_not_at_the_end() {
+        let cc = compiler::Config::default();
+        let p = compile(
+            &cc,
+            "
+            Primary    <- Identifier !LEFTARROW
+            Identifier <- [a-zA-Z_][a-zA-Z0-9_]*
+            LEFTARROW  <- '<-'
+            ",
+        );
+        assert_success("Primary[Identifier[A]]", run_str(&p, "A"));
+    }
+
+    #[test]
     fn test_and_0() {
         let cc = compiler::Config::o0();
         assert_success("A[a]", cc_run(&cc, "A <- (&('a' / 'b') .)", "a"));

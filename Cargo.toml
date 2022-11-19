@@ -1,9 +1,6 @@
-[package]
-name = "langlang"
-version = "0.1.0"
-authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
-edition = "2021"
+[workspace]
 
-[dependencies]
-log = "0.4"
-env_logger = "0.8"
+members = [
+    "langlang",
+    "langlang_lib",
+]

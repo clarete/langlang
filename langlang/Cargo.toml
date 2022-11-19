@@ -1,0 +1,11 @@
+[package]
+name = "langlang"
+version = "0.1.0"
+authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+env_logger = "0.8"
+langlang_lib = { path = "../langlang_lib" }
+clap = { version = "4.0", features = ["derive"] }

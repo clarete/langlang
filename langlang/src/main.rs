@@ -1,7 +1,7 @@
 use log::warn;
 use std::fs;
 
-use langlang::{compiler, format, parser, vm};
+use langlang_lib::{compiler, format, parser, vm};
 
 type FormattingFunc = fn(v: &vm::Value) -> String;
 

@@ -12,6 +12,7 @@
    * [X] compile non-left recursive rules with zero precedence
    * [ ] don't emit capture instructions in match-only
    * [ ] selective capture mode, input grammar defines captures
+   * [ ] associate manually defined labels to manually defined REs
    * [ ] first and follows set for error synchronization
    * [ ] error recovery expression generation
 ** VM
@@ -50,8 +51,8 @@
 *** Pretty Print / Minifier
    * [X] Parse input file with language grammar and get an AST
    * [X] Generate the tree traversal grammar off the original grammar
+   * [ ] Traverse tree grammar and output code (ugly print)
    * [ ] Merge overrides to the default settings of the code emitter
-   * [ ] Traverse AST with traversal grammar and emit code
    * [ ] Command line usage
 
      #+begin_src text

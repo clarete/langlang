@@ -107,8 +107,7 @@ fn run() -> Result<(), Error> {
             let ast = parser::Parser::new(&grammar).parse()?;
             let program = compiler::Compiler::default().compile(ast)?;
             let default_format = "fmt0".to_string();
-            let format = output_format.as_ref().unwrap_or_else(|| &default_format);
-            let fmt = formatter(&format);
+            let fmt = formatter(output_format.as_ref().unwrap_or(&default_format));
 
             match input_file {
                 Some(input_file) => {

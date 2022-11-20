@@ -310,9 +310,12 @@ impl Compiler {
             AST::Identifier(name) => {
                 let precedence = match self.left_rec.get(&name) {
                     Some(v) => usize::from(*v),
-                    None => return Err(Error::Semantic(
-                        format!("Rule {:#?} not found in grammar", name),
-                    ))
+                    None => {
+                        return Err(Error::Semantic(format!(
+                            "Rule {:#?} not found in grammar",
+                            name
+                        )))
+                    }
                 };
                 let id = self.push_string(name);
                 match self.funcs.get(&id) {
@@ -414,22 +417,24 @@ impl<'a> DetectLeftRec<'a> {
             AST::Grammar(definitions) => {
                 for definition in definitions {
                     match definition {
+                        AST::LabelDefinition(..) => {}
                         AST::Definition(n, expr) => {
                             rules.insert(n, expr);
                         }
-                        AST::LabelDefinition(..) => {},
                         r => {
-                            return Err(Error::Semantic(
-                                format!("Expected Definition rule, not {:#?}", r),
-                            ))
+                            return Err(Error::Semantic(format!(
+                                "Expected Definition rule, not {:#?}",
+                                r
+                            )))
                         }
                     }
                 }
             }
             r => {
-                return Err(Error::Semantic(
-                    format!("Expected Grammar rule, not {:#?}", r),
-                ))
+                return Err(Error::Semantic(format!(
+                    "Expected Grammar rule, not {:#?}",
+                    r
+                )))
             }
         }
         for (name, expr) in &rules {
@@ -455,9 +460,12 @@ impl<'a> DetectLeftRec<'a> {
                     self.stack.push(n);
                     let r = match rules.get(&n) {
                         Some(rule) => self.is_left_recursive(name, rule, rules)?,
-                        None => return Err(Error::Semantic(
-                            format!("Rule {:#?} not found in grammar", n),
-                        ))
+                        None => {
+                            return Err(Error::Semantic(format!(
+                                "Rule {:#?} not found in grammar",
+                                n
+                            )))
+                        }
                     };
                     self.stack.pop();
                     return Ok(r);

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
@@ -69,6 +69,8 @@ pub struct Compiler {
     // Map from the set of labels to the set of messages for error
     // reporting
     labels: HashMap<usize, usize>,
+    // Set of all label IDs
+    label_ids: HashSet<usize>,
     // Map from the set of label IDs to the set with the first address
     // of the label's respective recovery expression
     recovery: HashMap<usize, usize>,
@@ -94,6 +96,7 @@ impl Compiler {
             funcs: HashMap::new(),
             addrs: HashMap::new(),
             labels: HashMap::new(),
+            label_ids: HashSet::new(),
             recovery: HashMap::new(),
             indent_level: 0,
             left_rec: HashMap::new(),
@@ -106,6 +109,7 @@ impl Compiler {
         DetectLeftRec::default().run(&ast, &mut self.left_rec)?;
         self.compile_node(ast)?;
         self.backpatch_callsites()?;
+        self.manual_recovery()?;
 
         Ok(vm::Program::new(
             self.identifiers.clone(),
@@ -170,6 +174,18 @@ impl Compiler {
         Ok(())
     }
 
+    /// walk through all the collected label IDs, if any production
+    /// name matches, set that production as the recovery expression
+    /// for the label
+    fn manual_recovery(&mut self) -> Result<(), Error> {
+        for label_id in self.label_ids.iter() {
+            if let Some(addr) = self.funcs.get(label_id) {
+                self.recovery.insert(*label_id, *addr);
+            }
+        }
+        Ok(())
+    }
+
     /// Take an AST node and emit node into the private code vector
     fn compile_node(&mut self, node: AST) -> Result<(), Error> {
         match node {
@@ -199,6 +215,7 @@ impl Compiler {
             AST::Label(name, element) => {
                 let label_id = self.push_string(name);
                 let pos = self.cursor;
+                self.label_ids.insert(label_id);
                 self.emit(vm::Instruction::Choice(0));
                 self.compile_node(*element)?;
                 self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 1);

@@ -324,6 +324,53 @@ mod tests {
         assert_success("A[[[aba]cate]]", run(&p, input_with_str).unwrap());
     }
 
+    // -- Error Recovery -------------------------------------------------------
+
+    #[test]
+    fn test_manual_recovery() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            Stm        <- IfStm / WhileStm
+            IfStm      <- IF LPAR^iflpar Expr^ifexpr RPAR^ifrpar Body^ifbody
+            WhileStm   <- WHILE LPAR^wlpar Expr^wexpr RPAR^wrpar Body^wbody
+            Body       <- LBRK RBRK
+                        / LBRK Stm+ RBRK
+                        / Stm
+
+            IF         <- 'if'    _
+            WHILE      <- 'while' _
+            LPAR       <- '('     _
+            RPAR       <- ')'     _
+            LBRK       <- '{'     _
+            RBRK       <- '}'     _
+
+            Expr       <- Bool / Identifier
+            Bool       <- ('true' / 'false')     _
+            Identifier <- [a-zA-Z_][a-zA-Z0-9_]* _
+
+            _ <- (' ' / '\t' / '\n' / '\r\n')*
+
+            ifrpar     <- (!LBRK .)*
+
+            ",
+        );
+
+        // makes sure this all works
+        // let value = run_str(&program, "if (false) {}");
+        // assert_success(
+        //     "Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]",
+        //     value,
+        // );
+
+        let value = run_str(&program, "if (false {}");
+        assert_success(
+            "Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]Error[ifrpar]Body[LBRK[{]RBRK[}]]]]",
+            value,
+        );
+    }
+
     // -- Expand Grammar -------------------------------------------------------
 
     #[test]

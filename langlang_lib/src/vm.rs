@@ -589,14 +589,14 @@ impl<'a> VM<'a> {
                     self.inst_return()?;
                 }
                 Instruction::Throw(label) => {
-                    self.program_counter += 1;
                     if self.within_predicate {
+                        self.program_counter += 1;
                         self.fail(Error::Fail)?;
                     } else {
                         let message = self.program.label(label);
                         match self.program.recovery.get(&label) {
                             None => return Err(Error::Matching(self.ffp, message)),
-                            Some(addr) => self.program_counter = *addr,
+                            Some(addr) => self.inst_call(*addr, 0)?,
                         }
                     }
                 }

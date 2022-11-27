@@ -385,6 +385,13 @@ mod tests {
             "P[Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{_[ ]]Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]SEMI[;_[ ]]]]RBRK[}]]]]]",
             run_str(&program, "if (false) { var = 1; }"),
         );
+
+        // Not right yet.  Should look like this when the error node is added automatically
+        // "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]Error[assignsemi]]]]",
+        assert_success(
+            "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]]]]",
+            run_str(&program, "var = 1"),
+        );
     }
 
     // -- Expand Grammar -------------------------------------------------------

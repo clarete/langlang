@@ -332,9 +332,11 @@ mod tests {
         let program = compile(
             &cc,
             "
-            Stm        <- IfStm / WhileStm
+            P          <- Stm+
+            Stm        <- IfStm / WhileStm / AssignStm
             IfStm      <- IF LPAR^iflpar Expr^ifexpr RPAR^ifrpar Body^ifbody
             WhileStm   <- WHILE LPAR^wlpar Expr^wexpr RPAR^wrpar Body^wbody
+            AssignStm  <- Identifier EQ^assigneq Expr^assignexpr SEMI^assignsemi
             Body       <- LBRK RBRK
                         / LBRK Stm+ RBRK
                         / Stm
@@ -345,29 +347,43 @@ mod tests {
             RPAR       <- ')'     _
             LBRK       <- '{'     _
             RBRK       <- '}'     _
+            EQ         <- '='     _
+            SEMI       <- ';'     _
 
-            Expr       <- Bool / Identifier
+            Expr       <- Bool / Identifier / Number
             Bool       <- ('true' / 'false')     _
             Identifier <- [a-zA-Z_][a-zA-Z0-9_]* _
+            Number     <- [1-9][0-9]*
 
-            _ <- (' ' / '\t' / '\n' / '\r\n')*
+            _   <- (' ' / '\n')*
+            EOF <- !.
 
+            # recovery expressions for the labels declared above
+
+            iflpar     <- (!Expr .)*
             ifrpar     <- (!LBRK .)*
-
+            assigneq   <- # empty
+            assignexpr <- # empty
+            assignsemi <- # empty
             ",
         );
 
-        // makes sure this all works
-        // let value = run_str(&program, "if (false) {}");
-        // assert_success(
-        //     "Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]",
-        //     value,
-        // );
-
-        let value = run_str(&program, "if (false {}");
+        // makes sure the above grammar works
         assert_success(
-            "Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]Error[ifrpar]Body[LBRK[{]RBRK[}]]]]",
-            value,
+            "P[Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]]",
+            run_str(&program, "if (false) {}"),
+        );
+        assert_success(
+            "P[Stm[WhileStm[WHILE[while_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]]",
+            run_str(&program, "while (false) {}"),
+        );
+        assert_success(
+            "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]SEMI[;]]]]",
+            run_str(&program, "var = 1;"),
+        );
+        assert_success(
+            "P[Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{_[ ]]Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]SEMI[;_[ ]]]]RBRK[}]]]]]",
+            run_str(&program, "if (false) { var = 1; }"),
         );
     }
 

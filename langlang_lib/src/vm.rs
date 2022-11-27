@@ -18,6 +18,10 @@ pub enum Value {
     // U64(u64),
     // F64(f64),
     List(Vec<Value>),
+    Error {
+        label: String,
+        message: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug)]

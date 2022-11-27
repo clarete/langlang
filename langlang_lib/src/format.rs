@@ -29,6 +29,15 @@ pub fn value_fmt1(value: &Value) -> String {
                 s.push(']');
             }
         },
+        Value::Error { label, message } => {
+            s.push_str("Error[");
+            s.push_str(label);
+            if let Some(m) = message {
+                s.push_str(": ");
+                s.push_str(m);
+            }
+            s.push(']');
+        }
     }
     s
 }
@@ -82,6 +91,15 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 for _ in 0..indent {
                     s.push_str("    ");
+                }
+                s.push('}');
+            }
+            Value::Error { label, message } => {
+                s.push_str("Error{");
+                s.push_str(label);
+                if let Some(m) = message {
+                    s.push_str(": ");
+                    s.push_str(m);
                 }
                 s.push('}');
             }

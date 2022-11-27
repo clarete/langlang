@@ -155,16 +155,31 @@ fn instruction_to_string(p: &Program, instruction: &Instruction, pc: usize) -> S
         Instruction::Str(i) => format!("str {:?}", p.strings[*i]),
         Instruction::Call(addr, k) => format!("call {:?} {}", p.identifier(pc + addr), k),
         Instruction::CallB(addr, k) => format!("callb {:?} {}", p.identifier(pc - addr), k),
+        Instruction::Throw(label) => format!("throw {:?}", p.strings[*label]),
         instruction => format!("{}", instruction),
     }
 }
 
 impl std::fmt::Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "Labels: {:#?}", self.labels)?;
-        writeln!(f, "Strings: {:#?}", self.strings)?;
+        writeln!(f, "Labels: {}", self.labels.len())?;
+        for (i, label) in self.labels.iter().enumerate() {
+            write!(f, "  {:#04} ", i)?;
+            writeln!(f, "{:?}", label)?;
+        }
+        writeln!(f, "Strings: {}", self.strings.len())?;
+        for (i, string) in self.strings.iter().enumerate() {
+            write!(f, "  {:#04} ", i)?;
+            writeln!(f, "{:?}", string)?;
+        }
+        writeln!(f, "Addresses")?;
+        for (address, id) in self.identifiers.iter() {
+            write!(f, "  {:#04} ", address)?;
+            writeln!(f, "{:?}", self.string_at(*id))?;
+        }
+        writeln!(f, "Code: {}", self.code.len())?;
         for (i, instruction) in self.code.iter().enumerate() {
-            write!(f, "{:#03} ", i)?;
+            write!(f, "  {:#04} ", i)?;
             writeln!(f, "{}", instruction_to_string(self, instruction, i))?;
         }
         write!(f, "")

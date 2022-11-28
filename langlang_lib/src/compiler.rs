@@ -71,9 +71,9 @@ pub struct Compiler {
     labels: HashMap<usize, usize>,
     // Set of all label IDs
     label_ids: HashSet<usize>,
-    // Map from the set of label IDs to the set with the first address
-    // of the label's respective recovery expression
-    recovery: HashMap<usize, usize>,
+    // Map from label IDs to tuples with two things: address of the
+    // recovery expression and its precedence level
+    recovery: HashMap<usize, (usize, usize)>,
     // Used for printing out debugging messages with the of the
     // structure the call stack the compiler is traversing
     indent_level: usize,
@@ -180,7 +180,9 @@ impl Compiler {
     fn manual_recovery(&mut self) -> Result<(), Error> {
         for label_id in self.label_ids.iter() {
             if let Some(addr) = self.funcs.get(label_id) {
-                self.recovery.insert(*label_id, *addr);
+                let n = &self.strings[self.identifiers[addr]];
+                let k = usize::from(self.left_rec[n]);
+                self.recovery.insert(*label_id, (*addr, k));
             }
         }
         Ok(())

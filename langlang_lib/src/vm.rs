@@ -106,10 +106,9 @@ pub struct Program {
     // Map with IDs of labels as keys and the ID of the messages
     // associated with the labels as values
     labels: HashMap<usize, usize>,
-    // Map with the IDs of labels as keys and the index of the first
-    // line of the production with the recovery expression associated
-    // to that label as values.
-    recovery: HashMap<usize, usize>,
+    // Map from label IDs to tuples with two things: address of the
+    // recovery expression and its precedence level
+    recovery: HashMap<usize, (usize, usize)>,
     // Table with strings that refer to either error labels or
     // production identifiers.  IDs are assigned in the order they are
     // requested.
@@ -122,7 +121,7 @@ impl Program {
     pub fn new(
         identifiers: HashMap<usize, usize>,
         labels: HashMap<usize, usize>,
-        recovery: HashMap<usize, usize>,
+        recovery: HashMap<usize, (usize, usize)>,
         strings: Vec<String>,
         code: Vec<Instruction>,
     ) -> Self {
@@ -600,7 +599,7 @@ impl<'a> VM<'a> {
                         let message = self.program.label(label);
                         match self.program.recovery.get(&label) {
                             None => return Err(Error::Matching(self.ffp, message)),
-                            Some(addr) => self.inst_call(*addr, 0)?,
+                            Some((addr, precedence)) => self.inst_call(*addr, *precedence)?,
                         }
                     }
                 }

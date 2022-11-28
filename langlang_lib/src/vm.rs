@@ -205,6 +205,7 @@ struct StackFrame {
     address: usize,               // pc+l
     precedence: usize,            // k
     predicate: bool,
+    recovery: bool,
     list: Option<Vec<Value>>,
 }
 
@@ -216,6 +217,7 @@ impl StackFrame {
             cursor,
             predicate,
             // fields not used for backtrack frames
+            recovery: false,
             address: 0,
             precedence: 0,
             result: Ok(0),
@@ -223,7 +225,7 @@ impl StackFrame {
         }
     }
 
-    fn new_call(pc: usize, address: usize, precedence: usize) -> Self {
+    fn new_call(pc: usize, address: usize, precedence: usize, recovery: bool) -> Self {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
@@ -233,10 +235,17 @@ impl StackFrame {
             list: None,
             address,
             precedence,
+            recovery,
         }
     }
 
-    fn new_lrcall(cursor: usize, pc: usize, address: usize, precedence: usize) -> Self {
+    fn new_lrcall(
+        cursor: usize,
+        pc: usize,
+        address: usize,
+        precedence: usize,
+        recovery: bool,
+    ) -> Self {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
@@ -246,6 +255,7 @@ impl StackFrame {
             cursor,
             address,
             precedence,
+            recovery,
         }
     }
 
@@ -256,6 +266,7 @@ impl StackFrame {
             cursor,
             list: Some(list),
             // fields not used for list frames
+            recovery: false,
             predicate: false,
             address: 0,
             precedence: 0,
@@ -583,10 +594,10 @@ impl<'a> VM<'a> {
                     self.program_counter = index;
                 }
                 Instruction::Call(offset, precedence) => {
-                    self.inst_call(self.program_counter + offset, precedence)?;
+                    self.inst_call(self.program_counter + offset, precedence, false)?;
                 }
                 Instruction::CallB(offset, precedence) => {
-                    self.inst_call(self.program_counter - offset, precedence)?;
+                    self.inst_call(self.program_counter - offset, precedence, false)?;
                 }
                 Instruction::Return => {
                     self.inst_return()?;
@@ -599,7 +610,7 @@ impl<'a> VM<'a> {
                         let message = self.program.label(label);
                         match self.program.recovery.get(&label) {
                             None => return Err(Error::Matching(self.ffp, message)),
-                            Some((addr, precedence)) => self.inst_call(*addr, *precedence)?,
+                            Some((addr, precedence)) => self.inst_call(*addr, *precedence, true)?,
                         }
                     }
                 }
@@ -638,7 +649,12 @@ impl<'a> VM<'a> {
         }
     }
 
-    fn inst_call(&mut self, address: usize, precedence: usize) -> Result<(), Error> {
+    fn inst_call(
+        &mut self,
+        address: usize,
+        precedence: usize,
+        recovery: bool,
+    ) -> Result<(), Error> {
         let cursor = self.cursor;
         if precedence == 0 {
             self.capstkpush();
@@ -646,6 +662,7 @@ impl<'a> VM<'a> {
                 self.program_counter + 1,
                 address,
                 precedence,
+                recovery,
             ));
             self.program_counter = address;
             return Ok(());
@@ -660,6 +677,7 @@ impl<'a> VM<'a> {
                     self.program_counter + 1,
                     address,
                     precedence,
+                    recovery,
                 ));
                 self.program_counter = address;
                 self.lrmemo.insert(
@@ -700,8 +718,13 @@ impl<'a> VM<'a> {
             let frame = self.stkpop()?;
             self.program_counter = frame.program_counter;
             let values = self.capstkpop()?.values;
-            if !values.is_empty() {
-                let name = self.program.identifier(address);
+            let name = self.program.identifier(address);
+            if frame.recovery {
+                self.capture(Value::Error {
+                    label: name,
+                    message: None,
+                })?;
+            } else if !values.is_empty() {
                 let items = vec![Value::Str(name), Value::List(values)];
                 self.capture(Value::List(items))?;
             }

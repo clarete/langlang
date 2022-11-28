@@ -337,8 +337,7 @@ mod tests {
             IfStm      <- IF LPAR^iflpar Expr^ifexpr RPAR^ifrpar Body^ifbody
             WhileStm   <- WHILE LPAR^wlpar Expr^wexpr RPAR^wrpar Body^wbody
             AssignStm  <- Identifier EQ^assigneq Expr^assignexpr SEMI^assignsemi
-            Body       <- LBRK RBRK
-                        / LBRK Stm+ RBRK
+            Body       <- LBRK Stm* RBRK
                         / Stm
 
             IF         <- 'if'    _
@@ -360,11 +359,11 @@ mod tests {
 
             # recovery expressions for the labels declared above
 
-            iflpar     <- (!Expr .)*
-            ifrpar     <- (!LBRK .)*
-            assigneq   <- # empty
-            assignexpr <- # empty
-            assignsemi <- # empty
+            iflpar     <- (!(Bool / Identifier / Number) .)*  # first(Expr)
+            ifrpar     <- (!LBRK .)* # first(Body)
+            assigneq   <- _
+            assignexpr <- _
+            assignsemi <- _
             ",
         );
 
@@ -386,11 +385,22 @@ mod tests {
             run_str(&program, "if (false) { var = 1; }"),
         );
 
-        // Not right yet.  Should look like this when the error node is added automatically
-        // "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]Error[assignsemi]]]]",
+        // missing semicolon (`;`) at the end of the assignment statement
         assert_success(
-            "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]]]]",
+            "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]Error[assignsemi]]]]",
             run_str(&program, "var = 1"),
+        );
+
+        // Missing left parenthesis ('(') right after the if token
+        assert_success(
+            "P[Stm[IfStm[IF[if_[ ]]Error[iflpar]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]]",
+            run_str(&program, "if false) {}"),
+        );
+
+        // missing both left parenthesis and semicolon
+        assert_success(
+            "P[Stm[IfStm[IF[if_[ ]]Error[iflpar]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{_[ ]]Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]Error[assignsemi]]]RBRK[}]]]]]",
+            run_str(&program, "if false) { var = 1 }"),
         );
     }
 

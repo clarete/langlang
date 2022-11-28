@@ -812,7 +812,7 @@ impl<'a> VM<'a> {
     fn dbg_instruction(&self) {
         #[cfg(debug_assertions)]
         {
-            eprint!("{:#04} ", self.program_counter);
+            eprint!("{:#04}, {:#04} ", self.program_counter, self.cursor);
             self.dbg(&instruction_to_string(
                 self.program,
                 &self.program.code[self.program_counter],
@@ -824,7 +824,7 @@ impl<'a> VM<'a> {
     fn dbg_instruction_fail(&self) {
         #[cfg(debug_assertions)]
         {
-            eprint!("{:#04} ", self.program_counter);
+            eprint!("{:#04}, {:#04} ", self.program_counter, self.cursor);
             for _ in 0..self.call_frames.len() {
                 eprint!("    ");
             }

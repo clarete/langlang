@@ -10,9 +10,9 @@
    * [X] Compile labeled failures
    * [X] define precedence for left recursive calls
    * [X] compile non-left recursive rules with zero precedence
+   * [X] associate manually defined labels to manually defined REs
    * [ ] don't emit capture instructions in match-only
    * [ ] selective capture mode, input grammar defines captures
-   * [ ] associate manually defined labels to manually defined REs
    * [ ] first and follows set for error synchronization
    * [ ] error recovery expression generation
 ** VM

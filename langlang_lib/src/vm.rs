@@ -655,7 +655,6 @@ impl<'a> VM<'a> {
         precedence: usize,
         recovery: bool,
     ) -> Result<(), Error> {
-        let cursor = self.cursor;
         if precedence == 0 {
             self.capstkpush();
             self.stkpush(StackFrame::new_call(
@@ -667,6 +666,8 @@ impl<'a> VM<'a> {
             self.program_counter = address;
             return Ok(());
         }
+
+        let cursor = self.cursor;
         let key = (address, cursor);
         match self.lrmemo.get(&key) {
             None => {

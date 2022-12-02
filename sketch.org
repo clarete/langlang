@@ -290,6 +290,32 @@
    code emitter.
 
 * Rambling
+** Self Hosting
+
+   What would it take to build a parser generator tool capable of
+   self-hosting?  It can already take a stream of characters,
+   transform it into a tree, and then it can take the tree and
+   traverse it.
+
+   There's now the need of emitting some code that could then be
+   interpreted by the virtual machine that has been used run the
+   parsing and the translating.  Besides choosing a format for
+   outputting the emitted code, it will also be necessary to provide
+   auxiliary tooling for introspecting the output stream.
+   Introspection in the sense of reading from arbitrary positions
+   within the output stream, and knowing where the writing cursor is
+   (e.g.: for creating labels).
+
+   So, before being capable of self-hosting, this tool has to be able
+   to describe an entire compiler.  A first good exercise would be to
+   try and implement something similar to what is described in the
+   article "PEG-based transformer provides front-, middle and back-end
+   stages in a simple compiler" (Piumarta, 2010).  langlang isn't very
+   far from achieving that.  There are two main missing
+   pieces: 1. semantic actions so the output can be shaped into a list
+   for implementing the middle step. 2. the auxiliary tooling
+   described above for the output stream.
+
 ** Semantic Actions
 ** Input Validation
 *** URL

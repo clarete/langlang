@@ -135,10 +135,14 @@ impl Program {
     }
 
     pub fn label(&self, id: usize) -> String {
-        match self.labels.get(&id) {
-            None => self.strings[id].clone(),
-            Some(sid) => self.strings[*sid].clone(),
+        self.strings[id].clone()
+    }
+
+    pub fn label_message(&self, id: usize) -> Option<String> {
+        if let Some(msg_id) = self.labels.get(&id) {
+            return Some(self.strings[*msg_id].clone());
         }
+        None
     }
 
     pub fn identifier(&self, address: usize) -> String {
@@ -205,7 +209,7 @@ struct StackFrame {
     address: usize,               // pc+l
     precedence: usize,            // k
     predicate: bool,
-    recovery: bool,
+    recovery_label: Option<usize>,
     list: Option<Vec<Value>>,
 }
 
@@ -217,7 +221,7 @@ impl StackFrame {
             cursor,
             predicate,
             // fields not used for backtrack frames
-            recovery: false,
+            recovery_label: None,
             address: 0,
             precedence: 0,
             result: Ok(0),
@@ -225,7 +229,12 @@ impl StackFrame {
         }
     }
 
-    fn new_call(pc: usize, address: usize, precedence: usize, recovery: bool) -> Self {
+    fn new_call(
+        pc: usize,
+        address: usize,
+        precedence: usize,
+        recovery_label: Option<usize>,
+    ) -> Self {
         StackFrame {
             ftype: StackFrameType::Call,
             program_counter: pc,
@@ -235,7 +244,7 @@ impl StackFrame {
             list: None,
             address,
             precedence,
-            recovery,
+            recovery_label,
         }
     }
 
@@ -244,7 +253,7 @@ impl StackFrame {
         pc: usize,
         address: usize,
         precedence: usize,
-        recovery: bool,
+        recovery_label: Option<usize>,
     ) -> Self {
         StackFrame {
             ftype: StackFrameType::Call,
@@ -255,7 +264,7 @@ impl StackFrame {
             cursor,
             address,
             precedence,
-            recovery,
+            recovery_label,
         }
     }
 
@@ -266,7 +275,7 @@ impl StackFrame {
             cursor,
             list: Some(list),
             // fields not used for list frames
-            recovery: false,
+            recovery_label: None,
             predicate: false,
             address: 0,
             precedence: 0,
@@ -594,10 +603,10 @@ impl<'a> VM<'a> {
                     self.program_counter = index;
                 }
                 Instruction::Call(offset, precedence) => {
-                    self.inst_call(self.program_counter + offset, precedence, false)?;
+                    self.inst_call(self.program_counter + offset, precedence, None)?;
                 }
                 Instruction::CallB(offset, precedence) => {
-                    self.inst_call(self.program_counter - offset, precedence, false)?;
+                    self.inst_call(self.program_counter - offset, precedence, None)?;
                 }
                 Instruction::Return => {
                     self.inst_return()?;
@@ -610,7 +619,9 @@ impl<'a> VM<'a> {
                         let message = self.program.label(label);
                         match self.program.recovery.get(&label) {
                             None => return Err(Error::Matching(self.ffp, message)),
-                            Some((addr, precedence)) => self.inst_call(*addr, *precedence, true)?,
+                            Some((addr, precedence)) => {
+                                self.inst_call(*addr, *precedence, Some(label))?
+                            }
                         }
                     }
                 }
@@ -653,7 +664,7 @@ impl<'a> VM<'a> {
         &mut self,
         address: usize,
         precedence: usize,
-        recovery: bool,
+        recovery_label: Option<usize>,
     ) -> Result<(), Error> {
         if precedence == 0 {
             self.capstkpush();
@@ -661,7 +672,7 @@ impl<'a> VM<'a> {
                 self.program_counter + 1,
                 address,
                 precedence,
-                recovery,
+                recovery_label,
             ));
             self.program_counter = address;
             return Ok(());
@@ -678,7 +689,7 @@ impl<'a> VM<'a> {
                     self.program_counter + 1,
                     address,
                     precedence,
-                    recovery,
+                    recovery_label,
                 ));
                 self.program_counter = address;
                 self.lrmemo.insert(
@@ -717,20 +728,30 @@ impl<'a> VM<'a> {
 
         if frame.precedence == 0 {
             let frame = self.stkpop()?;
+            let capframe = self.capstkpop()?;
             self.program_counter = frame.program_counter;
-            let values = self.capstkpop()?.values;
-            let name = self.program.identifier(address);
-            if frame.recovery {
-                self.capture(Value::Error {
-                    label: name,
-                    message: None,
-                })?;
-            } else if !values.is_empty() {
+
+            // Recovery labels are captured as Error nodes
+            if let Some(label_id) = frame.recovery_label {
+                let label = self.program.identifier(address);
+                let message = self.program.label_message(label_id);
+                self.capture(Value::Error { label, message })?;
+                return Ok(());
+            }
+
+            // base case for regular rules returning what's inside the
+            // capture frame that was just popped
+            let values = capframe.values;
+            if !values.is_empty() {
+                let name = self.program.identifier(address);
                 let items = vec![Value::Str(name), Value::List(values)];
                 self.capture(Value::List(items))?;
             }
             return Ok(());
         }
+
+        // left recursive cases
+
         if matches!(frame.result, Err(Error::LeftRec)) || cursor > frame.result.clone()? {
             self.dbg("- {{lvar,inc}}.1");
             let mut frame = self.stkpeek_mut()?;

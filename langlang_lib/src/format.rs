@@ -95,6 +95,9 @@ pub fn value_fmt2(value: &Value) -> String {
                 s.push('}');
             }
             Value::Error { label, message } => {
+                for _ in 0..indent {
+                    s.push_str("    ");
+                }
                 s.push_str("Error{");
                 s.push_str(label);
                 if let Some(m) = message {

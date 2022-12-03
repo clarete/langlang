@@ -489,6 +489,9 @@ impl Parser {
         Ok(output)
     }
 
+    /// If the character under the cursor isn't between `a` and `b`,
+    /// return an error, otherwise return the current char and move
+    /// the read cursor forward
     fn expect_range(&mut self, a: char, b: char) -> Result<char, Error> {
         let current = self.current()?;
         if current >= a && current <= b {
@@ -501,6 +504,8 @@ impl Parser {
         )))
     }
 
+    /// Tries to match each character within `expected` against the
+    /// input source.  It starts from where the read cursor currently is.
     fn expect_str(&mut self, expected: &str) -> Result<String, Error> {
         for c in expected.chars() {
             self.expect(c)?;
@@ -508,6 +513,9 @@ impl Parser {
         Ok(expected.to_string())
     }
 
+    /// Compares `expected` to the current character under the cursor,
+    /// and advance the cursor if they match.  Returns an error
+    /// otherwise.
     fn expect(&mut self, expected: char) -> Result<char, Error> {
         let current = self.current()?;
         if current == expected {
@@ -520,12 +528,16 @@ impl Parser {
         )))
     }
 
+    /// If it's not the end of the input, return the current char and
+    /// increment the read cursor
     fn any(&mut self) -> Result<char, Error> {
         let current = self.current()?;
         self.next();
         Ok(current)
     }
 
+    /// Retrieve the character within source under the read cursor, or
+    /// EOF it it's the end of the input source stream
     fn current(&mut self) -> Result<char, Error> {
         if !self.eof() {
             return Ok(self.source[self.cursor]);
@@ -533,10 +545,13 @@ impl Parser {
         Err(self.err("EOF".to_string()))
     }
 
+    /// Returns true if the cursor equals the length of the input source
     fn eof(&self) -> bool {
         self.cursor == self.source.len()
     }
 
+    /// Increments the read cursor, and the farther failure position
+    /// if it's farther than before the last call
     fn next(&mut self) {
         self.cursor += 1;
 
@@ -545,6 +560,7 @@ impl Parser {
         }
     }
 
+    /// produce a backtracking error with `message` attached to it
     fn err(&mut self, msg: String) -> Error {
         Error::BacktrackError(self.ffp, msg)
     }

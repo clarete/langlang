@@ -1,13 +1,14 @@
 use clap::{Parser, Subcommand};
 use log::warn;
 use std::io::Write;
+use std::path::PathBuf;
 use std::{fs, io};
 
 use langlang_lib::{compiler, format, parser, vm};
 
 /// Enumeration of all sub commands supported by this binary
 #[derive(Subcommand)]
-enum Commands {
+enum Command {
     /// Run a grammar file against an input file.  If the input file
     /// is not provided, the user will be dropped into an interactive
     /// shell.
@@ -32,7 +33,7 @@ enum Commands {
 #[command(author, version, about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Command,
 }
 
 #[derive(Debug)]
@@ -94,64 +95,71 @@ fn formatter(name: &str) -> FormattingFunc {
     }
 }
 
+fn command_run(
+    grammar_file: &PathBuf,
+    input_file: &Option<PathBuf>,
+    output_format: &Option<String>,
+) -> Result<(), Error> {
+    let grammar = fs::read_to_string(grammar_file)?;
+    let ast = parser::Parser::new(&grammar).parse()?;
+    let program = compiler::Compiler::default().compile(ast)?;
+    let fmt = formatter(output_format.as_ref().unwrap_or(&"fmt".to_string()));
+
+    match input_file {
+        Some(input_file) => {
+            let input_data = fs::read_to_string(input_file)?;
+            let mut m = vm::VM::new(&program);
+            match m.run_str(&input_data)? {
+                None => println!("not much"),
+                Some(v) => println!("{}", fmt(&v)),
+            }
+        }
+        None => {
+            // Shell
+            loop {
+                // display prompt
+                print!("langlang% ");
+                io::stdout().flush().expect("can't flush stdout");
+
+                // read the next line typed in
+                let mut line = String::new();
+                io::stdin().read_line(&mut line)?;
+
+                // handle Ctrl-D
+                if line.as_str() == "" {
+                    println!();
+                    break;
+                }
+
+                // skip empty lines
+                if line.as_str() == "\n" {
+                    continue;
+                }
+
+                // removed the unwanted last \n
+                line.pop();
+
+                // run the line
+                let mut m = vm::VM::new(&program);
+                match m.run_str(&line)? {
+                    None => println!("not much"),
+                    Some(v) => println!("{}", fmt(&v)),
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn run() -> Result<(), Error> {
     let cli = Cli::parse();
     match &cli.command {
-        None => {}
-        Some(Commands::Run {
+        Command::Run {
             grammar_file,
             input_file,
             output_format,
-        }) => {
-            let grammar = fs::read_to_string(grammar_file)?;
-            let ast = parser::Parser::new(&grammar).parse()?;
-            let program = compiler::Compiler::default().compile(ast)?;
-            let default_format = "fmt0".to_string();
-            let fmt = formatter(output_format.as_ref().unwrap_or(&default_format));
-
-            match input_file {
-                Some(input_file) => {
-                    let input_data = fs::read_to_string(input_file)?;
-                    let mut m = vm::VM::new(&program);
-                    match m.run_str(&input_data)? {
-                        None => println!("not much"),
-                        Some(v) => println!("{}", fmt(&v)),
-                    }
-                }
-                None => {
-                    // Shell
-                    loop {
-                        // display prompt
-                        print!("langlang% ");
-                        io::stdout().flush().expect("can't flush stdout");
-
-                        // read the next line typed in
-                        let mut line = String::new();
-                        io::stdin().read_line(&mut line)?;
-
-                        // handle Ctrl-D
-                        if line.as_str() == "" {
-                            println!();
-                            break;
-                        }
-
-                        // skip empty lines
-                        if line.as_str() == "\n" {
-                            continue;
-                        }
-
-                        // removed the unwanted last \n
-                        line.pop();
-
-                        // run the line
-                        let mut m = vm::VM::new(&program);
-                        match m.run_str(&line)? {
-                            None => println!("not much"),
-                            Some(v) => println!("{}", fmt(&v)),
-                        }
-                    }
-                }
-            }
+        } => {
+            command_run(grammar_file, input_file, output_format)?;
         }
     }
     Ok(())

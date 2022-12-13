@@ -310,6 +310,20 @@ struct LeftRecTableEntry {
     bound: usize,
 }
 
+impl LeftRecTableEntry {
+    /// Create a new LeftRecTableEntry with a custom `precedence`.
+    /// The other fields of the struct receive default values.  The
+    /// `cursor` is set with a LeftRec error, and the `bound` is set
+    /// to zero.
+    fn new(precedence: usize) -> Self {
+        Self {
+            cursor: Err(Error::LeftRec),
+            bound: 0,
+            precedence,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct VM<'a> {
     // Cursor position at the input
@@ -692,14 +706,7 @@ impl<'a> VM<'a> {
                     recovery_label,
                 ));
                 self.program_counter = address;
-                self.lrmemo.insert(
-                    key,
-                    LeftRecTableEntry {
-                        cursor: Err(Error::LeftRec),
-                        bound: 0,
-                        precedence,
-                    },
-                );
+                self.lrmemo.insert(key, LeftRecTableEntry::new(precedence));
             }
             Some(entry) => {
                 if matches!(entry.cursor, Err(Error::LeftRec)) || precedence < entry.precedence {

@@ -680,6 +680,10 @@ impl<'a> VM<'a> {
         precedence: usize,
         recovery_label: Option<usize>,
     ) -> Result<(), Error> {
+        // There is no precedence level set, which means this is *not*
+        // a left recursive call.  So all we need to do is to push a
+        // new frame for both the capture and the backtrack/call stack
+        // and set the program counter appropriately
         if precedence == 0 {
             self.capstkpush();
             self.stkpush(StackFrame::new_call(
@@ -692,9 +696,15 @@ impl<'a> VM<'a> {
             return Ok(());
         }
 
+        // from this point on, we're handling left recursive calls.
         let cursor = self.cursor;
         let key = (address, cursor);
         match self.lrmemo.get(&key) {
+            // When there isn't a memoised leftrec entry, it means
+            // that it's a left recursive call with bound zero (0), so
+            // we push a new frame in both the capture and the regular
+            // backtrack/call stack, point the program counter to
+            // where the function being called is and move on.
             None => {
                 self.dbg("- lvar.{{1, 2}}");
                 self.capstkpush();
@@ -708,6 +718,13 @@ impl<'a> VM<'a> {
                 self.program_counter = address;
                 self.lrmemo.insert(key, LeftRecTableEntry::new(precedence));
             }
+            // if there is already a leftrec entry in the memoization
+            // table, it means that we're hitting a left recursive
+            // call.  If the previous call's bound was zero (0) or if
+            // the precedence of the current call is lower than the
+            // one in the table, then it fails the call.  Otherwise,
+            // we wrap the current set of captured values into a new
+            // node and push it into the capture stack.
             Some(entry) => {
                 if matches!(entry.cursor, Err(Error::LeftRec)) || precedence < entry.precedence {
                     self.dbg("- lvar.{{3,5}}");

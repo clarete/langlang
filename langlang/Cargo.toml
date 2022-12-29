@@ -3,6 +3,12 @@ name = "langlang"
 version = "0.1.0"
 authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
 edition = "2021"
+description = "langlang is a parser generator based on Parsing Expression Grammars (tools)"
+homepage = "github.com/clarete/langlang"
+repository = "github.com/clarete/langlang"
+license = "GPL-3.0-or-later"
+documentation = "https://docs.rs/langlang"
+readme = "../README.org"
 
 [dependencies]
 log = "0.4"

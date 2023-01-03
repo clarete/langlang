@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn test_char() {
         let cc = compiler::Config::default();
-        assert_success("A[a]", cc_run(&cc, "A <- 'a'", "a"));
+        assert_match("A[a]", cc_run(&cc, "A <- 'a'", "a"));
     }
 
     #[test]
@@ -19,13 +19,13 @@ mod tests {
         // `Instruction::Str` can read both an entire string or a set
         // of chars allows this example to work, as the `0x` piece is
         // compiled into an `Instruction::Str` call.
-        assert_success("A[0xff]", run_str(&p, "0xff"));
-        assert_success("A[0]", run_str(&p, "0"));
+        assert_match("A[0xff]", run_str(&p, "0xff"));
+        assert_match("A[0]", run_str(&p, "0"));
 
         // This won't work because "0x" is tested against "0xff" which
         // fails right away:
         //let value = run(&p, vec![vm::Value::Str("0xff".to_string())]);
-        //assert_success("A[0xff]", value.unwrap());
+        //assert_match("A[0xff]", value.unwrap());
 
         // This works as both `f` chars get consummed by [a-f]+ one at
         // a time.
@@ -37,23 +37,23 @@ mod tests {
                 vm::Value::Chr('f'),
             ],
         );
-        assert_success("A[0xff]", value.unwrap());
+        assert_match("A[0xff]", value.unwrap());
 
         // Easiest case
         let value = run(&p, vec![vm::Value::Str("0".to_string())]);
-        assert_success("A[0]", value.unwrap());
+        assert_match("A[0]", value.unwrap());
     }
 
     #[test]
     fn test_not_0() {
         let cc = compiler::Config::o0();
-        assert_success("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
+        assert_match("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
     }
 
     #[test]
     fn test_not_opt() {
         let cc = compiler::Config::o1();
-        assert_success("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
+        assert_match("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
     }
 
     #[test]
@@ -67,25 +67,25 @@ mod tests {
             LEFTARROW  <- '<-'
             ",
         );
-        assert_success("Primary[Identifier[A]]", run_str(&p, "A"));
+        assert_match("Primary[Identifier[A]]", run_str(&p, "A"));
     }
 
     #[test]
     fn test_and_0() {
         let cc = compiler::Config::o0();
-        assert_success("A[a]", cc_run(&cc, "A <- (&('a' / 'b') .)", "a"));
+        assert_match("A[a]", cc_run(&cc, "A <- (&('a' / 'b') .)", "a"));
     }
 
     #[test]
     fn test_and_opt() {
         let cc = compiler::Config::o1();
-        assert_success("A[a]", cc_run(&cc, "A <- &'a' .", "a"));
+        assert_match("A[a]", cc_run(&cc, "A <- &'a' .", "a"));
     }
 
     #[test]
     fn test_choice_within_repeat() {
         let cc = compiler::Config::o0();
-        assert_success(
+        assert_match(
             "A[abada]",
             cc_run(&cc, "A <- ('abacate' / 'abada')+", "abada"),
         );
@@ -94,28 +94,28 @@ mod tests {
     #[test]
     fn test_star_0() {
         let cc = compiler::Config::o0();
-        assert_success("A[abab]", cc_run(&cc, "A <- .*", "abab"));
+        assert_match("A[abab]", cc_run(&cc, "A <- .*", "abab"));
     }
 
     #[test]
     fn test_star_opt() {
         let cc = compiler::Config::o1();
-        assert_success("A[abab]", cc_run(&cc, "A <- .*", "abab"));
+        assert_match("A[abab]", cc_run(&cc, "A <- .*", "abab"));
     }
 
     #[test]
     fn test_var0() {
         let cc = compiler::Config::default();
-        assert_success("A[11]", cc_run(&cc, "A <- '1' '1'", "11"));
+        assert_match("A[11]", cc_run(&cc, "A <- '1' '1'", "11"));
     }
 
     #[test]
     fn test_var_ending_with_zero_or_more() {
         let cc = compiler::Config::default();
         let program = compile(&cc, "A <- '1'*");
-        assert_success("A[111]", run_str(&program, "111"));
-        assert_success("A[11]", run_str(&program, "11"));
-        assert_success("A[1]", run_str(&program, "1"));
+        assert_match("A[111]", run_str(&program, "111"));
+        assert_match("A[11]", run_str(&program, "11"));
+        assert_match("A[1]", run_str(&program, "1"));
         assert!(run_str(&program, "").is_none())
     }
 
@@ -123,17 +123,17 @@ mod tests {
     fn test_var_ending_with_one_or_more() {
         let cc = compiler::Config::default();
         let program = compile(&cc, "A <- '1'+");
-        assert_success("A[111]", run_str(&program, "111"));
-        assert_success("A[11]", run_str(&program, "11"));
-        assert_success("A[1]", run_str(&program, "1"));
+        assert_match("A[111]", run_str(&program, "111"));
+        assert_match("A[11]", run_str(&program, "11"));
+        assert_match("A[1]", run_str(&program, "1"));
     }
 
     #[test]
     fn test_var_ending_with_option() {
         let cc = compiler::Config::default();
         let program = compile(&cc, "A <- '1' '1'?");
-        assert_success("A[11]", run_str(&program, "11"));
-        assert_success("A[1]", run_str(&program, "1"));
+        assert_match("A[11]", run_str(&program, "11"));
+        assert_match("A[1]", run_str(&program, "1"));
     }
 
     // -- Unicode --------------------------------------------------------------
@@ -141,8 +141,8 @@ mod tests {
     #[test]
     fn test_unicode_0() {
         let cc = compiler::Config::default();
-        assert_success("A[♡]", cc_run(&cc, "A <- [♡]", "♡"));
-        assert_success("A[♡]", cc_run(&cc, "A <- '♡'", "♡"));
+        assert_match("A[♡]", cc_run(&cc, "A <- [♡]", "♡"));
+        assert_match("A[♡]", cc_run(&cc, "A <- '♡'", "♡"));
     }
 
     // -- Left Recursion -------------------------------------------------------
@@ -151,19 +151,19 @@ mod tests {
     fn test_lr0() {
         let cc = compiler::Config::default();
         let program = compile(&cc, "E <- E '+n' / 'n'");
-        assert_success("E[n]", run_str(&program, "n"));
-        assert_success("E[E[n]+n]", run_str(&program, "n+n"));
-        assert_success("E[E[E[n]+n]+n]", run_str(&program, "n+n+n"));
+        assert_match("E[n]", run_str(&program, "n"));
+        assert_match("E[E[n]+n]", run_str(&program, "n+n"));
+        assert_match("E[E[E[n]+n]+n]", run_str(&program, "n+n+n"));
     }
 
     #[test]
     fn test_lr1() {
         let cc = compiler::Config::default();
         let program = compile(&cc, "E <- E '+' E / 'n'+");
-        assert_success("E[n]", run_str(&program, "n"));
-        assert_success("E[E[n]+E[n]]", run_str(&program, "n+n"));
-        assert_success("E[E[n]+E[E[n]+E[n]]]", run_str(&program, "n+n+n"));
-        assert_success("E[E[n]+E[E[n]+E[E[n]+E[n]]]]", run_str(&program, "n+n+n+n"));
+        assert_match("E[n]", run_str(&program, "n"));
+        assert_match("E[E[n]+E[n]]", run_str(&program, "n+n"));
+        assert_match("E[E[n]+E[E[n]+E[n]]]", run_str(&program, "n+n+n"));
+        assert_match("E[E[n]+E[E[n]+E[E[n]+E[n]]]]", run_str(&program, "n+n+n+n"));
     }
 
     #[test]
@@ -176,10 +176,10 @@ mod tests {
              M <- M '-n' / 'n'
             ",
         );
-        assert_success("E[M[n]]", run_str(&program, "n"));
-        assert_success("E[M[M[n]-n]]", run_str(&program, "n-n"));
-        assert_success("E[M[M[M[n]-n]-n]]", run_str(&program, "n-n-n"));
-        assert_success("E[M[n]+E[M[n]+E[M[n]]]]", run_str(&program, "n+n+n"));
+        assert_match("E[M[n]]", run_str(&program, "n"));
+        assert_match("E[M[M[n]-n]]", run_str(&program, "n-n"));
+        assert_match("E[M[M[M[n]-n]-n]]", run_str(&program, "n-n-n"));
+        assert_match("E[M[n]+E[M[n]+E[M[n]]]]", run_str(&program, "n+n+n"));
     }
 
     #[test]
@@ -197,20 +197,20 @@ mod tests {
         );
         // Right associative, as E is both left and right recursive,
         // without precedence
-        assert_success("E[n]", run_str(&program, "n"));
-        assert_success("E[E[n]+E[n]]", run_str(&program, "n+n"));
-        assert_success("E[E[n]+E[E[n]+E[n]]]", run_str(&program, "n+n+n"));
-        assert_success("E[E[n]-E[n]]", run_str(&program, "n-n"));
-        assert_success("E[E[n]-E[E[n]-E[n]]]", run_str(&program, "n-n-n"));
-        assert_success("E[E[n]*E[n]]", run_str(&program, "n*n"));
-        assert_success("E[E[n]*E[E[n]*E[n]]]", run_str(&program, "n*n*n"));
-        assert_success("E[E[n]/E[n]]", run_str(&program, "n/n"));
-        assert_success("E[E[n]/E[E[n]/E[n]]]", run_str(&program, "n/n/n"));
-        assert_success("E[E[n]-E[E[n]+E[n]]]", run_str(&program, "n-n+n"));
-        assert_success("E[E[n]+E[E[n]-E[n]]]", run_str(&program, "n+n-n"));
-        assert_success("E[E[n]+E[E[n]*E[n]]]", run_str(&program, "n+n*n"));
-        assert_success("E[E[n]*E[E[n]+E[n]]]", run_str(&program, "n*n+n"));
-        assert_success("E[E[n]/E[E[n]+E[n]]]", run_str(&program, "n/n+n"));
+        assert_match("E[n]", run_str(&program, "n"));
+        assert_match("E[E[n]+E[n]]", run_str(&program, "n+n"));
+        assert_match("E[E[n]+E[E[n]+E[n]]]", run_str(&program, "n+n+n"));
+        assert_match("E[E[n]-E[n]]", run_str(&program, "n-n"));
+        assert_match("E[E[n]-E[E[n]-E[n]]]", run_str(&program, "n-n-n"));
+        assert_match("E[E[n]*E[n]]", run_str(&program, "n*n"));
+        assert_match("E[E[n]*E[E[n]*E[n]]]", run_str(&program, "n*n*n"));
+        assert_match("E[E[n]/E[n]]", run_str(&program, "n/n"));
+        assert_match("E[E[n]/E[E[n]/E[n]]]", run_str(&program, "n/n/n"));
+        assert_match("E[E[n]-E[E[n]+E[n]]]", run_str(&program, "n-n+n"));
+        assert_match("E[E[n]+E[E[n]-E[n]]]", run_str(&program, "n+n-n"));
+        assert_match("E[E[n]+E[E[n]*E[n]]]", run_str(&program, "n+n*n"));
+        assert_match("E[E[n]*E[E[n]+E[n]]]", run_str(&program, "n*n+n"));
+        assert_match("E[E[n]/E[E[n]+E[n]]]", run_str(&program, "n/n+n"));
     }
 
     #[test]
@@ -230,26 +230,26 @@ mod tests {
         );
 
         // left associative with different precedences
-        assert_success("E[21]", run_str(&program, "21"));
-        assert_success("E[E[3]+E[5]]", run_str(&program, "3+5"));
-        assert_success("E[E[3]-E[5]]", run_str(&program, "3-5"));
+        assert_match("E[21]", run_str(&program, "21"));
+        assert_match("E[E[3]+E[5]]", run_str(&program, "3+5"));
+        assert_match("E[E[3]-E[5]]", run_str(&program, "3-5"));
         // same precedence between addition (+) and subtraction (-)
-        assert_success("E[E[E[3]-E[5]]+E[2]]", run_str(&program, "3-5+2"));
-        assert_success("E[E[E[3]+E[5]]-E[2]]", run_str(&program, "3+5-2"));
+        assert_match("E[E[E[3]-E[5]]+E[2]]", run_str(&program, "3-5+2"));
+        assert_match("E[E[E[3]+E[5]]-E[2]]", run_str(&program, "3+5-2"));
         // higher precedence for multiplication (*) over addition (+) and subtraction (-)
-        assert_success("E[E[3]+E[E[5]*E[2]]]", run_str(&program, "3+5*2"));
-        assert_success("E[E[E[5]*E[2]]-E[3]]", run_str(&program, "5*2-3"));
-        assert_success("E[E[E[E[1]*E[5]]*E[2]]+E[3]]", run_str(&program, "1*5*2+3"));
+        assert_match("E[E[3]+E[E[5]*E[2]]]", run_str(&program, "3+5*2"));
+        assert_match("E[E[E[5]*E[2]]-E[3]]", run_str(&program, "5*2-3"));
+        assert_match("E[E[E[E[1]*E[5]]*E[2]]+E[3]]", run_str(&program, "1*5*2+3"));
         // unary operator
-        assert_success("E[-E[1]]", run_str(&program, "-1"));
+        assert_match("E[-E[1]]", run_str(&program, "-1"));
         // highest precedence parenthesis
-        assert_success("E[E[(E[E[3]+E[5]])]*E[2]]", run_str(&program, "(3+5)*2"));
+        assert_match("E[E[(E[E[3]+E[5]])]*E[2]]", run_str(&program, "(3+5)*2"));
     }
 
     #[test]
     fn test_lr5() {
         let cc = compiler::Config::default();
-        assert_success(
+        assert_match(
             "L[xP[L[P[P[(n)](n)]]].xP[L[P[(n)]]].x]",
             cc_run(
                 &cc,
@@ -293,10 +293,10 @@ mod tests {
             vm::Value::Chr('b'),
             vm::Value::Chr('a'),
         ])];
-        assert_success("A[[aba]]", run(&p, input_with_chr).unwrap());
+        assert_match("A[[aba]]", run(&p, input_with_chr).unwrap());
 
         let input_with_str = vec![vm::Value::List(vec![vm::Value::Str("aba".to_string())])];
-        assert_success("A[[aba]]", run(&p, input_with_str).unwrap())
+        assert_match("A[[aba]]", run(&p, input_with_str).unwrap())
     }
 
     #[test]
@@ -315,13 +315,13 @@ mod tests {
             vm::Value::Chr('t'),
             vm::Value::Chr('e'),
         ])];
-        assert_success("A[[[aba]cate]]", run(&p, input_with_chr).unwrap());
+        assert_match("A[[[aba]cate]]", run(&p, input_with_chr).unwrap());
 
         let input_with_str = vec![vm::Value::List(vec![
             vm::Value::List(vec![vm::Value::Str("aba".to_string())]),
             vm::Value::Str("cate".to_string()),
         ])];
-        assert_success("A[[[aba]cate]]", run(&p, input_with_str).unwrap());
+        assert_match("A[[[aba]cate]]", run(&p, input_with_str).unwrap());
     }
 
     // -- Error Recovery -------------------------------------------------------
@@ -368,37 +368,37 @@ mod tests {
         );
 
         // makes sure the above grammar works
-        assert_success(
+        assert_match(
             "P[Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]]",
             run_str(&program, "if (false) {}"),
         );
-        assert_success(
+        assert_match(
             "P[Stm[WhileStm[WHILE[while_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]]",
             run_str(&program, "while (false) {}"),
         );
-        assert_success(
+        assert_match(
             "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]SEMI[;]]]]",
             run_str(&program, "var = 1;"),
         );
-        assert_success(
+        assert_match(
             "P[Stm[IfStm[IF[if_[ ]]LPAR[(]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{_[ ]]Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]SEMI[;_[ ]]]]RBRK[}]]]]]",
             run_str(&program, "if (false) { var = 1; }"),
         );
 
         // missing semicolon (`;`) at the end of the assignment statement
-        assert_success(
+        assert_match(
             "P[Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]Error[assignsemi]]]]",
             run_str(&program, "var = 1"),
         );
 
         // Missing left parenthesis ('(') right after the if token
-        assert_success(
+        assert_match(
             "P[Stm[IfStm[IF[if_[ ]]Error[iflpar]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{]RBRK[}]]]]]",
             run_str(&program, "if false) {}"),
         );
 
         // missing both left parenthesis and semicolon
-        assert_success(
+        assert_match(
             "P[Stm[IfStm[IF[if_[ ]]Error[iflpar]Expr[Bool[false]]RPAR[)_[ ]]Body[LBRK[{_[ ]]Stm[AssignStm[Identifier[var_[ ]]EQ[=_[ ]]Expr[Number[1]]Error[assignsemi]]]RBRK[}]]]]]",
             run_str(&program, "if false) { var = 1 }"),
         );
@@ -422,7 +422,7 @@ mod tests {
         let mut c = compiler::Compiler::new(cc);
         let list_program = c.compile(rewrite).unwrap();
         let value = run(&list_program, vec![output.unwrap()]).unwrap();
-        assert_success("A[A[F]]", value);
+        assert_match("A[A[F]]", value);
     }
 
     // -- Test Helpers ---------------------------------------------------------
@@ -452,7 +452,7 @@ mod tests {
         machine.run_str(input).expect("Unexpected")
     }
 
-    fn assert_success(expected: &str, value: Option<vm::Value>) {
+    fn assert_match(expected: &str, value: Option<vm::Value>) {
         assert!(value.is_some());
         assert_eq!(expected.to_string(), format::value_fmt1(&value.unwrap()));
     }

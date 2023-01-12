@@ -1,37 +1,41 @@
-JSONObject  <- CBO (Pair (COMA Pair)*)? CBC
-Pair        <- String SEMICOLON Value
-Array       <- ARO (Value (COMA Value)* )? ARC
-Value       <- (String
-              / Number
-              / JSONObject
-              / Array
-              / True
-              / False
-              / Null) _
-True        <- "true"
-False       <- "false"
-Null        <- "null"
-String      <- doublequote Char* doublequote
-Char        <- backslash doublequote
-             / backslash backslash
-             / backslash [bfnrt]
-             / backslash 'u' Hex Hex Hex Hex
-             / (!doublequote .)
-Number      <- '0' / [1-9] Digit* (DOT Digit*)?
-Digit       <- [0-9]
-Hex         <- [0-9A-Fa-f]
+# https://www.rfc-editor.org/rfc/rfc8259
 
-backslash   <- '\\'
-doublequote <- '"'
+JSON    <- _ Value !.
+Value   <- FALSE / NULL / TRUE / Object / Array / Number / String
+Object  <- OBO (Member (COMA Member)*)? OBC
+Member  <- String COLON Value
+Array   <- ARO (Value (COMA Value)*)? ARC
 
-DOT         <- '.' _
-SEMICOLON   <- ':' _
-COMA        <- ',' _
-CBO         <- '{' _
-CBC         <- '}' _
-ARO         <- '[' _
-ARC         <- ']' _
+# Whitespaces are not allowed after the MINUS sign
+Number  <- '-'? Int Frac? Exp? _
+Int     <- '0' / ([1-9][0-9]*)
+Frac    <- DOT [0-9]+
+Exp     <- [eE][-+]?[0-9]+
 
-_           <- Space*
-Space       <- ' ' / '\t' / EndOfLine
-EndOfLine   <- '\r\n' / '\n' / '\r'
+String  <- DQUOTE Char* DQUOTE _
+Char    <- BSLASH DQUOTE
+         / BSLASH BSLASH
+         / BSLASH SLASH
+         / BSLASH [bfnrt]
+         / BSLASH 'u' Hex Hex Hex Hex
+         / (!DQUOTE .)
+
+Hex     <- [0-9A-Fa-f]
+
+BSLASH  <- '\\'
+SLASH   <- '/'
+DQUOTE  <- '"'
+
+TRUE    <- "true"  _
+FALSE   <- "false" _
+NULL    <- "null"  _
+
+COMA    <- ',' _
+COLON   <- ':' _
+DOT     <- '.' _
+OBO     <- '{' _
+OBC     <- '}' _
+ARO     <- '[' _
+ARC     <- ']' _
+
+_       <- (' ' / '\n' / '\r' / '\t')*

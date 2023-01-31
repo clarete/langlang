@@ -1,0 +1,30 @@
+aggregator {
+    type: service
+    description: "Distribute query shards for workers to process"
+    dependency {
+        type: aggregation-worker
+        replicas: 3
+    }
+}
+
+aggregation-worker {
+    type: service
+    description: "pick up shards of queries to aggregate"
+    dependency {
+        type: data-bucket
+    }
+}
+
+data-bucket {
+    type: s3-storage
+}
+
+service {
+    background: #fc0
+//    font-size: 12pt
+    icon: file://./imgs/service.png
+}
+
+s3-storage {
+    icon: file://./imgs/aws-s3.png
+}

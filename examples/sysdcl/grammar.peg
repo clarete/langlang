@@ -1,0 +1,41 @@
+sysdcl     <- _ definition* EOF^eof
+definition <- ID COLON value^defval
+            / ID OPEN^defop definition* CLOSE^defcl
+value      <- STRING / number / uri / ID
+uri        <- proto path^uripth _
+path       <- ((pathslash pathel)+
+             / pathel path
+             / pathel) pathslash?
+
+# lexical rules
+proto      <- ('file' / ('http' 's'?)) '://'
+pathel     <- [a-zA-Z0-9-_.+~]+
+pathslash  <- '/' / '\\'
+
+number     <- NUMDEC / NUMHEX
+NUMDEC     <- [1-9][0-9]* _
+NUMHEX     <- '#' [a-fA-F0-9]+^hex _
+STRING     <- '"' (!'"' .)* '"' _
+ID         <- [a-zA-Z_][a-zA-Z0-9-_.]* _
+DEFINE     <- 'define' _
+PAROPEN    <- '(' _
+PARCLOSE   <- ')' _
+OPEN       <- '{' _
+CLOSE      <- '}' _
+COLON      <- ':' _
+COMA       <- ',' _
+EOF        <- !.
+EOL        <- '\n' / '\r\n' / '\r'
+
+# skip rules
+_          <- (ws / comment)*
+comment    <- '//' (!(EOL / EOF) .)*
+ws         <- (' ' / '\t' / EOL)
+
+# recovery rules
+defop      <- (!'}' .)*
+defcl      <-
+defval     <-
+hex        <-
+uripth     <- (!WS .)*
+eof        <-

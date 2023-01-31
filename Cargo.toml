@@ -3,4 +3,5 @@
 members = [
     "langlang",
     "langlang_lib",
+    "examples/sysdcl",
 ]

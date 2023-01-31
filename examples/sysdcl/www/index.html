@@ -4,6 +4,13 @@
     <meta charset="utf-8">
     <title>Hello wasm-pack!</title>
     <style>
+      .container {
+          display: flex;
+          flex-wrap: wrap;
+          width: 100%;
+      }
+      .canvas { width: calc(100% - 20px); padding: 10px; }
+      .editor { width: calc(100% - 20px); padding: 10px; }
       .editor {
           border-radius: 6px;
           box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
@@ -17,17 +24,19 @@
           tab-size: 4;
           white-space: pre;
       }
-
       .editor { background: #272822; color: #f8f8f2; }
       .editor .ID { color: #f92672; }
       .editor .STRING { color: #e6db74; }
-      .editor .NUMBER { color: #66d9ef; }
-      .editor .Comment { color: #75715e; }
+      .editor .number { color: #66d9ef; }
+      .editor .comment { color: #75715e; }
       .editor .value .ID { color: #a6e22e; }
     </style>
   </head>
   <body>
-    <div class="editor"></div>
+    <div class="container">
+      <div class="canvas"><canvas /></div>
+      <div class="editor"></div>
+    </div>
     <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
     <script src="./bootstrap.js"></script>
   </body>

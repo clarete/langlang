@@ -36,51 +36,6 @@ struct Cli {
     command: Command,
 }
 
-#[derive(Debug)]
-pub enum Error {
-    CompilerError(compiler::Error),
-    ParserError(parser::Error),
-    RuntimeError(vm::Error),
-    IOError(io::Error),
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Error::ParserError(e) => write!(f, "Parsing Error: {:#?}", e),
-            Error::CompilerError(e) => write!(f, "Compiler Error: {:#?}", e),
-            Error::RuntimeError(e) => write!(f, "Runtime Error: {:#?}", e),
-            Error::IOError(e) => write!(f, "Input/Output Error: {:#?}", e),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Error::IOError(e)
-    }
-}
-
-impl From<compiler::Error> for Error {
-    fn from(e: compiler::Error) -> Self {
-        Error::CompilerError(e)
-    }
-}
-
-impl From<parser::Error> for Error {
-    fn from(e: parser::Error) -> Self {
-        Error::ParserError(e)
-    }
-}
-
-impl From<vm::Error> for Error {
-    fn from(e: vm::Error) -> Self {
-        Error::RuntimeError(e)
-    }
-}
-
 type FormattingFunc = fn(v: &vm::Value) -> String;
 
 fn formatter(name: &str) -> FormattingFunc {
@@ -100,7 +55,7 @@ fn command_run(
     grammar_file: &PathBuf,
     input_file: &Option<PathBuf>,
     output_format: &Option<String>,
-) -> Result<(), Error> {
+) -> Result<(), langlang_lib::Error> {
     let grammar = fs::read_to_string(grammar_file)?;
     let ast = parser::Parser::new(&grammar).parse()?;
     let program = compiler::Compiler::default().compile(ast)?;
@@ -152,7 +107,7 @@ fn command_run(
     Ok(())
 }
 
-fn run() -> Result<(), Error> {
+fn run() -> Result<(), langlang_lib::Error> {
     let cli = Cli::parse();
     match &cli.command {
         Command::Run {

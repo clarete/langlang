@@ -109,3 +109,25 @@ pub fn value_fmt2(value: &Value) -> String {
     }
     f(value, 0)
 }
+
+pub fn value_html(value: &Value) -> String {
+    let mut s = String::new();
+    match value {
+        Value::Chr(v) => match *v {
+            '\n' => s.push_str("\\n"),
+            vv => s.push(vv),
+        },
+        Value::Str(v) => s.push_str(v),
+        Value::Node { name, items } => {
+            s.push_str("<span class=\"");
+            s.push_str(name);
+            s.push_str("\">");
+            for i in items {
+                s.push_str(value_html(i).as_str());
+            }
+            s.push_str("</span>");
+        }
+        _ => {}
+    }
+    s
+}

@@ -88,6 +88,7 @@ fn formatter(name: &str) -> FormattingFunc {
         "fmt0" => format::value_fmt0,
         "fmt1" => format::value_fmt1,
         "fmt2" => format::value_fmt2,
+        "html" => format::value_html,
         _ => {
             warn!("oh no! an invalud formatter: {}", name);
             format::value_fmt0

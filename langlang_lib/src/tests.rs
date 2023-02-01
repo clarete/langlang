@@ -324,6 +324,22 @@ mod tests {
         assert_match("A[[[aba]cate]]", run(&p, input_with_str).unwrap());
     }
 
+    #[test]
+    fn test_node_0() {
+        let cc = compiler::Config::default();
+        let p = compile(&cc, "A <- { A: 'aba' }");
+
+        let input_with_chr = vec![vm::Value::Node {
+            name: "A".to_string(),
+            items: vec![
+                vm::Value::Chr('a'),
+                vm::Value::Chr('b'),
+                vm::Value::Chr('a'),
+            ],
+        }];
+        assert_match("A[A[aba]]", run(&p, input_with_chr).unwrap());
+    }
+
     // -- Error Recovery -------------------------------------------------------
 
     #[test]

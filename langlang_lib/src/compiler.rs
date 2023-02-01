@@ -364,12 +364,21 @@ impl Compiler {
                 };
                 Ok(())
             }
+            AST::Node(name, items) => {
+                self.emit(vm::Instruction::Open);
+                self.compile_node(AST::Str(name))?;
+                for i in items {
+                    self.compile_node(i)?;
+                }
+                self.emit(vm::Instruction::Close(vm::ContainerType::Node));
+                Ok(())
+            }
             AST::List(items) => {
                 self.emit(vm::Instruction::Open);
                 for i in items {
                     self.compile_node(i)?;
                 }
-                self.emit(vm::Instruction::Close);
+                self.emit(vm::Instruction::Close(vm::ContainerType::List));
                 Ok(())
             }
             AST::Range(a, b) => {

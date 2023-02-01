@@ -17,11 +17,21 @@ pub enum Value {
     // I64(i64),
     // U64(u64),
     // F64(f64),
+    Node {
+        name: String,
+        items: Vec<Value>,
+    },
     List(Vec<Value>),
     Error {
         label: String,
         message: Option<String>,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
+pub enum ContainerType {
+    List,
+    Node,
 }
 
 #[derive(Clone, Debug)]
@@ -47,7 +57,7 @@ pub enum Instruction {
     Return,
     Throw(usize),
     Open,
-    Close,
+    Close(ContainerType),
     CapPush,
     CapPop,
     CapCommit,
@@ -75,7 +85,7 @@ impl std::fmt::Display for Instruction {
             Instruction::Call(addr, k) => write!(f, "call {:?} {:?}", addr, k),
             Instruction::CallB(addr, k) => write!(f, "callb {:?} {:?}", addr, k),
             Instruction::Open => write!(f, "open"),
-            Instruction::Close => write!(f, "close"),
+            Instruction::Close(t) => write!(f, "close({:?})", t),
             Instruction::CapPush => write!(f, "cappush"),
             Instruction::CapPop => write!(f, "cappop"),
             Instruction::CapCommit => write!(f, "capcommit"),
@@ -434,17 +444,15 @@ impl<'a> VM<'a> {
         Ok(())
     }
 
-    fn capture_flatten(&mut self, address: usize, values: Vec<Value>) -> Result<(), Error> {
+    fn capture_flatten(&mut self, address: usize, items: Vec<Value>) -> Result<(), Error> {
         let name = self.program.identifier(address);
-        match &values[..] {
+        match &items[..] {
             [] => {}
-            [Value::List(ch)] if ch.len() == 2 && ch[0] == Value::Str(name) => {
-                self.capture(values[0].clone())?;
+            [Value::Node { name: n, .. }] if *n == name && items.len() == 1 => {
+                self.capture(items[0].clone())?;
             }
             _ => {
-                let name = self.program.identifier(address);
-                let items = vec![Value::Str(name), Value::List(values)];
-                self.capture(Value::List(items))?;
+                self.capture(Value::Node { name, items })?;
             }
         }
         Ok(())
@@ -652,13 +660,34 @@ impl<'a> VM<'a> {
                             source = items.to_vec();
                             self.cursor = 0;
                         }
+                        Value::Node { name, items } => {
+                            self.capstkpush();
+                            self.stkpush(StackFrame::new_list(
+                                self.cursor,
+                                self.program_counter,
+                                source.to_vec(),
+                            ));
+                            let mut tmp = vec![Value::Str(name.clone())];
+                            tmp.extend(items.to_vec());
+                            source = tmp;
+                            self.cursor = 0;
+                        }
                         _ => self.fail(Error::Matching(self.ffp, "Not a list".to_string()))?,
                     }
                 }
-                Instruction::Close => {
+                Instruction::Close(ref container_type) => {
                     self.program_counter += 1;
                     let capsframe = self.capstkpop()?;
-                    self.capture(Value::List(capsframe.values))?;
+                    self.capture(match container_type {
+                        ContainerType::List => Value::List(capsframe.values),
+                        ContainerType::Node => Value::Node {
+                            name: match &capsframe.values[0] {
+                                Value::Str(s) => s.clone(),
+                                _ => panic!("node name must be a string"),
+                            },
+                            items: capsframe.values[1..].to_vec(),
+                        },
+                    })?;
                     let frame = self.stkpop()?;
                     self.cursor = frame.cursor + 1;
                     source = frame.list.ok_or(Error::Index)?;
@@ -765,11 +794,10 @@ impl<'a> VM<'a> {
 
             // base case for regular rules returning what's inside the
             // capture frame that was just popped
-            let values = capframe.values;
-            if !values.is_empty() {
+            let items = capframe.values;
+            if !items.is_empty() {
                 let name = self.program.identifier(address);
-                let items = vec![Value::Str(name), Value::List(values)];
-                self.capture(Value::List(items))?;
+                self.capture(Value::Node { name, items })?;
             }
             return Ok(());
         }
@@ -1579,10 +1607,10 @@ mod tests {
         let r = result.unwrap();
         assert!(r.is_some());
         assert_eq!(
-            Value::List(vec![
-                Value::Str("G".to_string()),
-                Value::List(vec![Value::Str("abacate".to_string()),]),
-            ]),
+            Value::Node {
+                name: "G".to_string(),
+                items: vec![Value::Str("abacate".to_string())],
+            },
             r.unwrap()
         );
     }
@@ -1676,16 +1704,16 @@ mod tests {
         let r = result.unwrap();
         assert!(r.is_some());
         assert_eq!(
-            Value::List(vec![
-                Value::Str("G".to_string()),
-                Value::List(vec![
+            Value::Node {
+                name: "G".to_string(),
+                items: vec![
                     Value::Chr('a'),
                     Value::Chr('b'),
                     Value::Chr('a'),
                     Value::Chr('d'),
                     Value::Chr('a'),
-                ])
-            ]),
+                ],
+            },
             r.unwrap(),
         );
     }
@@ -1724,13 +1752,13 @@ mod tests {
         let r = result.unwrap();
         assert!(r.is_some());
         assert_eq!(
-            Value::List(vec![
-                Value::Str("G".to_string()),
-                Value::List(vec![Value::List(vec![
-                    Value::Str("D".to_string()),
-                    Value::List(vec![Value::Chr('1'),]),
-                ]),]),
-            ]),
+            Value::Node {
+                name: "G".to_string(),
+                items: vec![Value::Node {
+                    name: "D".to_string(),
+                    items: vec![Value::Chr('1')],
+                }],
+            },
             r.unwrap(),
         );
     }

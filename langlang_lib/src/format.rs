@@ -11,24 +11,21 @@ pub fn value_fmt1(value: &Value) -> String {
     match value {
         Value::Chr(v) => s.push(*v),
         Value::Str(v) => s.push_str(v),
-        Value::List(items) => match &items[..] {
-            [] => s.push_str("[]"),
-            [Value::Str(name), Value::List(children)] => {
-                s.push_str(name);
-                s.push('[');
-                for c in children {
-                    s.push_str(value_fmt1(c).as_str())
-                }
-                s.push(']');
+        Value::Node { name, items } => {
+            s.push_str(name);
+            s.push('[');
+            for i in items {
+                s.push_str(value_fmt1(i).as_str())
             }
-            children => {
-                s.push('[');
-                for c in children {
-                    s.push_str(value_fmt1(c).as_str())
-                }
-                s.push(']');
+            s.push(']');
+        }
+        Value::List(items) => {
+            s.push('[');
+            for c in items {
+                s.push_str(value_fmt1(c).as_str())
             }
-        },
+            s.push(']');
+        }
         Value::Error { label, message } => {
             s.push_str("Error[");
             s.push_str(label);
@@ -63,31 +60,32 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 s.push_str(format!(r"{:#?}", v).as_str());
             }
+            Value::Node { name, items } => {
+                for _ in 0..indent {
+                    s.push_str("    ");
+                }
+                s.push_str(name);
+                s.push(':');
+                s.push(' ');
+                s.push('[');
+                s.push('\n');
+                for i in items {
+                    s.push_str(f(i, indent + 1).as_str());
+                    s.push('\n');
+                }
+                for _ in 0..indent {
+                    s.push_str("    ");
+                }
+                s.push(']');
+            }
+
             Value::List(items) => {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
-                match &items[..] {
-                    [] => s.push('{'),
-                    [Value::Str(name), Value::List(children)] => {
-                        s.push_str(name);
-                        s.push_str(" {");
-                        if !children.is_empty() {
-                            s.push('\n');
-                            for (i, c) in children.iter().enumerate() {
-                                s.push_str(f(c, indent + 1).as_str());
-                                if i < children.len() {
-                                    s.push('\n');
-                                }
-                            }
-                        }
-                    }
-                    children => {
-                        s.push('{');
-                        for c in children {
-                            s.push_str(f(c, indent + 1).as_str())
-                        }
-                    }
+                s.push('{');
+                for c in items {
+                    s.push_str(f(c, indent + 1).as_str())
                 }
                 for _ in 0..indent {
                     s.push_str("    ");

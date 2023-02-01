@@ -26,6 +26,7 @@ pub enum AST {
     OneOrMore(Box<AST>),
     Identifier(String),
     Precedence(Box<AST>, usize),
+    Node(String, Vec<AST>),
     List(Vec<AST>),
     Str(String),
     Range(char, char),

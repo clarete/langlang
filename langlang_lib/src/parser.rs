@@ -196,7 +196,7 @@ impl Parser {
 
     // GR: Primary <- Identifier !(LEFTARROW / (Identifier EQ))
     // GR:          / OPEN Expression CLOSE
-    // GR:          / List / Literal / Class / DOT
+    // GR:          / Node / List / Literal / Class / DOT
     fn parse_primary(&mut self) -> Result<AST, Error> {
         self.choice(vec![
             |p| {
@@ -221,6 +221,7 @@ impl Parser {
                 p.parse_spacing()?;
                 Ok(expr)
             },
+            |p| p.parse_node(),
             |p| p.parse_list(),
             |p| Ok(AST::Str(p.parse_literal()?)),
             |p| Ok(AST::Choice(p.parse_class()?)),
@@ -229,6 +230,22 @@ impl Parser {
                 Ok(AST::Any)
             },
         ])
+    }
+
+    // GR: Node <- OPENC (!CLOSEC Expression)* CLOSEC
+    fn parse_node(&mut self) -> Result<AST, Error> {
+        self.expect('{')?;
+        self.parse_spacing()?;
+        let name = self.parse_identifier()?;
+        self.expect(':')?;
+        self.parse_spacing()?;
+        let items = self.zero_or_more(|p| {
+            p.not(|p| p.expect('}'))?;
+            p.parse_expression()
+        })?;
+        self.expect('}')?;
+        self.parse_spacing()?;
+        Ok(AST::Node(name, items))
     }
 
     // GR: List <- OPENC (!CLOSEC Expression)* CLOSEC
@@ -575,10 +592,9 @@ pub fn expand(ast: AST) -> Result<AST, Error> {
                 .collect();
             AST::Grammar(defs)
         }
-        AST::Definition(name, expr) => AST::Definition(
-            name.clone(),
-            Box::new(AST::List(vec![AST::Str(name), AST::List(vec![*expr])])),
-        ),
+        AST::Definition(name, expr) => {
+            AST::Definition(name.clone(), Box::new(AST::Node(name, vec![*expr])))
+        }
         n => n,
     })
 }

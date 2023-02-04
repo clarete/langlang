@@ -51,14 +51,22 @@ impl Parser {
         Ok(AST::Grammar(defs))
     }
 
-    // GR: Definition <- Identifier LEFTARROW Expression
+    // GR: Definition <- Decorator? Identifier LEFTARROW Expression
     fn parse_definition(&mut self) -> Result<AST, Error> {
-        let id = self.parse_identifier()?;
+        let decorator = match self.parse_decorator() {
+            Err(_) => None,
+            Ok(st) => Some(st),
+        };
+        let name = self.parse_identifier()?;
         self.expect('<')?;
         self.expect('-')?;
         self.parse_spacing()?;
-        let expr = self.parse_expression()?;
-        Ok(AST::Definition(id, Box::new(expr)))
+        let expression = Box::new(self.parse_expression()?);
+        Ok(AST::Definition {
+            name,
+            decorator,
+            expression,
+        })
     }
 
     // GR: LabelDefinition <- LABEL Identifier EQ Literal
@@ -259,6 +267,12 @@ impl Parser {
         self.expect('}')?;
         self.parse_spacing()?;
         Ok(AST::List(exprs))
+    }
+
+    // GR: Decorator <- '@' Identifier
+    fn parse_decorator(&mut self) -> Result<String, Error> {
+        self.expect('@')?;
+        self.parse_identifier()
     }
 
     // GR: Identifier <- IdentStart IdentCont* Spacing
@@ -592,9 +606,15 @@ pub fn expand(ast: AST) -> Result<AST, Error> {
                 .collect();
             AST::Grammar(defs)
         }
-        AST::Definition(name, expr) => {
-            AST::Definition(name.clone(), Box::new(AST::Node(name, vec![*expr])))
-        }
+        AST::Definition {
+            name,
+            decorator,
+            expression,
+        } => AST::Definition {
+            name: name.clone(),
+            decorator: decorator,
+            expression: Box::new(AST::Node(name, vec![*expression])),
+        },
         n => n,
     })
 }
@@ -613,9 +633,10 @@ mod tests {
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
         assert_eq!(
-            AST::Grammar(vec![AST::Definition(
-                "A".to_string(),
-                Box::new(AST::Choice(vec![
+            AST::Grammar(vec![AST::Definition {
+                name: "A".to_string(),
+                decorator: None,
+                expression: Box::new(AST::Choice(vec![
                     AST::Sequence(vec![
                         AST::Precedence(Box::new(AST::Identifier("A".to_string())), 1),
                         AST::Str("+".to_string()),
@@ -623,7 +644,7 @@ mod tests {
                     ]),
                     AST::Sequence(vec![AST::Str("n".to_string()),])
                 ])),
-            ),]),
+            }]),
             ast.unwrap(),
         );
     }
@@ -640,17 +661,19 @@ mod tests {
         assert!(out.is_ok());
         assert_eq!(
             AST::Grammar(vec![
-                AST::Definition(
-                    "A".to_string(),
-                    Box::new(AST::Choice(vec![
+                AST::Definition {
+                    name: "A".to_string(),
+                    decorator: None,
+                    expression: Box::new(AST::Choice(vec![
                         AST::Sequence(vec![AST::Str("a".to_string())]),
                         AST::Sequence(vec![AST::Empty])
                     ]))
-                ),
-                AST::Definition(
-                    "B".to_string(),
-                    Box::new(AST::Sequence(vec![AST::Str("b".to_string())])),
-                ),
+                },
+                AST::Definition {
+                    name: "B".to_string(),
+                    decorator: None,
+                    expression: Box::new(AST::Sequence(vec![AST::Str("b".to_string())])),
+                },
             ]),
             out.unwrap()
         );

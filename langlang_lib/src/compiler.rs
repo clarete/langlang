@@ -199,12 +199,21 @@ impl Compiler {
                 }
                 Ok(())
             }
-            AST::Definition(name, expr) => {
+            AST::Definition {
+                name,
+                decorator,
+                expression,
+            } => {
                 let addr = self.cursor;
                 let strid = self.push_string(name);
                 self.identifiers.insert(addr, strid);
-                self.compile_node(*expr)?;
-                self.emit(vm::Instruction::Return);
+                self.compile_node(*expression)?;
+                match decorator {
+                    Some(decorator_name) if decorator_name == "nocap" => {
+                        self.emit(vm::Instruction::ReturnNoCap)
+                    }
+                    _ => self.emit(vm::Instruction::Return),
+                }
                 self.funcs.insert(strid, addr);
                 Ok(())
             }
@@ -446,8 +455,12 @@ impl<'a> DetectLeftRec<'a> {
                 for definition in definitions {
                     match definition {
                         AST::LabelDefinition(..) => {}
-                        AST::Definition(n, expr) => {
-                            rules.insert(n, expr);
+                        AST::Definition {
+                            name,
+                            decorator: _,
+                            expression,
+                        } => {
+                            rules.insert(name, expression);
                         }
                         r => {
                             return Err(Error::Semantic(format!(

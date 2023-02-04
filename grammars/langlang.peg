@@ -2,7 +2,7 @@
 
 # Hierarchical syntax
 Grammar    <- _ Definition+ EndOfFile
-Definition <- Identifier LEFTARROW Expression
+Definition <- Decorator? Identifier LEFTARROW Expression
 
 Expression <- Sequence (SLASH Sequence)*
 Sequence   <- Prefix*
@@ -13,6 +13,8 @@ Primary    <- Identifier !LEFTARROW
             / OPEN Expression CLOSE
             / List / Literal / Class / DOT
 List       <- OPENC (!CLOSEC Expression)* CLOSEC
+Decorator  <- AT Identifier^decid
+
 # Lexical syntax
 Identifier <- [a-zA-Z_][a-zA-Z0-9_]* _
 Literal    <- ['] (!['] Char)* [']   _
@@ -39,8 +41,10 @@ CLOSEC     <- '}'  _
 DOT        <- '.'  _
 LABEL      <- [^⇑] _
 
+# no space at the right side of the symbol
+AT         <- '@'
 
-_    <- (Space / Comment)*
+@nocap _   <- (Space / Comment)*
 Comment    <- '#' (!EndOfLine .)* EndOfLine
 Space      <- ' ' / '\t' / EndOfLine
 EndOfLine  <- '\r\n' / '\n' / '\r'

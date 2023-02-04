@@ -55,6 +55,7 @@ pub enum Instruction {
     Call(usize, usize),
     CallB(usize, usize),
     Return,
+    ReturnNoCap,
     Throw(usize),
     Open,
     Close(ContainerType),
@@ -71,6 +72,7 @@ impl std::fmt::Display for Instruction {
             Instruction::Fail => write!(f, "fail"),
             Instruction::FailTwice => write!(f, "failtwice"),
             Instruction::Return => write!(f, "return"),
+            Instruction::ReturnNoCap => write!(f, "return_nocap"),
             Instruction::Char(c) => write!(f, "char {:?}", c),
             Instruction::Str(i) => write!(f, "str {:?}", i),
             Instruction::Span(a, b) => write!(f, "span {:?} {:?}", a, b),
@@ -631,7 +633,10 @@ impl<'a> VM<'a> {
                     self.inst_call(self.program_counter - offset, precedence, None)?;
                 }
                 Instruction::Return => {
-                    self.inst_return()?;
+                    self.inst_return(true)?;
+                }
+                Instruction::ReturnNoCap => {
+                    self.inst_return(false)?;
                 }
                 Instruction::Throw(label) => {
                     if self.within_predicate {
@@ -774,7 +779,7 @@ impl<'a> VM<'a> {
         Ok(())
     }
 
-    fn inst_return(&mut self) -> Result<(), Error> {
+    fn inst_return(&mut self, captures_enabled: bool) -> Result<(), Error> {
         let cursor = self.cursor;
         let frame = self.stkpeek()?;
         let address = frame.address;
@@ -789,6 +794,10 @@ impl<'a> VM<'a> {
                 let label = self.program.identifier(address);
                 let message = self.program.label_message(label_id);
                 self.capture(Value::Error { label, message })?;
+                return Ok(());
+            }
+
+            if !captures_enabled {
                 return Ok(());
             }
 
@@ -830,7 +839,7 @@ impl<'a> VM<'a> {
         let key = (frame.address, frame.cursor);
         self.lrmemo.remove(&key);
         let mut capframe = self.capstkpop()?;
-        if capframe.index > 0 {
+        if capframe.index > 0 && captures_enabled {
             let values = capframe.values.drain(..capframe.index).collect();
             capframe.values.clear();
             self.capture_flatten(address, values)?;

@@ -340,6 +340,45 @@ mod tests {
         assert_match("A[A[aba]]", run(&p, input_with_chr).unwrap());
     }
 
+    #[test]
+    fn test_nocap_decorator_0() {
+        let cc = compiler::Config::default();
+        let program = compile(&cc, "@nocap A <- 'x'");
+        assert!(run_str(&program, "x").is_none());
+    }
+
+    #[test]
+    fn test_nocap_decorator_1() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            S <- A / B
+            @nocap A <- 'a'
+            B <- 'b'
+            ",
+        );
+        assert!(run_str(&program, "a").is_none());
+        assert_match("S[B[b]]", run_str(&program, "b"));
+    }
+
+    #[test]
+    fn test_nocap_decorator_2() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            S <- A / E
+            A <- 'a'
+            @nocap
+            E <- E '+n' / 'n'
+            ",
+        );
+        assert_match("S[A[a]]", run_str(&program, "a"));
+        assert!(run_str(&program, "n").is_none());
+        assert!(run_str(&program, "n+n").is_none());
+    }
+
     // -- Error Recovery -------------------------------------------------------
 
     #[test]

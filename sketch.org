@@ -11,8 +11,8 @@
    * [X] define precedence for left recursive calls
    * [X] compile non-left recursive rules with zero precedence
    * [X] associate manually defined labels to manually defined REs
+   * [X] selective capture mode, input grammar defines captures
    * [ ] don't emit capture instructions in match-only
-   * [ ] selective capture mode, input grammar defines captures
    * [ ] first and follows set for error synchronization
    * [ ] error recovery expression generation
 ** VM
@@ -21,8 +21,8 @@
    * [X] left recursion
    * [X] match data structures
    * [X] value captures: captures all values, no opting out
+   * [X] selective capture mode, input grammar defines captures
    * [ ] match-only mode, where captures are disabled
-   * [ ] selective capture mode, input grammar defines captures
    * [-] error recovery: work in progress
    * [ ] parameterized rules?
    * [ ] higher-order rules?

@@ -14,8 +14,8 @@ pathslash  <- '/' / '\\'
 
 number     <- NUMDEC / NUMHEX
 NUMDEC     <- [1-9][0-9]* _
-NUMHEX     <- '#' [a-fA-F0-9]+^hex _
-STRING     <- '"' (!'"' .)* '"' _
+NUMHEX     <- HASH [a-fA-F0-9]+^hex _
+STRING     <- DQUOTE (!DQUOTE .)* DQUOTE^strcl _
 ID         <- [a-zA-Z_][a-zA-Z0-9-_.]* _
 DEFINE     <- 'define' _
 PAROPEN    <- '(' _
@@ -24,6 +24,8 @@ OPEN       <- '{' _
 CLOSE      <- '}' _
 COLON      <- ':' _
 COMA       <- ',' _
+DQUOTE     <- '"'
+HASH       <- '#'
 EOF        <- !.
 EOL        <- '\n' / '\r\n' / '\r'
 
@@ -37,5 +39,22 @@ defop      <- (!'}' .)*
 defcl      <-
 defval     <-
 hex        <-
-uripth     <- (!WS .)*
 eof        <-
+uripth     <- (!ws .)*
+
+# semantic rules
+ID         -> joinall()
+STRING     -> joinall()
+proto      -> joinall()
+pathel     -> joinall()
+
+number     -> unwrap(%0)
+NUMDEC     -> i64(joinall(), 10)
+NUMHEX     -> i64(joinall(), 16)
+
+_          -> discard()
+DQUOTE     -> discard()
+HASH       -> discard()
+COLON      -> discard()
+OPEN       -> discard()
+CLOSE      -> discard()

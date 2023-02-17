@@ -2,12 +2,14 @@ use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
-use crate::{ast::AST, vm};
+use crate::ast::{SemExpr, SemExprBinaryOp, SemExprUnaryOp, SemValue, AST};
+use crate::vm::{CaptureType, ContainerType, Instruction, Program, Value};
 
 #[derive(Debug)]
 pub enum Error {
     NotFound(String),
     Semantic(String),
+    Type(String),
 }
 
 impl std::fmt::Display for Error {
@@ -16,6 +18,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::NotFound(msg) => write!(f, "[NotFound]: {}", msg),
             Error::Semantic(msg) => write!(f, "[Semantic]: {}", msg),
+            Error::Type(msg) => write!(f, "[Type]: {}", msg),
         }
     }
 }
@@ -23,6 +26,8 @@ impl std::fmt::Display for Error {
 #[derive(Debug, Clone)]
 pub struct Config {
     optimize: u8,
+    enable_captures: bool,
+    enable_sem_actions: bool,
 }
 
 impl Default for Config {
@@ -34,13 +39,35 @@ impl Default for Config {
 impl Config {
     /// o0 disables all optimizations
     pub fn o0() -> Self {
-        Self { optimize: 0 }
+        Self {
+            optimize: 0,
+            enable_captures: true,
+            enable_sem_actions: true,
+        }
     }
 
     /// o1 enables some optimizations: `failtwice`, `partialcommit`,
     /// `backcommit`, `testchar` and `testany`
     pub fn o1() -> Self {
-        Self { optimize: 1 }
+        Self {
+            optimize: 1,
+            enable_captures: true,
+            enable_sem_actions: true,
+        }
+    }
+
+    /// take an existing configuration and disables captures and imply
+    /// that semantic actions will also be disabled.
+    pub fn disable_captures(mut self) -> Self {
+        self.enable_captures = false;
+        self.disable_sem_actions()
+    }
+
+    /// take an existing configuration and disables the compilation of
+    /// semantic action expressions
+    pub fn disable_sem_actions(mut self) -> Self {
+        self.enable_sem_actions = false;
+        self
     }
 }
 
@@ -51,7 +78,7 @@ pub struct Compiler {
     // The index of the last instruction written the `code` vector
     cursor: usize,
     // Vector where the compiler writes down the instructions
-    code: Vec<vm::Instruction>,
+    code: Vec<Instruction>,
     // Storage for unique (interned) strings
     strings: Vec<String>,
     // Map from strings to their position in the `strings` vector
@@ -80,6 +107,8 @@ pub struct Compiler {
     // Map from the set of names of functions to the boolean defining
     // if the function is left recursive or not
     left_rec: HashMap<String, bool>,
+    // Map from semantic action name id to address
+    sem_action_names: HashSet<String>,
 }
 
 impl Compiler {
@@ -100,18 +129,19 @@ impl Compiler {
             recovery: HashMap::new(),
             indent_level: 0,
             left_rec: HashMap::new(),
+            sem_action_names: HashSet::new(),
         }
     }
 
     /// Access the output of the compilation process.  Call this
     /// method after calling `compile_str()`.
-    pub fn compile(&mut self, ast: AST) -> Result<vm::Program, Error> {
-        DetectLeftRec::default().run(&ast, &mut self.left_rec)?;
+    pub fn compile(&mut self, ast: AST) -> Result<Program, Error> {
+        self.read_traversal(&ast)?;
         self.compile_node(ast)?;
         self.backpatch_callsites()?;
         self.manual_recovery()?;
 
-        Ok(vm::Program::new(
+        Ok(Program::new(
             self.identifiers.clone(),
             self.labels.clone(),
             self.recovery.clone(),
@@ -120,17 +150,21 @@ impl Compiler {
         ))
     }
 
+    fn read_traversal(&mut self, ast: &AST) -> Result<(), Error> {
+        FirstPass::default().run(ast, &mut self.sem_action_names, &mut self.left_rec)
+    }
+
     /// Try to find the string `s` within the table of interned
     /// strings, and return its ID if it is found.  If the string `s`
     /// doesn't exist within the interned table yet, it's inserted and
     /// the index where it was inserted becomes its ID.
-    fn push_string(&mut self, s: String) -> usize {
+    fn push_string(&mut self, s: &str) -> usize {
         let strid = self.strings.len();
-        if let Some(id) = self.strings_map.get(&s) {
+        if let Some(id) = self.strings_map.get(s) {
             return *id;
         }
-        self.strings.push(s.clone());
-        self.strings_map.insert(s, strid);
+        self.strings.push(s.to_string());
+        self.strings_map.insert(s.to_string(), strid);
         strid
     }
 
@@ -143,14 +177,20 @@ impl Compiler {
             match self.funcs.get(id) {
                 Some(func_addr) => {
                     self.code[*addr] = match self.code[*addr] {
-                        vm::Instruction::Call(_, precedence)
-                        | vm::Instruction::CallB(_, precedence) => {
+                        Instruction::Call(_, precedence, ref capture)
+                        | Instruction::CallB(_, precedence, ref capture) => {
                             if func_addr > addr {
-                                vm::Instruction::Call(func_addr - addr, precedence)
+                                Instruction::Call(func_addr - addr, precedence, capture.clone())
                             } else {
-                                vm::Instruction::CallB(addr - func_addr, precedence)
+                                Instruction::CallB(addr - func_addr, precedence, capture.clone())
                             }
                         }
+
+                        // rewrite jumps from the end of a production
+                        // to the beginning if its semantic action
+                        // expression
+                        Instruction::Jump(_) => Instruction::Jump(*func_addr),
+
                         _ => unreachable!(),
                     };
                 }
@@ -163,13 +203,27 @@ impl Compiler {
                 }
             }
         }
-        let main = &self.strings[self.identifiers[&2_usize]];
-        if self.left_rec[main] {
+
+        // point invariant first call to the first production declared
+        if let Some(identifier) = self
+            .identifiers
+            .iter()
+            .filter_map(|(k, v)| {
+                if self.strings[*v].starts_with("SEM_") {
+                    None
+                } else {
+                    Some(k)
+                }
+            })
+            .min()
+        {
+            let name = &self.strings[self.identifiers[identifier]];
+            let left_rec = usize::from(self.left_rec[name]);
+            let captype = self.default_capture_type();
             self.code[0] = match self.code[0] {
-                vm::Instruction::Call(..) => vm::Instruction::Call(2, 1),
-                vm::Instruction::CallB(..) => vm::Instruction::CallB(2, 1),
+                Instruction::Call(..) => Instruction::Call(*identifier, left_rec, captype),
                 _ => unreachable!(),
-            }
+            };
         }
         Ok(())
     }
@@ -192,8 +246,10 @@ impl Compiler {
     fn compile_node(&mut self, node: AST) -> Result<(), Error> {
         match node {
             AST::Grammar(rules) => {
-                self.emit(vm::Instruction::Call(2, 0));
-                self.emit(vm::Instruction::Halt);
+                let captype = self.default_capture_type();
+                // This call is rewritten by backpatch_callsites()
+                self.emit(Instruction::Call(1, 0, captype));
+                self.emit(Instruction::Halt);
                 for r in rules {
                     self.compile_node(r)?;
                 }
@@ -201,28 +257,70 @@ impl Compiler {
             }
             AST::Definition(name, expr) => {
                 let addr = self.cursor;
-                let strid = self.push_string(name);
+                let strid = self.push_string(&name);
                 self.identifiers.insert(addr, strid);
                 self.compile_node(*expr)?;
-                self.emit(vm::Instruction::Return);
                 self.funcs.insert(strid, addr);
+
+                let captype = self.default_capture_type();
+                if !self.config.enable_sem_actions {
+                    self.emit(Instruction::Return(captype));
+                    return Ok(());
+                }
+
+                // If a production is associated with a semantic
+                // action, its last instruction will be a Jump to the
+                // first instruction of the semantic action, and not a
+                // return.  The return will be the last instruction of
+                // the semantic action.  The infrastructure for
+                // tracking call sites is reused here to track jumps
+                // from the end of the production to its semantic
+                // action expressions.
+                match self.sem_action_names.get(&name) {
+                    None => self.emit(Instruction::Return(captype)),
+                    Some(_) => {
+                        let mangled = format!("SEM_{}", name);
+                        let strid = self.push_string(&mangled);
+                        let addr = match self.funcs.get(&strid) {
+                            Some(addr) => *addr,
+                            None => {
+                                // register to be backpatched before
+                                // returning a placeholder
+                                self.addrs.insert(self.cursor, strid);
+                                0
+                            }
+                        };
+                        self.emit(Instruction::Jump(addr))
+                    }
+                }
+                Ok(())
+            }
+            AST::SemanticAction(name, semexpr) => {
+                let addr = self.cursor;
+                let mangled = format!("SEM_{}", name);
+                let strid = self.push_string(&mangled);
+                self.identifiers.insert(addr, strid);
+                self.compile_sem_expr(*semexpr)?;
+                self.funcs.insert(strid, addr);
+                self.emit(Instruction::PopVal);
+                self.emit(Instruction::Return(self.default_capture_type()));
                 Ok(())
             }
             AST::LabelDefinition(name, message) => {
-                let name_id = self.push_string(name);
-                let message_id = self.push_string(message);
+                let name_id = self.push_string(&name);
+                let message_id = self.push_string(&message);
                 self.labels.insert(name_id, message_id);
                 Ok(())
             }
             AST::Label(name, element) => {
-                let label_id = self.push_string(name);
+                let label_id = self.push_string(&name);
                 let pos = self.cursor;
                 self.label_ids.insert(label_id);
-                self.emit(vm::Instruction::Choice(0));
+                self.emit(Instruction::Choice(0));
                 self.compile_node(*element)?;
-                self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 1);
-                self.emit(vm::Instruction::Commit(2));
-                self.emit(vm::Instruction::Throw(label_id));
+                self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
+                self.emit(Instruction::Commit(2));
+                self.emit(Instruction::Throw(label_id));
                 Ok(())
             }
             AST::Sequence(seq) => {
@@ -234,15 +332,15 @@ impl Compiler {
                 Ok(())
             }
             AST::Optional(op) => {
-                self.emit(vm::Instruction::CapPush);
+                self.emit(Instruction::CapPush);
                 let pos = self.cursor;
-                self.emit(vm::Instruction::Choice(0));
+                self.emit(Instruction::Choice(0));
                 self.compile_node(*op)?;
                 let size = self.cursor - pos;
-                self.code[pos] = vm::Instruction::Choice(size + 1);
-                self.emit(vm::Instruction::Commit(1));
-                self.emit(vm::Instruction::CapCommit);
-                self.emit(vm::Instruction::CapPop);
+                self.code[pos] = Instruction::Choice(size + 1);
+                self.emit(Instruction::Commit(1));
+                self.emit(Instruction::CapCommit);
+                self.emit(Instruction::CapPop);
                 Ok(())
             }
             AST::Choice(choices) => {
@@ -256,15 +354,15 @@ impl Compiler {
                     }
                     i += 1;
                     let pos = self.cursor;
-                    self.emit(vm::Instruction::Choice(0));
+                    self.emit(Instruction::Choice(0));
                     self.compile_node(choice)?;
-                    self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 1);
+                    self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
                     commits.push(self.cursor);
-                    self.emit(vm::Instruction::Commit(0));
+                    self.emit(Instruction::Commit(0));
                 }
 
                 for commit in commits {
-                    self.code[commit] = vm::Instruction::Commit(self.cursor - commit);
+                    self.code[commit] = Instruction::Commit(self.cursor - commit);
                 }
 
                 Ok(())
@@ -273,17 +371,17 @@ impl Compiler {
                 let pos = self.cursor;
                 match self.config.optimize {
                     1 => {
-                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.emit(Instruction::ChoiceP(0));
                         self.compile_node(*expr)?;
-                        self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 1);
-                        self.emit(vm::Instruction::FailTwice);
+                        self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 1);
+                        self.emit(Instruction::FailTwice);
                     }
                     _ => {
-                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.emit(Instruction::ChoiceP(0));
                         self.compile_node(*expr)?;
-                        self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 2);
-                        self.emit(vm::Instruction::Commit(1));
-                        self.emit(vm::Instruction::Fail);
+                        self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 2);
+                        self.emit(Instruction::Commit(1));
+                        self.emit(Instruction::Fail);
                     }
                 }
                 Ok(())
@@ -292,32 +390,32 @@ impl Compiler {
                 match self.config.optimize {
                     1 => {
                         let pos0 = self.cursor;
-                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.emit(Instruction::ChoiceP(0));
                         self.compile_node(*expr)?;
                         let pos1 = self.cursor;
-                        self.code[pos0] = vm::Instruction::ChoiceP(pos1 - pos0);
-                        self.emit(vm::Instruction::BackCommit(0));
-                        self.emit(vm::Instruction::Fail);
-                        self.code[pos1] = vm::Instruction::BackCommit(self.cursor - pos1);
+                        self.code[pos0] = Instruction::ChoiceP(pos1 - pos0);
+                        self.emit(Instruction::BackCommit(0));
+                        self.emit(Instruction::Fail);
+                        self.code[pos1] = Instruction::BackCommit(self.cursor - pos1);
                     }
                     _ => self.compile_node(AST::Not(Box::new(AST::Not(expr))))?,
                 }
                 Ok(())
             }
             AST::ZeroOrMore(expr) => {
-                self.emit(vm::Instruction::CapPush);
+                self.emit(Instruction::CapPush);
                 let pos = self.cursor;
-                self.emit(vm::Instruction::Choice(0));
+                self.emit(Instruction::Choice(0));
                 self.compile_node(*expr)?;
-                self.emit(vm::Instruction::CapCommit);
+                self.emit(Instruction::CapCommit);
                 let size = self.cursor - pos;
-                self.code[pos] = vm::Instruction::Choice(size + 1);
+                self.code[pos] = Instruction::Choice(size + 1);
                 match self.config.optimize {
-                    1 => self.emit(vm::Instruction::PartialCommit(size - 1)),
-                    _ => self.emit(vm::Instruction::CommitB(size)),
+                    1 => self.emit(Instruction::PartialCommit(size - 1)),
+                    _ => self.emit(Instruction::CommitB(size)),
                 }
-                self.emit(vm::Instruction::CapCommit);
-                self.emit(vm::Instruction::CapPop);
+                self.emit(Instruction::CapCommit);
+                self.emit(Instruction::CapPop);
                 Ok(())
             }
             AST::OneOrMore(expr) => {
@@ -336,15 +434,16 @@ impl Compiler {
                         )))
                     }
                 };
-                let id = self.push_string(name);
+                let cap = self.default_capture_type();
+                let id = self.push_string(&name);
                 match self.funcs.get(&id) {
                     Some(func_addr) => {
                         let addr = self.cursor - func_addr;
-                        self.emit(vm::Instruction::CallB(addr, precedence));
+                        self.emit(Instruction::CallB(addr, precedence, cap));
                     }
                     None => {
                         self.addrs.insert(self.cursor, id);
-                        self.emit(vm::Instruction::Call(0, precedence));
+                        self.emit(Instruction::Call(0, precedence, cap));
                     }
                 }
                 Ok(())
@@ -354,8 +453,12 @@ impl Compiler {
                 self.compile_node(*n)?;
                 // rewrite the above node with the precedence level
                 self.code[pos] = match self.code[pos] {
-                    vm::Instruction::Call(addr, _) => vm::Instruction::Call(addr, precedence),
-                    vm::Instruction::CallB(addr, _) => vm::Instruction::CallB(addr, precedence),
+                    Instruction::Call(addr, _, ref cap) => {
+                        Instruction::Call(addr, precedence, cap.clone())
+                    }
+                    Instruction::CallB(addr, _, ref cap) => {
+                        Instruction::CallB(addr, precedence, cap.clone())
+                    }
                     _ => {
                         return Err(Error::Semantic(
                             "Precedence suffix should only be used at Identifiers".to_string(),
@@ -365,46 +468,137 @@ impl Compiler {
                 Ok(())
             }
             AST::Node(name, items) => {
-                self.emit(vm::Instruction::Open);
+                self.emit(Instruction::Open);
                 self.compile_node(AST::Str(name))?;
                 for i in items {
                     self.compile_node(i)?;
                 }
-                self.emit(vm::Instruction::Close(vm::ContainerType::Node));
+                self.emit(Instruction::Close(ContainerType::Node));
                 Ok(())
             }
             AST::List(items) => {
-                self.emit(vm::Instruction::Open);
+                self.emit(Instruction::Open);
                 for i in items {
                     self.compile_node(i)?;
                 }
-                self.emit(vm::Instruction::Close(vm::ContainerType::List));
+                self.emit(Instruction::Close(ContainerType::List));
                 Ok(())
             }
             AST::Range(a, b) => {
-                self.emit(vm::Instruction::Span(a, b));
+                self.emit(Instruction::Span(a, b));
                 Ok(())
             }
             AST::Str(s) => {
-                let id = self.push_string(s);
-                self.emit(vm::Instruction::Str(id));
+                let id = self.push_string(&s);
+                self.emit(Instruction::Str(id));
                 Ok(())
             }
             AST::Char(c) => {
-                self.emit(vm::Instruction::Char(c));
+                self.emit(Instruction::Char(c));
                 Ok(())
             }
             AST::Any => {
-                self.emit(vm::Instruction::Any);
+                self.emit(Instruction::Any);
                 Ok(())
             }
             AST::Empty => Ok(()),
         }
     }
 
+    fn compile_sem_expr(&mut self, v: SemExpr) -> Result<(), Error> {
+        match v {
+            SemExpr::Identifier(id) => {}
+            SemExpr::Value(v) => self.compile_sem_value(v)?,
+            SemExpr::BinaryOp(le, op, ri) => self.compile_sem_bin_op(*le, op, *ri)?,
+            SemExpr::UnaryOp(op, expr) => self.compile_sem_un_op(op, *expr)?,
+            SemExpr::Call(name, params) => self.compile_sem_call(name, params)?,
+        }
+        Ok(())
+    }
+
+    fn compile_sem_call(&mut self, name: String, params: Vec<SemExpr>) -> Result<(), Error> {
+        let arity = params.len();
+        let strid = self.push_string(&name);
+        for p in params {
+            self.compile_sem_expr(p)?;
+        }
+        self.emit(Instruction::Prim(strid, arity));
+        Ok(())
+    }
+
+    fn compile_sem_bin_op(
+        &mut self,
+        left: SemExpr,
+        op: SemExprBinaryOp,
+        right: SemExpr,
+    ) -> Result<(), Error> {
+        self.compile_sem_expr(left)?;
+        self.compile_sem_expr(right)?;
+        match op {
+            SemExprBinaryOp::Addition => {
+                // self.emit(Instruction::Add);
+            }
+            SemExprBinaryOp::Subtraction => {
+                // self.emit(Instruction::Sub);
+            }
+            SemExprBinaryOp::Division => {
+                // self.emit(Instruction::Div);
+            }
+            SemExprBinaryOp::Multiplication => {
+                // self.emit(Instruction::Mul);
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_sem_un_op(&mut self, op: SemExprUnaryOp, expr: SemExpr) -> Result<(), Error> {
+        self.compile_sem_expr(expr)?;
+        match op {
+            SemExprUnaryOp::Positive => {
+                // self.emit(Instruction::SemPositive);
+            }
+            SemExprUnaryOp::Negative => {
+                // self.emit(Instruction::SemNegative);
+            }
+        }
+        Ok(())
+    }
+
+    /// Push a literal value into the virtual machine's stack
+    fn compile_sem_value(&mut self, v: SemValue) -> Result<(), Error> {
+        match v {
+            SemValue::Number(n) => {
+                let value = Value::I64(n);
+                self.emit(Instruction::PushVal(value));
+            }
+            SemValue::Literal(l) => {
+                let value = Value::Str(l);
+                self.emit(Instruction::PushVal(value));
+            }
+            SemValue::Variable(v) => {
+                self.emit(Instruction::PushVar(v));
+            }
+            SemValue::List(items) => {
+                let len = items.len();
+                for i in items {
+                    self.compile_sem_expr(i)?;
+                }
+                self.emit(Instruction::PushList(len))
+            }
+        }
+        Ok(())
+    }
+
+    fn default_capture_type(&self) -> CaptureType {
+        if self.config.enable_captures {
+            return CaptureType::Wrapped;
+        }
+        CaptureType::Disabled
+    }
+
     /// Push `instruction` into the internal code vector and increment
     /// the cursor that points at the next instruction
-    fn emit(&mut self, instruction: vm::Instruction) {
+    fn emit(&mut self, instruction: Instruction) {
         self.prt(&format!("emit {:?} {:?}", self.cursor, instruction));
         self.code.push(instruction);
         self.cursor += 1;
@@ -433,19 +627,29 @@ impl Default for Compiler {
     }
 }
 
+/// FirstPass collects the name of all semantic action expressions and
+/// detects which productions contain left recursive definitions.
 #[derive(Default)]
-struct DetectLeftRec<'a> {
+struct FirstPass<'a> {
     stack: Vec<&'a str>,
 }
 
-impl<'a> DetectLeftRec<'a> {
-    fn run(&mut self, node: &'a AST, found: &mut HashMap<String, bool>) -> Result<(), Error> {
+impl<'a> FirstPass<'a> {
+    fn run(
+        &mut self,
+        node: &'a AST,
+        sem_actions: &mut HashSet<String>,
+        left_rec: &mut HashMap<String, bool>,
+    ) -> Result<(), Error> {
         let mut rules: HashMap<&'a String, &'a AST> = HashMap::new();
         match node {
             AST::Grammar(definitions) => {
                 for definition in definitions {
                     match definition {
                         AST::LabelDefinition(..) => {}
+                        AST::SemanticAction(n, ..) => {
+                            sem_actions.insert(n.clone());
+                        }
                         AST::Definition(n, expr) => {
                             rules.insert(n, expr);
                         }
@@ -467,7 +671,7 @@ impl<'a> DetectLeftRec<'a> {
         }
         for (name, expr) in &rules {
             let is_lr = self.is_left_recursive(name, expr, &rules)?;
-            found.insert(name.to_string(), is_lr);
+            left_rec.insert(name.to_string(), is_lr);
         }
         Ok(())
     }
@@ -535,9 +739,10 @@ mod tests {
 
     fn assert_detectlr(input: &str, expected: HashMap<String, bool>) {
         let node = parser::Parser::new(input).parse().unwrap();
-        let mut dlr = DetectLeftRec::default();
+        let mut dlr = FirstPass::default();
         let mut found = HashMap::new();
-        dlr.run(&node, &mut found).unwrap();
+        let mut semactions = HashSet::new();
+        dlr.run(&node, &mut semactions, &mut found).unwrap();
         assert_eq!(found, expected);
     }
 

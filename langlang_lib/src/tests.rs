@@ -441,6 +441,94 @@ mod tests {
         assert_match("A[A[F]]", value);
     }
 
+    #[test]
+    fn test_sem_action_without_backpatch_0() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- S 'n' S
+            S -> discard()
+            S <- ' '*
+            ",
+        );
+        assert_match("E[n]", run_str(&program, "   n   "));
+    }
+
+    #[test]
+    fn test_sem_action_without_backpatch_before_main() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E -> joinall()
+            E <- [a-fA-F0-9]+
+            ",
+        );
+        assert_match("E[deadbeef]", run_str(&program, "deadbeef"));
+    }
+
+    #[test]
+    fn test_sem_action_without_actual_main() {
+        let cc = compiler::Config::default();
+        let program = compile(&cc, "E -> 42");
+        assert!(run_str(&program, "deadbeef").is_none());
+    }
+
+    #[test]
+    fn test_sem_action_with_backpatch() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- S 'n' S
+            S <- ' '*
+            S -> discard()
+            ",
+        );
+        assert_match("E[n]", run_str(&program, "   n   "));
+    }
+
+    #[test]
+    fn test_sem_action_joinall() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- [1-9][0-9]*
+            E -> joinall()
+            ",
+        );
+        let output = run_str(&program, "321");
+        assert_match("E[321]", output);
+    }
+
+    #[test]
+    fn test_sem_action_i64() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            Int <- Bin / Hex / Dec
+            Bin <- BIN [0-1]+
+            Hex <- HEX [a-zA-Z0-9]+
+            Dec <- ([1-9][0-9]*) / '0'
+            BIN <- '0b'
+            HEX <- '0x'
+
+            Int -> unwrap(%0)
+            Bin -> i64(joinall(), 2)
+            Hex -> i64(joinall(), 16)
+            Dec -> i64(joinall(), 10)
+            BIN -> discard()
+            HEX -> discard()
+            ",
+        );
+        assert_match("Int[255]", run_str(&program, "0xff"));
+        assert_match("Int[42]", run_str(&program, "0b101010"));
+        assert_match("Int[123]", run_str(&program, "123"));
+    }
+
     // -- Test Helpers ---------------------------------------------------------
 
     fn compile(cc: &compiler::Config, grammar: &str) -> vm::Program {

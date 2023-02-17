@@ -11,6 +11,7 @@ pub fn value_fmt1(value: &Value) -> String {
     match value {
         Value::Chr(v) => s.push(*v),
         Value::Str(v) => s.push_str(v),
+        Value::I64(v) => s.push_str(&format!("{}", v)),
         Value::Node { name, items } => {
             s.push_str(name);
             s.push('[');
@@ -60,6 +61,12 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 s.push_str(format!(r"{:#?}", v).as_str());
             }
+            Value::I64(v) => {
+                for _ in 0..indent {
+                    s.push_str("    ");
+                }
+                s.push_str(&format!("{}", v));
+            }
             Value::Node { name, items } => {
                 for _ in 0..indent {
                     s.push_str("    ");
@@ -84,8 +91,10 @@ pub fn value_fmt2(value: &Value) -> String {
                     s.push_str("    ");
                 }
                 s.push('{');
+                s.push('\n');
                 for c in items {
-                    s.push_str(f(c, indent + 1).as_str())
+                    s.push_str(f(c, indent + 1).as_str());
+                    s.push('\n');
                 }
                 for _ in 0..indent {
                     s.push_str("    ");

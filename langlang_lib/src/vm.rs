@@ -14,7 +14,7 @@ use std::collections::HashMap;
 pub enum Value {
     Chr(char),
     Str(String),
-    // I64(i64),
+    I64(i64),
     // U64(u64),
     // F64(f64),
     Node {
@@ -28,19 +28,33 @@ pub enum Value {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
 pub enum ContainerType {
     List,
     Node,
 }
 
 #[derive(Clone, Debug)]
+pub enum CaptureType {
+    /// Don't capture anything
+    Disabled,
+    /// Capture just the values, don't wrap them in a named node
+    Unwrapped,
+    /// The default type of capture, wrap captured values in a node
+    /// named after the production in which the capture happened
+    Wrapped,
+}
+
+#[derive(Clone, Debug)]
 pub enum Instruction {
     Halt,
+    // lexical
     Any,
     Char(char),
     Span(char, char),
     Str(usize),
+
+    // control flow
     Choice(usize),
     ChoiceP(usize),
     Commit(usize),
@@ -52,15 +66,26 @@ pub enum Instruction {
     // TestChar,
     // TestAny,
     Jump(usize),
-    Call(usize, usize),
-    CallB(usize, usize),
-    Return,
+    Call(usize, usize, CaptureType),
+    CallB(usize, usize, CaptureType),
+    Return(CaptureType),
     Throw(usize),
+
+    // container (list, map, node, etc)
     Open,
     Close(ContainerType),
+
+    // value capture
     CapPush,
     CapPop,
     CapCommit,
+
+    // semantic actions
+    PushVal(Value),
+    PushVar(usize),
+    PushList(usize),
+    PopVal,
+    Prim(usize, usize),
 }
 
 impl std::fmt::Display for Instruction {
@@ -70,7 +95,7 @@ impl std::fmt::Display for Instruction {
             Instruction::Any => write!(f, "any"),
             Instruction::Fail => write!(f, "fail"),
             Instruction::FailTwice => write!(f, "failtwice"),
-            Instruction::Return => write!(f, "return"),
+            Instruction::Return(cap) => write!(f, "return {:?}", cap),
             Instruction::Char(c) => write!(f, "char {:?}", c),
             Instruction::Str(i) => write!(f, "str {:?}", i),
             Instruction::Span(a, b) => write!(f, "span {:?} {:?}", a, b),
@@ -82,13 +107,18 @@ impl std::fmt::Display for Instruction {
             Instruction::BackCommit(u) => write!(f, "backcommit {:?}", u),
             Instruction::Jump(addr) => write!(f, "jump {:?}", addr),
             Instruction::Throw(label) => write!(f, "throw {:?}", label),
-            Instruction::Call(addr, k) => write!(f, "call {:?} {:?}", addr, k),
-            Instruction::CallB(addr, k) => write!(f, "callb {:?} {:?}", addr, k),
+            Instruction::Call(addr, k, cap) => write!(f, "call {:?} {:?} {:?}", addr, k, cap),
+            Instruction::CallB(addr, k, cap) => write!(f, "callb {:?} {:?} {:?}", addr, k, cap),
             Instruction::Open => write!(f, "open"),
             Instruction::Close(t) => write!(f, "close({:?})", t),
             Instruction::CapPush => write!(f, "cappush"),
             Instruction::CapPop => write!(f, "cappop"),
             Instruction::CapCommit => write!(f, "capcommit"),
+            Instruction::PushVal(v) => write!(f, "pushval {:?}", v),
+            Instruction::PushVar(i) => write!(f, "pushvar {:?}", i),
+            Instruction::PushList(l) => write!(f, "pushlist {}", l),
+            Instruction::PopVal => write!(f, "popval"),
+            Instruction::Prim(n, a) => write!(f, "prim {}/{}", n, a),
         }
     }
 }
@@ -105,6 +135,14 @@ pub enum Error {
     Matching(usize, String),
     // End of file
     EOF,
+    // Generic error for semantic actions
+    SemActionErr(String),
+    // wrong number of parameters for a sem action
+    SemActionArity(String),
+    // Signals type error in semantic action
+    SemActionTypeMismatch(String),
+    // A given sem action does not exist
+    SemActionNotFound(String),
 }
 
 #[derive(Clone, Debug)]
@@ -170,9 +208,14 @@ impl Program {
 fn instruction_to_string(p: &Program, instruction: &Instruction, pc: usize) -> String {
     match instruction {
         Instruction::Str(i) => format!("str {:?}", p.strings[*i]),
-        Instruction::Call(addr, k) => format!("call {:?} {}", p.identifier(pc + addr), k),
-        Instruction::CallB(addr, k) => format!("callb {:?} {}", p.identifier(pc - addr), k),
+        Instruction::Call(addr, k, cap) => {
+            format!("call {:?} {}, {:?}", p.identifier(pc + addr), k, cap)
+        }
+        Instruction::CallB(addr, k, cap) => {
+            format!("callb {:?} {} {:?}", p.identifier(pc - addr), k, cap)
+        }
         Instruction::Throw(label) => format!("throw {:?}", p.strings[*label]),
+        Instruction::Prim(id, arity) => format!("prim {:?}/{}", p.strings[*id], arity),
         instruction => format!("{}", instruction),
     }
 }
@@ -334,7 +377,95 @@ impl LeftRecTableEntry {
     }
 }
 
-#[derive(Debug)]
+pub type PrimFunc = fn(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error>;
+
+fn prim_discard(_: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    if arity != 0 {
+        return Err(Error::SemActionArity(
+            "discard() takes no parameters".to_string(),
+        ));
+    }
+    Ok(None)
+}
+
+fn prim_joinall(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    if arity != 0 {
+        return Err(Error::SemActionArity(
+            "joinall() takes no parameters".to_string(),
+        ));
+    }
+    let mut output = String::new();
+    for i in &vm.capstktop_mut()?.values {
+        match i {
+            Value::Chr(c) => output.push(*c),
+            Value::Str(s) => output.push_str(s),
+            v => {
+                return Err(Error::SemActionTypeMismatch(format!(
+                    "can only join Chr or Str, received a {:?}",
+                    v
+                )))
+            }
+        }
+    }
+    Ok(Some(Value::Str(output)))
+}
+
+fn prim_unwrap(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    if arity != 1 {
+        return Err(Error::SemActionArity(format!(
+            "unwrap() takes 1 parameter, {} given",
+            arity
+        )));
+    }
+    let items = match vm.value_stack.pop().ok_or(Error::Index)? {
+        Value::Node { name: _, items } => items,
+        v => {
+            return Err(Error::SemActionTypeMismatch(format!(
+                "unwrap()'s param should be a node, got {:?} instead",
+                v
+            )));
+        }
+    };
+    if items.len() != 1 {
+        return Err(Error::SemActionTypeMismatch(format!(
+            "unwrap()'s param should be a node with a single value, got {} instead",
+            items.len()
+        )));
+    }
+    Ok(items.first().cloned())
+}
+
+fn prim_i64(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    if arity != 2 {
+        return Err(Error::SemActionArity(format!(
+            "i64() takes two arguments, {} given",
+            arity
+        )));
+    }
+    let base = match vm.value_stack.pop().ok_or(Error::Index)? {
+        Value::I64(n) => n as u32,
+        v => {
+            return Err(Error::SemActionTypeMismatch(format!(
+                "i64()'s second param should be an integer, got {:?} instead",
+                v
+            )));
+        }
+    };
+    let input = match vm.value_stack.pop().ok_or(Error::Index)? {
+        Value::Str(s) => s,
+        v => {
+            return Err(Error::SemActionTypeMismatch(format!(
+                "i64()'s first param should be a string, got {:?} instead",
+                v
+            )));
+        }
+    };
+    match i64::from_str_radix(&input, base) {
+        Ok(value) => Ok(Some(Value::I64(value))),
+        Err(err) => Err(Error::SemActionErr(err.to_string())),
+    }
+}
+
 pub struct VM<'a> {
     // Cursor position at the input
     cursor: usize,
@@ -354,6 +485,10 @@ pub struct VM<'a> {
     captures: Vec<CapStackFrame>,
     // boolean flag that remembers if the VM is within a predicate
     within_predicate: bool,
+    // stack for manipulating values while running semantic actions
+    value_stack: Vec<Value>,
+    // primitive functions
+    prims: HashMap<String, PrimFunc>,
 }
 
 impl<'a> VM<'a> {
@@ -365,9 +500,16 @@ impl<'a> VM<'a> {
             program_counter: 0,
             stack: vec![],
             call_frames: vec![],
+            value_stack: vec![],
             lrmemo: HashMap::new(),
             captures: vec![],
             within_predicate: false,
+            prims: HashMap::from([
+                ("discard".to_string(), prim_discard as PrimFunc),
+                ("joinall".to_string(), prim_joinall as PrimFunc),
+                ("i64".to_string(), prim_i64 as PrimFunc),
+                ("unwrap".to_string(), prim_unwrap as PrimFunc),
+            ]),
         }
     }
 
@@ -458,6 +600,32 @@ impl<'a> VM<'a> {
         Ok(())
     }
 
+    fn capture_node(
+        &mut self,
+        address: usize,
+        capframe: CapStackFrame,
+        capture_type: CaptureType,
+    ) -> Result<(), Error> {
+        match capture_type {
+            CaptureType::Disabled => {}
+            CaptureType::Wrapped => {
+                // base case for regular rules returning what's inside the
+                // capture frame that was just popped
+                let items = capframe.values;
+                if !items.is_empty() {
+                    let name = self.program.identifier(address);
+                    self.capture(Value::Node { name, items })?;
+                }
+            }
+            CaptureType::Unwrapped => {
+                for v in capframe.values {
+                    self.capture(v)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// mark all values captured on the top of the stack as commited
     fn commit_captures(&mut self) -> Result<(), Error> {
         let top = self.capstktop_mut()?;
@@ -483,6 +651,43 @@ impl<'a> VM<'a> {
             self.dbg_instruction();
             match self.program.code[self.program_counter] {
                 Instruction::Halt => break,
+                Instruction::PushVal(ref v) => {
+                    self.program_counter += 1;
+                    self.value_stack.push(v.clone());
+                }
+                Instruction::PushVar(i) => {
+                    let top = &self.captures[self.captures.len() - 1];
+                    let v = &top.values[i];
+                    self.value_stack.push(v.clone());
+                    self.program_counter += 1;
+                }
+                Instruction::PopVal => {
+                    self.program_counter += 1;
+                    self.capstktop_mut()?.values.clear();
+                    if let Some(value) = self.value_stack.pop() {
+                        self.capture(value)?;
+                    }
+                }
+                Instruction::Prim(id, arity) => {
+                    self.program_counter += 1;
+                    let prim_name = self.program.string_at(id);
+                    let result = match self.prims.get(&prim_name) {
+                        None => return Err(Error::SemActionNotFound(prim_name)),
+                        Some(f) => f(self, arity),
+                    };
+                    if let Some(value) = result? {
+                        self.value_stack.push(value);
+                    }
+                }
+                Instruction::PushList(len) => {
+                    self.program_counter += 1;
+                    let mut v = Vec::with_capacity(len);
+                    for _ in 0..len {
+                        v.push(self.value_stack.pop().ok_or(Error::Index)?);
+                    }
+                    let rev = v.into_iter().rev().collect();
+                    self.value_stack.push(Value::List(rev));
+                }
                 Instruction::CapPush => {
                     self.program_counter += 1;
                     if !self.within_predicate {
@@ -624,14 +829,14 @@ impl<'a> VM<'a> {
                 Instruction::Jump(index) => {
                     self.program_counter = index;
                 }
-                Instruction::Call(offset, precedence) => {
+                Instruction::Call(offset, precedence, ref capture) => {
                     self.inst_call(self.program_counter + offset, precedence, None)?;
                 }
-                Instruction::CallB(offset, precedence) => {
+                Instruction::CallB(offset, precedence, ref capture) => {
                     self.inst_call(self.program_counter - offset, precedence, None)?;
                 }
-                Instruction::Return => {
-                    self.inst_return()?;
+                Instruction::Return(ref capture_type) => {
+                    self.inst_return(capture_type.clone())?;
                 }
                 Instruction::Throw(label) => {
                     if self.within_predicate {
@@ -774,7 +979,7 @@ impl<'a> VM<'a> {
         Ok(())
     }
 
-    fn inst_return(&mut self) -> Result<(), Error> {
+    fn inst_return(&mut self, capture_type: CaptureType) -> Result<(), Error> {
         let cursor = self.cursor;
         let frame = self.stkpeek()?;
         let address = frame.address;
@@ -791,14 +996,7 @@ impl<'a> VM<'a> {
                 self.capture(Value::Error { label, message })?;
                 return Ok(());
             }
-
-            // base case for regular rules returning what's inside the
-            // capture frame that was just popped
-            let items = capframe.values;
-            if !items.is_empty() {
-                let name = self.program.identifier(address);
-                self.capture(Value::Node { name, items })?;
-            }
+            self.capture_node(address, capframe, capture_type)?;
             return Ok(());
         }
 
@@ -949,10 +1147,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Char('a'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -977,10 +1175,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Char('a'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1005,10 +1203,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Span('a', 'z'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1033,10 +1231,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Span('a', 'z'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1059,12 +1257,12 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Any,
                 Instruction::Any,
                 Instruction::Any,
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1087,10 +1285,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Any,
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1116,13 +1314,13 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(4),
                 Instruction::Char('a'),
                 Instruction::Commit(1),
                 Instruction::Fail,
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1147,13 +1345,13 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(4),
                 Instruction::Char('f'),
                 Instruction::Commit(1),
                 Instruction::Fail,
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1179,14 +1377,14 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::Commit(2),
                 Instruction::Char('b'),
                 Instruction::Halt,
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1211,14 +1409,14 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::Commit(2),
                 Instruction::Char('b'),
                 Instruction::Halt,
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1242,14 +1440,14 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::Commit(2),
                 Instruction::Char('b'),
                 Instruction::Halt,
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1274,12 +1472,12 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::CommitB(2),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1304,12 +1502,12 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(3),
                 Instruction::Char('a'),
                 Instruction::CommitB(2),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1335,19 +1533,19 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Jump(11),
                 // G
-                Instruction::Call(4, 0),
+                Instruction::Call(4, 0, CaptureType::Wrapped),
                 Instruction::Char('+'),
-                Instruction::Call(2, 0),
-                Instruction::Return,
+                Instruction::Call(2, 0, CaptureType::Wrapped),
+                Instruction::Return(CaptureType::Wrapped),
                 // D
                 Instruction::Choice(3),
                 Instruction::Char('0'),
                 Instruction::Commit(2),
                 Instruction::Char('1'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
                 Instruction::Halt,
             ],
         };
@@ -1374,19 +1572,19 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Jump(11),
                 // G
-                Instruction::Call(4, 0),
+                Instruction::Call(4, 0, CaptureType::Wrapped),
                 Instruction::Char('+'),
-                Instruction::Call(2, 0),
-                Instruction::Return,
+                Instruction::Call(2, 0, CaptureType::Wrapped),
+                Instruction::Return(CaptureType::Wrapped),
                 // D
                 Instruction::Choice(3),
                 Instruction::Char('0'),
                 Instruction::Commit(2),
                 Instruction::Char('1'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
                 Instruction::Halt,
             ],
         };
@@ -1409,15 +1607,15 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["E".to_string()],
             code: vec![
-                Instruction::Call(2, 1),
+                Instruction::Call(2, 1, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(5),
-                Instruction::CallB(1, 1),
+                Instruction::CallB(1, 1, CaptureType::Wrapped),
                 Instruction::Char('+'),
                 Instruction::Char('n'),
                 Instruction::Commit(2),
                 Instruction::Char('n'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1441,15 +1639,15 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["E".to_string()],
             code: vec![
-                Instruction::Call(2, 1),
+                Instruction::Call(2, 1, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Choice(5),
-                Instruction::CallB(1, 1),
+                Instruction::CallB(1, 1, CaptureType::Wrapped),
                 Instruction::Char('+'),
                 Instruction::Char('n'),
                 Instruction::Commit(2),
                 Instruction::Char('n'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1473,23 +1671,23 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
-                Instruction::Call(2, 1),
+                Instruction::Call(2, 1, CaptureType::Wrapped),
                 Instruction::Halt,
                 // / E:1 '+' E:1
                 Instruction::Choice(5),
-                Instruction::CallB(1, 1),
+                Instruction::CallB(1, 1, CaptureType::Wrapped),
                 Instruction::Char('+'),
-                Instruction::CallB(3, 1),
+                Instruction::CallB(3, 1, CaptureType::Wrapped),
                 Instruction::Commit(2),
                 // / D
-                Instruction::Call(2, 0),
-                Instruction::Return,
+                Instruction::Call(2, 0, CaptureType::Wrapped),
+                Instruction::Return(CaptureType::Wrapped),
                 // D
                 Instruction::Choice(3),
                 Instruction::Char('0'),
                 Instruction::Commit(2),
                 Instruction::Char('1'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1514,29 +1712,29 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["E".to_string(), "D".to_string()],
             code: vec![
-                Instruction::Call(2, 1),
+                Instruction::Call(2, 1, CaptureType::Wrapped),
                 Instruction::Halt,
                 // / E:1 '+' E:2
                 Instruction::Choice(5),
-                Instruction::CallB(1, 1),
+                Instruction::CallB(1, 1, CaptureType::Wrapped),
                 Instruction::Char('+'),
-                Instruction::CallB(3, 2),
+                Instruction::CallB(3, 2, CaptureType::Wrapped),
                 Instruction::Commit(7),
                 // / E:2 '*' E:2
                 Instruction::Choice(5),
-                Instruction::CallB(6, 2),
+                Instruction::CallB(6, 2, CaptureType::Wrapped),
                 Instruction::Char('*'),
-                Instruction::CallB(8, 3),
+                Instruction::CallB(8, 3, CaptureType::Wrapped),
                 Instruction::Commit(2),
                 // / D
-                Instruction::Call(2, 0),
-                Instruction::Return,
+                Instruction::Call(2, 0, CaptureType::Wrapped),
+                Instruction::Return(CaptureType::Wrapped),
                 // D
                 Instruction::Choice(3),
                 Instruction::Char('0'),
                 Instruction::Commit(2),
                 Instruction::Char('1'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1560,7 +1758,7 @@ mod tests {
             strings,
             recovery: HashMap::new(),
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 // G
                 Instruction::Choice(7),
@@ -1571,7 +1769,7 @@ mod tests {
                 Instruction::Throw(1),
                 Instruction::Commit(2),
                 Instruction::Char('c'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
         let mut vm = VM::new(&program);
@@ -1592,10 +1790,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string(), "abacate".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Str(1),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1623,10 +1821,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string(), "abacate".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Str(1),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1648,10 +1846,10 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string(), "abacate".to_string()],
             code: vec![
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 Instruction::Str(1),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1674,7 +1872,7 @@ mod tests {
             strings: vec!["G".to_string()],
             code: vec![
                 // Call to first production follwed by the end of the matching
-                Instruction::Call(2, 0),
+                Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
                 // Body of production G
                 Instruction::Choice(9),
@@ -1691,7 +1889,7 @@ mod tests {
                 Instruction::Char('a'),
                 Instruction::Char('d'),
                 Instruction::Char('a'),
-                Instruction::Return,
+                Instruction::Return(CaptureType::Wrapped),
             ],
         };
 
@@ -1729,17 +1927,17 @@ mod tests {
             recovery: HashMap::new(),
             strings: vec!["G".to_string(), "D".to_string()],
             code: vec![
-                /* 00 */ Instruction::Call(2, 0),
+                /* 00 */ Instruction::Call(2, 0, CaptureType::Wrapped),
                 /* 01 */ Instruction::Halt,
                 // G
-                /* 02 */ Instruction::Call(2, 0),
-                /* 03 */ Instruction::Return,
+                /* 02 */ Instruction::Call(2, 0, CaptureType::Wrapped),
+                /* 03 */ Instruction::Return(CaptureType::Wrapped),
                 // D
                 /* 04 */ Instruction::Choice(3),
                 /* 05 */ Instruction::Char('0'),
                 /* 06 */ Instruction::Commit(2),
                 /* 07 */ Instruction::Char('1'),
-                /* 08 */ Instruction::Return,
+                /* 08 */ Instruction::Return(CaptureType::Wrapped),
             ],
         };
 

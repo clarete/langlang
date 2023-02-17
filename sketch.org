@@ -21,12 +21,12 @@
    * [X] left recursion
    * [X] match data structures
    * [X] value captures: captures all values, no opting out
-   * [ ] match-only mode, where captures are disabled
-   * [ ] selective capture mode, input grammar defines captures
    * [-] error recovery: work in progress
+   * [-] semantic actions
+   * [-] selective capture mode, input grammar defines captures
+   * [ ] match-only mode, where captures are disabled by default
    * [ ] parameterized rules?
    * [ ] higher-order rules?
-   * [ ] semantic actions?
    * [ ] packages and import system?
 ** Standard Library
    * [X] ABNF (RFC-5234)
@@ -99,15 +99,16 @@
    * [ ] Allocation for captures should happen within an arena
 * Implemented Design
 ** Captures
+*** General Idea
 
-   Currently, the Virtual Machine captures all values matched, there's
-   no opting out.  The captured values are stored in a stack that is
+   Currently, the Virtual Machine captures all values matched by
+   default.  The captured values are stored in a stack that is
    separate from the stack used in the Call/Backtracking mechanism.
 
    The machine pushes a frame onto the capture stack before it starts
-   looping the bytecode.  Opcodes that implement matching of terminals
-   (~Any~, ~Char~, ~Span~) push matched values onto the current
-   capture stack frame.
+   looping through the bytecode.  Opcodes that implement matching of
+   terminals (~Any~, ~Char~, ~Span~) push matched values onto the
+   current capture stack frame.
 
    When popping a backtrack frame from the stack, the ~Fail~
    instruction will drain the values not committed from the frame on
@@ -134,15 +135,82 @@
    have a ~CapCommit~ instruction that executes after the whole
    operation is done, upon (handled) failure or success.
 
-   Not implemented yet:
+   As mentioned, by default all matched values are captured. Notice
+   that predicates ~NOT~ and ~AND~ don't consume any input, so there
+   are no values to be captured from their successful match.  There
+   are two other operations that might not move the cursor, the ~STAR~
+   (~*~) and the ~OPTIONAL~ (~?~) operators, when the expected input
+   doesn't match.
+
+*** Transform captured values
+
+    Often enough, before using a value captured from a given rule
+    needs to be transformed before it is useful.  Take the the
+    following grammar for example (snippet extracted from ~peg.peg~).
+
+#+begin_src peg
+  Identifier <- IdentStart IdentCont*
+  IdentStart <- [a-zA-Z_]
+  IdentCont  <- IdentStart / [0-9]
+#+end_src
+
+    If given the input ~Text~ it will yield the following result:
+
+#+begin_src peg
+  Identifier: [
+      IdentStart: [
+          "T"
+      ]
+      IdentCont: [
+          IdentStart: [
+              "e"
+          ]
+      ]
+      IdentCont: [
+          IdentStart: [
+              "x"
+          ]
+      ]
+      IdentCont: [
+          IdentStart: [
+              "t"
+          ]
+      ]
+  ]
+#+end_src
+
+    That looks a little too verbose of an output.  Ideally, we would
+    want something more along these lines:
+
+#+begin_src peg
+  Identifier: ["Text"]
+#+end_src
+
+    The output above has suppressed the wrapping of the matching of
+    both ~IdentStart~ and ~IdentCont~.  That can be achieved by the
+    following semantic action expressions:
+
+#+begin_src peg
+  Identifier -> joinall()
+  IdentStart -> nowrap()
+  IdentCont  -> nowrap()
+#+end_src
+
+    Notice the arrow points at the right hand side instead of pointing
+    at the left hand side, like when we're defining regular
+    productions.  And these *Semantic Action Expressions* can contain
+    values of any type supported by the matching machine, including
+    numbers, chars, strings, lists, and nodes.  It can also contain
+    function calls.  These functions are all built in and help
+    transforming the output of the matched value.  The function
+    ~nowrap()~ will prevent the capture values of a role from being
+    wrapped in a named ~Node~.
+
+*** Features not implemented yet
 
    1. Match-only mode: Captures are disabled within the virtual
       machine.  It will also be nice to tweak the compiler to not emit
       ~Cap*~ instructions.
-
-   2. Selective capture mode: No values are captured by default.
-      Maybe the input PEG grammar can contain marks that delimit how
-      values are captured.
 
 ** Error Handling
 
@@ -202,6 +270,7 @@
    Note: the *Throw Operator* in the input language ~expr^l~ is syntax
    sugar for ~(expr / ⇑l)~.
 
+* Rambling
 ** Pretty Print / Minifier
 
    Suppose we can parse a ~.ln~ file with a given grammar ~lang.peg~.
@@ -289,7 +358,28 @@
    language that demands options that differ from the defaults in the
    code emitter.
 
-* Rambling
+** Incremental Parsing
+
+   The parser will fail at the first error by default (as Parsing
+   Expression Grammars do originally).  But an incremental parsing
+   mode is also included, but with annotation costs traded for
+   precision.
+
+   When parsing is done incrementally, the *Throw Operator* won't
+   interrupt parsing right away.  It will instead add a special node
+   to the tree returned by the parser storing information about the
+   error.  The parser will then execute the *Recovery Expression*
+   associated with the (implicitly created) label behind the *Throw
+   Operator*, which should consume the input until where the matching
+   of another expression can be attempted.
+
+   The default *Recovery Expression* of a label of an instance of the
+   *Throw Operator* is the following:
+
+   #+begin_src peg
+   #+end_src   
+
+   Annotation costs come from the 
 ** Self Hosting
 
    What would it take to build a parser generator tool capable of
@@ -316,15 +406,6 @@
    for implementing the middle step. 2. the auxiliary tooling
    described above for the output stream.
 
-** Semantic Actions
-** Input Validation
-*** URL
-
-    $ lib::rfc3986 "https://clarete.li/langlang"
-
-*** Email
-
-    $ lib::rfc3986 "lincoln@clarete.li"
 ** Modules
 
    In langlang, modules are recursive containers for other modules and
@@ -385,6 +466,14 @@
      llsh lib::peg
      >> S <- 'a' / 'b'
    #+END_SRC
+** Input Validation
+*** URL
+
+    $ lib::rfc3986 "https://clarete.li/langlang"
+
+*** Email
+
+    $ lib::rfc3986 "lincoln@clarete.li"
 ** Matching
 *** Literal Strings
 *** Left Recursion
@@ -455,25 +544,3 @@
       The ~FOLLOW~ set of ~E~ in this case is ~x, y, z, k~, since any
       of these symbols could appear right after parsing ~E~.
 
-** Incremental Parsing
-
-   The parser will fail at the first error by default (as Parsing
-   Expression Grammars do originally).  But an incremental parsing
-   mode is also included, but with annotation costs traded for
-   precision.
-
-   When parsing is done incrementally, the *Throw Operator* won't
-   interrupt parsing right away.  It will instead add a special node
-   to the tree returned by the parser storing information about the
-   error.  The parser will then execute the *Recovery Expression*
-   associated with the (implicitly created) label behind the *Throw
-   Operator*, which should consume the input until where the matching
-   of another expression can be attempted.
-
-   The default *Recovery Expression* of a label of an instance of the
-   *Throw Operator* is the following:
-
-   #+begin_src peg
-   #+end_src   
-
-   Annotation costs come from the 

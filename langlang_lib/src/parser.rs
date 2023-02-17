@@ -1,17 +1,25 @@
-use crate::ast::AST;
+use crate::ast::{SemExpr, SemValue, AST};
 use std::boxed::Box;
 
 #[derive(Debug)]
 pub enum Error {
     BacktrackError(usize, String),
+    ParseIntError(String),
 }
 
 impl std::error::Error for Error {}
+
+impl From<std::num::ParseIntError> for Error {
+    fn from(e: std::num::ParseIntError) -> Self {
+        Error::ParseIntError(e.to_string())
+    }
+}
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Error::BacktrackError(i, m) => write!(f, "Syntax Error: {}: {}", i, m),
+            Error::ParseIntError(e) => write!(f, "{}", e),
         }
     }
 }
@@ -39,13 +47,15 @@ impl Parser {
         self.parse_grammar()
     }
 
-    // GR: Grammar <- Spacing (Definition / LabelDefinition)+ EndOfFile
+    // GR: Grammar <- Spacing (Definition / LabelDefinition / SemAction)+ EndOfFile
     fn parse_grammar(&mut self) -> Result<AST, Error> {
         self.parse_spacing()?;
         let defs = self.one_or_more(|p| {
-            p.choice(vec![|p| p.parse_label_definition(), |p| {
-                p.parse_definition()
-            }])
+            p.choice(vec![
+                |p| p.parse_label_definition(),
+                |p| p.parse_semaction(),
+                |p| p.parse_definition(),
+            ])
         })?;
         self.parse_eof()?;
         Ok(AST::Grammar(defs))
@@ -70,6 +80,150 @@ impl Parser {
         self.parse_spacing()?;
         let literal = self.parse_literal()?;
         Ok(AST::LabelDefinition(label, literal))
+    }
+
+    // GR: SemAction  <- SemExprPth RIGHTARROW SemExpr^semexpr
+    fn parse_semaction(&mut self) -> Result<AST, Error> {
+        let id = self.parse_identifier()?;
+        self.expect('-')?;
+        self.expect('>')?;
+        self.parse_spacing()?;
+        let expr = self.parse_sem_expr()?;
+        Ok(AST::SemanticAction(id, Box::new(expr)))
+    }
+
+    // GR: SemExprPth <- Identifier (SLASH (Decimal / Identifier)^exprpath)*
+
+    // GR: SemExpr    <- SemValue / SemCall / Identifier
+    fn parse_sem_expr(&mut self) -> Result<SemExpr, Error> {
+        self.choice(vec![
+            |p| p.parse_sem_expr_parens(),
+            |p| p.parse_sem_val(),
+            |p| p.parse_sem_call(),
+            |p| p.parse_sem_id(),
+        ])
+    }
+
+    // GR: SemExprParens <- OPEN SemExpr¹^semexpexpr CLOSE^semexpcl
+    fn parse_sem_expr_parens(&mut self) -> Result<SemExpr, Error> {
+        self.expect('(')?;
+        let expr = self.parse_sem_expr()?;
+        self.expect(')')?;
+        Ok(expr)
+    }
+
+    fn parse_sem_id(&mut self) -> Result<SemExpr, Error> {
+        let id = self.parse_identifier()?;
+        Ok(SemExpr::Identifier(id))
+    }
+
+    // SemCall    <- Identifier OPEN (SemExpr (COMMA SemExpr)*)? CLOSE^acfncl
+    fn parse_sem_call(&mut self) -> Result<SemExpr, Error> {
+        let name = self.parse_identifier()?;
+        self.expect('(')?;
+        self.parse_spacing()?;
+        let mut params = vec![];
+        let first = self.parse_sem_expr();
+        if let Ok(v) = first {
+            params.push(v);
+            params.extend(self.zero_or_more(|p| {
+                p.expect(',')?;
+                p.parse_spacing()?;
+                p.parse_sem_expr()
+            })?);
+        }
+        self.expect(')')?;
+        self.parse_spacing()?;
+        Ok(SemExpr::Call(name, params))
+    }
+
+    // GR: SemValue   <- Number / Literal / Variable / SemDict / SemList
+    fn parse_sem_val(&mut self) -> Result<SemExpr, Error> {
+        Ok(SemExpr::Value(self.choice(vec![
+            |p| p.parse_number(),
+            |p| p.parse_sem_lit(),
+            |p| p.parse_sem_var(),
+            // |p| p.parse_sem_dict(),
+            |p| p.parse_sem_list(),
+        ])?))
+    }
+
+    fn parse_sem_lit(&mut self) -> Result<SemValue, Error> {
+        let lit = self.parse_literal()?;
+        Ok(SemValue::Literal(lit))
+    }
+
+    // GR: SemVar <- '%' [0-9]+ _
+    fn parse_sem_var(&mut self) -> Result<SemValue, Error> {
+        self.expect('%')?;
+        let var = self.parse_decimal_number()?;
+        self.parse_spacing()?;
+        Ok(SemValue::Variable(var as usize))
+    }
+
+    // GR: Number      <- Hexadecimal / Decimal
+    fn parse_number(&mut self) -> Result<SemValue, Error> {
+        Ok(SemValue::Number(self.choice(vec![
+            // order matters here: the decimal number rule matches
+            // against '0' which is the prefix of the hexadecimal
+            // number rule
+            |p| p.parse_hexadecimal_number(),
+            |p| p.parse_decimal_number(),
+        ])?))
+    }
+
+    // GR: SemList     <- OPENC (SemExpr (COMMA SemExpr)*)? CLOSEC^aclistcl
+    fn parse_sem_list(&mut self) -> Result<SemValue, Error> {
+        self.expect('{')?;
+        self.parse_spacing()?;
+        let mut items = vec![];
+        let first = self.parse_sem_expr();
+        if let Ok(v) = first {
+            items.push(v);
+            items.extend(self.zero_or_more(|p| {
+                p.expect(',')?;
+                p.parse_spacing()?;
+                p.parse_sem_expr()
+            })?);
+        }
+        self.expect('}')?;
+        self.parse_spacing()?;
+        Ok(SemValue::List(items))
+    }
+
+    // GR: Decimal     <- ([1-9][0-9]* / '0') _
+    fn parse_decimal_number(&mut self) -> Result<i64, Error> {
+        let digits = self.choice(vec![
+            |p| {
+                let mut d = p.expect_range('1', '9')?.to_string();
+                let tail: String = p
+                    .zero_or_more(|p| p.expect_range('0', '9'))?
+                    .into_iter()
+                    .collect();
+                d.push_str(&tail);
+                Ok(d)
+            },
+            |p| Ok(p.expect('0')?.to_string()),
+        ])?;
+        self.parse_spacing()?;
+        Ok(digits.parse::<i64>()?)
+    }
+
+    // GR: Hexadecimal <- '0x' [a-zA-Z0-9]+ _
+    fn parse_hexadecimal_number(&mut self) -> Result<i64, Error> {
+        self.expect_str("0x")?;
+        let digits: String = self
+            .one_or_more(|p| {
+                p.choice(vec![
+                    |p| p.expect_range('0', '9'),
+                    |p| p.expect_range('a', 'f'),
+                    |p| p.expect_range('A', 'F'),
+                ])
+            })?
+            .into_iter()
+            .collect();
+        self.parse_spacing()?;
+        Ok(i64::from_str_radix(&digits, 16)?)
     }
 
     // GR: Expression <- Sequence (SLASH Sequence)*
@@ -204,6 +358,11 @@ impl Parser {
                 p.not(|p| {
                     p.expect('<')?;
                     p.expect('-')?;
+                    p.parse_spacing()
+                })?;
+                p.not(|p| {
+                    p.expect('-')?;
+                    p.expect('>')?;
                     p.parse_spacing()
                 })?;
                 p.not(|p| {
@@ -498,9 +657,10 @@ impl Parser {
         loop {
             match func(self) {
                 Ok(ch) => output.push(ch),
-                Err(e) => match e {
-                    Error::BacktrackError(..) => break,
-                },
+                // stop the loop upon backtrack errors
+                Err(Error::BacktrackError(..)) => break,
+                // bubble up any error that isn't about input parsing
+                Err(e) => return Err(e),
             }
         }
         Ok(output)
@@ -602,6 +762,102 @@ pub fn expand(ast: AST) -> Result<AST, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_decimal_number_0() {
+        let mut p = Parser::new("0");
+        let o = p.parse_number();
+        assert!(o.is_ok());
+        let u = o.unwrap();
+        assert_eq!(SemValue::Number(0), u);
+        assert_eq!("0".to_string(), u.to_string());
+    }
+
+    #[test]
+    fn test_parse_decimal_number_1() {
+        let mut p = Parser::new("1");
+        let o = p.parse_number();
+        assert!(o.is_ok());
+        let u = o.unwrap();
+        assert_eq!(SemValue::Number(1), u);
+        assert_eq!("1".to_string(), u.to_string());
+    }
+
+    #[test]
+    fn test_parse_decimal_number_2() {
+        let mut p = Parser::new("321");
+        let o = p.parse_number();
+        assert!(o.is_ok());
+        let u = o.unwrap();
+        assert_eq!(SemValue::Number(321), u);
+        assert_eq!("321".to_string(), u.to_string());
+    }
+
+    #[test]
+    fn test_parse_hexadecimal_number() {
+        let mut p = Parser::new("0xfada");
+        let o = p.parse_number();
+        assert!(o.is_ok());
+        let u = o.unwrap();
+        assert_eq!(SemValue::Number(0xfada), u);
+        assert_eq!("64218".to_string(), u.to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_decimal_num() {
+        let mut p = Parser::new("A -> 0");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> 0\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_hex_num() {
+        let mut p = Parser::new("A -> 0xff");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> 255\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_literal() {
+        let mut p = Parser::new("A -> 'foo'");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> 'foo'\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_variable() {
+        let mut p = Parser::new("A -> %0");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> %0\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_call() {
+        let mut p = Parser::new("A -> discard()");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> discard()\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_call_one_param() {
+        let mut p = Parser::new("A -> cons(%0)");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> cons(%0)\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_call_multiparam() {
+        let mut p = Parser::new("A -> cons(%0, %1)");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> cons(%0, %1)\n".to_string(), ast.unwrap().to_string());
+    }
 
     #[test]
     fn test_precedence_syntax() {

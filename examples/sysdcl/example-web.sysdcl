@@ -1,0 +1,16 @@
+frontend {
+    type: service
+    // overrides the service icon
+    icon: https://cdn0.iconfinder.com/data/icons/simple-lines-filled-part-1/32/1_Code_Quote_Frontend_Programming_Syntax_Slash-64.png
+    // this is a stateless replica set
+    replicas: "N"
+}
+
+// this definition doesn't have a type, which means that it won't be
+// rendered.  Instead, it will be used as a type by other definitions.
+// And these other definitions will inherit all the visual properties
+// declared here.
+service {
+    shape: square
+    icon: https://cdn4.iconfinder.com/data/icons/internet-of-things-35/200/script-64.png
+}

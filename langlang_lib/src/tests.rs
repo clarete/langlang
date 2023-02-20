@@ -441,19 +441,7 @@ mod tests {
         assert_match("A[A[F]]", value);
     }
 
-    #[test]
-    fn test_sem_action_without_backpatch_0() {
-        let cc = compiler::Config::default();
-        let program = compile(
-            &cc,
-            "
-            E <- S 'n' S
-            S -> discard()
-            S <- ' '*
-            ",
-        );
-        assert_match("E[n]", run_str(&program, "   n   "));
-    }
+    // -- Semantic Actions -----------------------------------------------------
 
     #[test]
     fn test_sem_action_without_backpatch_before_main() {
@@ -461,18 +449,69 @@ mod tests {
         let program = compile(
             &cc,
             "
-            E -> joinall()
-            E <- [a-fA-F0-9]+
+            E -> 42
+            E <- [a-z]
             ",
         );
-        assert_match("E[deadbeef]", run_str(&program, "deadbeef"));
+        assert_match("E[42]", run_str(&program, "abc"));
     }
 
     #[test]
     fn test_sem_action_without_actual_main() {
         let cc = compiler::Config::default();
         let program = compile(&cc, "E -> 42");
-        assert!(run_str(&program, "deadbeef").is_none());
+        assert!(run_str(&program, "test").is_none());
+    }
+
+    #[test]
+    fn test_sem_action_unwrapped_err_not_top_fn_within_list() {
+        let cc = compiler::Config::default();
+        let out = parse_compile(&cc, "E -> { unwrapped(%0) }");
+        assert!(out.is_err());
+    }
+
+    #[test]
+    fn test_sem_action_unwrapped_err_not_top_fn_within_fn_param() {
+        let cc = compiler::Config::default();
+        let out = parse_compile(&cc, "E -> test_func(unwrapped(%0))");
+        assert!(out.is_err());
+    }
+
+    #[test]
+    fn test_sem_action_unwrapped_err_arity() {
+        let cc = compiler::Config::default();
+        let out = parse_compile(&cc, "E -> unwrapped(%0, 1)");
+        assert!(out.is_err());
+    }
+
+    #[test]
+    fn test_sem_action_unwrapped_0() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- [a-zA-Z0-9]
+            E -> unwrapped(%0)
+            ",
+        );
+        assert_match("a", run_str(&program, "a"));
+        assert_match("Z", run_str(&program, "Z"));
+        assert_match("9", run_str(&program, "9"));
+    }
+
+    #[test]
+    fn test_sem_action_discard() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- .*
+            E -> discard()
+            ",
+        );
+        assert!(run_str(&program, "1").is_none());
+        assert!(run_str(&program, "a").is_none());
+        assert!(run_str(&program, "^").is_none());
     }
 
     #[test]
@@ -538,6 +577,13 @@ mod tests {
         let program = c.compile(ast).unwrap();
         debug!("p: {}", program);
         program
+    }
+
+    fn parse_compile(cc: &compiler::Config, grammar: &str) -> Result<vm::Program, compiler::Error> {
+        let mut p = parser::Parser::new(grammar);
+        let ast = p.parse().unwrap();
+        let mut c = compiler::Compiler::new(cc.clone());
+        c.compile(ast)
     }
 
     fn run_str(program: &vm::Program, input: &str) -> Option<vm::Value> {

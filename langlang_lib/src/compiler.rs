@@ -104,6 +104,10 @@ pub struct Compiler {
     // Used for printing out debugging messages with the of the
     // structure the call stack the compiler is traversing
     indent_level: usize,
+    /// Keeps track of how many levels of recursion there are when
+    /// compiling a SemExpr.  That is needed to find out if a call to
+    /// `unwrapped()` is from the root of the sub-expression tree.
+    sem_expr_recursion_level: usize,
     // Map from the set of names of functions to the boolean defining
     // if the function is left recursive or not
     left_rec: HashMap<String, bool>,
@@ -128,6 +132,7 @@ impl Compiler {
             label_ids: HashSet::new(),
             recovery: HashMap::new(),
             indent_level: 0,
+            sem_expr_recursion_level: 0,
             left_rec: HashMap::new(),
             sem_action_names: HashSet::new(),
         }
@@ -300,10 +305,19 @@ impl Compiler {
                 let mangled = format!("SEM_{}", name);
                 let strid = self.push_string(&mangled);
                 self.identifiers.insert(addr, strid);
-                self.compile_sem_expr(*semexpr)?;
                 self.funcs.insert(strid, addr);
-                self.emit(Instruction::PopVal);
-                self.emit(Instruction::Return(self.default_capture_type()));
+                if let Some(expr) = validate_unwrapped(&semexpr)? {
+                    // implementation of the builtin `unwrapped()`, which
+                    // changes the capture type of the emitted Return.
+                    self.compile_sem_expr(expr)?;
+                    self.emit(Instruction::PopVal);
+                    self.emit(Instruction::Return(CaptureType::Unwrapped));
+                } else {
+                    // regular compilation of non builtin semantic actions
+                    self.compile_sem_expr(*semexpr)?;
+                    self.emit(Instruction::PopVal);
+                    self.emit(Instruction::Return(self.default_capture_type()));
+                }
                 Ok(())
             }
             AST::LabelDefinition(name, message) => {
@@ -506,6 +520,7 @@ impl Compiler {
     }
 
     fn compile_sem_expr(&mut self, v: SemExpr) -> Result<(), Error> {
+        self.sem_expr_recursion_level += 1;
         match v {
             SemExpr::Identifier(id) => {}
             SemExpr::Value(v) => self.compile_sem_value(v)?,
@@ -513,12 +528,26 @@ impl Compiler {
             SemExpr::UnaryOp(op, expr) => self.compile_sem_un_op(op, *expr)?,
             SemExpr::Call(name, params) => self.compile_sem_call(name, params)?,
         }
+        self.sem_expr_recursion_level -= 1;
         Ok(())
     }
 
     fn compile_sem_call(&mut self, name: String, params: Vec<SemExpr>) -> Result<(), Error> {
         let arity = params.len();
         let strid = self.push_string(&name);
+
+        // unwrapped() is a builtin provided by the compiler, that
+        // doesn't even exist within the VM utilized exclusively to
+        // configure the return's capture type of a production as
+        // unwrapped. So it doesn't make any sense to be called
+        // anywhere else but at the root of the semantic action's
+        // expression tree.
+        if self.sem_expr_recursion_level > 1 && &name == "unwrapped" {
+            return Err(Error::Semantic(
+                "unwrapped() can only be called as a top level expression".to_string(),
+            ));
+        }
+
         for p in params {
             self.compile_sem_expr(p)?;
         }
@@ -618,6 +647,24 @@ impl Compiler {
     fn dedent(&mut self, msg: &str) {
         self.indent_level -= 2;
         debug!("{:width$}Close {}", "", msg, width = self.indent_level);
+    }
+}
+
+/// This identifies and unpacks the parameter out of an `unwrapped(P)`
+/// call.  If `semexpr` is a call to unwrapped with a single
+/// parameter, it will return the sub-expression in its parameter
+/// list.  If `semexpr` is a call to unwrapped with any other arity,
+/// it throws an error, and if it isn't a call or it's a call to any
+/// other builtin, don't return anything.
+fn validate_unwrapped(semexpr: &SemExpr) -> Result<Option<SemExpr>, Error> {
+    match semexpr {
+        SemExpr::Call(name, params) if name.as_str() == "unwrapped" && params.len() == 1 => {
+            Ok(Some(params[0].clone()))
+        }
+        SemExpr::Call(name, params) if name.as_str() == "unwrapped" => Err(Error::Semantic(
+            format!("unwrapped() takes 1 param, {} given", params.len()),
+        )),
+        _ => Ok(None),
     }
 }
 

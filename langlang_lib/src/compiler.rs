@@ -144,6 +144,7 @@ impl Compiler {
         self.read_traversal(&ast)?;
         self.compile_node(ast)?;
         self.backpatch_callsites()?;
+        self.pick_main()?;
         self.manual_recovery()?;
 
         Ok(Program::new(
@@ -208,7 +209,16 @@ impl Compiler {
                 }
             }
         }
+        Ok(())
+    }
 
+    /// Picks the first production declared in the grammar and rewrite
+    /// the invariant header that starts with a Call instruction to
+    /// point it at this first production.  This is needed to skip
+    /// through the semantic actions in case there are any declared
+    /// before a production.  This also decides if that first Call
+    /// will be a recursive call by using data read in the first pass.
+    fn pick_main(&mut self) -> Result<(), Error> {
         // point invariant first call to the first production declared
         if let Some(identifier) = self
             .identifiers

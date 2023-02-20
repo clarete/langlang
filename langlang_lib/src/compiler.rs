@@ -452,7 +452,7 @@ impl Compiler {
                 let precedence = match self.left_rec.get(&name) {
                     Some(v) => usize::from(*v),
                     None => {
-                        return Err(Error::Semantic(format!(
+                        return Err(Error::NotFound(format!(
                             "Rule {:#?} not found in grammar",
                             name
                         )))

@@ -12,7 +12,7 @@
 //     column: usize,
 // }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemExprUnaryOp {
     Negative,
     Positive,
@@ -27,7 +27,7 @@ impl std::fmt::Display for SemExprUnaryOp {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SemExprBinaryOp {
     Addition,
     Subtraction,

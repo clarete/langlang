@@ -1,4 +1,4 @@
-use crate::ast::{SemExpr, SemValue, AST};
+use crate::ast::{SemExpr, SemExprUnaryOp, SemValue, AST};
 use std::boxed::Box;
 
 #[derive(Debug)]
@@ -94,10 +94,11 @@ impl Parser {
 
     // GR: SemExprPth <- Identifier (SLASH (Decimal / Identifier)^exprpath)*
 
-    // GR: SemExpr    <- SemValue / SemCall / Identifier
+    // GR: SemExpr    <- SemUnary / SemValue / SemCall / Identifier
     fn parse_sem_expr(&mut self) -> Result<SemExpr, Error> {
         self.choice(vec![
             |p| p.parse_sem_expr_parens(),
+            |p| p.parse_sem_unary(),
             |p| p.parse_sem_val(),
             |p| p.parse_sem_call(),
             |p| p.parse_sem_id(),
@@ -110,6 +111,18 @@ impl Parser {
         let expr = self.parse_sem_expr()?;
         self.expect(')')?;
         Ok(expr)
+    }
+
+    // GR: SemUnary <- (MINUS / PLUS) SemExpr
+    fn parse_sem_unary(&mut self) -> Result<SemExpr, Error> {
+        let op = match self.choice(vec![|p| p.expect('-'), |p| p.expect('+')]) {
+            Err(er) => return Err(er),
+            Ok('-') => SemExprUnaryOp::Negative,
+            Ok('+') => SemExprUnaryOp::Positive,
+            _ => unreachable!(),
+        };
+        let expr = self.parse_sem_expr()?;
+        Ok(SemExpr::UnaryOp(op, Box::new(expr)))
     }
 
     fn parse_sem_id(&mut self) -> Result<SemExpr, Error> {

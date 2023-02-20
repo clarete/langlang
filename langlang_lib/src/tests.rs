@@ -568,6 +568,32 @@ mod tests {
         assert_match("Int[123]", run_str(&program, "123"));
     }
 
+    #[test]
+    fn test_sem_action_unary_op() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            Unary    <- UnaryNeg / UnaryPos / Decimal
+            UnaryNeg <- MINUS Unary
+            UnaryPos <- PLUS Unary
+
+            # lexical rules
+            Decimal  <- [0-9]+
+            PLUS     <- '+'
+            MINUS    <- '-'
+
+            # semantic actions
+            Unary    -> unwrapped(%0)
+            UnaryNeg -> unwrapped(-%1)
+            UnaryPos -> unwrapped(+%1)
+            Decimal  -> unwrapped(i64(joinall(), 10))
+            ",
+        );
+        assert_match("-25", run_str(&program, "-25"));
+        assert_match("25", run_str(&program, "+-+-+-+-25"));
+    }
+
     // -- Test Helpers ---------------------------------------------------------
 
     fn compile(cc: &compiler::Config, grammar: &str) -> vm::Program {

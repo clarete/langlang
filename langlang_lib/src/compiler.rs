@@ -590,15 +590,15 @@ impl Compiler {
         Ok(())
     }
 
+    // First emits code for the expression `expr` so it leaves a value
+    // on the stack, then emits the unary operator that will then pop
+    // the value first pushed by expr and then push the result of the
+    // unary operation
     fn compile_sem_un_op(&mut self, op: SemExprUnaryOp, expr: SemExpr) -> Result<(), Error> {
         self.compile_sem_expr(expr)?;
         match op {
-            SemExprUnaryOp::Positive => {
-                // self.emit(Instruction::SemPositive);
-            }
-            SemExprUnaryOp::Negative => {
-                // self.emit(Instruction::SemNegative);
-            }
+            SemExprUnaryOp::Positive => self.emit(Instruction::SemPositive),
+            SemExprUnaryOp::Negative => self.emit(Instruction::SemNegative),
         }
         Ok(())
     }

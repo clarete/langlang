@@ -86,6 +86,8 @@ pub enum Instruction {
     PushList(usize),
     PopVal,
     Prim(usize, usize),
+    SemNegative,
+    SemPositive,
 }
 
 impl std::fmt::Display for Instruction {
@@ -119,6 +121,8 @@ impl std::fmt::Display for Instruction {
             Instruction::PushList(l) => write!(f, "pushlist {}", l),
             Instruction::PopVal => write!(f, "popval"),
             Instruction::Prim(n, a) => write!(f, "prim {}/{}", n, a),
+            Instruction::SemNegative => write!(f, "semnegative"),
+            Instruction::SemPositive => write!(f, "sempositive"),
         }
     }
 }
@@ -687,6 +691,30 @@ impl<'a> VM<'a> {
                     }
                     let rev = v.into_iter().rev().collect();
                     self.value_stack.push(Value::List(rev));
+                }
+                Instruction::SemNegative => {
+                    self.program_counter += 1;
+                    match self.value_stack.pop().ok_or(Error::Index)? {
+                        Value::I64(v) => self.value_stack.push(Value::I64(-v)),
+                        x => {
+                            return Err(Error::SemActionTypeMismatch(format!(
+                                "Value `{:?}` isn't an integer",
+                                x
+                            )));
+                        }
+                    }
+                }
+                Instruction::SemPositive => {
+                    self.program_counter += 1;
+                    match self.value_stack.pop().ok_or(Error::Index)? {
+                        Value::I64(v) => self.value_stack.push(Value::I64(v.abs())),
+                        x => {
+                            return Err(Error::SemActionTypeMismatch(format!(
+                                "Value `{:?}` isn't an integer",
+                                x
+                            )));
+                        }
+                    }
                 }
                 Instruction::CapPush => {
                     self.program_counter += 1;

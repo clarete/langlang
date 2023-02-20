@@ -20,7 +20,7 @@ SemExpr    <- SemExpr¹ PLUS SemExpr²^semexpsum
             / SemExpr¹ MINUS SemExpr²^semexpsub
             / SemExpr² STAR SemExpr³^semexpmul
             / SemExpr² SLASH SemExpr³^semexpdiv
-            / MINUS SemExpr⁴^semexpunary
+            / (MINUS / PLUS) SemExpr⁴^semexpunary
             / OPEN SemExpr¹^semexpexpr CLOSE^semexpcl
             / SemValue
             / SemCall

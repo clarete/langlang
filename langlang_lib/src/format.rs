@@ -12,6 +12,7 @@ pub fn value_fmt1(value: &Value) -> String {
         Value::Chr(v) => s.push(*v),
         Value::Str(v) => s.push_str(v),
         Value::I64(v) => s.push_str(&format!("{}", v)),
+        Value::Bool(v) => s.push_str(if *v { "true" } else { "false" }),
         Value::Node { name, items } => {
             s.push_str(name);
             s.push('[');
@@ -66,6 +67,12 @@ pub fn value_fmt2(value: &Value) -> String {
                     s.push_str("    ");
                 }
                 s.push_str(&format!("{}", v));
+            }
+            Value::Bool(v) => {
+                for _ in 0..indent {
+                    s.push_str("    ");
+                }
+                s.push_str(if *v { "true" } else { "false" });
             }
             Value::Node { name, items } => {
                 for _ in 0..indent {

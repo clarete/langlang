@@ -154,6 +154,7 @@ impl Parser {
     fn parse_sem_val(&mut self) -> Result<SemExpr, Error> {
         Ok(SemExpr::Value(self.choice(vec![
             |p| p.parse_number(),
+            |p| p.parse_bool(),
             |p| p.parse_sem_lit(),
             |p| p.parse_sem_var(),
             // |p| p.parse_sem_dict(),
@@ -182,6 +183,22 @@ impl Parser {
             // number rule
             |p| p.parse_hexadecimal_number(),
             |p| p.parse_decimal_number(),
+        ])?))
+    }
+
+    // GR: Bool      <- TRUE / FALSE
+    fn parse_bool(&mut self) -> Result<SemValue, Error> {
+        Ok(SemValue::Bool(self.choice(vec![
+            |p| {
+                p.expect_str("true")?;
+                p.parse_spacing()?;
+                Ok(true)
+            },
+            |p| {
+                p.expect_str("false")?;
+                p.parse_spacing()?;
+                Ok(false)
+            },
         ])?))
     }
 
@@ -846,6 +863,26 @@ mod tests {
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
         assert_eq!("A -> %0\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_bool_true() {
+        let mut p = Parser::new("true");
+        let o = p.parse_bool();
+        assert!(o.is_ok());
+        let v = o.unwrap();
+        assert_eq!("true".to_string(), v.to_string());
+        assert_eq!(SemValue::Bool(true), v)
+    }
+
+    #[test]
+    fn test_parse_sem_expr_bool_false() {
+        let mut p = Parser::new("false");
+        let o = p.parse_bool();
+        assert!(o.is_ok());
+        let v = o.unwrap();
+        assert_eq!("false".to_string(), v.to_string());
+        assert_eq!(SemValue::Bool(false), v)
     }
 
     #[test]

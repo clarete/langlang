@@ -617,6 +617,10 @@ impl Compiler {
             SemValue::Variable(v) => {
                 self.emit(Instruction::PushVar(v));
             }
+            SemValue::Bool(n) => {
+                let value = Value::Bool(n);
+                self.emit(Instruction::PushVal(value));
+            }
             SemValue::List(items) => {
                 let len = items.len();
                 for i in items {

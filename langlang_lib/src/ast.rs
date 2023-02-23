@@ -81,12 +81,14 @@ pub enum SemValue {
     List(Vec<SemExpr>),
     Literal(String),
     Number(i64),
+    Bool(bool),
     Variable(usize),
 }
 
 impl std::fmt::Display for SemValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
+            SemValue::Bool(b) => write!(f, "{}", b),
             SemValue::Number(n) => write!(f, "{}", n),
             SemValue::Literal(l) => write!(f, "'{}'", l),
             SemValue::Variable(v) => write!(f, "%{}", v),

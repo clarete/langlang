@@ -22,10 +22,11 @@ SemExpr    <- SemExpr¹ PLUS SemExpr²^semexpsum
             / SemExpr² SLASH SemExpr³^semexpdiv
             / (MINUS / PLUS) SemExpr⁴^semexpunary
             / OPEN SemExpr¹^semexpexpr CLOSE^semexpcl
-            / SemValue
             / SemCall
+            / SemValue
             / Identifier
 SemValue   <- Number
+            / Bool
             / Literal
             / Variable
             / SemDict
@@ -36,14 +37,15 @@ SemDictItem <- SemValue COLON SemExpr^dictitemexpr
 SemList    <- OPENC (SemExpr (COMMA SemExpr)*)? CLOSEC^aclistcl
 SemCall    <- Identifier OPEN (SemExpr (COMMA SemExpr)*)? CLOSE^acfncl
 Number     <- Hexadecimal / Decimal
+Bool       <- TRUE / FALSE
 
 # Lexical syntax
 Identifier <- [a-zA-Z_][a-zA-Z0-9_]* _
 Variable   <- '%' [0-9]+ _
 Decimal    <- ([1-9][0-9]* / '0') _
-Hexadecimal<- HEX [a-zA-Z0-9]+ _
-Literal    <- SQUOTE (!SQUOTE Char)* SQUOTE _
-            / DQUOTE (!DQUOTE Char)* DQUOTE _
+Hexadecimal<- HEX [a-zA-Z0-9]+^hexnum _
+Literal    <- SQUOTE (!SQUOTE Char)* SQUOTE^squote _
+            / DQUOTE (!DQUOTE Char)* DQUOTE^dquote _
 Class      <- '[' (!']' Range)* ']'  _
 Range      <- Char DASH Char / Char
 Char       <- '\\' [nrt'"\[\]\\]
@@ -73,6 +75,8 @@ SQUOTE     <- [']
 DQUOTE     <- ["]
 HEX        <- '0x'
 DASH       <- '-'
+TRUE       <- 'true' _
+FALSE      <- 'false' _
 
 # Spacing
 _          <- (Space / Comment)*
@@ -98,6 +102,7 @@ RIGHTARROW  -> discard()
 Char        -> joinall()
 Identifier  -> joinall()
 
-Number      -> unwrap(%0)
-Decimal     -> i64(joinall(), 10)
-Hexadecimal -> i64(joinall(), 16)
+Decimal     -> unwrapped(i64(joinall(), 10))
+Hexadecimal -> unwrapped(i64(joinall(), 16))
+TRUE        -> unwrapped(true)
+FALSE       -> unwrapped(false)

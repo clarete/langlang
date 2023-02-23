@@ -14,6 +14,7 @@ use std::collections::HashMap;
 pub enum Value {
     Chr(char),
     Str(String),
+    Bool(bool),
     I64(i64),
     // U64(u64),
     // F64(f64),

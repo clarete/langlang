@@ -426,28 +426,8 @@ impl Compiler {
                 }
                 Ok(())
             }
-            AST::ZeroOrMore(expr) => {
-                self.emit(Instruction::CapPush);
-                let pos = self.cursor;
-                self.emit(Instruction::Choice(0));
-                self.compile_node(*expr)?;
-                self.emit(Instruction::CapCommit);
-                let size = self.cursor - pos;
-                self.code[pos] = Instruction::Choice(size + 1);
-                match self.config.optimize {
-                    1 => self.emit(Instruction::PartialCommit(size - 1)),
-                    _ => self.emit(Instruction::CommitB(size)),
-                }
-                self.emit(Instruction::CapCommit);
-                self.emit(Instruction::CapPop);
-                Ok(())
-            }
-            AST::OneOrMore(expr) => {
-                let e = *expr;
-                self.compile_node(e.clone())?;
-                self.compile_node(AST::ZeroOrMore(Box::new(e)))?;
-                Ok(())
-            }
+            AST::ZeroOrMore(expr) => self.compile_seq(None, *expr),
+            AST::OneOrMore(expr) => self.compile_seq(Some(*expr.clone()), *expr),
             AST::Identifier(name) => {
                 let precedence = match self.left_rec.get(&name) {
                     Some(v) => usize::from(*v),
@@ -527,6 +507,30 @@ impl Compiler {
             }
             AST::Empty => Ok(()),
         }
+    }
+
+    fn compile_seq(&mut self, prefix: Option<AST>, expr: AST) -> Result<(), Error> {
+        self.emit(Instruction::CapPush);
+
+        // For when emitting code for OneOrMore
+        if let Some(n) = prefix {
+            self.compile_node(n)?;
+        }
+
+        let pos = self.cursor;
+        self.emit(Instruction::Choice(0));
+        self.compile_node(expr)?;
+        self.emit(Instruction::CapCommit);
+        let size = self.cursor - pos;
+        self.code[pos] = Instruction::Choice(size + 1);
+        match self.config.optimize {
+            1 => self.emit(Instruction::PartialCommit(size - 1)),
+            _ => self.emit(Instruction::CommitB(size)),
+        }
+        self.emit(Instruction::CapCommit);
+        self.emit(Instruction::CapPop);
+
+        Ok(())
     }
 
     fn compile_sem_expr(&mut self, v: SemExpr) -> Result<(), Error> {

@@ -444,6 +444,19 @@ mod tests {
     // -- Semantic Actions -----------------------------------------------------
 
     #[test]
+    fn test_sem_action_disabled() {
+        let cc = compiler::Config::default().disable_sem_actions();
+        let program = compile(
+            &cc,
+            "
+            E -> 42
+            E <- [a-z]
+            ",
+        );
+        assert_match("E[a]", run_str(&program, "a"));
+    }
+
+    #[test]
     fn test_sem_action_without_backpatch_before_main() {
         let cc = compiler::Config::default();
         let program = compile(

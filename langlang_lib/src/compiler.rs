@@ -311,6 +311,9 @@ impl Compiler {
                 Ok(())
             }
             AST::SemanticAction(name, semexpr) => {
+                if !self.config.enable_sem_actions {
+                    return Ok(());
+                }
                 let addr = self.cursor;
                 let mangled = format!("SEM_{}", name);
                 let strid = self.push_string(&mangled);

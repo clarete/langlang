@@ -31,8 +31,8 @@ impl std::fmt::Display for SemExprUnaryOp {
 pub enum SemExprBinaryOp {
     Addition,
     Subtraction,
-    Division,
     Multiplication,
+    Division,
 }
 
 impl std::fmt::Display for SemExprBinaryOp {

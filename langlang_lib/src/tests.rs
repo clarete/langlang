@@ -15,16 +15,16 @@ mod tests {
         let p = compile(&cc, "A <- '0x' [0-9a-fA-F]+ / '0'");
 
         // Note: run_str uses VM::run_str, which maps each character
-        // of the input string into a `Value::Chr`, and the fact that
-        // `Instruction::Str` can read both an entire string or a set
-        // of chars allows this example to work, as the `0x` piece is
-        // compiled into an `Instruction::Str` call.
+        // of the input string into a `Value::Char`, and the fact that
+        // `Instruction::String` can read both an entire string or a
+        // set of chars allows this example to work, as the `0x` piece
+        // is compiled into an `Instruction::String` call.
         assert_match("A[0xff]", run_str(&p, "0xff"));
         assert_match("A[0]", run_str(&p, "0"));
 
         // This won't work because "0x" is tested against "0xff" which
         // fails right away:
-        //let value = run(&p, vec![vm::Value::Str("0xff".to_string())]);
+        //let value = run(&p, vec![vm::Value::String("0xff".to_string())]);
         //assert_match("A[0xff]", value.unwrap());
 
         // This works as both `f` chars get consummed by [a-f]+ one at
@@ -32,15 +32,15 @@ mod tests {
         let value = run(
             &p,
             vec![
-                vm::Value::Str("0x".to_string()),
-                vm::Value::Chr('f'),
-                vm::Value::Chr('f'),
+                vm::Value::String("0x".to_string()),
+                vm::Value::Char('f'),
+                vm::Value::Char('f'),
             ],
         );
         assert_match("A[0xff]", value.unwrap());
 
         // Easiest case
-        let value = run(&p, vec![vm::Value::Str("0".to_string())]);
+        let value = run(&p, vec![vm::Value::Char('0')]);
         assert_match("A[0]", value.unwrap());
     }
 
@@ -271,9 +271,9 @@ mod tests {
         let result = run(
             &program,
             vec![
-                vm::Value::Chr('a'),
-                vm::Value::Chr('b'),
-                vm::Value::Chr('a'),
+                vm::Value::Char('a'),
+                vm::Value::Char('b'),
+                vm::Value::Char('a'),
             ],
         );
         assert!(result.is_err());
@@ -289,13 +289,13 @@ mod tests {
         let p = compile(&cc, "A <- { 'aba' }");
 
         let input_with_chr = vec![vm::Value::List(vec![
-            vm::Value::Chr('a'),
-            vm::Value::Chr('b'),
-            vm::Value::Chr('a'),
+            vm::Value::Char('a'),
+            vm::Value::Char('b'),
+            vm::Value::Char('a'),
         ])];
         assert_match("A[[aba]]", run(&p, input_with_chr).unwrap());
 
-        let input_with_str = vec![vm::Value::List(vec![vm::Value::Str("aba".to_string())])];
+        let input_with_str = vec![vm::Value::List(vec![vm::Value::String("aba".to_string())])];
         assert_match("A[[aba]]", run(&p, input_with_str).unwrap())
     }
 
@@ -306,20 +306,20 @@ mod tests {
 
         let input_with_chr = vec![vm::Value::List(vec![
             vm::Value::List(vec![
-                vm::Value::Chr('a'),
-                vm::Value::Chr('b'),
-                vm::Value::Chr('a'),
+                vm::Value::Char('a'),
+                vm::Value::Char('b'),
+                vm::Value::Char('a'),
             ]),
-            vm::Value::Chr('c'),
-            vm::Value::Chr('a'),
-            vm::Value::Chr('t'),
-            vm::Value::Chr('e'),
+            vm::Value::Char('c'),
+            vm::Value::Char('a'),
+            vm::Value::Char('t'),
+            vm::Value::Char('e'),
         ])];
         assert_match("A[[[aba]cate]]", run(&p, input_with_chr).unwrap());
 
         let input_with_str = vec![vm::Value::List(vec![
-            vm::Value::List(vec![vm::Value::Str("aba".to_string())]),
-            vm::Value::Str("cate".to_string()),
+            vm::Value::List(vec![vm::Value::String("aba".to_string())]),
+            vm::Value::String("cate".to_string()),
         ])];
         assert_match("A[[[aba]cate]]", run(&p, input_with_str).unwrap());
     }
@@ -332,9 +332,9 @@ mod tests {
         let input_with_chr = vec![vm::Value::Node {
             name: "A".to_string(),
             items: vec![
-                vm::Value::Chr('a'),
-                vm::Value::Chr('b'),
-                vm::Value::Chr('a'),
+                vm::Value::Char('a'),
+                vm::Value::Char('b'),
+                vm::Value::Char('a'),
             ],
         }];
         assert_match("A[A[aba]]", run(&p, input_with_chr).unwrap());

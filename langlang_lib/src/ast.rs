@@ -79,7 +79,8 @@ impl std::fmt::Display for SemExpr {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SemValue {
     List(Vec<SemExpr>),
-    Literal(String),
+    Char(char),
+    String(String),
     Number(i64),
     Bool(bool),
     Variable(usize),
@@ -90,7 +91,8 @@ impl std::fmt::Display for SemValue {
         match self {
             SemValue::Bool(b) => write!(f, "{}", b),
             SemValue::Number(n) => write!(f, "{}", n),
-            SemValue::Literal(l) => write!(f, "'{}'", l),
+            SemValue::Char(c) => write!(f, "'{}'", c),
+            SemValue::String(s) => write!(f, "\"{}\"", s),
             SemValue::Variable(v) => write!(f, "%{}", v),
             SemValue::List(items) => {
                 write!(f, "{{")?;
@@ -123,7 +125,7 @@ pub enum AST {
     Precedence(Box<AST>, usize),
     Node(String, Vec<AST>),
     List(Vec<AST>),
-    Str(String),
+    String(String),
     Range(char, char),
     Char(char),
     Label(String, Box<AST>),
@@ -185,7 +187,7 @@ impl std::fmt::Display for AST {
                 }
                 write!(f, "}}")
             }
-            AST::Str(s) => write!(f, "{}", s),
+            AST::String(s) => write!(f, "{}", s),
             AST::Range(a, b) => write!(f, "[{}-{}]", a, b),
             AST::Char(c) => write!(f, "{}", c),
             AST::Label(n, expr) => write!(f, "{}^{}", expr, n),

@@ -78,7 +78,7 @@ impl Parser {
         let label = self.parse_identifier()?;
         self.expect('=')?;
         self.parse_spacing()?;
-        let literal = self.parse_literal()?;
+        let literal = self.parse_literal_string()?;
         Ok(AST::LabelDefinition(label, literal))
     }
 
@@ -163,8 +163,11 @@ impl Parser {
     }
 
     fn parse_sem_lit(&mut self) -> Result<SemValue, Error> {
-        let lit = self.parse_literal()?;
-        Ok(SemValue::Literal(lit))
+        match self.parse_literal()? {
+            AST::Char(c) => Ok(SemValue::Char(c)),
+            AST::String(s) => Ok(SemValue::String(s)),
+            _ => unreachable!(),
+        }
     }
 
     // GR: SemVar <- '%' [0-9]+ _
@@ -412,7 +415,7 @@ impl Parser {
             },
             |p| p.parse_node(),
             |p| p.parse_list(),
-            |p| Ok(AST::Str(p.parse_literal()?)),
+            |p| p.parse_literal(),
             |p| Ok(AST::Choice(p.parse_class()?)),
             |p| {
                 p.parse_dot()?;
@@ -475,7 +478,16 @@ impl Parser {
 
     // GR: Literal <- [’] (![’]Char)* [’] Spacing
     // GR:          / ["] (!["]Char)* ["] Spacing
-    fn parse_literal(&mut self) -> Result<String, Error> {
+    fn parse_literal(&mut self) -> Result<AST, Error> {
+        let litstr = self.parse_literal_string()?;
+        Ok(if litstr.len() == 1 {
+            AST::Char(litstr.chars().next().unwrap())
+        } else {
+            AST::String(litstr)
+        })
+    }
+
+    fn parse_literal_string(&mut self) -> Result<String, Error> {
         self.choice(vec![|p| p.parse_simple_quote(), |p| p.parse_double_quote()])
     }
 
@@ -850,11 +862,19 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_sem_expr_literal() {
+    fn test_parse_sem_expr_literal_0() {
+        let mut p = Parser::new("A -> 'c'");
+        let ast = p.parse_grammar();
+        assert!(ast.is_ok());
+        assert_eq!("A -> 'c'\n".to_string(), ast.unwrap().to_string());
+    }
+
+    #[test]
+    fn test_parse_sem_expr_literal_1() {
         let mut p = Parser::new("A -> 'foo'");
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
-        assert_eq!("A -> 'foo'\n".to_string(), ast.unwrap().to_string());
+        assert_eq!("A -> \"foo\"\n".to_string(), ast.unwrap().to_string());
     }
 
     #[test]
@@ -924,10 +944,10 @@ mod tests {
                 Box::new(AST::Choice(vec![
                     AST::Sequence(vec![
                         AST::Precedence(Box::new(AST::Identifier("A".to_string())), 1),
-                        AST::Str("+".to_string()),
+                        AST::Char('+'),
                         AST::Precedence(Box::new(AST::Identifier("A".to_string())), 2),
                     ]),
-                    AST::Sequence(vec![AST::Str("n".to_string()),])
+                    AST::Sequence(vec![AST::Char('n'),])
                 ])),
             ),]),
             ast.unwrap(),
@@ -949,13 +969,13 @@ mod tests {
                 AST::Definition(
                     "A".to_string(),
                     Box::new(AST::Choice(vec![
-                        AST::Sequence(vec![AST::Str("a".to_string())]),
+                        AST::Sequence(vec![AST::Char('a')]),
                         AST::Sequence(vec![AST::Empty])
                     ]))
                 ),
                 AST::Definition(
                     "B".to_string(),
-                    Box::new(AST::Sequence(vec![AST::Str("b".to_string())])),
+                    Box::new(AST::Sequence(vec![AST::Char('b')])),
                 ),
             ]),
             out.unwrap()

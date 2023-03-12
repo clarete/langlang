@@ -12,8 +12,8 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
-    Chr(char),
-    Str(String),
+    Char(char),
+    String(String),
     Bool(bool),
     I64(i64),
     // U64(u64),
@@ -53,7 +53,7 @@ pub enum Instruction {
     Any,
     Char(char),
     Span(char, char),
-    Str(usize),
+    String(usize),
 
     // control flow
     Choice(usize),
@@ -100,7 +100,7 @@ impl std::fmt::Display for Instruction {
             Instruction::FailTwice => write!(f, "failtwice"),
             Instruction::Return(cap) => write!(f, "return {:?}", cap),
             Instruction::Char(c) => write!(f, "char {:?}", c),
-            Instruction::Str(i) => write!(f, "str {:?}", i),
+            Instruction::String(i) => write!(f, "string {:?}", i),
             Instruction::Span(a, b) => write!(f, "span {:?} {:?}", a, b),
             Instruction::Choice(o) => write!(f, "choice {:?}", o),
             Instruction::ChoiceP(o) => write!(f, "choicep {:?}", o),
@@ -212,7 +212,7 @@ impl Program {
 
 fn instruction_to_string(p: &Program, instruction: &Instruction, pc: usize) -> String {
     match instruction {
-        Instruction::Str(i) => format!("str {:?}", p.strings[*i]),
+        Instruction::String(i) => format!("str {:?}", p.strings[*i]),
         Instruction::Call(addr, k, cap) => {
             format!("call {:?} {}, {:?}", p.identifier(pc + addr), k, cap)
         }
@@ -393,26 +393,33 @@ fn prim_discard(_: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
     Ok(None)
 }
 
+fn _recursive_join_str(values: &Vec<Value>) -> Result<String, Error> {
+    let mut output = String::new();
+    for value in values {
+        match value {
+            Value::Char(c) => output.push(*c),
+            Value::String(s) => output.push_str(s),
+            Value::List(i) => output.push_str(&_recursive_join_str(i)?),
+            v => {
+                return Err(Error::SemActionTypeMismatch(format!(
+                    "can only join Char or String, received a {:?}",
+                    v
+                )))
+            }
+        }
+    }
+    Ok(output)
+}
+
 fn prim_joinall(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
     if arity != 0 {
         return Err(Error::SemActionArity(
             "joinall() takes no parameters".to_string(),
         ));
     }
-    let mut output = String::new();
-    for i in &vm.capstktop_mut()?.values {
-        match i {
-            Value::Chr(c) => output.push(*c),
-            Value::Str(s) => output.push_str(s),
-            v => {
-                return Err(Error::SemActionTypeMismatch(format!(
-                    "can only join Chr or Str, received a {:?}",
-                    v
-                )))
-            }
-        }
-    }
-    Ok(Some(Value::Str(output)))
+    Ok(Some(Value::String(_recursive_join_str(
+        &vm.capstktop_mut()?.values,
+    )?)))
 }
 
 fn prim_unwrap(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
@@ -457,7 +464,7 @@ fn prim_i64(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
         }
     };
     let input = match vm.value_stack.pop().ok_or(Error::Index)? {
-        Value::Str(s) => s,
+        Value::String(s) => s,
         v => {
             return Err(Error::SemActionTypeMismatch(format!(
                 "i64()'s first param should be a string, got {:?} instead",
@@ -645,7 +652,7 @@ impl<'a> VM<'a> {
     // evaluation
 
     pub fn run_str(&mut self, input: &str) -> Result<Option<Value>, Error> {
-        let source = input.chars().map(Value::Chr).collect::<Vec<Value>>();
+        let source = input.chars().map(Value::Char).collect::<Vec<Value>>();
         self.run(source)
     }
 
@@ -751,7 +758,7 @@ impl<'a> VM<'a> {
                         continue;
                     }
                     let current = &source[self.cursor];
-                    if current != &Value::Chr(expected) {
+                    if current != &Value::Char(expected) {
                         self.fail(Error::Matching(self.ffp, expected.to_string()))?;
                         continue;
                     }
@@ -765,14 +772,14 @@ impl<'a> VM<'a> {
                         continue;
                     }
                     let current = &source[self.cursor];
-                    if current >= &Value::Chr(start) && current <= &Value::Chr(end) {
+                    if current >= &Value::Char(start) && current <= &Value::Char(end) {
                         self.capture(current.clone())?;
                         self.advance_cursor()?;
                         continue;
                     }
                     self.fail(Error::Matching(self.ffp, format!("[{}-{}]", start, end)))?;
                 }
-                Instruction::Str(id) => {
+                Instruction::String(id) => {
                     self.program_counter += 1;
                     if self.cursor >= source.len() {
                         self.fail(Error::EOF)?;
@@ -780,8 +787,8 @@ impl<'a> VM<'a> {
                     }
                     let expected = self.program.string_at(id);
                     match &source[self.cursor] {
-                        Value::Str(s) if s == &expected => {
-                            self.capture(Value::Str(expected))?;
+                        Value::String(s) if s == &expected => {
+                            self.capture(Value::String(expected))?;
                             self.advance_cursor()?;
                             continue;
                         }
@@ -795,12 +802,12 @@ impl<'a> VM<'a> {
                                 if self.cursor >= source.len() {
                                     break Err(Error::EOF);
                                 }
-                                if source[self.cursor] != Value::Chr(current_char) {
+                                if source[self.cursor] != Value::Char(current_char) {
                                     break Err(Error::Matching(self.ffp, expected.clone()));
                                 }
                                 self.advance_cursor()?;
                             } {
-                                Ok(()) => self.capture(Value::Str(expected))?,
+                                Ok(()) => self.capture(Value::String(expected))?,
                                 Err(e) => self.fail(e)?,
                             }
                         }
@@ -901,7 +908,7 @@ impl<'a> VM<'a> {
                                 self.program_counter,
                                 source.to_vec(),
                             ));
-                            let mut tmp = vec![Value::Str(name.clone())];
+                            let mut tmp = vec![Value::String(name.clone())];
                             tmp.extend(items.to_vec());
                             source = tmp;
                             self.cursor = 0;
@@ -916,7 +923,7 @@ impl<'a> VM<'a> {
                         ContainerType::List => Value::List(capsframe.values),
                         ContainerType::Node => Value::Node {
                             name: match &capsframe.values[0] {
-                                Value::Str(s) => s.clone(),
+                                Value::String(s) => s.clone(),
                                 _ => panic!("node name must be a string"),
                             },
                             items: capsframe.values[1..].to_vec(),
@@ -1821,7 +1828,7 @@ mod tests {
             code: vec![
                 Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
-                Instruction::Str(1),
+                Instruction::String(1),
                 Instruction::Return(CaptureType::Wrapped),
             ],
         };
@@ -1836,7 +1843,7 @@ mod tests {
         assert_eq!(
             Value::Node {
                 name: "G".to_string(),
-                items: vec![Value::Str("abacate".to_string())],
+                items: vec![Value::String("abacate".to_string())],
             },
             r.unwrap()
         );
@@ -1852,7 +1859,7 @@ mod tests {
             code: vec![
                 Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
-                Instruction::Str(1),
+                Instruction::String(1),
                 Instruction::Return(CaptureType::Wrapped),
             ],
         };
@@ -1877,7 +1884,7 @@ mod tests {
             code: vec![
                 Instruction::Call(2, 0, CaptureType::Wrapped),
                 Instruction::Halt,
-                Instruction::Str(1),
+                Instruction::String(1),
                 Instruction::Return(CaptureType::Wrapped),
             ],
         };
@@ -1934,11 +1941,11 @@ mod tests {
             Value::Node {
                 name: "G".to_string(),
                 items: vec![
-                    Value::Chr('a'),
-                    Value::Chr('b'),
-                    Value::Chr('a'),
-                    Value::Chr('d'),
-                    Value::Chr('a'),
+                    Value::Char('a'),
+                    Value::Char('b'),
+                    Value::Char('a'),
+                    Value::Char('d'),
+                    Value::Char('a'),
                 ],
             },
             r.unwrap(),
@@ -1983,7 +1990,7 @@ mod tests {
                 name: "G".to_string(),
                 items: vec![Value::Node {
                     name: "D".to_string(),
-                    items: vec![Value::Chr('1')],
+                    items: vec![Value::Char('1')],
                 }],
             },
             r.unwrap(),

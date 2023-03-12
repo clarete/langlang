@@ -476,7 +476,7 @@ impl Compiler {
             }
             AST::Node(name, items) => {
                 self.emit(Instruction::Open);
-                self.compile_node(AST::Str(name))?;
+                self.compile_node(AST::String(name))?;
                 for i in items {
                     self.compile_node(i)?;
                 }
@@ -495,9 +495,9 @@ impl Compiler {
                 self.emit(Instruction::Span(a, b));
                 Ok(())
             }
-            AST::Str(s) => {
+            AST::String(s) => {
                 let id = self.push_string(&s);
-                self.emit(Instruction::Str(id));
+                self.emit(Instruction::String(id));
                 Ok(())
             }
             AST::Char(c) => {
@@ -617,8 +617,12 @@ impl Compiler {
                 let value = Value::I64(n);
                 self.emit(Instruction::PushVal(value));
             }
-            SemValue::Literal(l) => {
-                let value = Value::Str(l);
+            SemValue::Char(c) => {
+                let value = Value::Char(c);
+                self.emit(Instruction::PushVal(value));
+            }
+            SemValue::String(s) => {
+                let value = Value::String(s);
                 self.emit(Instruction::PushVal(value));
             }
             SemValue::Variable(v) => {

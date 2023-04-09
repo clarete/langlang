@@ -1,32 +1,43 @@
 * Introduction
 
-  langlang is a parser generator and aspires to provide a toolbox for
-  interacting with computer languages in a more general way
+langlang is a parser generator and aspires to provide a toolbox for
+interacting with computer languages in a more general way.
+
+The core piece, and the only thing that is described in the roadmap is
+the top-down parser generator (based on Parsing Expression Grammars)
+that is rather feature rich and strives to be as minimal and elegant
+as possible, without losing sight of performance.
+
+To shape the core piece, and enrich the tooling around extracting and
+manipulating the meaning of text and structured data, other algorithms
+and tools will be written along the way.  The [[Rambling]] section
+contains some of the ideas about what could be built.  And once these
+ideas get enough shape, they become implementation designs and get
+implemented.
 
 * Roadmap
-** Compiler (pre-bootstrap)
-   * [X] Parser for the original PEG syntax
-   * [X] Generate bytecode with original PEG semantics
-   * [X] Compile labeled failures
-   * [X] define precedence for left recursive calls
-   * [X] compile non-left recursive rules with zero precedence
-   * [X] associate manually defined labels to manually defined REs
-   * [ ] don't emit capture instructions in match-only
-   * [ ] selective capture mode, input grammar defines captures
-   * [ ] first and follows set for error synchronization
-   * [ ] error recovery expression generation
-** VM
-   * [X] original PEG semantics
-   * [X] error reporting with labels
-   * [X] left recursion
-   * [X] match data structures
-   * [X] value captures: captures all values, no opting out
-   * [ ] match-only mode, where captures are disabled
-   * [ ] selective capture mode, input grammar defines captures
-   * [-] error recovery: work in progress
+** Features
+   * [X] Straightforward Grammar definition language
+   * [X] Full unicode support, you can match emojies
+   * [X] Matches data structures besides strings
+   * [X] Full support for left recursive productions
+   * [X] Operator precedence and associativity definition
+   * [X] Non-left recursive rules are compiled with zero precedence
+   * [ ] Indentation based syntax matching (Relative spaces)
+   * [ ] Transform matched values (Semantic action expressions)
+   * [-] Error reporting
+     * [X] Report correct error position (Farthest failure position)
+     * [ ] Position tracking and reporting (location spans)
+     * [ ] Option tracking on choice operations
+     * [X] Throw custom error labels
+     * [ ] Automatic label insertion
+   * [-] Error recovery
+     * [X] Manual Recovery Expression definition
+     * [X] Associate manually defined labels to manually defined REs
+     * [ ] Automatic recovery expression generation
+   * [ ] Pipe multiple grammars through the command line
    * [ ] parameterized rules?
    * [ ] higher-order rules?
-   * [ ] semantic actions?
    * [ ] packages and import system?
 ** Standard Library
    * [X] ABNF (RFC-5234)
@@ -47,6 +58,182 @@
    * [ ] Rust
    * [ ] TypeScript
    * [ ] XML
+** Chores
+   * [ ] Allocate values produced from a match within an arena
+   * [ ] Decode values into the host language's types
+
+* Implemented Design
+** Capturing Values
+
+Matches of an input against a grammar will produce an output tree.
+Currently, the Virtual Machine captures all values successfully
+matched by default and store them in a stack that is separate from the
+stack used in the **Production Call** and **Backtracking** mechanisms.
+
+The machine pushes a frame onto the capture stack before it starts
+looping through the bytecode.  Opcodes that implement matching of
+terminals (~Any~, ~Char~, ~Span~) push matched values onto the current
+capture stack frame.  A capture stack frame contains a vector of
+captured values and an index that tracks which capture values have
+been committed.
+
+When popping a backtrack frame from the stack, the ~Fail~ instruction
+will drain the values not committed from the frame on top of the
+capture stack.  That's how backtracking the *values* captured within
+the same frame is implemented.  Notice that the ~Fail~ instruction
+also pops frames off the capture stack when it pops a call frame from
+the main stack to keep it ballanced with the capture frame pushed by
+the opcode ~Call~ that's popped by ~Return~ when there's no failure.
+
+The ~Return~ instruction will pop the frame on top of the capture
+stack, wrap all its captures in a ~Value::Node~ with the name of the
+production and its captured values.
+
+In order to support left recursive calls, the ~Call~ instruction will
+commit all captured values before trying to increment the left
+recursive bound (rule ~inc.1~).  And ~Call~ that has successfully
+incremented the left recursive bound will also pop all currently
+commited values of the frame on the top of the capture stack and wrap
+them in a ~Value::Node~ to be pushed onto the same frame (rule
+~lvar.4~).
+
+Code for both ~Optional~ (~?~) and ~ZeroOrMore~ (~*~) operators is
+emitted surrounded by a pair of ~CapPush~ and ~CapPop~ instructions,
+and have a ~CapCommit~ instruction that executes after the whole
+operation is done, upon (handled) failure or success.
+
+As mentioned, by default all matched values are captured. Notice that
+predicates ~NOT~ and ~AND~ don't consume any input, so there are no
+values to be captured from their successful match.  There are two
+operations that might not move the cursor, the ~STAR~ (~*~) and the
+~OPTIONAL~ (~?~) operators, as they never fail even when the input
+doesn't match.
+
+Read along to see how one can also transform captured values after
+they match and before they're returned.
+
+** Error Handling
+
+In the original definition of Parsing Expression Grammars,
+backtracking is used to reset the input cursor to where it was before
+trying a different parsing expression.  If there is no match, the
+backtracking fails and the cursor is left at the position it was at
+the beginning of the last *Ordered Choice*.
+
+To improve error reporting, there's a heuristic called the *Farther
+Failure Position* that introduces a new register in the Virtual
+Machine to keep track of the cursor up to the last successful match
+that is immune to backtracking.  With that, a more accurate position
+is picked when reporting an error.
+
+Still in error reporting, the *Throw Operator* is also provided, so
+grammar authors can control how a matching error will be reported in
+certain places.  It comes with the burden of having to annotate the
+grammar, and to pay attention to the fact that overly annotating a
+grammar is to take less advantage of some PEG features provided by its
+unlimited look ahead.
+
+The general place where a *Throw Operator* would be desired is the
+earlier position on an expression where it's known that a following
+match wouldn't move the cursor. e.g.:
+
+Consider the following piece of a grammar:
+
+#+begin_src peg
+  IfStatement <- IF LEFTP Expression RIGHTP Body
+  AllStatements <- IfStatement / ForStatement / WhileStatement ...
+#+end_src
+
+The following inputs are examples of inputs that would unnecessarily
+trigger the backtrack mechanism in the *Ordered Choice* of
+~AllStatements~:
+
+#+begin_src text
+  'if x', 'if (', 'if (x'
+#+end_src
+
+Even though there is no path to a successful match with the above
+inputs, and the *Ordered Choice* will still try all the alternatives.
+With the *Throw Operator*, one can signal that no more matches should
+be attempted and interrupt parsing right away if that one expression
+fails.  e.g.:
+
+#+begin_src peg
+  IfStatement <- IF LEFTP^ Expression^ RIGHTP^ Body
+#+end_src
+
+The *Throw Operator* can also take an optional parameter with a custom
+error message. e.g.:
+
+#+begin_src peg
+  IfStatement <- IF LEFTP^ Expression^"Missing Expression" RIGHTP^ Body
+#+end_src
+
+Note: the *Throw Operator* in the input language ~expr^l~ is syntax
+sugar for ~(expr / ⇑l)~.
+
+* Rambling
+** Incremental Parsing
+
+   The parser will fail at the first error by default (as Parsing
+   Expression Grammars do originally).  But an incremental parsing
+   mode is also included, but with annotation costs traded for
+   precision.
+
+   When parsing is done incrementally, the *Throw Operator* won't
+   interrupt parsing right away.  It will instead add a special node
+   to the tree returned by the parser storing information about the
+   error.  The parser will then execute the *Recovery Expression*
+   associated with the (implicitly created) label behind the *Throw
+   Operator*, which should consume the input until where the matching
+   of another expression can be attempted.
+
+   The default *Recovery Expression* of a label of an instance of the
+   *Throw Operator* is the following:
+
+   #+begin_src peg
+   #+end_src   
+
+   Annotation costs come from the 
+
+** Self Hosting
+
+   What would it take to build a parser generator tool capable of
+   self-hosting?  It can already take a stream of characters,
+   transform it into a tree, and then it can take the tree and
+   traverse it.
+
+   There's now the need of emitting some code that could then be
+   interpreted by the virtual machine that has been used run the
+   parsing and the translating.  Besides choosing a format for
+   outputting the emitted code, it will also be necessary to provide
+   auxiliary tooling for introspecting the output stream.
+   Introspection in the sense of reading from arbitrary positions
+   within the output stream, and knowing where the writing cursor is
+   (e.g.: for creating labels).
+
+   So, before being capable of self-hosting, this tool has to be able
+   to describe an entire compiler.  A first good exercise would be to
+   try and implement something similar to what is described in the
+   article "PEG-based transformer provides front-, middle and back-end
+   stages in a simple compiler" (Piumarta, 2010).  langlang isn't very
+   far from achieving that.  There are two main missing steps:
+
+   1. semantic actions to allow transformations to be performed on the
+      values produced upon matches.
+
+   2. a modular output stream, that can encode values in different
+      formats.  The backtracking of the parser is the reason why it's
+      complicated to allow side effects on semantic actions.  Our
+      options to deal with that are to either build an output stream
+      that is aware of the backtracking, or to apply the output rules
+      *after* matching with a classic visitor style.
+
+   The initial format of the output stream can be text based, and the
+   proof that it'd work is the ability to compile grammars into their
+   correct text representation of the bytecode that the virtual
+   machine can interpret.  There's some 
+
 ** Tools
 *** Pretty Print / Minifier
    * [X] Parse input file with language grammar and get an AST
@@ -95,112 +282,6 @@
    * [ ] Text Editing
    * [ ] Rendering Engine
    * [ ] Configuration Language
-** Chores
-   * [ ] Allocation for captures should happen within an arena
-* Implemented Design
-** Captures
-
-   Currently, the Virtual Machine captures all values matched, there's
-   no opting out.  The captured values are stored in a stack that is
-   separate from the stack used in the Call/Backtracking mechanism.
-
-   The machine pushes a frame onto the capture stack before it starts
-   looping the bytecode.  Opcodes that implement matching of terminals
-   (~Any~, ~Char~, ~Span~) push matched values onto the current
-   capture stack frame.
-
-   When popping a backtrack frame from the stack, the ~Fail~
-   instruction will drain the values not committed from the frame on
-   top of the capture stack.  That's how backtracking the *values*
-   captured is implemented.  Notice that the ~Fail~ instruction also
-   pops frames off the capture stack when it pops a call frame from
-   the main stack to keep it ballanced with the capture frame pushed
-   by the opcode ~Call~ that's popped by ~Return~ when there's no
-   failure.
-
-   The ~Return~ instruction will pop the frame on top of the capture
-   stack, wrap all its captures in a ~Value::Node~ with the name of
-   the call and its captured values.
-
-   In order to support left recursive calls, the ~Call~ instruction
-   will commit all captured values before trying to increment the left
-   recursive bound (rule ~inc.1~).  And ~Call~ will also pop all
-   currently commited values of the frame on the top of the capture
-   stack and wrap them in a ~Value::Node~ to be pushed onto the same
-   frame (rule ~lvar.4~).
-
-   Both ~Optional~ (~?~) and ~ZeroOrMore~ (~*~) operators are
-   surrounded by a pair of ~CapPush~ and ~CapPop~ instructions, and
-   have a ~CapCommit~ instruction that executes after the whole
-   operation is done, upon (handled) failure or success.
-
-   Not implemented yet:
-
-   1. Match-only mode: Captures are disabled within the virtual
-      machine.  It will also be nice to tweak the compiler to not emit
-      ~Cap*~ instructions.
-
-   2. Selective capture mode: No values are captured by default.
-      Maybe the input PEG grammar can contain marks that delimit how
-      values are captured.
-
-** Error Handling
-
-   In the original definition of Parsing Expression Grammars,
-   backtracking is used to reset the input cursor to where it was
-   before trying a different parsing expression.  If there is no
-   match, the backtracking fails and the cursor is left at the
-   position it was at the beginning of the last *Ordered Choice*.
-
-   To improve error reporting, there's a heuristic mechanism called
-   the *Farther Failure Position* that introduces a new register in
-   the Virtual Machine to keep track of the cursor up to the last
-   successful match that is immune to backtracking.  With that, a more
-   accurate position is picked when reporting an error.
-
-   Still in error reporting, the *Throw Operator* is also provided, so
-   grammar authors can control how a matching error will be reported
-   in certain places.  It comes with the burden of having to annotate
-   the grammar, and to pay attention to the fact that overly
-   annotating a grammar is to take less advantage of some PEG features
-   provided by its unlimited look ahead.
-
-   The general place where a *Throw Operator* would be desired is the
-   earlier position on an expression where it's known that a following
-   match wouldn't move the cursor. e.g.:
-
-   Consider the following piece of a grammar:
-
-   #+begin_src peg
-     IfStatement <- IF LEFTP Expression RIGHTP Body
-     AllStatements <- IfStatement / ForStatement / WhileStatement ...
-   #+end_src
-
-   The following inputs are examples of inputs that would
-   unnecessarily trigger the backtrack mechanism in the *Ordered
-   Choice* of ~AllStatements~:
-
-     'if x', 'if (', 'if (x'
-
-   Even though there is no path to a successful match with the above
-   inputs, and the *Ordered Choice* will still try all the
-   alternatives.  With the *Throw Operator*, one can signal that no
-   more matches should be attempted and interrupt parsing right away
-   if that one expression fails.  e.g.:
-
-   #+begin_src peg
-     IfStatement <- IF LEFTP^ Expression^ RIGHTP^ Body
-   #+end_src
-
-   The *Throw Operator* can also take an optional parameter with a
-   custom error message. e.g.:
-
-   #+begin_src peg
-     IfStatement <- IF LEFTP^ Expression^"Missing Expression" RIGHTP^ Body
-   #+end_src
-
-   Note: the *Throw Operator* in the input language ~expr^l~ is syntax
-   sugar for ~(expr / ⇑l)~.
 
 ** Pretty Print / Minifier
 
@@ -289,42 +370,7 @@
    language that demands options that differ from the defaults in the
    code emitter.
 
-* Rambling
-** Self Hosting
-
-   What would it take to build a parser generator tool capable of
-   self-hosting?  It can already take a stream of characters,
-   transform it into a tree, and then it can take the tree and
-   traverse it.
-
-   There's now the need of emitting some code that could then be
-   interpreted by the virtual machine that has been used run the
-   parsing and the translating.  Besides choosing a format for
-   outputting the emitted code, it will also be necessary to provide
-   auxiliary tooling for introspecting the output stream.
-   Introspection in the sense of reading from arbitrary positions
-   within the output stream, and knowing where the writing cursor is
-   (e.g.: for creating labels).
-
-   So, before being capable of self-hosting, this tool has to be able
-   to describe an entire compiler.  A first good exercise would be to
-   try and implement something similar to what is described in the
-   article "PEG-based transformer provides front-, middle and back-end
-   stages in a simple compiler" (Piumarta, 2010).  langlang isn't very
-   far from achieving that.  There are two main missing
-   pieces: 1. semantic actions so the output can be shaped into a list
-   for implementing the middle step. 2. the auxiliary tooling
-   described above for the output stream.
-
 ** Semantic Actions
-** Input Validation
-*** URL
-
-    $ lib::rfc3986 "https://clarete.li/langlang"
-
-*** Email
-
-    $ lib::rfc3986 "lincoln@clarete.li"
 ** Modules
 
    In langlang, modules are recursive containers for other modules and
@@ -455,25 +501,3 @@
       The ~FOLLOW~ set of ~E~ in this case is ~x, y, z, k~, since any
       of these symbols could appear right after parsing ~E~.
 
-** Incremental Parsing
-
-   The parser will fail at the first error by default (as Parsing
-   Expression Grammars do originally).  But an incremental parsing
-   mode is also included, but with annotation costs traded for
-   precision.
-
-   When parsing is done incrementally, the *Throw Operator* won't
-   interrupt parsing right away.  It will instead add a special node
-   to the tree returned by the parser storing information about the
-   error.  The parser will then execute the *Recovery Expression*
-   associated with the (implicitly created) label behind the *Throw
-   Operator*, which should consume the input until where the matching
-   of another expression can be attempted.
-
-   The default *Recovery Expression* of a label of an instance of the
-   *Throw Operator* is the following:
-
-   #+begin_src peg
-   #+end_src   
-
-   Annotation costs come from the 

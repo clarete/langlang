@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
-use crate::{ast::AST, vm};
+use crate::ast::AST;
+use crate::vm::{ContainerType, Instruction, Program};
 
 #[derive(Debug)]
 pub enum Error {
@@ -51,7 +52,7 @@ pub struct Compiler {
     // The index of the last instruction written the `code` vector
     cursor: usize,
     // Vector where the compiler writes down the instructions
-    code: Vec<vm::Instruction>,
+    code: Vec<Instruction>,
     // Storage for unique (interned) strings
     strings: Vec<String>,
     // Map from strings to their position in the `strings` vector
@@ -105,13 +106,13 @@ impl Compiler {
 
     /// Access the output of the compilation process.  Call this
     /// method after calling `compile_str()`.
-    pub fn compile(&mut self, ast: AST) -> Result<vm::Program, Error> {
+    pub fn compile(&mut self, ast: AST) -> Result<Program, Error> {
         DetectLeftRec::default().run(&ast, &mut self.left_rec)?;
         self.compile_node(ast)?;
         self.backpatch_callsites()?;
         self.manual_recovery()?;
 
-        Ok(vm::Program::new(
+        Ok(Program::new(
             self.identifiers.clone(),
             self.labels.clone(),
             self.recovery.clone(),
@@ -124,13 +125,13 @@ impl Compiler {
     /// strings, and return its ID if it is found.  If the string `s`
     /// doesn't exist within the interned table yet, it's inserted and
     /// the index where it was inserted becomes its ID.
-    fn push_string(&mut self, s: String) -> usize {
+    fn push_string(&mut self, s: &str) -> usize {
         let strid = self.strings.len();
-        if let Some(id) = self.strings_map.get(&s) {
+        if let Some(id) = self.strings_map.get(s) {
             return *id;
         }
-        self.strings.push(s.clone());
-        self.strings_map.insert(s, strid);
+        self.strings.push(s.to_string());
+        self.strings_map.insert(s.to_string(), strid);
         strid
     }
 
@@ -143,12 +144,11 @@ impl Compiler {
             match self.funcs.get(id) {
                 Some(func_addr) => {
                     self.code[*addr] = match self.code[*addr] {
-                        vm::Instruction::Call(_, precedence)
-                        | vm::Instruction::CallB(_, precedence) => {
+                        Instruction::Call(_, precedence) | Instruction::CallB(_, precedence) => {
                             if func_addr > addr {
-                                vm::Instruction::Call(func_addr - addr, precedence)
+                                Instruction::Call(func_addr - addr, precedence)
                             } else {
-                                vm::Instruction::CallB(addr - func_addr, precedence)
+                                Instruction::CallB(addr - func_addr, precedence)
                             }
                         }
                         _ => unreachable!(),
@@ -166,8 +166,8 @@ impl Compiler {
         let main = &self.strings[self.identifiers[&2_usize]];
         if self.left_rec[main] {
             self.code[0] = match self.code[0] {
-                vm::Instruction::Call(..) => vm::Instruction::Call(2, 1),
-                vm::Instruction::CallB(..) => vm::Instruction::CallB(2, 1),
+                Instruction::Call(..) => Instruction::Call(2, 1),
+                Instruction::CallB(..) => Instruction::CallB(2, 1),
                 _ => unreachable!(),
             }
         }
@@ -192,8 +192,8 @@ impl Compiler {
     fn compile_node(&mut self, node: AST) -> Result<(), Error> {
         match node {
             AST::Grammar(rules) => {
-                self.emit(vm::Instruction::Call(2, 0));
-                self.emit(vm::Instruction::Halt);
+                self.emit(Instruction::Call(2, 0));
+                self.emit(Instruction::Halt);
                 for r in rules {
                     self.compile_node(r)?;
                 }
@@ -201,28 +201,28 @@ impl Compiler {
             }
             AST::Definition(name, expr) => {
                 let addr = self.cursor;
-                let strid = self.push_string(name);
+                let strid = self.push_string(&name);
                 self.identifiers.insert(addr, strid);
                 self.compile_node(*expr)?;
-                self.emit(vm::Instruction::Return);
+                self.emit(Instruction::Return);
                 self.funcs.insert(strid, addr);
                 Ok(())
             }
             AST::LabelDefinition(name, message) => {
-                let name_id = self.push_string(name);
-                let message_id = self.push_string(message);
+                let name_id = self.push_string(&name);
+                let message_id = self.push_string(&message);
                 self.labels.insert(name_id, message_id);
                 Ok(())
             }
             AST::Label(name, element) => {
-                let label_id = self.push_string(name);
+                let label_id = self.push_string(&name);
                 let pos = self.cursor;
                 self.label_ids.insert(label_id);
-                self.emit(vm::Instruction::Choice(0));
+                self.emit(Instruction::Choice(0));
                 self.compile_node(*element)?;
-                self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 1);
-                self.emit(vm::Instruction::Commit(2));
-                self.emit(vm::Instruction::Throw(label_id));
+                self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
+                self.emit(Instruction::Commit(2));
+                self.emit(Instruction::Throw(label_id));
                 Ok(())
             }
             AST::Sequence(seq) => {
@@ -234,15 +234,15 @@ impl Compiler {
                 Ok(())
             }
             AST::Optional(op) => {
-                self.emit(vm::Instruction::CapPush);
+                self.emit(Instruction::CapPush);
                 let pos = self.cursor;
-                self.emit(vm::Instruction::Choice(0));
+                self.emit(Instruction::Choice(0));
                 self.compile_node(*op)?;
                 let size = self.cursor - pos;
-                self.code[pos] = vm::Instruction::Choice(size + 1);
-                self.emit(vm::Instruction::Commit(1));
-                self.emit(vm::Instruction::CapCommit);
-                self.emit(vm::Instruction::CapPop);
+                self.code[pos] = Instruction::Choice(size + 1);
+                self.emit(Instruction::Commit(1));
+                self.emit(Instruction::CapCommit);
+                self.emit(Instruction::CapPop);
                 Ok(())
             }
             AST::Choice(choices) => {
@@ -256,15 +256,15 @@ impl Compiler {
                     }
                     i += 1;
                     let pos = self.cursor;
-                    self.emit(vm::Instruction::Choice(0));
+                    self.emit(Instruction::Choice(0));
                     self.compile_node(choice)?;
-                    self.code[pos] = vm::Instruction::Choice(self.cursor - pos + 1);
+                    self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
                     commits.push(self.cursor);
-                    self.emit(vm::Instruction::Commit(0));
+                    self.emit(Instruction::Commit(0));
                 }
 
                 for commit in commits {
-                    self.code[commit] = vm::Instruction::Commit(self.cursor - commit);
+                    self.code[commit] = Instruction::Commit(self.cursor - commit);
                 }
 
                 Ok(())
@@ -273,17 +273,17 @@ impl Compiler {
                 let pos = self.cursor;
                 match self.config.optimize {
                     1 => {
-                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.emit(Instruction::ChoiceP(0));
                         self.compile_node(*expr)?;
-                        self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 1);
-                        self.emit(vm::Instruction::FailTwice);
+                        self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 1);
+                        self.emit(Instruction::FailTwice);
                     }
                     _ => {
-                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.emit(Instruction::ChoiceP(0));
                         self.compile_node(*expr)?;
-                        self.code[pos] = vm::Instruction::ChoiceP(self.cursor - pos + 2);
-                        self.emit(vm::Instruction::Commit(1));
-                        self.emit(vm::Instruction::Fail);
+                        self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 2);
+                        self.emit(Instruction::Commit(1));
+                        self.emit(Instruction::Fail);
                     }
                 }
                 Ok(())
@@ -292,59 +292,39 @@ impl Compiler {
                 match self.config.optimize {
                     1 => {
                         let pos0 = self.cursor;
-                        self.emit(vm::Instruction::ChoiceP(0));
+                        self.emit(Instruction::ChoiceP(0));
                         self.compile_node(*expr)?;
                         let pos1 = self.cursor;
-                        self.code[pos0] = vm::Instruction::ChoiceP(pos1 - pos0);
-                        self.emit(vm::Instruction::BackCommit(0));
-                        self.emit(vm::Instruction::Fail);
-                        self.code[pos1] = vm::Instruction::BackCommit(self.cursor - pos1);
+                        self.code[pos0] = Instruction::ChoiceP(pos1 - pos0);
+                        self.emit(Instruction::BackCommit(0));
+                        self.emit(Instruction::Fail);
+                        self.code[pos1] = Instruction::BackCommit(self.cursor - pos1);
                     }
                     _ => self.compile_node(AST::Not(Box::new(AST::Not(expr))))?,
                 }
                 Ok(())
             }
-            AST::ZeroOrMore(expr) => {
-                self.emit(vm::Instruction::CapPush);
-                let pos = self.cursor;
-                self.emit(vm::Instruction::Choice(0));
-                self.compile_node(*expr)?;
-                self.emit(vm::Instruction::CapCommit);
-                let size = self.cursor - pos;
-                self.code[pos] = vm::Instruction::Choice(size + 1);
-                match self.config.optimize {
-                    1 => self.emit(vm::Instruction::PartialCommit(size - 1)),
-                    _ => self.emit(vm::Instruction::CommitB(size)),
-                }
-                self.emit(vm::Instruction::CapCommit);
-                self.emit(vm::Instruction::CapPop);
-                Ok(())
-            }
-            AST::OneOrMore(expr) => {
-                let e = *expr;
-                self.compile_node(e.clone())?;
-                self.compile_node(AST::ZeroOrMore(Box::new(e)))?;
-                Ok(())
-            }
+            AST::ZeroOrMore(expr) => self.compile_seq(None, *expr),
+            AST::OneOrMore(expr) => self.compile_seq(Some(*expr.clone()), *expr),
             AST::Identifier(name) => {
                 let precedence = match self.left_rec.get(&name) {
                     Some(v) => usize::from(*v),
                     None => {
-                        return Err(Error::Semantic(format!(
+                        return Err(Error::NotFound(format!(
                             "Rule {:#?} not found in grammar",
                             name
                         )))
                     }
                 };
-                let id = self.push_string(name);
+                let id = self.push_string(&name);
                 match self.funcs.get(&id) {
                     Some(func_addr) => {
                         let addr = self.cursor - func_addr;
-                        self.emit(vm::Instruction::CallB(addr, precedence));
+                        self.emit(Instruction::CallB(addr, precedence));
                     }
                     None => {
                         self.addrs.insert(self.cursor, id);
-                        self.emit(vm::Instruction::Call(0, precedence));
+                        self.emit(Instruction::Call(0, precedence));
                     }
                 }
                 Ok(())
@@ -354,8 +334,8 @@ impl Compiler {
                 self.compile_node(*n)?;
                 // rewrite the above node with the precedence level
                 self.code[pos] = match self.code[pos] {
-                    vm::Instruction::Call(addr, _) => vm::Instruction::Call(addr, precedence),
-                    vm::Instruction::CallB(addr, _) => vm::Instruction::CallB(addr, precedence),
+                    Instruction::Call(addr, _) => Instruction::Call(addr, precedence),
+                    Instruction::CallB(addr, _) => Instruction::CallB(addr, precedence),
                     _ => {
                         return Err(Error::Semantic(
                             "Precedence suffix should only be used at Identifiers".to_string(),
@@ -365,46 +345,70 @@ impl Compiler {
                 Ok(())
             }
             AST::Node(name, items) => {
-                self.emit(vm::Instruction::Open);
-                self.compile_node(AST::Str(name))?;
+                self.emit(Instruction::Open);
+                self.compile_node(AST::String(name))?;
                 for i in items {
                     self.compile_node(i)?;
                 }
-                self.emit(vm::Instruction::Close(vm::ContainerType::Node));
+                self.emit(Instruction::Close(ContainerType::Node));
                 Ok(())
             }
             AST::List(items) => {
-                self.emit(vm::Instruction::Open);
+                self.emit(Instruction::Open);
                 for i in items {
                     self.compile_node(i)?;
                 }
-                self.emit(vm::Instruction::Close(vm::ContainerType::List));
+                self.emit(Instruction::Close(ContainerType::List));
                 Ok(())
             }
             AST::Range(a, b) => {
-                self.emit(vm::Instruction::Span(a, b));
+                self.emit(Instruction::Span(a, b));
                 Ok(())
             }
-            AST::Str(s) => {
-                let id = self.push_string(s);
-                self.emit(vm::Instruction::Str(id));
+            AST::String(s) => {
+                let id = self.push_string(&s);
+                self.emit(Instruction::String(id));
                 Ok(())
             }
             AST::Char(c) => {
-                self.emit(vm::Instruction::Char(c));
+                self.emit(Instruction::Char(c));
                 Ok(())
             }
             AST::Any => {
-                self.emit(vm::Instruction::Any);
+                self.emit(Instruction::Any);
                 Ok(())
             }
             AST::Empty => Ok(()),
         }
     }
 
+    fn compile_seq(&mut self, prefix: Option<AST>, expr: AST) -> Result<(), Error> {
+        self.emit(Instruction::CapPush);
+
+        // For when emitting code for OneOrMore
+        if let Some(n) = prefix {
+            self.compile_node(n)?;
+        }
+        let pos = self.cursor;
+        self.emit(Instruction::Choice(0));
+        self.compile_node(expr)?;
+        self.emit(Instruction::CapCommit);
+
+        let size = self.cursor - pos;
+        self.code[pos] = Instruction::Choice(size + 1);
+        match self.config.optimize {
+            1 => self.emit(Instruction::PartialCommit(size - 1)),
+            _ => self.emit(Instruction::CommitB(size)),
+        }
+
+        self.emit(Instruction::CapCommit);
+        self.emit(Instruction::CapPop);
+        Ok(())
+    }
+
     /// Push `instruction` into the internal code vector and increment
     /// the cursor that points at the next instruction
-    fn emit(&mut self, instruction: vm::Instruction) {
+    fn emit(&mut self, instruction: Instruction) {
         self.prt(&format!("emit {:?} {:?}", self.cursor, instruction));
         self.code.push(instruction);
         self.cursor += 1;

@@ -12,16 +12,16 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
-    Chr(char),
-    Str(String),
+    Char(char),
+    String(String),
     // I64(i64),
     // U64(u64),
     // F64(f64),
+    List(Vec<Value>),
     Node {
         name: String,
         items: Vec<Value>,
     },
-    List(Vec<Value>),
     Error {
         label: String,
         message: Option<String>,
@@ -37,10 +37,14 @@ pub enum ContainerType {
 #[derive(Clone, Debug)]
 pub enum Instruction {
     Halt,
+
+    // lexical
     Any,
     Char(char),
     Span(char, char),
-    Str(usize),
+    String(usize),
+
+    // control flow
     Choice(usize),
     ChoiceP(usize),
     Commit(usize),
@@ -56,8 +60,12 @@ pub enum Instruction {
     CallB(usize, usize),
     Return,
     Throw(usize),
+
+    // container (list, map, node, etc)
     Open,
     Close(ContainerType),
+
+    // value capture
     CapPush,
     CapPop,
     CapCommit,
@@ -72,7 +80,7 @@ impl std::fmt::Display for Instruction {
             Instruction::FailTwice => write!(f, "failtwice"),
             Instruction::Return => write!(f, "return"),
             Instruction::Char(c) => write!(f, "char {:?}", c),
-            Instruction::Str(i) => write!(f, "str {:?}", i),
+            Instruction::String(i) => write!(f, "string {:?}", i),
             Instruction::Span(a, b) => write!(f, "span {:?} {:?}", a, b),
             Instruction::Choice(o) => write!(f, "choice {:?}", o),
             Instruction::ChoiceP(o) => write!(f, "choicep {:?}", o),
@@ -169,7 +177,7 @@ impl Program {
 
 fn instruction_to_string(p: &Program, instruction: &Instruction, pc: usize) -> String {
     match instruction {
-        Instruction::Str(i) => format!("str {:?}", p.strings[*i]),
+        Instruction::String(i) => format!("str {:?}", p.strings[*i]),
         Instruction::Call(addr, k) => format!("call {:?} {}", p.identifier(pc + addr), k),
         Instruction::CallB(addr, k) => format!("callb {:?} {}", p.identifier(pc - addr), k),
         Instruction::Throw(label) => format!("throw {:?}", p.strings[*label]),
@@ -428,7 +436,7 @@ impl<'a> VM<'a> {
     }
 
     fn capstkpush(&mut self) {
-        self.captures.push(CapStackFrame::default())
+        self.captures.push(CapStackFrame::default());
     }
 
     fn capstkpop(&mut self) -> Result<CapStackFrame, Error> {
@@ -472,7 +480,7 @@ impl<'a> VM<'a> {
     // evaluation
 
     pub fn run_str(&mut self, input: &str) -> Result<Option<Value>, Error> {
-        let source = input.chars().map(Value::Chr).collect::<Vec<Value>>();
+        let source = input.chars().map(Value::Char).collect::<Vec<Value>>();
         self.run(source)
     }
 
@@ -483,24 +491,8 @@ impl<'a> VM<'a> {
             self.dbg_instruction();
             match self.program.code[self.program_counter] {
                 Instruction::Halt => break,
-                Instruction::CapPush => {
-                    self.program_counter += 1;
-                    if !self.within_predicate {
-                        self.capstkpush();
-                    }
-                }
-                Instruction::CapPop => {
-                    self.program_counter += 1;
-                    if !self.within_predicate {
-                        for c in self.capstkpop()?.values {
-                            self.capture(c)?;
-                        }
-                    }
-                }
-                Instruction::CapCommit => {
-                    self.program_counter += 1;
-                    self.commit_captures()?;
-                }
+
+                // Terminal Matchers
                 Instruction::Any => {
                     self.program_counter += 1;
                     if self.cursor >= source.len() {
@@ -517,7 +509,7 @@ impl<'a> VM<'a> {
                         continue;
                     }
                     let current = &source[self.cursor];
-                    if current != &Value::Chr(expected) {
+                    if current != &Value::Char(expected) {
                         self.fail(Error::Matching(self.ffp, expected.to_string()))?;
                         continue;
                     }
@@ -531,14 +523,14 @@ impl<'a> VM<'a> {
                         continue;
                     }
                     let current = &source[self.cursor];
-                    if current >= &Value::Chr(start) && current <= &Value::Chr(end) {
+                    if current >= &Value::Char(start) && current <= &Value::Char(end) {
                         self.capture(current.clone())?;
                         self.advance_cursor()?;
                         continue;
                     }
                     self.fail(Error::Matching(self.ffp, format!("[{}-{}]", start, end)))?;
                 }
-                Instruction::Str(id) => {
+                Instruction::String(id) => {
                     self.program_counter += 1;
                     if self.cursor >= source.len() {
                         self.fail(Error::EOF)?;
@@ -546,8 +538,8 @@ impl<'a> VM<'a> {
                     }
                     let expected = self.program.string_at(id);
                     match &source[self.cursor] {
-                        Value::Str(s) if s == &expected => {
-                            self.capture(Value::Str(expected))?;
+                        Value::String(s) if s == &expected => {
+                            self.capture(Value::String(expected))?;
                             self.advance_cursor()?;
                             continue;
                         }
@@ -561,17 +553,19 @@ impl<'a> VM<'a> {
                                 if self.cursor >= source.len() {
                                     break Err(Error::EOF);
                                 }
-                                if source[self.cursor] != Value::Chr(current_char) {
+                                if source[self.cursor] != Value::Char(current_char) {
                                     break Err(Error::Matching(self.ffp, expected.clone()));
                                 }
                                 self.advance_cursor()?;
                             } {
-                                Ok(()) => self.capture(Value::Str(expected))?,
+                                Ok(()) => self.capture(Value::String(expected))?,
                                 Err(e) => self.fail(e)?,
                             }
                         }
                     }
                 }
+
+                // Control flow
                 Instruction::Choice(offset) => {
                     self.commit_captures()?;
                     self.stkpush(StackFrame::new_backtrack(
@@ -633,6 +627,8 @@ impl<'a> VM<'a> {
                 Instruction::Return => {
                     self.inst_return()?;
                 }
+
+                // Error Reporting/Recovery
                 Instruction::Throw(label) => {
                     if self.within_predicate {
                         self.program_counter += 1;
@@ -647,6 +643,8 @@ impl<'a> VM<'a> {
                         }
                     }
                 }
+
+                // Data Structure Matching
                 Instruction::Open => {
                     self.program_counter += 1;
                     match &source[self.cursor] {
@@ -667,7 +665,7 @@ impl<'a> VM<'a> {
                                 self.program_counter,
                                 source.to_vec(),
                             ));
-                            let mut tmp = vec![Value::Str(name.clone())];
+                            let mut tmp = vec![Value::String(name.clone())];
                             tmp.extend(items.to_vec());
                             source = tmp;
                             self.cursor = 0;
@@ -682,7 +680,7 @@ impl<'a> VM<'a> {
                         ContainerType::List => Value::List(capsframe.values),
                         ContainerType::Node => Value::Node {
                             name: match &capsframe.values[0] {
-                                Value::Str(s) => s.clone(),
+                                Value::String(s) => s.clone(),
                                 _ => panic!("node name must be a string"),
                             },
                             items: capsframe.values[1..].to_vec(),
@@ -691,6 +689,28 @@ impl<'a> VM<'a> {
                     let frame = self.stkpop()?;
                     self.cursor = frame.cursor + 1;
                     source = frame.list.ok_or(Error::Index)?;
+                }
+
+                // Capture Stack
+                Instruction::CapPush => {
+                    self.program_counter += 1;
+                    if !self.within_predicate {
+                        self.capstkpush();
+                    }
+                }
+                Instruction::CapPop => {
+                    self.program_counter += 1;
+                    if !self.within_predicate {
+                        for c in self.capstkpop()?.values {
+                            self.capture(c)?;
+                        }
+                    }
+                }
+                Instruction::CapCommit => {
+                    self.program_counter += 1;
+                    if !self.within_predicate {
+                        self.commit_captures()?;
+                    }
                 }
             }
         }
@@ -1594,7 +1614,7 @@ mod tests {
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
-                Instruction::Str(1),
+                Instruction::String(1),
                 Instruction::Return,
             ],
         };
@@ -1609,7 +1629,7 @@ mod tests {
         assert_eq!(
             Value::Node {
                 name: "G".to_string(),
-                items: vec![Value::Str("abacate".to_string())],
+                items: vec![Value::String("abacate".to_string())],
             },
             r.unwrap()
         );
@@ -1625,7 +1645,7 @@ mod tests {
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
-                Instruction::Str(1),
+                Instruction::String(1),
                 Instruction::Return,
             ],
         };
@@ -1650,7 +1670,7 @@ mod tests {
             code: vec![
                 Instruction::Call(2, 0),
                 Instruction::Halt,
-                Instruction::Str(1),
+                Instruction::String(1),
                 Instruction::Return,
             ],
         };
@@ -1707,11 +1727,11 @@ mod tests {
             Value::Node {
                 name: "G".to_string(),
                 items: vec![
-                    Value::Chr('a'),
-                    Value::Chr('b'),
-                    Value::Chr('a'),
-                    Value::Chr('d'),
-                    Value::Chr('a'),
+                    Value::Char('a'),
+                    Value::Char('b'),
+                    Value::Char('a'),
+                    Value::Char('d'),
+                    Value::Char('a'),
                 ],
             },
             r.unwrap(),
@@ -1756,7 +1776,7 @@ mod tests {
                 name: "G".to_string(),
                 items: vec![Value::Node {
                     name: "D".to_string(),
-                    items: vec![Value::Chr('1')],
+                    items: vec![Value::Char('1')],
                 }],
             },
             r.unwrap(),

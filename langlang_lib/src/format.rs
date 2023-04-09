@@ -9,8 +9,8 @@ pub fn value_fmt0(value: &Value) -> String {
 pub fn value_fmt1(value: &Value) -> String {
     let mut s = String::new();
     match value {
-        Value::Chr(v) => s.push(*v),
-        Value::Str(v) => s.push_str(v),
+        Value::Char(v) => s.push(*v),
+        Value::String(v) => s.push_str(v),
         Value::Node { name, items } => {
             s.push_str(name);
             s.push('[');
@@ -43,7 +43,7 @@ pub fn value_fmt2(value: &Value) -> String {
     fn f(value: &Value, indent: u16) -> String {
         let mut s = String::new();
         match value {
-            Value::Chr(v) => {
+            Value::Char(v) => {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
@@ -54,7 +54,7 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 s.push('"');
             }
-            Value::Str(v) => {
+            Value::String(v) => {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
@@ -113,11 +113,11 @@ pub fn value_fmt2(value: &Value) -> String {
 pub fn value_html(value: &Value) -> String {
     let mut s = String::new();
     match value {
-        Value::Chr(v) => match *v {
+        Value::Char(v) => match *v {
             '\n' => s.push_str("\\n"),
             vv => s.push(vv),
         },
-        Value::Str(v) => s.push_str(v),
+        Value::String(v) => s.push_str(v),
         Value::Node { name, items } => {
             s.push_str("<span class=\"");
             s.push_str(name);

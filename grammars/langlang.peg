@@ -9,13 +9,13 @@ Sequence   <- Prefix*
 Prefix     <- (AND / NOT)? Labeled
 Labeled    <- Suffix (LABEL Identifier)?
 Suffix     <- Primary (QUESTION / STAR / PLUS / Superscript)?
-Primary    <- Identifier !(LEFTARROW / RIGHTARROW)
+Primary    <- Identifier !(LEFTARROW / (SemArgs RIGHTARROW))
             / OPEN Expression CLOSE
             / List / Literal / Class / DOT
 List       <- OPENC (!CLOSEC Expression)* CLOSEC
 
-SemAction  <- SemExprPth RIGHTARROW SemExpr^semexpr
-SemExprPth <- Identifier (SLASH (Decimal / Identifier)^exprpath)*
+SemAction  <- Identifier SemArgs RIGHTARROW SemExpr^semexpr
+SemArgs    <- (Identifier / Literal)*
 SemExpr    <- SemExpr¹ PLUS SemExpr²^semexpsum
             / SemExpr¹ MINUS SemExpr²^semexpsub
             / SemExpr² STAR SemExpr³^semexpmul
@@ -85,24 +85,32 @@ Space      <- ' ' / '\t' / EndOfLine
 EndOfLine  <- '\r\n' / '\n' / '\r'
 EndOfFile  <- !.
 
-_           -> discard()
-DASH        -> discard()
-HEX         -> discard()
-SQUOTE      -> discard()
-DQUOTE      -> discard()
-OPEN        -> discard()
-CLOSE       -> discard()
-OPENC       -> discard()
-CLOSEC      -> discard()
-COMMA       -> discard()
-LEFTARROW   -> discard()
-RIGHTARROW  -> discard()
+# Semantic actions
+Char        -> unwrapped(text())
+Identifier  -> text()
+Literal     -> text()
 
+# Sequence  c -> len(c) == 1 ? unwrapped(c) : c
 
-Char        -> joinall()
-Identifier  -> joinall()
+# Prefix    c -> unwrapped(c)
+# Suffix    c -> unwrapped(c)
+# Labeled   c -> unwrapped(c)
+# Primary   c -> unwrapped(c)
 
-Decimal     -> unwrapped(i64(joinall(), 10))
-Hexadecimal -> unwrapped(i64(joinall(), 16))
-TRUE        -> unwrapped(true)
-FALSE       -> unwrapped(false)
+# Decimal     -> unwrapped(u32(text(), 10))
+# Hexadecimal -> unwrapped(u32(text(), 16))
+# TRUE        -> unwrapped(true)
+# FALSE       -> unwrapped(false)
+
+_           -> skip()
+DASH        -> skip()
+HEX         -> skip()
+SQUOTE      -> skip()
+DQUOTE      -> skip()
+OPEN        -> skip()
+CLOSE       -> skip()
+OPENC       -> skip()
+CLOSEC      -> skip()
+COMMA       -> skip()
+LEFTARROW   -> skip()
+RIGHTARROW  -> skip()

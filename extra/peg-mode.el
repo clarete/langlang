@@ -45,11 +45,16 @@
 (defvar peg-font-lock-defaults
   `((
      ;; Color the name of the rule
-     ("^\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*<-" 1 'font-lock-function-name-face)
+     ("^\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*<-"
+      1 'font-lock-function-name-face)
+     ;; Color the name of the semantic action expression
+     ("^\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\(\n\\|.*\\)*\\->"
+      1 'font-lock-function-name-face)
      ;; Color for the little assignment arrow
      ("<-" . font-lock-type-face)
+     ("->" . font-lock-type-face)
      ;; ! & * + ? ( ) / are operators
-     ("!\\|&\\|*\\|+\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
+     ("!\\|&\\|*\\|+\\|-\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
      ;; Color for label
      ("\\(⇑[^\s]+\\)" 1 'font-lock-variable-name-face)
      ("\\(\\^[^\s]+\\)" 1 'font-lock-variable-name-face))))

@@ -1,4 +1,4 @@
-use crate::ast::{SemExpr, SemExprUnaryOp, SemValue, AST};
+use crate::ast::{SemExpr, SemExprBinaryOp, SemExprUnaryOp, SemValue, AST};
 use std::boxed::Box;
 
 #[derive(Debug)]
@@ -82,26 +82,52 @@ impl Parser {
         Ok(AST::LabelDefinition(label, literal))
     }
 
-    // GR: SemAction  <- SemExprPth RIGHTARROW SemExpr^semexpr
+    // GR: SemAction  <- Identifier SemArgs RIGHTARROW SemExpr^semexpr
     fn parse_semaction(&mut self) -> Result<AST, Error> {
         let id = self.parse_identifier()?;
+        let args = self.parse_sem_args()?;
+        self.parse_right_arrow()?;
+        let expr = self.parse_sem_expr()?;
+        Ok(AST::SemanticAction(id, args, Box::new(expr)))
+    }
+
+    fn parse_sem_args(&mut self) -> Result<Vec<SemValue>, Error> {
+        self.zero_or_more(|p| {
+            p.choice(vec![
+                |p| {
+                    let v = p.parse_literal_string()?;
+                    Ok(SemValue::String(v))
+                },
+                |p| {
+                    let v = p.parse_identifier()?;
+                    Ok(SemValue::Identifier(v))
+                },
+            ])
+        })
+    }
+
+    fn parse_right_arrow(&mut self) -> Result<(), Error> {
         self.expect('-')?;
         self.expect('>')?;
         self.parse_spacing()?;
-        let expr = self.parse_sem_expr()?;
-        Ok(AST::SemanticAction(id, Box::new(expr)))
+        Ok(())
     }
-
-    // GR: SemExprPth <- Identifier (SLASH (Decimal / Identifier)^exprpath)*
 
     // GR: SemExpr    <- SemUnary / SemValue / SemCall / Identifier
     fn parse_sem_expr(&mut self) -> Result<SemExpr, Error> {
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        self.choice(vec![
+            |p| p.parse_sem_term(),
+            |p| p.parse_sem_unary(),
+            |p| p.parse_sem_primary(),
+        ])
+    }
+
+    fn parse_sem_primary(&mut self) -> Result<SemExpr, Error> {
         self.choice(vec![
             |p| p.parse_sem_expr_parens(),
-            |p| p.parse_sem_unary(),
-            |p| p.parse_sem_val(),
             |p| p.parse_sem_call(),
-            |p| p.parse_sem_id(),
+            |p| p.parse_sem_val(),
         ])
     }
 
@@ -113,10 +139,55 @@ impl Parser {
         Ok(expr)
     }
 
+    // GR: SemTerm   <- SemFactor (("-" / "+") SemFactor)*
+    fn parse_sem_term(&mut self) -> Result<SemExpr, Error> {
+        let mut expr = self.parse_sem_factor()?;
+        for (op, right) in self.zero_or_more(|p| {
+            let op = p.parse_sem_binop()?;
+            let right = p.parse_sem_factor()?;
+            Ok((op, right))
+        })? {
+            expr = SemExpr::BinaryOp(op, Box::new(expr), Box::new(right));
+        }
+        Ok(expr)
+    }
+
+    // GR: SemFactor <- SemUnary (("/" / "*") SemUnary)*
+    fn parse_sem_factor(&mut self) -> Result<SemExpr, Error> {
+        let mut expr = self.parse_sem_unary()?;
+        for (op, right) in self.zero_or_more(|p| {
+            let op = p.parse_sem_binop()?;
+            let right = p.parse_sem_unary()?;
+            Ok((op, right))
+        })? {
+            expr = SemExpr::BinaryOp(op, Box::new(expr), Box::new(right));
+        }
+        Ok(expr)
+    }
+
+    // GR: SemBinOp <- ('+' / '-' / '*' / '/') _
+    fn parse_sem_binop(&mut self) -> Result<SemExprBinaryOp, Error> {
+        let op_str = self.choice(vec![
+            |p| p.expect('+'),
+            |p| p.expect('-'),
+            |p| p.expect('*'),
+            |p| p.expect('/'),
+        ])?;
+        self.parse_spacing()?;
+        let op = match op_str {
+            '+' => SemExprBinaryOp::Addition,
+            '-' => SemExprBinaryOp::Subtraction,
+            '*' => SemExprBinaryOp::Multiplication,
+            '/' => SemExprBinaryOp::Division,
+            _ => unreachable!(),
+        };
+        Ok(op)
+    }
+
     // GR: SemUnary <- (MINUS / PLUS) SemExpr
     fn parse_sem_unary(&mut self) -> Result<SemExpr, Error> {
         let op = match self.choice(vec![|p| p.expect('-'), |p| p.expect('+')]) {
-            Err(er) => return Err(er),
+            Err(_) => return self.parse_sem_primary(),
             Ok('-') => SemExprUnaryOp::Negative,
             Ok('+') => SemExprUnaryOp::Positive,
             _ => unreachable!(),
@@ -125,12 +196,12 @@ impl Parser {
         Ok(SemExpr::UnaryOp(op, Box::new(expr)))
     }
 
-    fn parse_sem_id(&mut self) -> Result<SemExpr, Error> {
+    fn parse_sem_id(&mut self) -> Result<SemValue, Error> {
         let id = self.parse_identifier()?;
-        Ok(SemExpr::Identifier(id))
+        Ok(SemValue::Identifier(id))
     }
 
-    // SemCall    <- Identifier OPEN (SemExpr (COMMA SemExpr)*)? CLOSE^acfncl
+    // GR: SemCall    <- Identifier OPEN (SemExpr (COMMA SemExpr)*)? CLOSE^acfncl
     fn parse_sem_call(&mut self) -> Result<SemExpr, Error> {
         let name = self.parse_identifier()?;
         self.expect('(')?;
@@ -157,6 +228,7 @@ impl Parser {
             |p| p.parse_bool(),
             |p| p.parse_sem_lit(),
             |p| p.parse_sem_var(),
+            |p| p.parse_sem_id(),
             // |p| p.parse_sem_dict(),
             |p| p.parse_sem_list(),
         ])?))
@@ -180,7 +252,7 @@ impl Parser {
 
     // GR: Number      <- Hexadecimal / Decimal
     fn parse_number(&mut self) -> Result<SemValue, Error> {
-        Ok(SemValue::Number(self.choice(vec![
+        Ok(SemValue::U32(self.choice(vec![
             // order matters here: the decimal number rule matches
             // against '0' which is the prefix of the hexadecimal
             // number rule
@@ -225,7 +297,7 @@ impl Parser {
     }
 
     // GR: Decimal     <- ([1-9][0-9]* / '0') _
-    fn parse_decimal_number(&mut self) -> Result<i64, Error> {
+    fn parse_decimal_number(&mut self) -> Result<u32, Error> {
         let digits = self.choice(vec![
             |p| {
                 let mut d = p.expect_range('1', '9')?.to_string();
@@ -239,11 +311,11 @@ impl Parser {
             |p| Ok(p.expect('0')?.to_string()),
         ])?;
         self.parse_spacing()?;
-        Ok(digits.parse::<i64>()?)
+        Ok(digits.parse::<u32>()?)
     }
 
     // GR: Hexadecimal <- '0x' [a-zA-Z0-9]+ _
-    fn parse_hexadecimal_number(&mut self) -> Result<i64, Error> {
+    fn parse_hexadecimal_number(&mut self) -> Result<u32, Error> {
         self.expect_str("0x")?;
         let digits: String = self
             .one_or_more(|p| {
@@ -256,11 +328,11 @@ impl Parser {
             .into_iter()
             .collect();
         self.parse_spacing()?;
-        Ok(i64::from_str_radix(&digits, 16)?)
+        Ok(u32::from_str_radix(&digits, 16)?)
     }
 
     // GR: Expression <- Sequence (SLASH Sequence)*
-    fn parse_expression(&mut self) -> Result<AST, Error> {
+    pub fn parse_expression(&mut self) -> Result<AST, Error> {
         let first = self.parse_sequence()?;
         let mut choices = vec![first];
         choices.append(&mut self.zero_or_more(|p| {
@@ -381,7 +453,7 @@ impl Parser {
         ])
     }
 
-    // GR: Primary <- Identifier !(LEFTARROW / (Identifier EQ))
+    // GR: Primary <- Identifier !(LEFTARROW / (SemArg* RIGHTARROW) / (Identifier EQ))
     // GR:          / OPEN Expression CLOSE
     // GR:          / Node / List / Literal / Class / DOT
     fn parse_primary(&mut self) -> Result<AST, Error> {
@@ -394,14 +466,13 @@ impl Parser {
                     p.parse_spacing()
                 })?;
                 p.not(|p| {
-                    p.expect('-')?;
-                    p.expect('>')?;
-                    p.parse_spacing()
-                })?;
-                p.not(|p| {
                     p.parse_identifier()?;
                     p.expect('=')?;
                     p.parse_spacing()
+                })?;
+                p.not(|p| {
+                    p.parse_sem_args()?;
+                    p.parse_right_arrow()
                 })?;
                 Ok(AST::Identifier(id))
             },
@@ -695,12 +766,19 @@ impl Parser {
     }
 
     fn zero_or_more<T>(&mut self, func: ParseFn<T>) -> Result<Vec<T>, Error> {
+        let mut cursor = self.cursor;
         let mut output = vec![];
         loop {
             match func(self) {
-                Ok(ch) => output.push(ch),
+                Ok(ch) => {
+                    output.push(ch);
+                    cursor = self.cursor;
+                }
                 // stop the loop upon backtrack errors
-                Err(Error::BacktrackError(..)) => break,
+                Err(Error::BacktrackError(..)) => {
+                    self.cursor = cursor;
+                    break;
+                }
                 // bubble up any error that isn't about input parsing
                 Err(e) => return Err(e),
             }
@@ -811,7 +889,7 @@ mod tests {
         let o = p.parse_number();
         assert!(o.is_ok());
         let u = o.unwrap();
-        assert_eq!(SemValue::Number(0), u);
+        assert_eq!(SemValue::U32(0), u);
         assert_eq!("0".to_string(), u.to_string());
     }
 
@@ -821,7 +899,7 @@ mod tests {
         let o = p.parse_number();
         assert!(o.is_ok());
         let u = o.unwrap();
-        assert_eq!(SemValue::Number(1), u);
+        assert_eq!(SemValue::U32(1), u);
         assert_eq!("1".to_string(), u.to_string());
     }
 
@@ -831,7 +909,7 @@ mod tests {
         let o = p.parse_number();
         assert!(o.is_ok());
         let u = o.unwrap();
-        assert_eq!(SemValue::Number(321), u);
+        assert_eq!(SemValue::U32(321), u);
         assert_eq!("321".to_string(), u.to_string());
     }
 
@@ -841,48 +919,48 @@ mod tests {
         let o = p.parse_number();
         assert!(o.is_ok());
         let u = o.unwrap();
-        assert_eq!(SemValue::Number(0xfada), u);
+        assert_eq!(SemValue::U32(0xfada), u);
         assert_eq!("64218".to_string(), u.to_string());
     }
 
     #[test]
     fn test_parse_sem_expr_decimal_num() {
-        let mut p = Parser::new("A -> 0");
+        let mut p = Parser::new("A _ -> 0");
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
-        assert_eq!("A -> 0\n".to_string(), ast.unwrap().to_string());
+        assert_eq!("A _ -> 0\n".to_string(), ast.unwrap().to_string());
     }
 
     #[test]
     fn test_parse_sem_expr_hex_num() {
-        let mut p = Parser::new("A -> 0xff");
+        let mut p = Parser::new("A _ -> 0xff");
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
-        assert_eq!("A -> 255\n".to_string(), ast.unwrap().to_string());
+        assert_eq!("A _ -> 255\n".to_string(), ast.unwrap().to_string());
     }
 
     #[test]
     fn test_parse_sem_expr_literal_0() {
-        let mut p = Parser::new("A -> 'c'");
+        let mut p = Parser::new("A _ -> 'c'");
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
-        assert_eq!("A -> 'c'\n".to_string(), ast.unwrap().to_string());
+        assert_eq!("A _ -> 'c'\n".to_string(), ast.unwrap().to_string());
     }
 
     #[test]
     fn test_parse_sem_expr_literal_1() {
-        let mut p = Parser::new("A -> 'foo'");
+        let mut p = Parser::new("A _ -> 'foo'");
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
-        assert_eq!("A -> \"foo\"\n".to_string(), ast.unwrap().to_string());
+        assert_eq!("A _ -> \"foo\"\n".to_string(), ast.unwrap().to_string());
     }
 
     #[test]
     fn test_parse_sem_expr_variable() {
-        let mut p = Parser::new("A -> %0");
+        let mut p = Parser::new("A _ -> %0");
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
-        assert_eq!("A -> %0\n".to_string(), ast.unwrap().to_string());
+        assert_eq!("A _ -> %0\n".to_string(), ast.unwrap().to_string());
     }
 
     #[test]
@@ -907,10 +985,10 @@ mod tests {
 
     #[test]
     fn test_parse_sem_expr_call() {
-        let mut p = Parser::new("A -> discard()");
+        let mut p = Parser::new("A -> skip()");
         let ast = p.parse_grammar();
         assert!(ast.is_ok());
-        assert_eq!("A -> discard()\n".to_string(), ast.unwrap().to_string());
+        assert_eq!("A -> skip()\n".to_string(), ast.unwrap().to_string());
     }
 
     #[test]

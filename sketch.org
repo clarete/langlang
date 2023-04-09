@@ -64,23 +64,25 @@ implemented.
 * Implementation Designs
 ** Capturing Values
 
-A successful match of some input against a grammar will produce an
-output tree.  Currently, the Virtual Machine captures all values
+Matches of an input against a grammar will produce an output tree.
+Currently, the Virtual Machine captures all values successfully
 matched by default and store them in a stack that is separate from the
-stack used in the Call/Backtracking mechanism.
+stack used in the **Production Call** and **Backtracking** mechanisms.
 
 The machine pushes a frame onto the capture stack before it starts
 looping through the bytecode.  Opcodes that implement matching of
 terminals (~Any~, ~Char~, ~Span~) push matched values onto the current
-capture stack frame.
+capture stack frame.  A capture stack frame contains a vector of
+captured values and an index that tracks which capture values have
+been committed.
 
 When popping a backtrack frame from the stack, the ~Fail~ instruction
 will drain the values not committed from the frame on top of the
-capture stack.  That's how backtracking the *values* captured is
-implemented.  Notice that the ~Fail~ instruction also pops frames off
-the capture stack when it pops a call frame from the main stack to
-keep it ballanced with the capture frame pushed by the opcode ~Call~
-that's popped by ~Return~ when there's no failure.
+capture stack.  That's how backtracking the *values* captured within
+the same frame is implemented.  Notice that the ~Fail~ instruction
+also pops frames off the capture stack when it pops a call frame from
+the main stack to keep it ballanced with the capture frame pushed by
+the opcode ~Call~ that's popped by ~Return~ when there's no failure.
 
 The ~Return~ instruction will pop the frame on top of the capture
 stack, wrap all its captures in a ~Value::Node~ with the name of the
@@ -103,13 +105,52 @@ As mentioned, by default all matched values are captured. Notice that
 predicates ~NOT~ and ~AND~ don't consume any input, so there are no
 values to be captured from their successful match.  There are two
 operations that might not move the cursor, the ~STAR~ (~*~) and the
-~OPTIONAL~ (~?~) operators, when the expected input doesn't match.  In
-that case, no capture is generated.
+~OPTIONAL~ (~?~) operators, as they never fail even when the input
+doesn't match.
 
 Read along to see how one can also transform captured values after
 they match and before they're returned.
 
 ** Semantic Action Expressions
+*** Use Cases
+
+1. 
+    #+begin_src peg
+      Identifier <- IdentStart IdentCont*
+      IdentStart <- [a-zA-Z_]
+      IdentCont  <- IdentStart / [0-9]
+      Identifier -> text()
+    #+end_src
+2. 
+    #+begin_src peg
+      Unary   <- [+-] Unary / Decimal
+      Decimal <- Digit+
+      Digit   <- [0-9]
+
+      @nowrap{*}
+      Unary '+' v -> +v
+      Unary '-' v -> -v
+      Unary       -> i32(text(), 10)
+    #+end_src
+3. 
+    #+begin_src peg
+      expr <- expr¹ '+' expr²
+            / expr¹ '-' expr²
+            / expr² '*' expr³
+            / expr² '/' expr³
+            / dec
+      dec  <- ([1-9][0-9]* / '0')
+
+      @nowrap{*}
+      expr a '+' b -> a + b
+      expr a '-' b -> a - b
+      expr a '*' b -> a * b
+      expr a '/' b -> a / b
+      expr         -> i32(text(), 10)
+    #+end_src
+4. 
+
+
 *** Transform captured values
 
 Often enough, a value captured from a given production needs to be
@@ -159,9 +200,9 @@ The output above has suppressed the wrapping of the matching of both
 semantic action expressions:
 
 #+begin_src peg
-  Identifier -> joinall()
-  IdentStart -> unwrapped(joinall())
-  IdentCont  -> unwrapped(joinall())
+  Identifier -> text()
+  IdentStart -> unwrapped(text())
+  IdentCont  -> unwrapped(text())
 #+end_src
 
 Notice the arrow points at the right hand side instead of pointing at
@@ -175,6 +216,56 @@ values of a role from being wrapped in a named ~Value::Node~.
 
 *** Signature of expressions
 
+In PEGs, it is rather common for productions to return alternatives
+with different arity.  Take the following grammar as an example:
+
+#+begin_src peg
+  Unary   <- [+-] Unary / Decimal
+  Decimal <- Digit+
+  Digit   <- [0-9]
+#+end_src
+
+The rule ~Digit~ returns a single character (arity == 1).  The rule
+~Decimel~ returns one or more digits (arity >= 1).  The arity of the
+rule ~Unary~ can either be 1 or 2.  The first alternative of the
+ordered choice will return first either the plus or minus sign and
+then match.
+
+
+
+
+#+begin_src peg
+  expr <- expr¹ '+' expr²
+        / expr¹ '-' expr²
+        / expr² '*' expr³
+        / expr² '/' expr³
+        / dec
+  dec  <- ([1-9][0-9]* / '0')
+
+  expr a '+' b -> a + b
+  expr a '-' b -> a - b
+  expr a '*' b -> a * b
+  expr a '/' b -> a / b
+  expr d       -> i64(join(d), 10)
+
+
+# Attempt#2
+# expr(a '+' b) -> a + b
+# expr(a '-' b) -> a - b
+# expr(a '*' b) -> a * b
+# expr(a '/' b) -> a / b
+# expr(d) -> i64(join(d), 10)
+
+# Attempt#3
+# expr|a '+' b| -> a + b
+# expr|a '-' b| -> a - b
+# expr|a '*' b| -> a * b
+# expr|a '/' b| -> a / b
+# expr|d|       -> i64(join(d), 10)
+
+#+end_src
+
+*** Stuff
 When a production matches an input successfully, the matched values
 are captured into a tree with the structure defined by the matched
 expression against the grammar.  More concretely, captures are of the
@@ -204,13 +295,25 @@ The output tree will have a single node with the following format:
   }
 #+end_src
 
+The following expression can be used to transform the above value in a
+64bit signed integer:
+
+#+begin_src peg
+Digit _ -> unwrapped(i64(text(), 10))
+#+end_src
+
+Going step by step on the execution of the above expression, ~text()~
+is the first function to be executed, and takes the entire vector of
+items from within the `Node` above.  It returns
+
+
+
+
 A slightly more sophisticated rule for parsing decimals will instead 
 
 #+begin_src peg
 Decimal <- '0' / [1-9][0-9]*
 #+end_src
-
-
 
 There are types for characters,
 strings, decimal numbers, and floats, but the subject of arity bundles
@@ -574,6 +677,14 @@ sugar for ~(expr / ⇑l)~.
      # interactive
      llsh lib::peg
      >> S <- 'a' / 'b'
+     Grammar[Definition[S...]]
+
+     # calceval.peg imports the calc.peg grammar rules and defines semantic
+     # action expressions for evaluating arithmetic expressions
+     # 
+     echo '3*2' | llsh calceval.peg
+     6
+
    #+END_SRC
 
 ** Error Handling

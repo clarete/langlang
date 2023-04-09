@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::{self, Display, Formatter};
 
 use log::debug;
 
@@ -12,8 +13,8 @@ pub enum Error {
     Type(String),
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "Compiler Error")?;
         match self {
             Error::NotFound(msg) => write!(f, "[NotFound]: {}", msg),
@@ -104,15 +105,23 @@ pub struct Compiler {
     // Used for printing out debugging messages with the of the
     // structure the call stack the compiler is traversing
     indent_level: usize,
+    // Map from the set of names of functions to the boolean defining
+    // if the function is left recursive or not
+    left_rec: HashMap<String, bool>,
     /// Keeps track of how many levels of recursion there are when
     /// compiling a SemExpr.  That is needed to find out if a call to
     /// `unwrapped()` is from the root of the sub-expression tree.
     sem_expr_recursion_level: usize,
-    // Map from the set of names of functions to the boolean defining
-    // if the function is left recursive or not
-    left_rec: HashMap<String, bool>,
-    // Map from semantic action name id to address
+    // Set with all semantic action rule names read by the first pass.
+    // That allows the code generation pass to make decisions about a
+    // production depending on the fact it has or not a
     sem_action_names: HashSet<String>,
+    // Stack of maps of semantic action parameter names to their
+    // position in the value stack.  A new map is pushed before
+    // compiling the expression of a semantic action and the map is
+    // popped when the semantic action expression is done being
+    // compiled.
+    sem_action_params: Vec<HashMap<usize, usize>>,
 }
 
 impl Compiler {
@@ -132,9 +141,10 @@ impl Compiler {
             label_ids: HashSet::new(),
             recovery: HashMap::new(),
             indent_level: 0,
-            sem_expr_recursion_level: 0,
             left_rec: HashMap::new(),
+            sem_expr_recursion_level: 0,
             sem_action_names: HashSet::new(),
+            sem_action_params: vec![],
         }
     }
 
@@ -157,7 +167,11 @@ impl Compiler {
     }
 
     fn read_traversal(&mut self, ast: &AST) -> Result<(), Error> {
-        FirstPass::default().run(ast, &mut self.sem_action_names, &mut self.left_rec)
+        let mut first_pass = FirstPass::default();
+        first_pass.run(ast)?;
+        self.sem_action_names = first_pass.output.sem_actions;
+        self.left_rec = first_pass.output.left_rec;
+        Ok(())
     }
 
     /// Try to find the string `s` within the table of interned
@@ -277,8 +291,9 @@ impl Compiler {
                 self.compile_node(*expr)?;
                 self.funcs.insert(strid, addr);
 
+                // When semantic actions aren't meant to be used
                 let captype = self.default_capture_type();
-                if !self.config.enable_sem_actions {
+                if !self.config.enable_sem_actions || self.sem_action_names.get(&name).is_none() {
                     self.emit(Instruction::Return(captype));
                     return Ok(());
                 }
@@ -291,46 +306,59 @@ impl Compiler {
                 // tracking call sites is reused here to track jumps
                 // from the end of the production to its semantic
                 // action expressions.
-                match self.sem_action_names.get(&name) {
-                    None => self.emit(Instruction::Return(captype)),
-                    Some(_) => {
-                        let mangled = format!("SEM_{}", name);
-                        let strid = self.push_string(&mangled);
-                        let addr = match self.funcs.get(&strid) {
-                            Some(addr) => *addr,
-                            None => {
-                                // register to be backpatched before
-                                // returning a placeholder
-                                self.addrs.insert(self.cursor, strid);
-                                0
-                            }
-                        };
-                        self.emit(Instruction::Jump(addr))
+                let mangled = format!("SEM_{}", name);
+                let strid = self.push_string(&mangled);
+                let addr = match self.funcs.get(&strid) {
+                    Some(addr) => *addr,
+                    None => {
+                        // register position to be backpatched before
+                        // returning a placeholder
+                        self.addrs.insert(self.cursor, strid);
+                        0
                     }
-                }
+                };
+                self.emit(Instruction::Jump(addr));
                 Ok(())
             }
-            AST::SemanticAction(name, semexpr) => {
+            AST::SemanticAction(name, args, semexpr) => {
                 if !self.config.enable_sem_actions {
                     return Ok(());
                 }
                 let addr = self.cursor;
+                let mut params = HashMap::new();
+                for (i, arg) in args.iter().enumerate() {
+                    match arg {
+                        SemValue::Identifier(s) => {
+                            let argid = self.push_string(s);
+                            params.insert(argid, i);
+                        }
+                        SemValue::String(s) => {
+                            let argid = self.push_string(s);
+                            params.insert(argid, i);
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+
                 let mangled = format!("SEM_{}", name);
                 let strid = self.push_string(&mangled);
                 self.identifiers.insert(addr, strid);
                 self.funcs.insert(strid, addr);
+
+                self.sem_action_params.push(params);
+                // self.emit(Instruction::CapPush);
                 if let Some(expr) = validate_unwrapped(&semexpr)? {
                     // implementation of the builtin `unwrapped()`, which
                     // changes the capture type of the emitted Return.
                     self.compile_sem_expr(expr)?;
-                    self.emit(Instruction::PopVal);
                     self.emit(Instruction::Return(CaptureType::Unwrapped));
                 } else {
                     // regular compilation of non builtin semantic actions
                     self.compile_sem_expr(*semexpr)?;
-                    self.emit(Instruction::PopVal);
                     self.emit(Instruction::Return(self.default_capture_type()));
                 }
+                // self.emit(Instruction::CapPop);
+                self.sem_action_params.pop();
                 Ok(())
             }
             AST::LabelDefinition(name, message) => {
@@ -373,7 +401,6 @@ impl Compiler {
             AST::Choice(choices) => {
                 let (mut i, last_choice) = (0, choices.len() - 1);
                 let mut commits = vec![];
-
                 for choice in choices {
                     if i == last_choice {
                         self.compile_node(choice)?;
@@ -387,11 +414,9 @@ impl Compiler {
                     commits.push(self.cursor);
                     self.emit(Instruction::Commit(0));
                 }
-
                 for commit in commits {
                     self.code[commit] = Instruction::Commit(self.cursor - commit);
                 }
-
                 Ok(())
             }
             AST::Not(expr) => {
@@ -519,29 +544,28 @@ impl Compiler {
         if let Some(n) = prefix {
             self.compile_node(n)?;
         }
-
         let pos = self.cursor;
         self.emit(Instruction::Choice(0));
         self.compile_node(expr)?;
         self.emit(Instruction::CapCommit);
+
         let size = self.cursor - pos;
         self.code[pos] = Instruction::Choice(size + 1);
         match self.config.optimize {
             1 => self.emit(Instruction::PartialCommit(size - 1)),
             _ => self.emit(Instruction::CommitB(size)),
         }
+
         self.emit(Instruction::CapCommit);
         self.emit(Instruction::CapPop);
-
         Ok(())
     }
 
     fn compile_sem_expr(&mut self, v: SemExpr) -> Result<(), Error> {
         self.sem_expr_recursion_level += 1;
         match v {
-            SemExpr::Identifier(id) => {}
             SemExpr::Value(v) => self.compile_sem_value(v)?,
-            SemExpr::BinaryOp(le, op, ri) => self.compile_sem_bin_op(*le, op, *ri)?,
+            SemExpr::BinaryOp(op, a, b) => self.compile_sem_bin_op(op, *a, *b)?,
             SemExpr::UnaryOp(op, expr) => self.compile_sem_un_op(op, *expr)?,
             SemExpr::Call(name, params) => self.compile_sem_call(name, params)?,
         }
@@ -564,35 +588,26 @@ impl Compiler {
                 "unwrapped() can only be called as a top level expression".to_string(),
             ));
         }
-
         for p in params {
             self.compile_sem_expr(p)?;
         }
-        self.emit(Instruction::Prim(strid, arity));
+        self.emit(Instruction::SemCallPrim(strid, arity));
         Ok(())
     }
 
     fn compile_sem_bin_op(
         &mut self,
-        left: SemExpr,
         op: SemExprBinaryOp,
+        left: SemExpr,
         right: SemExpr,
     ) -> Result<(), Error> {
         self.compile_sem_expr(left)?;
         self.compile_sem_expr(right)?;
         match op {
-            SemExprBinaryOp::Addition => {
-                // self.emit(Instruction::Add);
-            }
-            SemExprBinaryOp::Subtraction => {
-                // self.emit(Instruction::Sub);
-            }
-            SemExprBinaryOp::Division => {
-                // self.emit(Instruction::Div);
-            }
-            SemExprBinaryOp::Multiplication => {
-                // self.emit(Instruction::Mul);
-            }
+            SemExprBinaryOp::Addition => self.emit(Instruction::SemAdd),
+            SemExprBinaryOp::Subtraction => self.emit(Instruction::SemSub),
+            SemExprBinaryOp::Division => self.emit(Instruction::SemDiv),
+            SemExprBinaryOp::Multiplication => self.emit(Instruction::SemMul),
         }
         Ok(())
     }
@@ -613,31 +628,59 @@ impl Compiler {
     /// Push a literal value into the virtual machine's stack
     fn compile_sem_value(&mut self, v: SemValue) -> Result<(), Error> {
         match v {
-            SemValue::Number(n) => {
-                let value = Value::I64(n);
-                self.emit(Instruction::PushVal(value));
-            }
             SemValue::Char(c) => {
                 let value = Value::Char(c);
-                self.emit(Instruction::PushVal(value));
-            }
-            SemValue::String(s) => {
-                let value = Value::String(s);
-                self.emit(Instruction::PushVal(value));
-            }
-            SemValue::Variable(v) => {
-                self.emit(Instruction::PushVar(v));
+                self.emit(Instruction::SemPushVal(value));
             }
             SemValue::Bool(n) => {
                 let value = Value::Bool(n);
-                self.emit(Instruction::PushVal(value));
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::I32(n) => {
+                let value = Value::I32(n);
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::U32(n) => {
+                let value = Value::U32(n);
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::I64(n) => {
+                let value = Value::I64(n);
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::U64(n) => {
+                let value = Value::U64(n);
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::F32(n) => {
+                let value = Value::F32(n);
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::F64(n) => {
+                let value = Value::F64(n);
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::String(s) => {
+                let value = Value::String(s);
+                self.emit(Instruction::SemPushVal(value));
+            }
+            SemValue::Variable(v) => {
+                self.emit(Instruction::SemPushVar(v));
+            }
+            SemValue::Identifier(id) => {
+                let argid = self.push_string(&id);
+                let params = &self.sem_action_params[self.sem_action_params.len() - 1];
+                match params.get(&argid) {
+                    None => return Err(Error::NotFound(format!("Name {} not defined", id))),
+                    Some(i) => self.emit(Instruction::SemPushVar(*i)),
+                }
             }
             SemValue::List(items) => {
                 let len = items.len();
                 for i in items {
                     self.compile_sem_expr(i)?;
                 }
-                self.emit(Instruction::PushList(len))
+                self.emit(Instruction::SemPushList(len))
             }
         }
         Ok(())
@@ -699,28 +742,30 @@ impl Default for Compiler {
     }
 }
 
+#[derive(Default)]
+struct FirstPassOutput {
+    sem_actions: HashSet<String>,
+    left_rec: HashMap<String, bool>,
+}
+
 /// FirstPass collects the name of all semantic action expressions and
 /// detects which productions contain left recursive definitions.
 #[derive(Default)]
 struct FirstPass<'a> {
     stack: Vec<&'a str>,
+    output: FirstPassOutput,
 }
 
 impl<'a> FirstPass<'a> {
-    fn run(
-        &mut self,
-        node: &'a AST,
-        sem_actions: &mut HashSet<String>,
-        left_rec: &mut HashMap<String, bool>,
-    ) -> Result<(), Error> {
+    fn run(&mut self, node: &'a AST) -> Result<(), Error> {
         let mut rules: HashMap<&'a String, &'a AST> = HashMap::new();
         match node {
             AST::Grammar(definitions) => {
                 for definition in definitions {
                     match definition {
                         AST::LabelDefinition(..) => {}
-                        AST::SemanticAction(n, ..) => {
-                            sem_actions.insert(n.clone());
+                        AST::SemanticAction(n, _args, _expr) => {
+                            self.output.sem_actions.insert(n.clone());
                         }
                         AST::Definition(n, expr) => {
                             rules.insert(n, expr);
@@ -743,7 +788,7 @@ impl<'a> FirstPass<'a> {
         }
         for (name, expr) in &rules {
             let is_lr = self.is_left_recursive(name, expr, &rules)?;
-            left_rec.insert(name.to_string(), is_lr);
+            self.output.left_rec.insert(name.to_string(), is_lr);
         }
         Ok(())
     }
@@ -808,15 +853,6 @@ fn is_empty_possible(node: &AST) -> bool {
 mod tests {
     use super::*;
     use crate::parser;
-
-    fn assert_detectlr(input: &str, expected: HashMap<String, bool>) {
-        let node = parser::Parser::new(input).parse().unwrap();
-        let mut dlr = FirstPass::default();
-        let mut found = HashMap::new();
-        let mut semactions = HashSet::new();
-        dlr.run(&node, &mut semactions, &mut found).unwrap();
-        assert_eq!(found, expected);
-    }
 
     #[test]
     fn detect_left_recursion() {
@@ -904,5 +940,12 @@ mod tests {
             ",
             HashMap::from([("E".to_string(), true)]),
         );
+    }
+
+    fn assert_detectlr(input: &str, expected: HashMap<String, bool>) {
+        let node = parser::Parser::new(input).parse().unwrap();
+        let mut dlr = FirstPass::default();
+        dlr.run(&node).unwrap();
+        assert_eq!(dlr.output.left_rec, expected);
     }
 }

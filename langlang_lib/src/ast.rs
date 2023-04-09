@@ -48,9 +48,8 @@ impl std::fmt::Display for SemExprBinaryOp {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SemExpr {
-    Identifier(String),
     Value(SemValue),
-    BinaryOp(Box<SemExpr>, SemExprBinaryOp, Box<SemExpr>),
+    BinaryOp(SemExprBinaryOp, Box<SemExpr>, Box<SemExpr>),
     UnaryOp(SemExprUnaryOp, Box<SemExpr>),
     Call(String, Vec<SemExpr>),
 }
@@ -58,7 +57,7 @@ pub enum SemExpr {
 impl std::fmt::Display for SemExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            SemExpr::BinaryOp(left, op, right) => write!(f, "{} {} {}", left, op, right),
+            SemExpr::BinaryOp(op, a, b) => write!(f, "{} {} {}", a, op, b),
             SemExpr::UnaryOp(operator, operand) => write!(f, "{}{}", operator, operand),
             SemExpr::Call(name, params) => {
                 write!(f, "{}(", name)?;
@@ -71,29 +70,40 @@ impl std::fmt::Display for SemExpr {
                 write!(f, ")")
             }
             SemExpr::Value(v) => write!(f, "{}", v),
-            SemExpr::Identifier(i) => write!(f, "{}", i),
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SemValue {
-    List(Vec<SemExpr>),
     Char(char),
-    String(String),
-    Number(i64),
     Bool(bool),
+    I32(i32),
+    U32(u32),
+    I64(i64),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    String(String),
     Variable(usize),
+    Identifier(String),
+    List(Vec<SemExpr>),
 }
 
 impl std::fmt::Display for SemValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
-            SemValue::Bool(b) => write!(f, "{}", b),
-            SemValue::Number(n) => write!(f, "{}", n),
             SemValue::Char(c) => write!(f, "'{}'", c),
+            SemValue::Bool(b) => write!(f, "{}", b),
+            SemValue::I32(n) => write!(f, "{}", n),
+            SemValue::U32(n) => write!(f, "{}", n),
+            SemValue::I64(n) => write!(f, "{}", n),
+            SemValue::U64(n) => write!(f, "{}", n),
+            SemValue::F32(n) => write!(f, "{}", n),
+            SemValue::F64(n) => write!(f, "{}", n),
             SemValue::String(s) => write!(f, "\"{}\"", s),
             SemValue::Variable(v) => write!(f, "%{}", v),
+            SemValue::Identifier(i) => write!(f, "{}", i),
             SemValue::List(items) => {
                 write!(f, "{{")?;
                 for (i, item) in items.iter().enumerate() {
@@ -113,7 +123,7 @@ pub enum AST {
     Grammar(Vec<AST>),
     Definition(String, Box<AST>),
     LabelDefinition(String, String),
-    SemanticAction(String, Box<SemExpr>),
+    SemanticAction(String, Vec<SemValue>, Box<SemExpr>),
     Sequence(Vec<AST>),
     Choice(Vec<AST>),
     And(Box<AST>),
@@ -143,7 +153,14 @@ impl std::fmt::Display for AST {
                 Ok(())
             }
             AST::Definition(name, expr) => write!(f, "{} <- {}", name, expr),
-            AST::SemanticAction(name, expr) => write!(f, "{} -> {}", name, expr),
+            AST::SemanticAction(name, args, expr) => {
+                write!(f, "{}", name)?;
+                for arg in args {
+                    write!(f, " {}", arg)?;
+                }
+                write!(f, " -> {}", expr)?;
+                Ok(())
+            }
             AST::LabelDefinition(name, msg) => write!(f, "{} = \"{}\"", name, msg),
             AST::Sequence(exprs) => {
                 for expr in exprs {

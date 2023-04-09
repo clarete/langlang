@@ -13,16 +13,19 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {
     Char(char),
-    String(String),
     Bool(bool),
+    I32(i32),
+    U32(u32),
     I64(i64),
-    // U64(u64),
-    // F64(f64),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    String(String),
+    List(Vec<Value>),
     Node {
         name: String,
         items: Vec<Value>,
     },
-    List(Vec<Value>),
     Error {
         label: String,
         message: Option<String>,
@@ -35,7 +38,7 @@ pub enum ContainerType {
     Node,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CaptureType {
     /// Don't capture anything
     Disabled,
@@ -82,13 +85,16 @@ pub enum Instruction {
     CapCommit,
 
     // semantic actions
-    PushVal(Value),
-    PushVar(usize),
-    PushList(usize),
-    PopVal,
-    Prim(usize, usize),
+    SemPushVal(Value),
+    SemPushVar(usize),
+    SemPushList(usize),
     SemNegative,
     SemPositive,
+    SemAdd,
+    SemSub,
+    SemMul,
+    SemDiv,
+    SemCallPrim(usize, usize),
 }
 
 impl std::fmt::Display for Instruction {
@@ -117,13 +123,16 @@ impl std::fmt::Display for Instruction {
             Instruction::CapPush => write!(f, "cappush"),
             Instruction::CapPop => write!(f, "cappop"),
             Instruction::CapCommit => write!(f, "capcommit"),
-            Instruction::PushVal(v) => write!(f, "pushval {:?}", v),
-            Instruction::PushVar(i) => write!(f, "pushvar {:?}", i),
-            Instruction::PushList(l) => write!(f, "pushlist {}", l),
-            Instruction::PopVal => write!(f, "popval"),
-            Instruction::Prim(n, a) => write!(f, "prim {}/{}", n, a),
+            Instruction::SemPushVal(v) => write!(f, "pushval {:?}", v),
+            Instruction::SemPushVar(i) => write!(f, "pushvar {:?}", i),
+            Instruction::SemPushList(l) => write!(f, "pushlist {}", l),
             Instruction::SemNegative => write!(f, "semnegative"),
             Instruction::SemPositive => write!(f, "sempositive"),
+            Instruction::SemAdd => write!(f, "semadd"),
+            Instruction::SemSub => write!(f, "semsub"),
+            Instruction::SemMul => write!(f, "semmul"),
+            Instruction::SemDiv => write!(f, "semdiv"),
+            Instruction::SemCallPrim(n, a) => write!(f, "prim {}/{}", n, a),
         }
     }
 }
@@ -135,7 +144,7 @@ pub enum Error {
     // Initial state of left recursive call
     LeftRec,
     // Something was incorrectly indexed
-    Index,
+    Index(String),
     // Error matching the input (ffp, expected)
     Matching(usize, String),
     // End of file
@@ -220,7 +229,7 @@ fn instruction_to_string(p: &Program, instruction: &Instruction, pc: usize) -> S
             format!("callb {:?} {} {:?}", p.identifier(pc - addr), k, cap)
         }
         Instruction::Throw(label) => format!("throw {:?}", p.strings[*label]),
-        Instruction::Prim(id, arity) => format!("prim {:?}/{}", p.strings[*id], arity),
+        Instruction::SemCallPrim(id, arity) => format!("prim {:?}/{}", p.strings[*id], arity),
         instruction => format!("{}", instruction),
     }
 }
@@ -384,15 +393,24 @@ impl LeftRecTableEntry {
 
 pub type PrimFunc = fn(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error>;
 
-fn prim_discard(_: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
-    if arity != 0 {
-        return Err(Error::SemActionArity(
-            "discard() takes no parameters".to_string(),
-        ));
+#[inline]
+fn _pop_u32(vm: &mut VM) -> Result<u32, Error> {
+    match vm.capstkpopval()? {
+        Value::U32(n) => Ok(n),
+        _ => Err(Error::SemActionTypeMismatch("Not a u32".to_string())),
     }
-    Ok(None)
 }
 
+#[inline]
+fn _pop_text(vm: &mut VM) -> Result<String, Error> {
+    match vm.capstkpopval()? {
+        Value::String(s) => Ok(s),
+        Value::Char(c) => Ok(c.to_string()),
+        _ => Err(Error::SemActionTypeMismatch("Not a text".to_string())),
+    }
+}
+
+#[inline]
 fn _recursive_join_str(values: &Vec<Value>) -> Result<String, Error> {
     let mut output = String::new();
     for value in values {
@@ -400,6 +418,7 @@ fn _recursive_join_str(values: &Vec<Value>) -> Result<String, Error> {
             Value::Char(c) => output.push(*c),
             Value::String(s) => output.push_str(s),
             Value::List(i) => output.push_str(&_recursive_join_str(i)?),
+            Value::Node { name: _, items } => output.push_str(&_recursive_join_str(items)?),
             v => {
                 return Err(Error::SemActionTypeMismatch(format!(
                     "can only join Char or String, received a {:?}",
@@ -411,25 +430,48 @@ fn _recursive_join_str(values: &Vec<Value>) -> Result<String, Error> {
     Ok(output)
 }
 
-fn prim_joinall(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
-    if arity != 0 {
-        return Err(Error::SemActionArity(
-            "joinall() takes no parameters".to_string(),
-        ));
+#[inline]
+fn _check_arity(name: &str, expected: usize, actual: usize) -> Result<(), Error> {
+    if expected != actual {
+        return Err(Error::SemActionArity(format!(
+            "{}() expects {} arguments, {} given",
+            name, expected, actual,
+        )));
     }
-    Ok(Some(Value::String(_recursive_join_str(
-        &vm.capstktop_mut()?.values,
-    )?)))
+    Ok(())
+}
+
+fn prim_skip(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("skip", 0, arity)?;
+    let top = vm.capstktop_mut()?;
+    top.values.clear();
+    Ok(None)
+}
+
+fn prim_text(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("text", 0, arity)?;
+    let v = &vm.capstktop()?.values;
+    Ok(Some(Value::String(_recursive_join_str(v)?)))
+}
+
+fn prim_join(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("join", 1, arity)?;
+    println!("join");
+    let items = match vm.capstkpopval()? {
+        Value::List(items) => items,
+        v => {
+            return Err(Error::SemActionTypeMismatch(format!(
+                "join()'s param should be a list, got {:?} instead",
+                v
+            )));
+        }
+    };
+    Ok(Some(Value::String(_recursive_join_str(&items)?)))
 }
 
 fn prim_unwrap(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
-    if arity != 1 {
-        return Err(Error::SemActionArity(format!(
-            "unwrap() takes 1 parameter, {} given",
-            arity
-        )));
-    }
-    let items = match vm.value_stack.pop().ok_or(Error::Index)? {
+    _check_arity("unwrap", 1, arity)?;
+    let items = match vm.capstkpopval()? {
         Value::Node { name: _, items } => items,
         v => {
             return Err(Error::SemActionTypeMismatch(format!(
@@ -447,33 +489,60 @@ fn prim_unwrap(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
     Ok(items.first().cloned())
 }
 
-fn prim_i64(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
-    if arity != 2 {
-        return Err(Error::SemActionArity(format!(
-            "i64() takes two arguments, {} given",
-            arity
-        )));
+fn prim_i32(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("i32", 2, arity)?;
+    let base = _pop_u32(vm)?;
+    let input = _pop_text(vm)?;
+    match i32::from_str_radix(&input, base) {
+        Ok(value) => Ok(Some(Value::I32(value))),
+        Err(err) => Err(Error::SemActionErr(err.to_string())),
     }
-    let base = match vm.value_stack.pop().ok_or(Error::Index)? {
-        Value::I64(n) => n as u32,
-        v => {
-            return Err(Error::SemActionTypeMismatch(format!(
-                "i64()'s second param should be an integer, got {:?} instead",
-                v
-            )));
-        }
-    };
-    let input = match vm.value_stack.pop().ok_or(Error::Index)? {
-        Value::String(s) => s,
-        v => {
-            return Err(Error::SemActionTypeMismatch(format!(
-                "i64()'s first param should be a string, got {:?} instead",
-                v
-            )));
-        }
-    };
+}
+
+fn prim_u32(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("u32", 2, arity)?;
+    let base = _pop_u32(vm)?;
+    let input = _pop_text(vm)?;
+    match u32::from_str_radix(&input, base) {
+        Ok(value) => Ok(Some(Value::U32(value))),
+        Err(err) => Err(Error::SemActionErr(err.to_string())),
+    }
+}
+
+fn prim_i64(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("i64", 2, arity)?;
+    let base = _pop_u32(vm)?;
+    let input = _pop_text(vm)?;
     match i64::from_str_radix(&input, base) {
         Ok(value) => Ok(Some(Value::I64(value))),
+        Err(err) => Err(Error::SemActionErr(err.to_string())),
+    }
+}
+
+fn prim_u64(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("u64", 2, arity)?;
+    let base = _pop_u32(vm)?;
+    let input = _pop_text(vm)?;
+    match u64::from_str_radix(&input, base) {
+        Ok(value) => Ok(Some(Value::U64(value))),
+        Err(err) => Err(Error::SemActionErr(err.to_string())),
+    }
+}
+
+fn prim_f32(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("f32", 1, arity)?;
+    let input = _pop_text(vm)?;
+    match input.parse::<f32>() {
+        Ok(value) => Ok(Some(Value::F32(value))),
+        Err(err) => Err(Error::SemActionErr(err.to_string())),
+    }
+}
+
+fn prim_f64(vm: &mut VM, arity: usize) -> Result<Option<Value>, Error> {
+    _check_arity("f64", 1, arity)?;
+    let input = _pop_text(vm)?;
+    match input.parse::<f64>() {
+        Ok(value) => Ok(Some(Value::F64(value))),
         Err(err) => Err(Error::SemActionErr(err.to_string())),
     }
 }
@@ -497,8 +566,6 @@ pub struct VM<'a> {
     captures: Vec<CapStackFrame>,
     // boolean flag that remembers if the VM is within a predicate
     within_predicate: bool,
-    // stack for manipulating values while running semantic actions
-    value_stack: Vec<Value>,
     // primitive functions
     prims: HashMap<String, PrimFunc>,
 }
@@ -512,14 +579,19 @@ impl<'a> VM<'a> {
             program_counter: 0,
             stack: vec![],
             call_frames: vec![],
-            value_stack: vec![],
             lrmemo: HashMap::new(),
             captures: vec![],
             within_predicate: false,
             prims: HashMap::from([
-                ("discard".to_string(), prim_discard as PrimFunc),
-                ("joinall".to_string(), prim_joinall as PrimFunc),
+                ("skip".to_string(), prim_skip as PrimFunc),
+                ("text".to_string(), prim_text as PrimFunc),
+                ("join".to_string(), prim_join as PrimFunc),
+                ("i32".to_string(), prim_i32 as PrimFunc),
                 ("i64".to_string(), prim_i64 as PrimFunc),
+                ("u32".to_string(), prim_u32 as PrimFunc),
+                ("u64".to_string(), prim_u64 as PrimFunc),
+                ("f32".to_string(), prim_f32 as PrimFunc),
+                ("f64".to_string(), prim_f64 as PrimFunc),
                 ("unwrap".to_string(), prim_unwrap as PrimFunc),
             ]),
         }
@@ -538,7 +610,7 @@ impl<'a> VM<'a> {
 
     fn stktop(&self) -> Result<usize, Error> {
         if self.call_frames.is_empty() {
-            return Err(Error::Index);
+            return Err(Error::Index("peek_call_frame".to_string()));
         }
         Ok(self.call_frames[self.call_frames.len() - 1])
     }
@@ -561,9 +633,14 @@ impl<'a> VM<'a> {
     }
 
     fn stkpop(&mut self) -> Result<StackFrame, Error> {
-        let frame = self.stack.pop().ok_or(Error::Index)?;
+        let frame = self
+            .stack
+            .pop()
+            .ok_or_else(|| Error::Index("pop_stack_frame".to_string()))?;
         if frame.ftype == StackFrameType::Call {
-            self.call_frames.pop().ok_or(Error::Index)?;
+            self.call_frames
+                .pop()
+                .ok_or_else(|| Error::Index("pop_call_frame".to_string()))?;
         }
         if frame.predicate {
             self.within_predicate = false;
@@ -573,20 +650,37 @@ impl<'a> VM<'a> {
 
     // functions for capturing matched values
 
+    fn capstktop(&mut self) -> Result<&CapStackFrame, Error> {
+        if self.captures.is_empty() {
+            panic!("capstktop() tried to peek at empty capture vector");
+        }
+        let idx = self.captures.len() - 1;
+        Ok(&self.captures[idx])
+    }
+
     fn capstktop_mut(&mut self) -> Result<&mut CapStackFrame, Error> {
         if self.captures.is_empty() {
-            return Err(Error::Index);
+            panic!("capstktop_mut() tried to peek at empty capture vector");
         }
         let idx = self.captures.len() - 1;
         Ok(&mut self.captures[idx])
     }
 
     fn capstkpush(&mut self) {
-        self.captures.push(CapStackFrame::default())
+        self.captures.push(CapStackFrame::default());
     }
 
-    fn capstkpop(&mut self) -> Result<CapStackFrame, Error> {
-        self.captures.pop().ok_or(Error::Index)
+    fn capstkpop(&mut self, n: String) -> Result<CapStackFrame, Error> {
+        self.captures
+            .pop()
+            .ok_or_else(|| Error::Index(format!("pop_capture_{}", n)))
+    }
+
+    fn capstkpopval(&mut self) -> Result<Value, Error> {
+        let top = self.capstktop_mut()?;
+        top.values
+            .pop()
+            .ok_or_else(|| Error::Index("capstkpopval".to_string()))
     }
 
     /// pushes a new value onto the frame on top of the capture stack
@@ -663,85 +757,8 @@ impl<'a> VM<'a> {
             self.dbg_instruction();
             match self.program.code[self.program_counter] {
                 Instruction::Halt => break,
-                Instruction::PushVal(ref v) => {
-                    self.program_counter += 1;
-                    self.value_stack.push(v.clone());
-                }
-                Instruction::PushVar(i) => {
-                    let top = &self.captures[self.captures.len() - 1];
-                    let v = &top.values[i];
-                    self.value_stack.push(v.clone());
-                    self.program_counter += 1;
-                }
-                Instruction::PopVal => {
-                    self.program_counter += 1;
-                    self.capstktop_mut()?.values.clear();
-                    if let Some(value) = self.value_stack.pop() {
-                        self.capture(value)?;
-                    }
-                }
-                Instruction::Prim(id, arity) => {
-                    self.program_counter += 1;
-                    let prim_name = self.program.string_at(id);
-                    let result = match self.prims.get(&prim_name) {
-                        None => return Err(Error::SemActionNotFound(prim_name)),
-                        Some(f) => f(self, arity),
-                    };
-                    if let Some(value) = result? {
-                        self.value_stack.push(value);
-                    }
-                }
-                Instruction::PushList(len) => {
-                    self.program_counter += 1;
-                    let mut v = Vec::with_capacity(len);
-                    for _ in 0..len {
-                        v.push(self.value_stack.pop().ok_or(Error::Index)?);
-                    }
-                    let rev = v.into_iter().rev().collect();
-                    self.value_stack.push(Value::List(rev));
-                }
-                Instruction::SemNegative => {
-                    self.program_counter += 1;
-                    match self.value_stack.pop().ok_or(Error::Index)? {
-                        Value::I64(v) => self.value_stack.push(Value::I64(-v)),
-                        x => {
-                            return Err(Error::SemActionTypeMismatch(format!(
-                                "Value `{:?}` isn't an integer",
-                                x
-                            )));
-                        }
-                    }
-                }
-                Instruction::SemPositive => {
-                    self.program_counter += 1;
-                    match self.value_stack.pop().ok_or(Error::Index)? {
-                        Value::I64(v) => self.value_stack.push(Value::I64(v.abs())),
-                        x => {
-                            return Err(Error::SemActionTypeMismatch(format!(
-                                "Value `{:?}` isn't an integer",
-                                x
-                            )));
-                        }
-                    }
-                }
-                Instruction::CapPush => {
-                    self.program_counter += 1;
-                    if !self.within_predicate {
-                        self.capstkpush();
-                    }
-                }
-                Instruction::CapPop => {
-                    self.program_counter += 1;
-                    if !self.within_predicate {
-                        for c in self.capstkpop()?.values {
-                            self.capture(c)?;
-                        }
-                    }
-                }
-                Instruction::CapCommit => {
-                    self.program_counter += 1;
-                    self.commit_captures()?;
-                }
+
+                // Terminal Matchers
                 Instruction::Any => {
                     self.program_counter += 1;
                     if self.cursor >= source.len() {
@@ -813,6 +830,8 @@ impl<'a> VM<'a> {
                         }
                     }
                 }
+
+                // Control flow
                 Instruction::Choice(offset) => {
                     self.commit_captures()?;
                     self.stkpush(StackFrame::new_backtrack(
@@ -874,6 +893,8 @@ impl<'a> VM<'a> {
                 Instruction::Return(ref capture_type) => {
                     self.inst_return(capture_type.clone())?;
                 }
+
+                // Error Reporting/Recovery
                 Instruction::Throw(label) => {
                     if self.within_predicate {
                         self.program_counter += 1;
@@ -888,6 +909,8 @@ impl<'a> VM<'a> {
                         }
                     }
                 }
+
+                // Data Structure Matching
                 Instruction::Open => {
                     self.program_counter += 1;
                     match &source[self.cursor] {
@@ -918,7 +941,7 @@ impl<'a> VM<'a> {
                 }
                 Instruction::Close(ref container_type) => {
                     self.program_counter += 1;
-                    let capsframe = self.capstkpop()?;
+                    let capsframe = self.capstkpop("close".to_string())?;
                     self.capture(match container_type {
                         ContainerType::List => Value::List(capsframe.values),
                         ContainerType::Node => Value::Node {
@@ -931,14 +954,113 @@ impl<'a> VM<'a> {
                     })?;
                     let frame = self.stkpop()?;
                     self.cursor = frame.cursor + 1;
-                    source = frame.list.ok_or(Error::Index)?;
+                    source = frame
+                        .list
+                        .ok_or_else(|| Error::Index("pop_frame_list".to_string()))?;
+                }
+
+                // Capture Stack
+                Instruction::CapPush => {
+                    self.program_counter += 1;
+                    if !self.within_predicate {
+                        self.capstkpush();
+                    }
+                }
+                Instruction::CapPop => {
+                    self.program_counter += 1;
+                    if !self.within_predicate {
+                        let values = self.capstkpop("cap_pop".to_string())?.values;
+                        for v in values {
+                            self.capture(v)?;
+                        }
+                    }
+                }
+                Instruction::CapCommit => {
+                    self.program_counter += 1;
+                    if !self.within_predicate {
+                        self.commit_captures()?;
+                    }
+                }
+
+                // Semantic Actions
+                Instruction::SemPushVal(ref v) => {
+                    self.program_counter += 1;
+                    self.capture(v.clone())?;
+                }
+                Instruction::SemPushVar(i) => {
+                    let top = self.capstktop()?;
+                    let v = top.values[i].clone();
+                    self.capture(v)?;
+                    self.program_counter += 1;
+                }
+                Instruction::SemPushList(len) => {
+                    self.program_counter += 1;
+                    let mut v = Vec::with_capacity(len);
+                    for _ in 0..len {
+                        let value = self.capstkpopval()?;
+                        v.push(value);
+                    }
+                    let rev = v.into_iter().rev().collect();
+                    self.capture(Value::List(rev))?;
+                }
+                Instruction::SemNegative => {
+                    self.program_counter += 1;
+                    match self.capstkpopval()? {
+                        Value::I64(v) => self.capture(Value::I64(-v))?,
+                        x => {
+                            return Err(Error::SemActionTypeMismatch(format!(
+                                "Value `{:?}` isn't an integer",
+                                x
+                            )));
+                        }
+                    };
+                }
+                Instruction::SemPositive => {
+                    self.program_counter += 1;
+                    let v = self.capstkpopval()?;
+                    self.capture(pos_val(v)?)?;
+                }
+                Instruction::SemAdd => {
+                    self.program_counter += 1;
+                    let b = self.capstkpopval()?;
+                    let a = self.capstkpopval()?;
+                    self.capture(add_val(a, b)?)?;
+                }
+                Instruction::SemSub => {
+                    self.program_counter += 1;
+                    let b = self.capstkpopval()?;
+                    let a = self.capstkpopval()?;
+                    self.capture(sub_val(a, b)?)?;
+                }
+                Instruction::SemMul => {
+                    self.program_counter += 1;
+                    // let b = self.capstkpopval()?;
+                    // let a = self.capstkpopval()?;
+                    // self.capture(mul_val(a, b)?)?;
+                }
+                Instruction::SemDiv => {
+                    self.program_counter += 1;
+                    // let b = self.capstkpopval()?;
+                    // let a = self.capstkpopval()?;
+                    // self.capture(div_val(a, b)?)?;
+                }
+                Instruction::SemCallPrim(id, arity) => {
+                    self.program_counter += 1;
+                    let prim_name = self.program.string_at(id);
+                    let result = match self.prims.get(&prim_name) {
+                        None => return Err(Error::SemActionNotFound(prim_name)),
+                        Some(f) => f(self, arity),
+                    };
+                    if let Some(value) = result? {
+                        self.capture(value)?;
+                    }
                 }
             }
         }
 
         if !self.captures.is_empty() {
             self.dbg_captures()?;
-            Ok(self.capstkpop()?.values.pop())
+            Ok(self.capstkpop("final".to_string())?.values.pop())
         } else {
             Ok(None)
         }
@@ -1022,7 +1144,7 @@ impl<'a> VM<'a> {
 
         if frame.precedence == 0 {
             let frame = self.stkpop()?;
-            let capframe = self.capstkpop()?;
+            let capframe = self.capstkpop("capture_node_unwrapped".to_string())?;
             self.program_counter = frame.program_counter;
 
             // Recovery labels are captured as Error nodes
@@ -1032,7 +1154,11 @@ impl<'a> VM<'a> {
                 self.capture(Value::Error { label, message })?;
                 return Ok(());
             }
+
+            // Let the `capture_node` method deal with values captured
+            // within the rule being returned from
             self.capture_node(address, capframe, capture_type)?;
+
             return Ok(());
         }
 
@@ -1063,7 +1189,7 @@ impl<'a> VM<'a> {
         self.program_counter = frame.program_counter;
         let key = (frame.address, frame.cursor);
         self.lrmemo.remove(&key);
-        let mut capframe = self.capstkpop()?;
+        let mut capframe = self.capstkpop("return_inc3".to_string())?;
         if capframe.index > 0 {
             let values = capframe.values.drain(..capframe.index).collect();
             capframe.values.clear();
@@ -1090,7 +1216,7 @@ impl<'a> VM<'a> {
                         self.dbg_captures()?;
                         break f;
                     } else {
-                        self.capstkpop()?;
+                        self.capstkpop("fail".to_string())?;
                     }
                     if let Ok(result) = f.result {
                         if result > 0 {
@@ -1144,11 +1270,12 @@ impl<'a> VM<'a> {
         #[cfg(debug_assertions)]
         {
             let top = if self.captures.is_empty() {
-                return Err(Error::Index);
+                return Err(Error::Index("pop_capture_dbg".to_string()));
             } else {
                 &self.captures[self.captures.len() - 1]
             };
             if top.values.is_empty() {
+                self.dbg(&format!("- captures[{}]: []", top.index));
                 return Ok(());
             }
             self.dbg(&format!(
@@ -1162,6 +1289,47 @@ impl<'a> VM<'a> {
             ));
         }
         Ok(())
+    }
+}
+
+fn add_val(a: Value, b: Value) -> Result<Value, Error> {
+    match (a, b) {
+        (Value::I32(a), Value::I32(b)) => Ok(Value::I32(a + b)),
+        (Value::U32(a), Value::U32(b)) => Ok(Value::U32(a + b)),
+        (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a + b)),
+        (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a + b)),
+        (a, b) => Err(Error::SemActionTypeMismatch(format!(
+            "can't sum {:?} and {:?}",
+            a, b,
+        ))),
+    }
+}
+
+fn sub_val(a: Value, b: Value) -> Result<Value, Error> {
+    match (a, b) {
+        (Value::I32(a), Value::I32(b)) => Ok(Value::I32(a - b)),
+        (Value::U32(a), Value::U32(b)) => Ok(Value::U32(a - b)),
+        (Value::I64(a), Value::I64(b)) => Ok(Value::I64(a - b)),
+        (Value::U64(a), Value::U64(b)) => Ok(Value::U64(a - b)),
+        (a, b) => Err(Error::SemActionTypeMismatch(format!(
+            "can't subtract {:?} and {:?}",
+            a, b,
+        ))),
+    }
+}
+
+fn pos_val(v: Value) -> Result<Value, Error> {
+    match v {
+        Value::I32(v) => Ok(Value::I32(v.abs())),
+        Value::I64(v) => Ok(Value::I64(v.abs())),
+        Value::U32(v) => Ok(Value::U32(v)),
+        Value::U64(v) => Ok(Value::U64(v)),
+        Value::F32(v) => Ok(Value::F32(v.abs())),
+        Value::F64(v) => Ok(Value::F64(v.abs())),
+        x => Err(Error::SemActionTypeMismatch(format!(
+            "Value `{:?}` isn't a number",
+            x
+        ))),
     }
 }
 

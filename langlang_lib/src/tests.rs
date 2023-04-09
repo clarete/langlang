@@ -7,6 +7,7 @@ mod tests {
     fn test_char() {
         let cc = compiler::Config::default();
         assert_match("A[a]", cc_run(&cc, "A <- 'a'", "a"));
+        assert_match("A[ab]", cc_run(&cc, "A <- 'a' 'b'", "ab"));
     }
 
     #[test]
@@ -444,20 +445,29 @@ mod tests {
     // -- Semantic Actions -----------------------------------------------------
 
     #[test]
-    fn test_sem_action_disabled() {
+    fn sem_action_disabled() {
         let cc = compiler::Config::default().disable_sem_actions();
         let program = compile(
             &cc,
-            "
-            E -> 42
-            E <- [a-z]
-            ",
+            "E <- [a-z]
+             E -> 42",
         );
         assert_match("E[a]", run_str(&program, "a"));
     }
 
     #[test]
-    fn test_sem_action_without_backpatch_before_main() {
+    fn sem_action_simplest_replacing_match() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "E <- [a-z]
+             E -> 42",
+        );
+        assert_match("E[42]", run_str(&program, "a"));
+    }
+
+    #[test]
+    fn sem_action_without_backpatch_before_main() {
         let cc = compiler::Config::default();
         let program = compile(
             &cc,
@@ -466,11 +476,71 @@ mod tests {
             E <- [a-z]
             ",
         );
-        assert_match("E[42]", run_str(&program, "abc"));
+        assert_match("E[42]", run_str(&program, "x"));
     }
 
     #[test]
-    fn test_sem_action_without_actual_main() {
+    fn sem_action_prim_text_0() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- [1-9][0-9]*
+            E -> text()
+            ",
+        );
+        let output = run_str(&program, "357");
+        assert_match("E[357]", output);
+    }
+
+    #[test]
+    fn sem_action_prim_text_recursive_on_nodes() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+        Identifier <- IdentStart IdentCont*
+        IdentStart <- [a-zA-Z_]
+        IdentCont  <- IdentStart / [0-9]
+
+        Identifier -> text()
+        ",
+        );
+        assert_match("Identifier[foo]", run_str(&program, "foo"));
+        assert_match("Identifier[_foo_BAR_42]", run_str(&program, "_foo_BAR_42"));
+    }
+
+    #[test]
+    fn sem_action_prim_skip() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- .*
+            E -> skip()
+            ",
+        );
+        assert!(run_str(&program, "1").is_none());
+        assert!(run_str(&program, "a").is_none());
+        assert!(run_str(&program, "^").is_none());
+    }
+
+    #[test]
+    fn sem_action_with_backpatch() {
+        let cc = compiler::Config::default();
+        let program = compile(
+            &cc,
+            "
+            E <- S 'n' S
+            S <- ' '*
+            S -> skip()
+            ",
+        );
+        assert_match("E[n]", run_str(&program, "   n   "));
+    }
+
+    #[test]
+    fn sem_action_without_actual_main() {
         let cc = compiler::Config::default();
         let program = compile(&cc, "E -> 42");
         assert!(run_str(&program, "test").is_none());
@@ -504,7 +574,7 @@ mod tests {
             &cc,
             "
             E <- [a-zA-Z0-9]
-            E -> unwrapped(%0)
+            E c -> unwrapped(c)
             ",
         );
         assert_match("a", run_str(&program, "a"));
@@ -512,100 +582,109 @@ mod tests {
         assert_match("9", run_str(&program, "9"));
     }
 
-    #[test]
-    fn test_sem_action_discard() {
-        let cc = compiler::Config::default();
-        let program = compile(
-            &cc,
-            "
-            E <- .*
-            E -> discard()
-            ",
-        );
-        assert!(run_str(&program, "1").is_none());
-        assert!(run_str(&program, "a").is_none());
-        assert!(run_str(&program, "^").is_none());
-    }
+    // #[test]
+    // fn test_sem_action_i64() {
+    //     let cc = compiler::Config::default();
+    //     let program = compile(
+    //         &cc,
+    //         "
+    //         Int <- Bin / Hex / Dec
+    //         Bin <- BIN [0-1]+
+    //         Hex <- HEX [a-zA-Z0-9]+
+    //         Dec <- ([1-9][0-9]*) / '0'
+    //         BIN <- '0b'
+    //         HEX <- '0x'
 
-    #[test]
-    fn test_sem_action_with_backpatch() {
-        let cc = compiler::Config::default();
-        let program = compile(
-            &cc,
-            "
-            E <- S 'n' S
-            S <- ' '*
-            S -> discard()
-            ",
-        );
-        assert_match("E[n]", run_str(&program, "   n   "));
-    }
+    //         Int -> unwrap(%0)
+    //         Bin -> i64(text(), 2)
+    //         Hex -> i64(text(), 16)
+    //         Dec -> i64(text(), 10)
+    //         BIN -> skip()
+    //         HEX -> skip()
+    //         ",
+    //     );
+    //     assert_match("Int[255]", run_str(&program, "0xff"));
+    //     assert_match("Int[42]", run_str(&program, "0b101010"));
+    //     assert_match("Int[123]", run_str(&program, "123"));
+    // }
 
-    #[test]
-    fn test_sem_action_joinall() {
-        let cc = compiler::Config::default();
-        let program = compile(
-            &cc,
-            "
-            E <- [1-9][0-9]*
-            E -> joinall()
-            ",
-        );
-        let output = run_str(&program, "321");
-        assert_match("E[321]", output);
-    }
+    // #[test]
+    // fn test_sem_action_unary_op() {
+    //     let cc = compiler::Config::default();
+    //     let program = compile(
+    //         &cc,
+    //         "
 
-    #[test]
-    fn test_sem_action_i64() {
-        let cc = compiler::Config::default();
-        let program = compile(
-            &cc,
-            "
-            Int <- Bin / Hex / Dec
-            Bin <- BIN [0-1]+
-            Hex <- HEX [a-zA-Z0-9]+
-            Dec <- ([1-9][0-9]*) / '0'
-            BIN <- '0b'
-            HEX <- '0x'
+    //         Unary       <- [+-] Unary / Decimal
+    //         Unary '+' d ->  +d
+    //         Unary '-' d ->  -d
 
-            Int -> unwrap(%0)
-            Bin -> i64(joinall(), 2)
-            Hex -> i64(joinall(), 16)
-            Dec -> i64(joinall(), 10)
-            BIN -> discard()
-            HEX -> discard()
-            ",
-        );
-        assert_match("Int[255]", run_str(&program, "0xff"));
-        assert_match("Int[42]", run_str(&program, "0b101010"));
-        assert_match("Int[123]", run_str(&program, "123"));
-    }
+    //         Decimal   <- [0-9]+
+    //         Decimal -> i64(text(), 10)
 
-    #[test]
-    fn test_sem_action_unary_op() {
-        let cc = compiler::Config::default();
-        let program = compile(
-            &cc,
-            "
-            Unary    <- UnaryNeg / UnaryPos / Decimal
-            UnaryNeg <- MINUS Unary
-            UnaryPos <- PLUS Unary
+    //         Unary    <- UnaryNeg / UnaryPos / Decimal
+    //         UnaryNeg <- MINUS Unary
+    //         UnaryPos <- PLUS Unary
 
-            # lexical rules
-            Decimal  <- [0-9]+
-            PLUS     <- '+'
-            MINUS    <- '-'
+    //         # lexical rules
+    //         Decimal  <- [0-9]+
+    //         PLUS     <- '+'
+    //         MINUS    <- '-'
 
-            # semantic actions
-            Unary    -> unwrapped(%0)
-            UnaryNeg -> unwrapped(-%1)
-            UnaryPos -> unwrapped(+%1)
-            Decimal  -> unwrapped(i64(joinall(), 10))
-            ",
-        );
-        assert_match("-25", run_str(&program, "-25"));
-        assert_match("25", run_str(&program, "+-+-+-+-25"));
-    }
+    //         # semantic actions
+    //         Unary    -> unwrapped(%0)
+    //         UnaryNeg -> unwrapped(-%1)
+    //         UnaryPos -> unwrapped(+%1)
+    //         Decimal  -> unwrapped(i64(text(), 10))
+
+    //         @nowrap{*}
+    //         UnaryNeg _ i -> -i
+    //         UnaryPos _ i -> +i
+    //         Decimal    d -> i64(join(d), 10)
+    //         ",
+    //     );
+    //     assert_match("-25", run_str(&program, "-25"));
+    //     assert_match("25", run_str(&program, "+-+-+-+-25"));
+    // }
+
+    // fn test_sem_action_() {
+    //     let cc = compiler::Config::default();
+    //     let program = compile(
+    //         &cc,
+    //         "
+    //         expr <- expr¹ '+' expr²
+    //         expr <- ([1-9][0-9]* / '0')
+    //         ",
+    //     );
+    // }
+
+    // //#[test]
+    // fn test_sem_action_binary_op() {
+    //     let cc = compiler::Config::default();
+    //     let program = compile(
+    //         &cc,
+    //         "
+    //         expr <- expr¹ '+' expr²
+    //               / expr¹ '-' expr²
+    //               / expr² '*' expr³
+    //               / expr² '/' expr³
+    //               / dec
+    //         dec  <- ([1-9][0-9]* / '0')
+
+    //         # @import{calc}
+    //         # @start{expr}
+    //         # @nowrap{*}
+    //         #
+    //         # expr a '+' b -> a + b
+    //         # expr a '-' b -> a - b
+    //         # expr a '*' b -> a * b
+    //         # expr a '/' b -> a / b
+    //         # expr d       -> i32(join(d), 10)
+    //         ",
+    //     );
+    //     assert_match("-25", run_str(&program, "25-50"));
+    //     assert_match("25", run_str(&program, "20+5"));
+    // }
 
     // -- Test Helpers ---------------------------------------------------------
 

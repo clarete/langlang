@@ -52,6 +52,7 @@ pub enum CaptureType {
 #[derive(Clone, Debug)]
 pub enum Instruction {
     Halt,
+
     // lexical
     Any,
     Char(char),

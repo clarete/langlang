@@ -251,6 +251,7 @@ impl Compiler {
             let captype = self.default_capture_type();
             self.code[0] = match self.code[0] {
                 Instruction::Call(..) => Instruction::Call(*identifier, left_rec, captype),
+                Instruction::CallB(..) => Instruction::CallB(*identifier, left_rec, captype),
                 _ => unreachable!(),
             };
         }

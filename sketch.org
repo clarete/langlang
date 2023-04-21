@@ -61,7 +61,8 @@ implemented.
 ** Chores
    * [ ] Allocate values produced from a match within an arena
    * [ ] Decode values into the host language's types
-* Implementation Designs
+
+* Implemented Design
 ** Capturing Values
 
 Matches of an input against a grammar will produce an output tree.

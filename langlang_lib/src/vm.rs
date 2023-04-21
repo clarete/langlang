@@ -88,6 +88,7 @@ pub enum Instruction {
     SemPushVal(Value),
     SemPushVar(usize),
     SemPushList(usize),
+    SemPop,
     SemNegative,
     SemPositive,
     SemAdd,
@@ -123,16 +124,17 @@ impl std::fmt::Display for Instruction {
             Instruction::CapPush => write!(f, "cappush"),
             Instruction::CapPop => write!(f, "cappop"),
             Instruction::CapCommit => write!(f, "capcommit"),
-            Instruction::SemPushVal(v) => write!(f, "pushval {:?}", v),
-            Instruction::SemPushVar(i) => write!(f, "pushvar {:?}", i),
-            Instruction::SemPushList(l) => write!(f, "pushlist {}", l),
+            Instruction::SemPushVal(v) => write!(f, "sempushval {:?}", v),
+            Instruction::SemPushVar(i) => write!(f, "sempushvar {:?}", i),
+            Instruction::SemPushList(l) => write!(f, "sempushlist {}", l),
+            Instruction::SemPop => write!(f, "sempop"),
             Instruction::SemNegative => write!(f, "semnegative"),
             Instruction::SemPositive => write!(f, "sempositive"),
             Instruction::SemAdd => write!(f, "semadd"),
             Instruction::SemSub => write!(f, "semsub"),
             Instruction::SemMul => write!(f, "semmul"),
             Instruction::SemDiv => write!(f, "semdiv"),
-            Instruction::SemCallPrim(n, a) => write!(f, "prim {}/{}", n, a),
+            Instruction::SemCallPrim(n, a) => write!(f, "semcallprim {}/{}", n, a),
         }
     }
 }
@@ -566,6 +568,8 @@ pub struct VM<'a> {
     captures: Vec<CapStackFrame>,
     // boolean flag that remembers if the VM is within a predicate
     within_predicate: bool,
+    // stack for manipulating values while running semantic actions
+    value_stack: Vec<Value>,
     // primitive functions
     prims: HashMap<String, PrimFunc>,
 }
@@ -581,6 +585,7 @@ impl<'a> VM<'a> {
             call_frames: vec![],
             lrmemo: HashMap::new(),
             captures: vec![],
+            value_stack: vec![],
             within_predicate: false,
             prims: HashMap::from([
                 ("skip".to_string(), prim_skip as PrimFunc),
@@ -677,10 +682,11 @@ impl<'a> VM<'a> {
     }
 
     fn capstkpopval(&mut self) -> Result<Value, Error> {
-        let top = self.capstktop_mut()?;
-        top.values
+        let v = self
+            .value_stack
             .pop()
-            .ok_or_else(|| Error::Index("capstkpopval".to_string()))
+            .ok_or_else(|| Error::Index("capstkpopval".to_string()))?;
+        Ok(v)
     }
 
     /// pushes a new value onto the frame on top of the capture stack
@@ -729,6 +735,11 @@ impl<'a> VM<'a> {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn capture_value(&mut self, v: Value) -> Result<(), Error> {
+        self.value_stack.push(v);
         Ok(())
     }
 
@@ -985,13 +996,13 @@ impl<'a> VM<'a> {
                 // Semantic Actions
                 Instruction::SemPushVal(ref v) => {
                     self.program_counter += 1;
-                    self.capture(v.clone())?;
+                    self.capture_value(v.clone())?;
                 }
                 Instruction::SemPushVar(i) => {
+                    self.program_counter += 1;
                     let top = self.capstktop()?;
                     let v = top.values[i].clone();
-                    self.capture(v)?;
-                    self.program_counter += 1;
+                    self.capture_value(v)?;
                 }
                 Instruction::SemPushList(len) => {
                     self.program_counter += 1;
@@ -1001,12 +1012,19 @@ impl<'a> VM<'a> {
                         v.push(value);
                     }
                     let rev = v.into_iter().rev().collect();
-                    self.capture(Value::List(rev))?;
+                    self.capture_value(Value::List(rev))?;
+                }
+                Instruction::SemPop => {
+                    self.program_counter += 1;
+                    self.capstktop_mut()?.values.clear();
+                    if let Some(v) = self.value_stack.pop() {
+                        self.capture(v)?;
+                    }
                 }
                 Instruction::SemNegative => {
                     self.program_counter += 1;
                     match self.capstkpopval()? {
-                        Value::I64(v) => self.capture(Value::I64(-v))?,
+                        Value::I64(v) => self.capture_value(Value::I64(-v))?,
                         x => {
                             return Err(Error::SemActionTypeMismatch(format!(
                                 "Value `{:?}` isn't an integer",
@@ -1018,31 +1036,31 @@ impl<'a> VM<'a> {
                 Instruction::SemPositive => {
                     self.program_counter += 1;
                     let v = self.capstkpopval()?;
-                    self.capture(pos_val(v)?)?;
+                    self.capture_value(pos_val(v)?)?;
                 }
                 Instruction::SemAdd => {
                     self.program_counter += 1;
                     let b = self.capstkpopval()?;
                     let a = self.capstkpopval()?;
-                    self.capture(add_val(a, b)?)?;
+                    self.capture_value(add_val(a, b)?)?;
                 }
                 Instruction::SemSub => {
                     self.program_counter += 1;
                     let b = self.capstkpopval()?;
                     let a = self.capstkpopval()?;
-                    self.capture(sub_val(a, b)?)?;
+                    self.capture_value(sub_val(a, b)?)?;
                 }
                 Instruction::SemMul => {
                     self.program_counter += 1;
                     // let b = self.capstkpopval()?;
                     // let a = self.capstkpopval()?;
-                    // self.capture(mul_val(a, b)?)?;
+                    // self.capture_value(mul_val(a, b)?)?;
                 }
                 Instruction::SemDiv => {
                     self.program_counter += 1;
                     // let b = self.capstkpopval()?;
                     // let a = self.capstkpopval()?;
-                    // self.capture(div_val(a, b)?)?;
+                    // self.capture_value(div_val(a, b)?)?;
                 }
                 Instruction::SemCallPrim(id, arity) => {
                     self.program_counter += 1;
@@ -1052,7 +1070,7 @@ impl<'a> VM<'a> {
                         Some(f) => f(self, arity),
                     };
                     if let Some(value) = result? {
-                        self.capture(value)?;
+                        self.capture_value(value)?;
                     }
                 }
             }

@@ -351,10 +351,12 @@ impl Compiler {
                     // implementation of the builtin `unwrapped()`, which
                     // changes the capture type of the emitted Return.
                     self.compile_sem_expr(expr)?;
+                    self.emit(Instruction::SemPop);
                     self.emit(Instruction::Return(CaptureType::Unwrapped));
                 } else {
                     // regular compilation of non builtin semantic actions
                     self.compile_sem_expr(*semexpr)?;
+                    self.emit(Instruction::SemPop);
                     self.emit(Instruction::Return(self.default_capture_type()));
                 }
                 // self.emit(Instruction::CapPop);

@@ -595,7 +595,7 @@ impl<'a> VM<'a> {
                 }
                 Instruction::PartialCommit(offset) => {
                     let idx = self.stack.len() - 1;
-                    let mut f = &mut self.stack[idx];
+                    let f = &mut self.stack[idx];
                     f.cursor = self.cursor;
                     // always subtracts: this opcode is currently only
                     // used when compiling the star operator (*),
@@ -826,12 +826,12 @@ impl<'a> VM<'a> {
 
         if matches!(frame.result, Err(Error::LeftRec)) || cursor > frame.result.clone()? {
             self.dbg("- {{lvar,inc}}.1");
-            let mut frame = self.stkpeek_mut()?;
+            let frame = self.stkpeek_mut()?;
             frame.result = Ok(cursor);
             let frame_cursor = frame.cursor;
             let frame_precedence = frame.precedence;
             let key = (address, frame_cursor);
-            let mut entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;
+            let entry = &mut self.lrmemo.get_mut(&key).ok_or(Error::Fail)?;
             entry.cursor = Ok(cursor);
             entry.bound += 1;
             entry.precedence = frame_precedence;

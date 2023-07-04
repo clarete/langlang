@@ -1,17 +1,17 @@
-# This grammar uses the canonical PEG to define an extended PEG to
-# provide the features required by LangLang. The introduced extensions
-# are:
-#
-# * [X] Hex Chars: Declare characters with hexadecimal numbers. E.g.:
-#       \x20 is the space char.
-#
-# * [X] Quiet Operator: Mark items to not be included in the parse
-#       tree. Doesn't influence the match at all.
-#
-# * [X] Capture Block: Manually mark Capture blocks. Useful for
-#       capturing Terminals together and ignore Non-Terminals.
+// This grammar uses the canonical PEG to define an extended PEG to
+// provide the features required by LangLang. The introduced extensions
+// are:
+//
+// * [X] Hex Chars: Declare characters with hexadecimal numbers. E.g.:
+//       \x20 is the space char.
+//
+// * [X] Quiet Operator: Mark items to not be included in the parse
+//       tree. Doesn't influence the match at all.
+//
+// * [X] Capture Block: Manually mark Capture blocks. Useful for
+//       capturing Terminals together and ignore Non-Terminals.
 
-# Hierarchical syntax
+// Hierarchical syntax
 Grammar    <- Spacing Definition+ EndOfFile
 Definition <- Identifier LEFTARROW Expression
 
@@ -21,11 +21,11 @@ Prefix     <- (AND / NOT / QUIET)? Suffix
 Suffix     <- Primary (QUESTION / STAR / PLUS)?
 Primary    <- Identifier !LEFTARROW
             / OPEN Expression CLOSE
-            / Capture           # Capture Block Extension
+            / Capture           // Capture Block Extension
             / Literal / Class / DOT
 Capture    <- OPCB Expression CLCB
 
-# Lexical syntax
+// Lexical syntax
 Identifier <- IdentStart IdentCont* Spacing
 IdentStart <- [a-zA-Z_]
 IdentCont  <- IdentStart / [0-9]
@@ -37,7 +37,7 @@ Range      <- Char '-' Char / Char
 Char       <- '\\' [nrt'"\[\]\\]
             / '\\' [0-2][0-7][0-7]
             / '\\' [0-7][0-7]?
-            ## Hex-chars Extension
+            // Hex-chars Extension
             / '\\x' [0-9a-fA-F]+
             / !'\\' .
 
@@ -51,15 +51,15 @@ PLUS       <- '+' Spacing
 OPEN       <- '(' Spacing
 CLOSE      <- ')' Spacing
 DOT        <- '.' Spacing
-## Quiet Operator Extension
+// Quiet Operator Extension
 QUIET      <- ';' Spacing
-## Capture Block Extension
+// Capture Block Extension
 OPCB       <- '%C{' Spacing
 CLCB       <- '}' Spacing
 
 
 Spacing    <- (Space / Comment)*
-Comment    <- '#' (!EndOfLine .)* EndOfLine
+Comment    <- '//' (!EndOfLine .)* EndOfLine
 Space      <- ' ' / '\t' / EndOfLine
 EndOfLine  <- '\r\n' / '\n' / '\r'
 EndOfFile  <- !.

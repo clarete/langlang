@@ -1,4 +1,4 @@
-# https://www.rfc-editor.org/rfc/rfc8259
+// https://www.rfc-editor.org/rfc/rfc8259
 
 JSON    <- _ Value !.
 Value   <- FALSE / NULL / TRUE / Object / Array / Number / String
@@ -6,7 +6,7 @@ Object  <- OBO (Member (COMA Member)*)? OBC
 Member  <- String COLON Value
 Array   <- ARO (Value (COMA Value)*)? ARC
 
-# Whitespaces are not allowed after the MINUS sign
+// Whitespaces are not allowed after the MINUS sign
 Number  <- '-'? Int Frac? Exp? _
 Int     <- '0' / ([1-9][0-9]*)
 Frac    <- DOT [0-9]+

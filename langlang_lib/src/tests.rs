@@ -373,10 +373,10 @@ mod tests {
             _   <- (' ' / '\n')*
             EOF <- !.
 
-            # recovery expressions for the labels declared above
+            // recovery expressions for the labels declared above
 
-            iflpar     <- (!(Bool / Identifier / Number) .)*  # first(Expr)
-            ifrpar     <- (!LBRK .)* # first(Body)
+            iflpar     <- (!(Bool / Identifier / Number) .)*  // first(Expr)
+            ifrpar     <- (!LBRK .)* // first(Body)
             assigneq   <- _
             assignexpr <- _
             assignsemi <- _

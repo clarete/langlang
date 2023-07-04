@@ -422,9 +422,10 @@ impl Parser {
         Ok(())
     }
 
-    // GR: Comment <- ’#’ (!EndOfLine.)* EndOfLine
+    // GR: Comment <- ’//’ (!EndOfLine.)* EndOfLine
     fn parse_comment(&mut self) -> Result<(), Error> {
-        self.expect('#')?;
+        self.expect('/')?;
+        self.expect('/')?;
         self.zero_or_more(|p| {
             p.not(|p| p.parse_eol())?;
             p.any()

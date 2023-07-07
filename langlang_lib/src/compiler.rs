@@ -546,7 +546,7 @@ mod tests {
     }
 
     #[test]
-    fn detect_left_recursion() {
+    fn detect_left_recursion_not_lr() {
         // input is consumed before A calls itself, so not lr
         assert_detectlr("A <- 'foo' A", HashMap::from([("A".to_string(), false)]));
         assert_detectlr("A <- 'foo'+ A", HashMap::from([("A".to_string(), false)]));
@@ -569,6 +569,10 @@ mod tests {
                 ("C".to_string(), false),
             ]),
         );
+    }
+
+    #[test]
+    fn detect_left_recursion_direct_lr() {
         // Direct left recursion
         assert_detectlr("A <- A", HashMap::from([("A".to_string(), true)]));
         // Direct left recursion: the first expression in both cases
@@ -586,6 +590,10 @@ mod tests {
             "A <- 'foo' / 'bar' / 'baz'? A",
             HashMap::from([("A".to_string(), true)]),
         );
+    }
+
+    #[test]
+    fn detect_left_recursion_indirect_lr() {
         // Indirect left recursion
         assert_detectlr(
             "A <- B / 'x'
@@ -616,12 +624,20 @@ mod tests {
                 ("E".to_string(), true),
             ]),
         );
+    }
+
+    #[test]
+    fn detect_left_recursion_mutual() {
         // Mutual recursion
         assert_detectlr(
             "A <- B '+' A / B
              B <- B '-n' / 'n'",
             HashMap::from([("A".to_string(), true), ("B".to_string(), true)]),
         );
+    }
+
+    #[test]
+    fn detect_left_recursion_wrapping_precedence() {
         // With wrapping precedence
         assert_detectlr(
             "

@@ -132,7 +132,7 @@ func And[T any](p Parser, fn ParserFn[T]) (T, error) {
 	p.Backtrack(pos)
 
 	if err != nil {
-		return zero, p.NewError("And Error", NewSpan(state.Location, p.Location()))
+		return zero, p.NewError("And Error")
 	}
 	return zero, nil
 }

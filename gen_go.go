@@ -141,12 +141,14 @@ func (g *goCodeEmitter) visit(node Node) {
 		g.visitRangeNode(n)
 	case *AnyNode:
 		g.visitAnyNode()
+	default:
+		panic(fmt.Sprintf("Unknown Grammar AST node: %#v", n))
 	}
 }
 
 func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
-	for _, definition := range n.Items {
-		g.visit(definition)
+	for _, item := range n.Items {
+		g.visit(item)
 	}
 }
 

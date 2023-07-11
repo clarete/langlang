@@ -26,3 +26,6 @@ SPC1 <- #Letter Alnum+ #":" Digit+
 Alnum  <- [a-zA-Z0-9]
 Letter <- [a-zA-Z]
 Digit  <- [0-9]
+
+// Small test for the & syntactic sugar
+HashWithAnAnd <- &'#' . (&'*' .)* EOF

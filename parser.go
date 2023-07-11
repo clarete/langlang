@@ -18,7 +18,7 @@ func (l Location) String() string {
 	if l.Line == 0 {
 		return fmt.Sprintf("%d", l.Column)
 	}
-	return fmt.Sprintf("%d:%d", l.Line, l.Column)
+	return fmt.Sprintf("%d:%d", l.Line+1, l.Column)
 }
 
 type Span struct {
@@ -123,10 +123,19 @@ type Tracer interface {
 	// PopTraceSpan allows parser implementations to keep track
 	// of spans for tracing the execution of the parsing
 	PopTraceSpan() TracerSpan
+
+	// StackTrace returns all the frames in the stack trace.  Used
+	// by debugging facilities to show in which production a given
+	// operation just happened
+	StackTrace() []TracerSpan
 }
 
 type TracerSpan struct {
 	Name string
+}
+
+func (s TracerSpan) String() string {
+	return s.Name
 }
 
 // ParserFn is the signature of a parser function.  It unfortunately

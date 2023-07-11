@@ -14,7 +14,7 @@ func (p *GrammarParser) Parse() (Node, error) {
 	return p.ParseGrammar()
 }
 
-// GR: Grammar <- Spacing Definition+ EndOfFile
+// GR: Grammar <- Definition+ EndOfFile
 func (p *GrammarParser) ParseGrammar() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Grammar"})
 	defer p.PopTraceSpan()
@@ -27,6 +27,8 @@ func (p *GrammarParser) ParseGrammar() (Node, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	p.ParseSpacing()
 	if _, err := Not(p, p.ExpectRuneFn('.')); err != nil {
 		return nil, err
 	}
@@ -48,6 +50,7 @@ func (p *GrammarParser) ParseDefinition() (Node, error) {
 	if err := p.ParseLeftArrow(); err != nil {
 		return nil, err
 	}
+
 	expr, err := p.ParseExpression()
 	if err != nil {
 		return nil, err
@@ -186,8 +189,6 @@ func (p *GrammarParser) ParseSuffix() (Node, error) {
 		return nil, err
 	}
 
-	p.ParseSpacing()
-
 	switch suffix {
 	case '?':
 		return NewOptionalNode(primary, NewSpan(start, p.Location())), nil
@@ -216,7 +217,7 @@ func (p *GrammarParser) ParsePrimary() (Node, error) {
 	})
 }
 
-// GR: Identifier <- IdentStart IdentCont* Spacing
+// GR: Identifier <- IdentStart IdentCont*
 // GR: IdentStart <- [a-zA-Z_]
 // GR: IdentCont  <- IdentStart / [0-9]
 func (p *GrammarParser) ParseIdentifier() (Node, error) {
@@ -294,7 +295,7 @@ func (p *GrammarParser) ParseParenExpression() (Node, error) {
 	return expr, nil
 }
 
-// GR: Class <- '[' (!']' Range)* ']' Spacing
+// GR: Class <- '[' (!']' Range)* ']'
 func (p *GrammarParser) ParseClass() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Class"})
 	defer p.PopTraceSpan()
@@ -349,20 +350,28 @@ func (p *GrammarParser) ParseRange() (Node, error) {
 func (p *GrammarParser) ParseDot() (Node, error) {
 	p.ParseSpacing()
 	start := p.Location()
-	_, err := p.ExpectRune('.')
-	if err != nil {
+	if _, err := p.ExpectRune('.'); err != nil {
 		return nil, err
 	}
 	return NewAnyNode(NewSpan(start, p.Location())), nil
 }
 
-// GR: Literal <- ['] (!['] Char)* ['] Spacing
-// GR:          / ["] (!["] Char)* ["] Spacing
+// GR: Literal <- ['] (!['] Char)* [']
+// GR:          / ["] (!["] Char)* ["]
 func (p *GrammarParser) ParseLiteral() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Literal"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
+	value, err := p.parseLiteral()
+	if err != nil {
+		return nil, err
+	}
+	return NewLiteralNode(value, NewSpan(start, p.Location())), nil
+}
+
+func (p *GrammarParser) parseLiteral() (string, error) {
 	value, err := Choice(p, []ParserFn[string]{
 		func(p Parser) (string, error) {
 			if _, err := p.ExpectRune('\''); err != nil {
@@ -402,11 +411,9 @@ func (p *GrammarParser) ParseLiteral() (Node, error) {
 		},
 	})
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	span := NewSpan(start, p.Location())
-	p.ParseSpacing()
-	return NewLiteralNode(value, span), nil
+	return value, nil
 }
 
 // !'\\' .

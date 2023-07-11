@@ -62,7 +62,7 @@ func TestIsSyntactic(t *testing.T) {
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":    "Letter: Expected char between `a' and `z', got ` ' @ 0",
+			" a9:30":   "Letter: Expected char between `a' and `z', got ` ' @ 0",
 			"a 999:99": "Alnum: Expected char between `a' and `z', got ` ' @ 1",
 			"a9: 30":   "Digit: Expected char between `0' and `9', got ` ' @ 3",
 		} {
@@ -92,6 +92,35 @@ func TestIsSyntactic(t *testing.T) {
 			p := NewParserBasic(test)
 			_, err := p.ParseSPC1()
 			require.Error(t, err, test)
+			assert.Equal(t, errMsg, err.Error())
+		}
+	})
+}
+
+func TestAnd(t *testing.T) {
+	t.Run("all and uses match", func(t *testing.T) {
+		for _, test := range []string{
+			"#",
+			"#*",
+			"#***",
+		} {
+			p := NewParserBasic(test)
+			v, err := p.ParseHashWithAnAnd()
+			require.NoError(t, err)
+			assert.Equal(t, test, v.Text())
+		}
+	})
+
+	t.Run("all and uses do not match", func(t *testing.T) {
+		for test, errMsg := range map[string]string{
+			"x": "HashWithAnAnd: Missing `#` @ 0..1",
+			// these ones error because the rule ends on EOF
+			"##":   "HashWithAnAnd: Missing `*` @ 1..2",
+			"#**!": "HashWithAnAnd: Missing `*` @ 3..4",
+		} {
+			p := NewParserBasic(test)
+			_, err := p.ParseHashWithAnAnd()
+			require.Error(t, err)
 			assert.Equal(t, errMsg, err.Error())
 		}
 	})

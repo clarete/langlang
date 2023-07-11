@@ -107,7 +107,7 @@ func TestParseSuffix(t *testing.T) {
 		parser := NewGrammarParser(".? x")
 		output, err := parser.ParseSequence()
 		require.NoError(t, err)
-		assert.Equal(t, `Sequence(Optional(Any @ 0..1) @ 0..3, Identifier(x) @ 3..4) @ 0..4`, output.String())
+		assert.Equal(t, `Sequence(Optional(Any @ 0..1) @ 0..2, Identifier(x) @ 3..4) @ 0..4`, output.String())
 	})
 
 	t.Run("Zero Or More", func(t *testing.T) {

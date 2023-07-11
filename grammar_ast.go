@@ -28,7 +28,6 @@ type Node interface {
 
 type TypeExpr interface {
 	TypeExpr() string
-
 	Node
 }
 
@@ -376,7 +375,9 @@ func (n GrammarNode) String() string    { return nodesString("Grammar", n, n.Ite
 
 // Helpers
 
-func nodesString(name string, n Node, items []Node) string {
+type asString interface{ String() string }
+
+func nodesString[T asString](name string, n Node, items []T) string {
 	var (
 		s  strings.Builder
 		ln = len(items) - 1
@@ -399,7 +400,9 @@ func nodesString(name string, n Node, items []Node) string {
 	return s.String()
 }
 
-func nodesText(items []Node, sep string) string {
+type asText interface{ Text() string }
+
+func nodesText[T asText](items []T, sep string) string {
 	var (
 		s  strings.Builder
 		ln = len(items) - 1

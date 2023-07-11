@@ -1,6 +1,9 @@
 package parsing
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const eof = -1
 
@@ -159,6 +162,26 @@ func (p *BaseParser) PopTraceSpan() TracerSpan {
 	top := p.stacktrace[idx]
 	p.stacktrace = p.stacktrace[:idx]
 	return top
+}
+
+func (p *BaseParser) StackTrace() []TracerSpan {
+	return p.stacktrace
+}
+
+func (p *BaseParser) printStackTrace() string {
+	var (
+		s     strings.Builder
+		stack = p.StackTrace()
+		ln    = len(stack) - 1
+	)
+	for i, span := range stack {
+		s.WriteString(span.String())
+
+		if i < ln {
+			s.WriteString(" > ")
+		}
+	}
+	return s.String()
 }
 
 // Throw returns an error that can't be caught by the backtrack system

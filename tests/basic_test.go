@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//go:generate go run ../cmd -language go -grammar ./basic.peg -go-struct-suffix Basic -output ./basic.go
+
 func TestIsSyntactic(t *testing.T) {
 	t.Run("sequence with literal terminals is always syntactic", func(t *testing.T) {
 		// Matches without the spaces in the input

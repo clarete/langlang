@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 
@@ -14,6 +13,7 @@ const defaultWritePermission = 0644 // -rw-r--r--
 func main() {
 	var (
 		grammarPath = flag.String("grammar", "", "Path to the grammar file")
+		outputPath  = flag.String("output", "/dev/stdout", "Path to the output file")
 		language    = flag.String("language", "", "Output language")
 		astOnly     = flag.Bool("ast-only", false, "Output the AST of the grammar")
 
@@ -63,5 +63,7 @@ func main() {
 		log.Fatalf("Can't emit code: %s", err.Error())
 	}
 
-	fmt.Println(outputData)
+	if err = os.WriteFile(*outputPath, []byte(outputData), 0644); err != nil {
+		log.Fatalf("Can't write output: %s", err.Error())
+	}
 }

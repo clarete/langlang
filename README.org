@@ -150,6 +150,21 @@ required:
   go test ./... -v
 #+end_src
 
+* Development
+
+** Running the test suite
+
+*** Generate Parsers
+
+Both the examples and end to end tests need parsers to be generated
+before tests can run successfully.  So these two commands are
+required:
+
+#+begin_src shell
+  go generate ./...
+  go test ./... -v
+#+end_src
+
 * Roadmap
 
  * [-] ???: [Go Lang] Decode output trees into structs

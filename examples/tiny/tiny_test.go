@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//go:generate go run ../../cmd -language go -grammar ./tiny.peg -output ./tiny.go
+
 func TestTiny(t *testing.T) {
 	t.Run("Expr", func(t *testing.T) {
 		assertExpr(t, "an_id", "an_id")

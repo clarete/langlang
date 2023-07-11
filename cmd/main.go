@@ -15,6 +15,7 @@ func main() {
 	var (
 		grammarPath = flag.String("grammar", "", "Path to the grammar file")
 		language    = flag.String("language", "", "Output language")
+		astOnly     = flag.Bool("ast-only", false, "Output the AST of the grammar")
 
 		// options specific to the go generator
 		goOptPackage      = flag.String("go-package", "parser", "Name of the go package in the generated parser")
@@ -40,7 +41,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Can't parse grammar file: %s", err.Error())
 	}
-	log.Printf("AST: %s\n", ast)
+	if *astOnly {
+		log.Println(ast)
+		return
+	}
 
 	var outputData string
 	switch *language {

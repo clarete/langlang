@@ -1,0 +1,2 @@
+NotSyntactic0 <- Syntactic0 Syntactic0 "!"
+Syntactic0 <- "a" "b" "c"

@@ -163,8 +163,22 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	fmt.Fprintf(g.output, `(langlang.TracerSpan{Name: "%s"})`, n.Name)
 	g.write("\n")
 	g.writei("defer p.PopTraceSpan()\n")
-	g.writei("return ")
+
+	g.writei("var (\n")
+	g.indent()
+	g.writei("start = p.Location()\n")
+	g.writei("item  langlang.Value\n")
+	g.writei("err   error\n")
+	g.unindent()
+	g.writei(")\n")
+
+	g.writei("item, err = ")
 	g.visit(n.Expr)
+	g.write("\n")
+	g.writeIfErr()
+
+	g.writei("return langlang.NewValueNode")
+	fmt.Fprintf(g.output, `("%s", item, langlang.NewSpan(start, p.Location())), nil`, n.Name)
 
 	g.unindent()
 	g.write("\n}\n")

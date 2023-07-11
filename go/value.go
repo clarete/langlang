@@ -59,30 +59,24 @@ func (n ValueSequence) Text() string {
 // Node Value
 
 type ValueNode struct {
-	span  Span
-	Name  string
-	Items []Value
+	span Span
+	Name string
+	Expr Value
 }
 
-func NewValueNode(name string, items []Value, span Span) *ValueNode {
-	return &ValueNode{Name: name, Items: items, span: span}
+func NewValueNode(name string, expr Value, span Span) *ValueNode {
+	return &ValueNode{Name: name, Expr: expr, span: span}
 }
 
 func (n ValueNode) Span() Span { return n.span }
 func (n ValueNode) String() string {
 	var s strings.Builder
 	fmt.Fprintf(&s, `<%s [`, n.Name)
-	for _, expr := range n.Items {
-		s.WriteString(expr.String())
-	}
+	s.WriteString(n.Expr.String())
 	fmt.Fprintf(&s, "] @ %s>", n.Span())
 	return s.String()
 }
 
 func (n ValueNode) Text() string {
-	var s strings.Builder
-	for _, expr := range n.Items {
-		s.WriteString(expr.Text())
-	}
-	return s.String()
+	return n.Expr.Text()
 }

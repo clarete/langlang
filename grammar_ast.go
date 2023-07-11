@@ -10,6 +10,11 @@ type Node interface {
 	// Span returns the location span in which the node was found within the input text
 	Span() Span
 
+	// Text is the representation of a grammar node, meant to
+	// display just what was captured, being useful for
+	// stringifying the grammar again
+	Text() string
+
 	// String returns the string representation of a given node
 	String() string
 
@@ -21,11 +26,15 @@ type Node interface {
 	IsSyntactic() bool
 }
 
+type TypeExpr interface {
+	TypeExpr() string
+
+	Node
+}
+
 // Node Type: Any
 
-type AnyNode struct {
-	span Span
-}
+type AnyNode struct{ span Span }
 
 func NewAnyNode(s Span) *AnyNode {
 	n := &AnyNode{}
@@ -35,6 +44,7 @@ func NewAnyNode(s Span) *AnyNode {
 
 func (n AnyNode) Span() Span        { return n.span }
 func (n AnyNode) IsSyntactic() bool { return true }
+func (n AnyNode) Text() string      { return "." }
 func (n AnyNode) String() string    { return fmt.Sprintf("Any @ %s", n.Span()) }
 
 // Node Type: Literal
@@ -52,6 +62,7 @@ func NewLiteralNode(v string, s Span) *LiteralNode {
 
 func (n LiteralNode) Span() Span        { return n.span }
 func (n LiteralNode) IsSyntactic() bool { return true }
+func (n LiteralNode) Text() string      { return fmt.Sprintf("'%s'", n.Value) }
 func (n LiteralNode) String() string    { return fmt.Sprintf("Literal(%s) @ %s", n.Value, n.Span()) }
 
 // Node Type: Identifier
@@ -69,6 +80,7 @@ func NewIdentifierNode(v string, s Span) *IdentifierNode {
 
 func (n IdentifierNode) Span() Span        { return n.span }
 func (n IdentifierNode) IsSyntactic() bool { return false }
+func (n IdentifierNode) Text() string      { return n.Value }
 func (n IdentifierNode) String() string    { return fmt.Sprintf("Identifier(%s) @ %s", n.Value, n.Span()) }
 
 // Node Type: Range
@@ -87,6 +99,7 @@ func NewRangeNode(left, right string, s Span) *RangeNode {
 
 func (n RangeNode) Span() Span        { return n.span }
 func (n RangeNode) IsSyntactic() bool { return true }
+func (n RangeNode) Text() string      { return fmt.Sprintf("%s-%s", n.Left, n.Right) }
 
 func (n RangeNode) String() string {
 	return fmt.Sprintf("Range(%s, %s) @ %s", n.Left, n.Right, n.Span())
@@ -107,6 +120,7 @@ func NewClassNode(items []Node, s Span) *ClassNode {
 
 func (n ClassNode) Span() Span        { return n.span }
 func (n ClassNode) IsSyntactic() bool { return true }
+func (n ClassNode) Text() string      { return fmt.Sprintf("[%s]", nodesText(n.Items, "")) }
 
 func (n ClassNode) String() string {
 	var (
@@ -145,6 +159,7 @@ func NewOptionalNode(expr Node, s Span) *OptionalNode {
 
 func (n OptionalNode) Span() Span        { return n.span }
 func (n OptionalNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n OptionalNode) Text() string      { return fmt.Sprintf("%s?", n.Expr.Text()) }
 func (n OptionalNode) String() string    { return fmt.Sprintf("Optional(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: ZeroOrMore
@@ -162,6 +177,7 @@ func NewZeroOrMoreNode(expr Node, s Span) *ZeroOrMoreNode {
 
 func (n ZeroOrMoreNode) Span() Span        { return n.span }
 func (n ZeroOrMoreNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n ZeroOrMoreNode) Text() string      { return fmt.Sprintf("%s*", n.Expr.Text()) }
 func (n ZeroOrMoreNode) String() string    { return fmt.Sprintf("ZeroOrMore(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: OneOrMore
@@ -179,6 +195,7 @@ func NewOneOrMoreNode(expr Node, s Span) *OneOrMoreNode {
 
 func (n OneOrMoreNode) Span() Span        { return n.span }
 func (n OneOrMoreNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n OneOrMoreNode) Text() string      { return fmt.Sprintf("%s+", n.Expr.Text()) }
 func (n OneOrMoreNode) String() string    { return fmt.Sprintf("OneOrMore(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: And
@@ -196,6 +213,7 @@ func NewAndNode(expr Node, s Span) *AndNode {
 
 func (n AndNode) Span() Span        { return n.span }
 func (n AndNode) IsSyntactic() bool { return true }
+func (n AndNode) Text() string      { return fmt.Sprintf("&%s", n.Expr.Text()) }
 func (n AndNode) String() string    { return fmt.Sprintf("And(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: Not
@@ -211,13 +229,10 @@ func NewNotNode(expr Node, s Span) *NotNode {
 	return n
 }
 
-func (n NotNode) Span() Span { return n.span }
-
+func (n NotNode) Span() Span        { return n.span }
 func (n NotNode) IsSyntactic() bool { return true }
-
-func (n NotNode) String() string {
-	return fmt.Sprintf("Not(%s) @ %s", n.Expr, n.Span())
-}
+func (n NotNode) Text() string      { return fmt.Sprintf("!%s", n.Expr.Text()) }
+func (n NotNode) String() string    { return fmt.Sprintf("Not(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: Lex
 
@@ -232,12 +247,15 @@ func NewLexNode(expr Node, s Span) *LexNode {
 	return n
 }
 
-func (n LexNode) Span() Span { return n.span }
-
+func (n LexNode) Span() Span        { return n.span }
 func (n LexNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n LexNode) String() string    { return fmt.Sprintf("Lex(%s) @ %s", n.Expr, n.Span()) }
 
-func (n LexNode) String() string {
-	return fmt.Sprintf("Lex(%s) @ %s", n.Expr, n.Span())
+func (n LexNode) Text() string {
+	if _, ok := n.Expr.(SequenceNode); ok {
+		return fmt.Sprintf("#(%s)", n.Expr.Text())
+	}
+	return fmt.Sprintf("#%s", n.Expr)
 }
 
 // Node Type: Labeled
@@ -254,9 +272,9 @@ func NewLabeledNode(label string, expr Node, s Span) *LabeledNode {
 	return n
 }
 
-func (n LabeledNode) Span() Span { return n.span }
-
+func (n LabeledNode) Span() Span        { return n.span }
 func (n LabeledNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n LabeledNode) Text() string      { return fmt.Sprintf("%s^%s", n.Expr.Text(), n.Label) }
 
 func (n LabeledNode) String() string {
 	return fmt.Sprintf("Label%s(%s) @ %s", n.Label, n.Expr, n.Span())
@@ -286,27 +304,8 @@ func (n SequenceNode) IsSyntactic() bool {
 	return true
 }
 
-func (n SequenceNode) String() string {
-	var (
-		s  strings.Builder
-		ln = len(n.Items) - 1
-	)
-
-	s.WriteString("Sequence(")
-
-	for i, child := range n.Items {
-		s.WriteString(child.String())
-
-		if i < ln {
-			s.WriteString(", ")
-		}
-	}
-
-	s.WriteString(") @ ")
-	s.WriteString(n.Span().String())
-
-	return s.String()
-}
+func (n SequenceNode) Text() string   { return nodesText(n.Items, " ") }
+func (n SequenceNode) String() string { return nodesString("Sequence", n, n.Items) }
 
 // Node Type: Choice
 
@@ -332,27 +331,8 @@ func (n ChoiceNode) IsSyntactic() bool {
 	return true
 }
 
-func (n ChoiceNode) String() string {
-	var (
-		s  strings.Builder
-		ln = len(n.Items) - 1
-	)
-
-	s.WriteString("Choice(")
-
-	for i, child := range n.Items {
-		s.WriteString(child.String())
-
-		if i < ln {
-			s.WriteString(", ")
-		}
-	}
-
-	s.WriteString(") @ ")
-	s.WriteString(n.Span().String())
-
-	return s.String()
-}
+func (n ChoiceNode) Text() string   { return nodesText(n.Items, " / ") }
+func (n ChoiceNode) String() string { return nodesString("Choice", n, n.Items) }
 
 // Node Type: Definition
 
@@ -370,6 +350,7 @@ func NewDefinitionNode(name string, expr Node, s Span) *DefinitionNode {
 
 func (n DefinitionNode) Span() Span        { return n.span }
 func (n DefinitionNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n DefinitionNode) Text() string      { return fmt.Sprintf("%s <- %s", n.Name, n.Expr.Text()) }
 
 func (n DefinitionNode) String() string {
 	return fmt.Sprintf("Definition[%s](%s) @ %s", n.Name, n.Expr, n.Span())
@@ -390,16 +371,21 @@ func NewGrammarNode(items []Node, s Span) *GrammarNode {
 
 func (n GrammarNode) Span() Span        { return n.span }
 func (n GrammarNode) IsSyntactic() bool { return false }
+func (n GrammarNode) Text() string      { return nodesText(n.Items, "\n") }
+func (n GrammarNode) String() string    { return nodesString("Grammar", n, n.Items) }
 
-func (n GrammarNode) String() string {
+// Helpers
+
+func nodesString(name string, n Node, items []Node) string {
 	var (
 		s  strings.Builder
-		ln = len(n.Items) - 1
+		ln = len(items) - 1
 	)
 
-	s.WriteString("Grammar(")
+	s.WriteString(name)
+	s.WriteString("(")
 
-	for i, child := range n.Items {
+	for i, child := range items {
 		s.WriteString(child.String())
 
 		if i < ln {
@@ -410,5 +396,20 @@ func (n GrammarNode) String() string {
 	s.WriteString(") @ ")
 	s.WriteString(n.Span().String())
 
+	return s.String()
+}
+
+func nodesText(items []Node, sep string) string {
+	var (
+		s  strings.Builder
+		ln = len(items) - 1
+	)
+	for i, child := range items {
+		s.WriteString(child.Text())
+
+		if i < ln {
+			s.WriteString(sep)
+		}
+	}
 	return s.String()
 }

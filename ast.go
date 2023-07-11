@@ -255,6 +255,27 @@ func (n NotNode) String() string {
 	return fmt.Sprintf("Not(%s) @ %s", n.Expr, n.Span())
 }
 
+// Node Type: Lex
+
+type LexNode struct {
+	span Span
+	Expr Node
+}
+
+func NewLexNode(expr Node, s Span) *LexNode {
+	n := &LexNode{Expr: expr}
+	n.span = s
+	return n
+}
+
+func (n LexNode) Span() Span { return n.span }
+
+func (n LexNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+
+func (n LexNode) String() string {
+	return fmt.Sprintf("Lex(%s) @ %s", n.Expr, n.Span())
+}
+
 // Node Type: Labeled
 
 type LabeledNode struct {

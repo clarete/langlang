@@ -24,10 +24,10 @@ func TestParseDefinition(t *testing.T) {
 	})
 
 	t.Run("With comment", func(t *testing.T) {
-		parser := NewGrammarParser("A <- . # something something")
+		parser := NewGrammarParser("A <- . // something something")
 		output, err := parser.ParseDefinition()
 		require.NoError(t, err)
-		assert.Equal(t, `Definition[A](Sequence(Any @ 5..6) @ 5..28) @ 0..28`, output.String())
+		assert.Equal(t, `Definition[A](Sequence(Any @ 5..6) @ 5..29) @ 0..29`, output.String())
 	})
 }
 

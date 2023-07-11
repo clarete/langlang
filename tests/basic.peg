@@ -1,2 +1,28 @@
+// These rules demonstrate what needs to exist within an Expression to
+// make it Syntactic or not.  If the entire Expression associated with
+// a Definition is considered syntactic, no space consumption rules
+// will be generated for that production.  Basically, terminal
+// expressions and predicates are all syntactic.  Non-terminal
+// expressions are not syntactic.  And all the other expression
+// operators are syntactic if their nested expressions are.
 NotSyntactic0 <- Syntactic0 Syntactic0 "!"
 Syntactic0 <- "a" "b" "c"
+
+// Space consumption is inserted *before* an item within the top-level
+// Sequence of a Definition.  By applying the lexification operator on
+// the expression matching the ordinal string, we can prevent the
+// parser generator from inserting the space consuption rule between
+// the number and its ordinal string.
+Ordinal <- Decimal #('st' / 'nd' / 'rd' / 'th')^ord
+Decimal <- ([1-9][0-9]*) / '0'
+
+// These are for testing different settings for lexification on the
+// same expression.  The lexification operator can be applied to an
+// entire sub-tree, or to just a single node.  It won't make the whole
+// Definition Syntactic though.  It will just inhibit spacing on the
+// left side of where it's placed.
+SPC0 <- #(Letter Alnum+) ":" #(Digit+)
+SPC1 <- #Letter Alnum+ #":" Digit+
+Alnum  <- [a-zA-Z0-9]
+Letter <- [a-zA-Z]
+Digit  <- [0-9]

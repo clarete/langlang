@@ -102,7 +102,7 @@ func (p *GrammarParser) ParseSequence() (Node, error) {
 	return NewSequenceNode(items, NewSpan(start, p.Location())), nil
 }
 
-// GR: Prefix <- (AND / NOT)? Labeled
+// GR: Prefix <- (AND / NOT / LEX)? Labeled
 func (p *GrammarParser) ParsePrefix() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Prefix"})
 	defer p.PopTraceSpan()
@@ -111,6 +111,7 @@ func (p *GrammarParser) ParsePrefix() (Node, error) {
 	prefix, err := Choice(p, []ParserFn[rune]{
 		p.ExpectRuneFn('&'),
 		p.ExpectRuneFn('!'),
+		p.ExpectRuneFn('#'),
 		func(p Parser) (rune, error) { return 0, nil },
 	})
 	if err != nil {
@@ -125,6 +126,8 @@ func (p *GrammarParser) ParsePrefix() (Node, error) {
 		return NewAndNode(expr, NewSpan(start, p.Location())), nil
 	case '!':
 		return NewNotNode(expr, NewSpan(start, p.Location())), nil
+	case '#':
+		return NewLexNode(expr, NewSpan(start, p.Location())), nil
 	default:
 		return expr, nil
 	}
@@ -437,9 +440,12 @@ func (p *GrammarParser) ParseSpacing() {
 	})
 }
 
-// GR: ParseComment <- '#' (!'\n' .)* '\n'
+// GR: ParseComment <- '//' (!'\n' .)* '\n'
 func (p *GrammarParser) ParseComment() error {
-	if _, err := p.ExpectRune('#'); err != nil {
+	if _, err := p.ExpectRune('/'); err != nil {
+		return err
+	}
+	if _, err := p.ExpectRune('/'); err != nil {
 		return err
 	}
 

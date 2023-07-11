@@ -9,6 +9,7 @@ type goCodeEmitter struct {
 	options     GenGoOptions
 	output      *strings.Builder
 	indentLevel int
+	lexLevel    int
 }
 
 type GenGoOptions struct {
@@ -126,6 +127,8 @@ func (g *goCodeEmitter) visit(node Node) {
 		g.visitAndNode(n)
 	case *NotNode:
 		g.visitNotNode(n)
+	case *LexNode:
+		g.visitLexNode(n)
 	case *LabeledNode:
 		g.visitLabeledNode(n)
 	case *IdentifierNode:
@@ -166,7 +169,7 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 }
 
 func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
-	shouldConsumeSpaces := g.isUnderRuleLevel() && !n.IsSyntactic()
+	shouldConsumeSpaces := g.lexLevel == 0 && g.isUnderRuleLevel() && !n.IsSyntactic()
 	g.write("(func(p parsing.Parser) (parsing.Value, error) {\n")
 	g.indent()
 
@@ -180,7 +183,8 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 	g.writei(")\n")
 
 	for _, item := range n.Items {
-		if shouldConsumeSpaces {
+		_, isLexNode := item.(*LexNode)
+		if shouldConsumeSpaces && !isLexNode {
 			g.writei("item, err = p.(*Parser$StructSuffix).ParseSpacing()\n")
 			g.writeIfErr()
 			g.writei("items = append(items, item)\n")
@@ -306,6 +310,13 @@ func (g *goCodeEmitter) visitNotNode(n *NotNode) {
 
 	g.unindent()
 	g.writei("})")
+}
+
+func (g *goCodeEmitter) visitLexNode(n *LexNode) {
+	g.lexLevel++
+	g.visit(n.Expr)
+	g.write("\n")
+	g.lexLevel--
 }
 
 func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {

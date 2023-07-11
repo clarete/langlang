@@ -20,6 +20,11 @@ func (p BaseParser) Location() Location {
 	}
 }
 
+// SetInput associates an input to the parser struct.  This should only be called once, obviously before parsing.
+func (p *BaseParser) SetInput(input []rune) {
+	p.input = input
+}
+
 // Peek returns the character under the input cursor, or eof if the entire input has been consumed
 func (p *BaseParser) Peek() rune {
 	if p.cursor >= len(p.input) {
@@ -57,6 +62,24 @@ func (p *BaseParser) ExpectRange(l, r rune) (rune, error) {
 
 func (p *BaseParser) ExpectRangeFn(l, r rune) ParserFn[rune] {
 	return func(p Parser) (rune, error) { return p.ExpectRange(l, r) }
+}
+
+func (p *BaseParser) ExpectLiteral(literal string) (string, error) {
+	pos := p.Location()
+
+	for i, v := range literal {
+		c, err := p.Any()
+		if err != nil {
+			p.Backtrack(pos)
+			return "", err
+		}
+		if c == v {
+			continue
+		}
+		return "", p.NewError(fmt.Sprintf("Expected %s, got %s", literal, literal[:i]))
+	}
+	return literal, nil
+
 }
 
 func (p *BaseParser) NewError(msg string) error {

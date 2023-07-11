@@ -191,6 +191,7 @@ func (p *GrammarParser) parseIdentifier() (string, error) {
 		return Choice(p, []ParserFn[rune]{
 			p.ExpectRangeFn('a', 'z'),
 			p.ExpectRangeFn('A', 'Z'),
+			p.ExpectRangeFn('0', '9'),
 			p.ExpectRuneFn('_'),
 		})
 	})
@@ -216,6 +217,7 @@ func (p *GrammarParser) ParseParenExpression() (Node, error) {
 	if _, err := p.ExpectRune('('); err != nil {
 		return nil, err
 	}
+	p.ParseSpacing()
 
 	expr, err := p.ParseExpression()
 	if err != nil {
@@ -225,6 +227,7 @@ func (p *GrammarParser) ParseParenExpression() (Node, error) {
 	if _, err := p.ExpectRune(')'); err != nil {
 		return nil, err
 	}
+	p.ParseSpacing()
 
 	return expr, nil
 }
@@ -281,8 +284,9 @@ func (p *GrammarParser) ParseDot() (Node, error) {
 	if err != nil {
 		return nil, err
 	}
+	end := p.Location()
 	p.ParseSpacing()
-	return NewAnyNode(NewSpan(start, p.Location())), nil
+	return NewAnyNode(NewSpan(start, end)), nil
 }
 
 // GR: Literal <- ['] (!['] Char)* ['] Spacing
@@ -359,6 +363,31 @@ func (p *GrammarParser) parseChar() (string, error) {
 // GR: ParseSpacing <- ' ' / '\t' / '\r' / '\n'
 func (p *GrammarParser) ParseSpacing() {
 	ZeroOrMore(p, func(p Parser) (rune, error) {
-		return ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
+		return Choice(p, []ParserFn[rune]{
+			func(p Parser) (rune, error) {
+				return 0, p.(*GrammarParser).ParseComment()
+			},
+			func(p Parser) (rune, error) {
+				return ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
+			},
+		})
 	})
+}
+
+// GR: ParseComment <- '#' (!'\n' .)* '\n'
+func (p *GrammarParser) ParseComment() error {
+	if _, err := p.ExpectRune('#'); err != nil {
+		return err
+	}
+
+	ZeroOrMore(p, func(p Parser) (rune, error) {
+		if _, err := Not(p, p.ExpectRuneFn('\n')); err != nil {
+			return 0, err
+		}
+		return p.Any()
+	})
+
+	p.ExpectRune('\n')
+
+	return nil
 }

@@ -1,6 +1,9 @@
 package parsing
 
 type Parser interface {
+	// SetInput associates input to a concrete parser struct
+	SetInput(input []rune)
+
 	// Peek returns the rune within the input that is under the
 	// parser cursor.  It does not change the cursor.
 	Peek() rune
@@ -33,6 +36,10 @@ type Parser interface {
 
 	// ExpectRuneFn returns a function wrapping an `ExpectRune` call.
 	ExpectRuneFn(r rune) ParserFn[rune]
+
+	// ExpectLiteral returns `l` if it's the same rune that's under
+	// the cursor, or errors otherwise.
+	ExpectLiteral(l string) (string, error)
 }
 
 // ParserFn is the signature of a parser function.  It unfortunately

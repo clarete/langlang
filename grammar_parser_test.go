@@ -21,6 +21,13 @@ func TestParseDefinition(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, `Definition[A](Choice(Literal(a) @ 5..8, Literal(b) @ 11..14) @ 5..14) @ 0..14`, output.String())
 	})
+
+	t.Run("With comment", func(t *testing.T) {
+		parser := NewGrammarParser("A <- . # something something")
+		output, err := parser.ParseDefinition()
+		require.NoError(t, err)
+		assert.Equal(t, `Definition[A](Any @ 5..6) @ 0..28`, output.String())
+	})
 }
 
 func TestParseExpression(t *testing.T) {

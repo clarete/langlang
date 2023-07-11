@@ -36,7 +36,7 @@ func main() {
 		log.Fatalf("Can't read grammar file: %s", err.Error())
 	}
 
-	parser := parsing.NewGrammarParser(string(grammarData))
+	parser := langlang.NewGrammarParser(string(grammarData))
 	ast, err := parser.Parse()
 	if err != nil {
 		log.Fatalf("Can't parse grammar file: %s", err.Error())
@@ -49,13 +49,13 @@ func main() {
 	var outputData string
 	switch *language {
 	case "go":
-		outputData, err = parsing.GenGo(ast, parsing.GenGoOptions{
+		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
 			PackageName:  *goOptPackage,
 			StructSuffix: *goOptStructSuffix,
 		})
 
 	// case "python":
-	// 	outputData, err = parsing.GenParserPython(ast)
+	// 	outputData, err = langlang.GenParserPython(ast)
 	default:
 		log.Fatalf("Output language `%s` not supported", *language)
 	}

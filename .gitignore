@@ -1,2 +1,2 @@
-examples/tiny/tiny.go
-tests/basic.go
+go/examples/tiny/tiny.go
+go/tests/basic.go

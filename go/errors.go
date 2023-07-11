@@ -1,4 +1,4 @@
-package parsing
+package langlang
 
 import "fmt"
 

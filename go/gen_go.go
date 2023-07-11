@@ -1,4 +1,4 @@
-package parsing
+package langlang
 
 import (
 	"fmt"
@@ -33,7 +33,7 @@ import (
 )
 
 type Parser$StructSuffix struct {
-	parsing.BaseParser
+	langlang.BaseParser
 }
 
 func NewParser$StructSuffix(input string) *Parser$StructSuffix {
@@ -42,56 +42,56 @@ func NewParser$StructSuffix(input string) *Parser$StructSuffix {
 	return p
 }
 
-func (p *Parser$StructSuffix) ParseAny() (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseAny() (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.Any()
 	if err != nil {
-		var zero parsing.Value
+		var zero langlang.Value
 		return zero, err
 	}
-	return parsing.NewValueString(string(r), parsing.NewSpan(start, p.Location())), nil
+	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseRange(left, right rune) (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseRange(left, right rune) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectRange(left, right)
 	if err != nil {
-		var zero parsing.Value
+		var zero langlang.Value
 		return zero, err
 	}
-	return parsing.NewValueString(string(r), parsing.NewSpan(start, p.Location())), nil
+	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseLiteral(literal string) (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseLiteral(literal string) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectLiteral(literal)
 	if err != nil {
-		var zero parsing.Value
+		var zero langlang.Value
 		return zero, err
 	}
-	return parsing.NewValueString(r, parsing.NewSpan(start, p.Location())), nil
+	return langlang.NewValueString(r, langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseSpacing() (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseSpacing() (langlang.Value, error) {
 	start := p.Location()
-	v, err := parsing.ZeroOrMore(p, func(p parsing.Parser) (rune, error) {
-		return parsing.ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
+	v, err := langlang.ZeroOrMore(p, func(p langlang.Parser) (rune, error) {
+		return langlang.ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
 	})
 	if err != nil {
 		return nil, err
 	}
-	return parsing.NewValueString(string(v), parsing.NewSpan(start, p.Location())), nil
+	return langlang.NewValueString(string(v), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseEOF() (parsing.Value, error) {
-	return (func(p parsing.Parser) (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseEOF() (langlang.Value, error) {
+	return (func(p langlang.Parser) (langlang.Value, error) {
 		var (
 			start = p.Location()
-			items []parsing.Value
-			item  parsing.Value
+			items []langlang.Value
+			item  langlang.Value
 			err   error
 		)
-		item, err = parsing.Not(p, func(p parsing.Parser) (parsing.Value, error) {
+		item, err = langlang.Not(p, func(p langlang.Parser) (langlang.Value, error) {
 			return p.(*Parser$StructSuffix).ParseAny()
 		})
 		if err != nil {
@@ -100,7 +100,7 @@ func (p *Parser$StructSuffix) ParseEOF() (parsing.Value, error) {
 		if item != nil {
 			items = append(items, item)
 		}
-		return parsing.NewValueSequence(items, parsing.NewSpan(start, p.Location())), nil
+		return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil
 	}(p))
 }
 `, opt.PackageName))
@@ -156,11 +156,11 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.writeIndent()
 	g.write("\nfunc (p *Parser$StructSuffix) Parse")
 	g.write(n.Name)
-	g.write("() (parsing.Value, error) {\n")
+	g.write("() (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("p.PushTraceSpan")
-	fmt.Fprintf(g.output, `(parsing.TracerSpan{Name: "%s"})`, n.Name)
+	fmt.Fprintf(g.output, `(langlang.TracerSpan{Name: "%s"})`, n.Name)
 	g.write("\n")
 	g.writei("defer p.PopTraceSpan()\n")
 	g.writei("return ")
@@ -172,14 +172,14 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 
 func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 	shouldConsumeSpaces := g.lexLevel == 0 && g.isUnderRuleLevel() && !n.IsSyntactic()
-	g.write("(func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.write("(func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("var (\n")
 	g.indent()
 	g.writei("start = p.Location()\n")
-	g.writei("items []parsing.Value\n")
-	g.writei("item  parsing.Value\n")
+	g.writei("items []langlang.Value\n")
+	g.writei("item  langlang.Value\n")
 	g.writei("err   error\n")
 	g.unindent()
 	g.writei(")\n")
@@ -203,18 +203,18 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 		g.writei("}\n")
 	}
 
-	g.writei("return parsing.NewValueSequence(items, parsing.NewSpan(start, p.Location())), nil\n")
+	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
 
 	g.unindent()
 	g.writei("}(p))")
 }
 
 func (g *goCodeEmitter) visitOneOrMoreNode(n *OneOrMoreNode) {
-	g.write("(func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.write("(func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("start := p.Location()\n")
-	g.writei("items, err := parsing.OneOrMore(p, func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.writei("items, err := langlang.OneOrMore(p, func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("return ")
@@ -225,18 +225,18 @@ func (g *goCodeEmitter) visitOneOrMoreNode(n *OneOrMoreNode) {
 	g.writei("})\n")
 	g.writeIfErr()
 
-	g.writei("return parsing.NewValueSequence(items, parsing.NewSpan(start, p.Location())), nil\n")
+	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
 
 	g.unindent()
 	g.writei("}(p))")
 }
 
 func (g *goCodeEmitter) visitZeroOrMoreNode(n *ZeroOrMoreNode) {
-	g.write("(func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.write("(func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("start := p.Location()\n")
-	g.writei("items, err := parsing.ZeroOrMore(p, func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.writei("items, err := langlang.ZeroOrMore(p, func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("return ")
@@ -247,20 +247,20 @@ func (g *goCodeEmitter) visitZeroOrMoreNode(n *ZeroOrMoreNode) {
 	g.writei("})\n")
 	g.writeIfErr()
 
-	g.writei("return parsing.NewValueSequence(items, parsing.NewSpan(start, p.Location())), nil\n")
+	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
 
 	g.unindent()
 	g.writei("}(p))")
 }
 
 func (g *goCodeEmitter) visitOptionalNode(n *OptionalNode) {
-	g.write("parsing.Choice(p, []parsing.ParserFn[parsing.Value]{\n")
+	g.write("langlang.Choice(p, []langlang.ParserFn[langlang.Value]{\n")
 	g.indent()
 
 	g.wirteExprFn(n.Expr)
 	g.write(",\n")
 
-	g.writei("func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.writei("func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 	g.writei("return nil, nil\n")
 	g.unindent()
@@ -277,7 +277,7 @@ func (g *goCodeEmitter) visitChoiceNode(n *ChoiceNode) {
 	case 1:
 		g.visit(n.Items[0])
 	default:
-		g.write("parsing.Choice(p, []parsing.ParserFn[parsing.Value]{\n")
+		g.write("langlang.Choice(p, []langlang.ParserFn[langlang.Value]{\n")
 		g.indent()
 
 		for _, expr := range n.Items {
@@ -291,7 +291,7 @@ func (g *goCodeEmitter) visitChoiceNode(n *ChoiceNode) {
 }
 
 func (g *goCodeEmitter) visitAndNode(n *AndNode) {
-	g.write("parsing.And(p, func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.write("langlang.And(p, func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("return ")
@@ -303,7 +303,7 @@ func (g *goCodeEmitter) visitAndNode(n *AndNode) {
 }
 
 func (g *goCodeEmitter) visitNotNode(n *NotNode) {
-	g.write("parsing.Not(p, func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.write("langlang.Not(p, func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("return ")
@@ -322,11 +322,11 @@ func (g *goCodeEmitter) visitLexNode(n *LexNode) {
 }
 
 func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
-	g.write("func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.write("func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 	g.writei("start = p.Location()\n")
 
-	g.writei("return parsing.Choice(p, []parsing.ParserFn[parsing.Value]{\n")
+	g.writei("return langlang.Choice(p, []langlang.ParserFn[langlang.Value]{\n")
 	g.indent()
 
 	// Write the expression as the first option
@@ -334,10 +334,10 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 	g.write(",\n")
 
 	// if the expression failed, throw an error
-	g.writei("func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.writei("func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 	g.writei("return nil, p.Throw")
-	g.write(fmt.Sprintf(`("%s", parsing.NewSpan(start, p.Location()))`, n.Label))
+	g.write(fmt.Sprintf(`("%s", langlang.NewSpan(start, p.Location()))`, n.Label))
 	g.write("\n")
 
 	g.unindent()
@@ -374,7 +374,7 @@ func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
 	case 1:
 		g.visit(n.Items[0])
 	default:
-		g.write("parsing.Choice(p, []parsing.ParserFn[parsing.Value]{\n")
+		g.write("langlang.Choice(p, []langlang.ParserFn[langlang.Value]{\n")
 		g.indent()
 
 		for _, expr := range n.Items {
@@ -406,7 +406,7 @@ func (g *goCodeEmitter) visitAnyNode() {
 // Utilities to write data into the output buffer
 
 func (g *goCodeEmitter) wirteExprFn(expr Node) {
-	g.writei("func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.writei("func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("return ")

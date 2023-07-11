@@ -1,2 +1,8 @@
+# rust implementation
 target/
 _/
+
+# go implementation
+go/examples/tiny/tiny.go
+go/tests/basic.go
+

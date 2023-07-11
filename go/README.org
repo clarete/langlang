@@ -1,0 +1,183 @@
+* Introduction
+
+Bring your own grammar and get a feature rich parser generated for
+different languages.  Main reasons why you might want to use this:
+
+ - Concise input grammar format and intuitive algorithm: generates
+   recursive top-down parsers based on Parsing Expression Grammars
+ - Error reporting with custom context through failure ~labels~
+ - Automatic handling of white spaces, making grammars less cluttered
+ - There are plans to extend this library to also allow error recovery
+
+** Currently supported output languages
+
+ * [X] Go Lang
+ * [ ] Python
+ * [ ] Java Script
+ * [ ] Write your own code generator
+
+** Basic Usage
+
+If you just want to test the waters, point the command line utility at
+a grammar and pick a language:
+
+#+begin_src bash
+go run ./cmd -language go -grammar your-grammar-file.peg
+#+end_src
+
+There is an ~examples~ directory within this package.  They contain
+some grammar files that can be used as a reference.
+
+* Input Language reference
+** Parsing Expressions
+
+The input grammar is as simple as it can get. It builds off of the
+original PEG format, the other features are added conservatively.
+Take the following input as an example:
+
+#+begin_src peg
+  Production <- Expression
+#+end_src
+
+At the left side of the arrow there is an identifier and on the right
+side, there is an expression.  These two together are called either
+productions or (parsing) rules.  And each production in a grammar is
+translated to a function.  Let's go over what's valid in an expression
+and how to compose them.  If you've ever seen or used regular
+expressions, you've got a head start.
+
+*** Terminals
+
+ - *Any* e.g.: ~.~ this matches any character, and only errors if it
+   reaches the end of the input
+
+ - *Literal* e.g.: ~'x'~ anything around quotes (single and double
+   are the same)
+
+ - *Class and Range* e.g.: ~[0-9]~, ~[a-zA-Z]~, ~[a-f0-9_]~.
+   Notice that classes may contain either ranges or single characters.
+   The last example contains two ranges (~a-f~ and ~0-9~) and one
+   single char (~_~).  It means *match either one of these*. e.g.:
+   ~[a-cA-C]~ is translated to ~'a' / 'b' / 'c' / 'A' / 'B' / 'C'~.
+
+*** Non-Terminals
+
+The biggest addition of this type of grammar on top of regular
+expressions is the ability to define and recursively call productions.
+Here's a grammar snippet for parsing numbers:
+
+#+begin_src peg
+Signed   <- ('-' / '+') Signed / Decimal
+Decimal  <- ([1-9][0-9]*) / '0'
+#+end_src
+
+The topmost production ~Signed~ calls itself or the production
+~Decimal~.  It allows parsing signed and unsigned numbers
+recursively. (e.g.: ~+-+--1~ and so forth would be accepted).
+
+*** Expression Composition
+
+The following operators can be used on both Terminals and
+Non-Terminals, on top of parenthesized expressions:
+
+| operator         | example   | comment                    |
+|------------------+-----------+----------------------------|
+| *ordered choice* | =e1 / e2= |                            |
+| *not predicate*  | =!e=      |                            |
+| *and predicate*  | =&e=      | sugar for =!!e=            |
+| *zero or more*   | =e*=      |                            |
+| *one or more*    | =e+=      | sugar for =ee*=            |
+| *optional*       | =e?=      | sugar for =&ee / !e=       |
+| *lexification*   | =#e=      |                            |
+| *label*          | =e^label= | sugar for =e/throw(label)= |
+
+**** Ordered Choice
+
+This operator tries expressions one at a time, from left to right, and
+stops at the first one to succeed.  Or error if no alternatives work.
+E.g.:
+
+#+begin_src peg
+SomeDigits <- '0' / '1' / '2' / '3' / '4'
+#+end_src
+
+Passing ~6~ to the above expression will generate an error.
+
+**** Predicates (Not/And)
+
+Predicates are the mechanism that allows unlimited look ahead, as they
+do not consume any input.  e.g.:
+
+#+begin_src peg
+BracketString <- "[" (!"]" .)* "]"
+#+end_src
+
+In the above example, the *any* expression isn't evaluated if the
+parser finds the closing square bracket.
+
+The *and* predicate (~&~) is just syntactical sugar for ~!!~.
+
+**** Repetition ({Zero,One} Or More)
+
+ * *Zero Or More* it never fails, as it can match its expression at
+   least zero times:
+
+ * *One Or More* is the syntax sugar for calling the expression once,
+   followed by applying zero or more to the same expression.  It can
+   fail at the first time it matches the expression
+
+ * *Optional* it will match an expression zero or one time
+
+**** Lexification
+
+By default, the generated parsers emit code to consume whitespaces
+automatically before each item within a sequence of a production
+that's considered not syntactic.
+
+**** Error reporting with Labels
+* Development
+
+** Running the test suite
+
+*** Generate Parsers
+
+Both the examples and end to end tests need parsers to be generated
+before tests can run successfully.  So these two commands are
+required:
+
+#+begin_src shell
+  go generate ./...
+  go test ./... -v
+#+end_src
+
+* Development
+
+** Running the test suite
+
+*** Generate Parsers
+
+Both the examples and end to end tests need parsers to be generated
+before tests can run successfully.  So these two commands are
+required:
+
+#+begin_src shell
+  go generate ./...
+  go test ./... -v
+#+end_src
+
+* Roadmap
+
+ * [-] ???: [Go Lang] Decode output trees into structs
+ * [ ] SML: Allow adding comment to skip list (by allowing overriding
+   the spacing definition maybe?)
+ * [ ] MID: import productions from other grammars: Complicates the
+   deserialization I guess, so goes after that's working
+ * [ ] MID: Error Recovery capabilities: If a production name matches
+   the name of a label, then throw shouldn't stop parsing, but instead
+   call the recovery expression associated with the label
+ * [ ] MID: Build and display call graph for debugging purposes.
+   Needs to visualize the backtracking and mark errors in red
+ * [ ] MID: Python Code Generator
+ * [ ] MID: Java Script Code Generator
+ * [ ] BIG: Bootstrap off hand written parser, so grammar writters can
+   take advantage of the features baked into the parser generator

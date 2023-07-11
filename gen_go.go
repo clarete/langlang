@@ -6,30 +6,42 @@ import (
 )
 
 type goCodeEmitter struct {
+	options     GenGoOptions
 	output      *strings.Builder
 	indentLevel int
 }
 
-func newGoCodeEmitter() *goCodeEmitter {
-	var output strings.Builder
+type GenGoOptions struct {
+	PackageName  string
+	StructSuffix string
+}
 
-	output.WriteString(`package parser
+func DefaultGenGoOptions() GenGoOptions {
+	return GenGoOptions{
+		PackageName:  "parser",
+		StructSuffix: "",
+	}
+}
+
+func newGoCodeEmitter(opt GenGoOptions) *goCodeEmitter {
+	emitter := &goCodeEmitter{options: opt, output: &strings.Builder{}}
+	emitter.write(fmt.Sprintf(`package %s
 
 import (
 	"github.com/clarete/langlang/go"
 )
 
-type Parser struct {
+type Parser$StructSuffix struct {
 	parsing.BaseParser
 }
 
-func NewParser(input string) *Parser {
-	p := &Parser{}
+func NewParser$StructSuffix(input string) *Parser$StructSuffix {
+	p := &Parser$StructSuffix{}
 	p.SetInput([]rune(input))
 	return p
 }
 
-func (p *Parser) ParseAny() (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseAny() (parsing.Value, error) {
 	start := p.Location()
 	r, err := p.Any()
 	if err != nil {
@@ -39,7 +51,7 @@ func (p *Parser) ParseAny() (parsing.Value, error) {
 	return parsing.NewValueString(string(r), parsing.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser) ParseRange(left, right rune) (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseRange(left, right rune) (parsing.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectRange(left, right)
 	if err != nil {
@@ -49,7 +61,7 @@ func (p *Parser) ParseRange(left, right rune) (parsing.Value, error) {
 	return parsing.NewValueString(string(r), parsing.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser) ParseLiteral(literal string) (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseLiteral(literal string) (parsing.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectLiteral(literal)
 	if err != nil {
@@ -59,23 +71,39 @@ func (p *Parser) ParseLiteral(literal string) (parsing.Value, error) {
 	return parsing.NewValueString(r, parsing.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser) ParseSpacing() (parsing.Value, error) {
+func (p *Parser$StructSuffix) ParseSpacing() (parsing.Value, error) {
 	start := p.Location()
 	v, err := parsing.ZeroOrMore(p, func(p parsing.Parser) (rune, error) {
-		return parsing.Choice(p, []parsing.ParserFn[rune]{
-			p.ExpectRuneFn(' '),
-			p.ExpectRuneFn('\t'),
-			p.ExpectRuneFn('\r'),
-			p.ExpectRuneFn('\n'),
-		})
+		return parsing.ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
 	})
 	if err != nil {
 		return nil, err
 	}
 	return parsing.NewValueString(string(v), parsing.NewSpan(start, p.Location())), nil
 }
-`)
-	return &goCodeEmitter{output: &output}
+
+func (p *Parser$StructSuffix) ParseEOF() (parsing.Value, error) {
+	return (func(p parsing.Parser) (parsing.Value, error) {
+		var (
+			start = p.Location()
+			items []parsing.Value
+			item  parsing.Value
+			err   error
+		)
+		item, err = parsing.Not(p, func(p parsing.Parser) (parsing.Value, error) {
+			return p.(*Parser$StructSuffix).ParseAny()
+		})
+		if err != nil {
+			return nil, err
+		}
+		if item != nil {
+			items = append(items, item)
+		}
+		return parsing.NewValueSequence(items, parsing.NewSpan(start, p.Location())), nil
+	}(p))
+}
+`, opt.PackageName))
+	return emitter
 }
 
 func (g *goCodeEmitter) visit(node Node) {
@@ -121,7 +149,7 @@ func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
 
 func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.writeIndent()
-	g.write("\nfunc (p *Parser) Parse")
+	g.write("\nfunc (p *Parser$StructSuffix) Parse")
 	g.write(n.Name)
 	g.write("() (parsing.Value, error) {\n")
 	g.indent()
@@ -153,7 +181,7 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 
 	for _, item := range n.Items {
 		if shouldConsumeSpaces {
-			g.writei("item, err = p.(*Parser).ParseSpacing()\n")
+			g.writei("item, err = p.(*Parser$StructSuffix).ParseSpacing()\n")
 			g.writeIfErr()
 			g.writei("items = append(items, item)\n")
 		}
@@ -296,7 +324,7 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 	g.writei("func(p parsing.Parser) (parsing.Value, error) {\n")
 	g.indent()
 	g.writei("return nil, p.Throw")
-	fmt.Fprintf(g.output, `("%s", parsing.NewSpan(start, p.Location()))`, n.Label)
+	g.write(fmt.Sprintf(`("%s", parsing.NewSpan(start, p.Location()))`, n.Label))
 	g.write("\n")
 
 	g.unindent()
@@ -310,21 +338,21 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 }
 
 func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
-	s := "p.(*Parser).Parse%s()"
+	s := "p.(*Parser$StructSuffix).Parse%s()"
 	if g.isAtRuleLevel() {
 		s = "p.Parse%s()"
 	}
-	fmt.Fprintf(g.output, s, n.Value)
+	g.write(fmt.Sprintf(s, n.Value))
 }
 
 var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
 
 func (g *goCodeEmitter) visitLiteralNode(n *LiteralNode) {
-	s := `p.(*Parser).ParseLiteral("%s")`
+	s := `p.(*Parser$StructSuffix).ParseLiteral("%s")`
 	if g.isAtRuleLevel() {
 		s = `p.ParseLiteral("%s")`
 	}
-	fmt.Fprintf(g.output, s, quoteSanitizer.Replace(n.Value))
+	g.write(fmt.Sprintf(s, quoteSanitizer.Replace(n.Value)))
 }
 
 func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
@@ -347,15 +375,15 @@ func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
 }
 
 func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
-	s := "p.(*Parser).ParseRange('%s', '%s')"
+	s := "p.(*Parser$StructSuffix).ParseRange('%s', '%s')"
 	if g.isAtRuleLevel() {
 		s = "p.ParseRange('%s', '%s')"
 	}
-	fmt.Fprintf(g.output, s, n.Left, n.Right)
+	g.write(fmt.Sprintf(s, n.Left, n.Right))
 }
 
 func (g *goCodeEmitter) visitAnyNode() {
-	s := "p.(*Parser).ParseAny()"
+	s := "p.(*Parser$StructSuffix).ParseAny()"
 	if g.isAtRuleLevel() {
 		s = "p.ParseAny()"
 	}
@@ -390,7 +418,7 @@ func (g *goCodeEmitter) writei(s string) {
 }
 
 func (g *goCodeEmitter) write(s string) {
-	g.output.WriteString(s)
+	g.output.WriteString(strings.ReplaceAll(s, "$StructSuffix", g.options.StructSuffix))
 }
 
 func (g *goCodeEmitter) writeIndent() {
@@ -431,8 +459,8 @@ func (g *goCodeEmitter) String() string {
 	return g.output.String()
 }
 
-func GenGo(node Node) (string, error) {
-	g := newGoCodeEmitter()
+func GenGo(node Node, opt GenGoOptions) (string, error) {
+	g := newGoCodeEmitter(opt)
 	g.visit(node)
 	return g.String(), nil
 }

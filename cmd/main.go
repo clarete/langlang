@@ -15,6 +15,10 @@ func main() {
 	var (
 		grammarPath = flag.String("grammar", "", "Path to the grammar file")
 		language    = flag.String("language", "", "Output language")
+
+		// options specific to the go generator
+		goOptPackage      = flag.String("go-package", "parser", "Name of the go package in the generated parser")
+		goOptStructSuffix = flag.String("go-struct-suffix", "", "Suffix of the Go struct generated for the parser")
 	)
 	flag.Parse()
 
@@ -41,7 +45,10 @@ func main() {
 	var outputData string
 	switch *language {
 	case "go":
-		outputData, err = parsing.GenGo(ast)
+		outputData, err = parsing.GenGo(ast, parsing.GenGoOptions{
+			PackageName:  *goOptPackage,
+			StructSuffix: *goOptStructSuffix,
+		})
 
 	// case "python":
 	// 	outputData, err = parsing.GenParserPython(ast)

@@ -1,5 +1,45 @@
 package parsing
 
+import (
+	"fmt"
+)
+
+type Location struct {
+	Line   int
+	Column int
+	Cursor int
+}
+
+func NewLocation(line, column, cursor int) Location {
+	return Location{line, column, cursor}
+}
+
+func (l Location) String() string {
+	if l.Line == 0 {
+		return fmt.Sprintf("%d", l.Column)
+	}
+	return fmt.Sprintf("%d:%d", l.Line, l.Column)
+}
+
+type Span struct {
+	Start Location
+	End   Location
+}
+
+func NewSpan(s, e Location) Span {
+	return Span{s, e}
+}
+
+func (s Span) String() string {
+	if s.Start.Line == s.End.Line && s.Start.Line == 0 {
+		if s.Start.Column == s.End.Column {
+			return fmt.Sprintf("%d", s.Start.Column)
+		}
+		return fmt.Sprintf("%d..%d", s.Start.Column, s.End.Column)
+	}
+	return fmt.Sprintf("%s..%s", s.Start, s.End)
+}
+
 type Parser interface {
 	// SetInput associates input to a concrete parser struct
 	SetInput(input []rune)

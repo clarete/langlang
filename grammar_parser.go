@@ -38,12 +38,13 @@ func (p *GrammarParser) ParseDefinition() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Definition"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
 	identifier, err := p.parseIdentifier()
 	if err != nil {
 		return nil, err
 	}
-	p.ParseSpacing()
+
 	if err := p.ParseLeftArrow(); err != nil {
 		return nil, err
 	}
@@ -59,17 +60,19 @@ func (p *GrammarParser) ParseExpression() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Expression"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
 	head, err := p.ParseSequence()
 	if err != nil {
 		return nil, err
 	}
 	tail, err := ZeroOrMore(p, func(p Parser) (Node, error) {
+		p.(*GrammarParser).ParseSpacing()
 		if _, err := p.ExpectRune('/'); err != nil {
 			return nil, err
 		}
-		p.(*GrammarParser).ParseSpacing()
 
+		p.(*GrammarParser).ParseSpacing()
 		return p.(*GrammarParser).ParseSequence()
 	})
 	if err != nil {
@@ -107,6 +110,7 @@ func (p *GrammarParser) ParsePrefix() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Prefix"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
 	prefix, err := Choice(p, []ParserFn[rune]{
 		p.ExpectRuneFn('&'),
@@ -138,6 +142,7 @@ func (p *GrammarParser) ParseLabeled() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Labeled"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
 	expr, err := p.ParseSuffix()
 	if err != nil {
@@ -152,10 +157,7 @@ func (p *GrammarParser) ParseLabeled() (Node, error) {
 			if err != nil {
 				return nil, err
 			}
-			end := p.Location()
-			p.(*GrammarParser).ParseSpacing()
-
-			return NewLabeledNode(label, expr, NewSpan(start, end)), nil
+			return NewLabeledNode(label, expr, NewSpan(start, p.Location())), nil
 		},
 		func(p Parser) (Node, error) { return expr, nil },
 	})
@@ -166,11 +168,14 @@ func (p *GrammarParser) ParseSuffix() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Suffix"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
 	primary, err := p.ParsePrimary()
 	if err != nil {
 		return nil, err
 	}
+
+	p.ParseSpacing()
 	suffix, err := Choice(p, []ParserFn[rune]{
 		p.ExpectRuneFn('?'),
 		p.ExpectRuneFn('*'),
@@ -218,13 +223,13 @@ func (p *GrammarParser) ParseIdentifier() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Identifier"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
 	value, err := p.parseIdentifier()
 	if err != nil {
 		return nil, err
 	}
 	end := p.Location()
-	p.ParseSpacing()
 
 	if _, err := Not(p, func(p Parser) (Node, error) {
 		return nil, p.(*GrammarParser).ParseLeftArrow()
@@ -260,31 +265,31 @@ func (p *GrammarParser) parseIdentifier() (string, error) {
 }
 
 func (p *GrammarParser) ParseLeftArrow() error {
+	p.ParseSpacing()
 	if _, err := p.ExpectRune('<'); err != nil {
 		return err
 	}
 	if _, err := p.ExpectRune('-'); err != nil {
 		return err
 	}
-	p.ParseSpacing()
 	return nil
 }
 
 func (p *GrammarParser) ParseParenExpression() (Node, error) {
+	p.ParseSpacing()
 	if _, err := p.ExpectRune('('); err != nil {
 		return nil, err
 	}
-	p.ParseSpacing()
 
 	expr, err := p.ParseExpression()
 	if err != nil {
 		return nil, err
 	}
 
+	p.ParseSpacing()
 	if _, err := p.ExpectRune(')'); err != nil {
 		return nil, err
 	}
-	p.ParseSpacing()
 
 	return expr, nil
 }
@@ -294,6 +299,7 @@ func (p *GrammarParser) ParseClass() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Class"})
 	defer p.PopTraceSpan()
 
+	p.ParseSpacing()
 	start := p.Location()
 	if _, err := p.ExpectRune('['); err != nil {
 		return nil, err
@@ -310,7 +316,6 @@ func (p *GrammarParser) ParseClass() (Node, error) {
 	if _, err := p.ExpectRune(']'); err != nil {
 		return nil, err
 	}
-	p.ParseSpacing()
 	return NewClassNode(ranges, NewSpan(start, p.Location())), nil
 }
 
@@ -342,14 +347,13 @@ func (p *GrammarParser) ParseRange() (Node, error) {
 }
 
 func (p *GrammarParser) ParseDot() (Node, error) {
+	p.ParseSpacing()
 	start := p.Location()
 	_, err := p.ExpectRune('.')
 	if err != nil {
 		return nil, err
 	}
-	end := p.Location()
-	p.ParseSpacing()
-	return NewAnyNode(NewSpan(start, end)), nil
+	return NewAnyNode(NewSpan(start, p.Location())), nil
 }
 
 // GR: Literal <- ['] (!['] Char)* ['] Spacing

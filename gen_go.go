@@ -98,6 +98,8 @@ func (g *goCodeEmitter) visit(node Node) {
 		g.visitAndNode(n)
 	case *NotNode:
 		g.visitNotNode(n)
+	case *LabeledNode:
+		g.visitLabeledNode(n)
 	case *IdentifierNode:
 		g.visitIdentifierNode(n)
 	case *LiteralNode:
@@ -123,8 +125,14 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.write(n.Name)
 	g.write("() (parsing.Value, error) {\n")
 	g.indent()
+
+	g.writei("p.PushTraceSpan")
+	fmt.Fprintf(g.output, `(parsing.TracerSpan{Name: "%s"})`, n.Name)
+	g.write("\n")
+	g.writei("defer p.PopTraceSpan()\n")
 	g.writei("return ")
 	g.visit(n.Expr)
+
 	g.unindent()
 	g.write("\n}\n")
 }
@@ -270,6 +278,35 @@ func (g *goCodeEmitter) visitNotNode(n *NotNode) {
 
 	g.unindent()
 	g.writei("})")
+}
+
+func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
+	g.write("func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.indent()
+	g.writei("start = p.Location()\n")
+
+	g.writei("return parsing.Choice(p, []parsing.ParserFn[parsing.Value]{\n")
+	g.indent()
+
+	// Write the expression as the first option
+	g.wirteExprFn(n.Expr)
+	g.write(",\n")
+
+	// if the expression failed, throw an error
+	g.writei("func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.indent()
+	g.writei("return nil, p.Throw")
+	fmt.Fprintf(g.output, `("%s", parsing.NewSpan(start, p.Location()))`, n.Label)
+	g.write("\n")
+
+	g.unindent()
+	g.writei("},\n")
+
+	g.unindent()
+	g.writei("})\n")
+
+	g.unindent()
+	g.writei("}(p)\n")
 }
 
 func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {

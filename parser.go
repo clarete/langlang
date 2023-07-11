@@ -13,15 +13,41 @@ type Parser interface {
 	// length.
 	Any() (rune, error)
 
+	// State something something
+	State() ParserState
+
 	// Backtrack resets the parser's cursor to `location`
-	Backtrack(location Location)
+	Backtrack(ParserState)
 
 	// Location returns the full location of the cursor within the
 	// input.
 	Location() Location
 
 	// NewError creates a new error message
-	NewError(msg string) error
+	NewError(msg string, span Span) error
+
+	// SetLabelMessages associates a message to a label, so when a
+	// given label is thrown by the `Throw()` module
+	SetLabelMessages(map[string]string)
+
+	// Throw creates an error that can't be handled by backtracking
+	Throw(label string, span Span) error
+
+	// WithinPredicate returns true if the parser is currently
+	// executing a predicate expression.  This is used to prevent
+	// generating exceptions from within the ~Throw~ operator so
+	// it generates backtracking errors instead
+	WithinPredicate() bool
+
+	// EnterPredicate is called by the `Not` operator to inform
+	// the parser that a predicate evaluation has started.  This
+	// function is reentrant.
+	EnterPredicate()
+
+	// LeavePredicate is also called by the `Not` operator to
+	// inform the parser that a predicate evaluation has ended.
+	// This function is reentrant.
+	LeavePredicate()
 
 	// ExpectRune returns `r` if it's the same rune that's under
 	// the cursor, or errors otherwise.
@@ -40,6 +66,27 @@ type Parser interface {
 	// ExpectLiteral returns `l` if it's the same rune that's under
 	// the cursor, or errors otherwise.
 	ExpectLiteral(l string) (string, error)
+
+	Tracer
+}
+
+type ParserState struct {
+	Location   Location
+	StackTrace []TracerSpan
+}
+
+type Tracer interface {
+	// PushTraceSpan allows parser implementations to keep track
+	// of spans for tracing the execution of the parsing
+	PushTraceSpan(TracerSpan)
+
+	// PopTraceSpan allows parser implementations to keep track
+	// of spans for tracing the execution of the parsing
+	PopTraceSpan() TracerSpan
+}
+
+type TracerSpan struct {
+	Name string
 }
 
 // ParserFn is the signature of a parser function.  It unfortunately
@@ -56,10 +103,10 @@ type ParserFn[T any] func(p Parser) (T, error)
 func ZeroOrMore[T any](p Parser, fn ParserFn[T]) ([]T, error) {
 	var output []T
 	for {
-		pos := p.Location()
+		state := p.State()
 		item, err := fn(p)
 		if err != nil {
-			p.Backtrack(pos)
+			p.Backtrack(state)
 			if isthrown(err) {
 				return nil, err
 			}
@@ -101,19 +148,19 @@ func ChoiceRune(p Parser, runes []rune) (rune, error) {
 // if no alternatives match.
 func Choice[T any](p Parser, fns []ParserFn[T]) (T, error) {
 	var zero T
-	pos := p.Location()
+	state := p.State()
 	for _, fn := range fns {
 		item, err := fn(p)
 		if err == nil {
 			return item, nil
 		} else {
-			p.Backtrack(pos)
-			if isthrown(err) {
+			p.Backtrack(state)
+			if isthrown(err) { // && !p.WithinPredicate()
 				return zero, err
 			}
 		}
 	}
-	return zero, p.NewError("Choice Error")
+	return zero, p.NewError("Choice Error", NewSpan(state.Location, p.Location()))
 }
 
 // Optional is a syntax sugar for an ordered choice in which the
@@ -132,14 +179,16 @@ func Optional[T any](p Parser, fn ParserFn[T]) (T, error) {
 // This is the same as calling Not twice but here's a shortuct
 func And[T any](p Parser, fn ParserFn[T]) (T, error) {
 	var zero T
-	pos := p.Location()
+	p.EnterPredicate()
+	state := p.State()
 	_, err := fn(p)
 
 	// unconditionally backtrack as the predicate never consumes any input
-	p.Backtrack(pos)
+	p.Backtrack(state)
+	p.LeavePredicate()
 
 	if err != nil {
-		return zero, p.NewError("And Error")
+		return zero, p.NewError("And Error", NewSpan(state.Location, p.Location()))
 	}
 	return zero, nil
 }
@@ -147,14 +196,16 @@ func And[T any](p Parser, fn ParserFn[T]) (T, error) {
 // Not returns an error if fn succeeds, or succeed if fn doesn't succeed
 func Not[T any](p Parser, fn ParserFn[T]) (T, error) {
 	var zero T
-	pos := p.Location()
+	p.EnterPredicate()
+	state := p.State()
 	_, err := fn(p)
 
 	// unconditionally backtrack as the predicate never consumes any input
-	p.Backtrack(pos)
+	p.Backtrack(state)
+	p.LeavePredicate()
 
 	if err == nil {
-		return zero, p.NewError("Not Error")
+		return zero, p.NewError("Not Error", NewSpan(state.Location, p.Location()))
 	}
 	return zero, nil
 }

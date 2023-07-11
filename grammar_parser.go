@@ -16,6 +16,9 @@ func (p *GrammarParser) Parse() (Node, error) {
 
 // GR: Grammar <- Spacing Definition+ EndOfFile
 func (p *GrammarParser) ParseGrammar() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Grammar"})
+	defer p.PopTraceSpan()
+
 	p.ParseSpacing()
 	start := p.Location()
 	defs, err := OneOrMore(p, func(p Parser) (Node, error) {
@@ -32,6 +35,9 @@ func (p *GrammarParser) ParseGrammar() (Node, error) {
 
 // GR: Definition <- Identifier LEFTARROW Expression
 func (p *GrammarParser) ParseDefinition() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Definition"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	identifier, err := p.parseIdentifier()
 	if err != nil {
@@ -50,6 +56,9 @@ func (p *GrammarParser) ParseDefinition() (Node, error) {
 
 // GR: Expression <- Sequence (SLASH Sequence)*
 func (p *GrammarParser) ParseExpression() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Expression"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	head, err := p.ParseSequence()
 	if err != nil {
@@ -75,6 +84,9 @@ func (p *GrammarParser) ParseExpression() (Node, error) {
 
 // GR: Sequence <- Prefix*
 func (p *GrammarParser) ParseSequence() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Sequence"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	items, err := ZeroOrMore(p, func(p Parser) (Node, error) {
 		return p.(*GrammarParser).ParsePrefix()
@@ -90,8 +102,11 @@ func (p *GrammarParser) ParseSequence() (Node, error) {
 	return NewSequenceNode(items, NewSpan(start, p.Location())), nil
 }
 
-// GR: Prefix <- (AND / NOT)? Suffix
+// GR: Prefix <- (AND / NOT)? Labeled
 func (p *GrammarParser) ParsePrefix() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Prefix"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	prefix, err := Choice(p, []ParserFn[rune]{
 		p.ExpectRuneFn('&'),
@@ -101,22 +116,53 @@ func (p *GrammarParser) ParsePrefix() (Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	suffix, err := p.ParseSuffix()
+	expr, err := p.ParseLabeled()
 	if err != nil {
 		return nil, err
 	}
 	switch prefix {
 	case '&':
-		return NewAndNode(suffix, NewSpan(start, p.Location())), nil
+		return NewAndNode(expr, NewSpan(start, p.Location())), nil
 	case '!':
-		return NewNotNode(suffix, NewSpan(start, p.Location())), nil
+		return NewNotNode(expr, NewSpan(start, p.Location())), nil
 	default:
-		return suffix, nil
+		return expr, nil
 	}
+}
+
+// GR: Labeled <- Suffix (LABEL Identifier)?
+func (p *GrammarParser) ParseLabeled() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Labeled"})
+	defer p.PopTraceSpan()
+
+	start := p.Location()
+	expr, err := p.ParseSuffix()
+	if err != nil {
+		return nil, err
+	}
+	return Choice(p, []ParserFn[Node]{
+		func(p Parser) (Node, error) {
+			if _, err := p.ExpectRune('^'); err != nil {
+				return nil, err
+			}
+			label, err := p.(*GrammarParser).parseIdentifier()
+			if err != nil {
+				return nil, err
+			}
+			end := p.Location()
+			p.(*GrammarParser).ParseSpacing()
+
+			return NewLabeledNode(label, expr, NewSpan(start, end)), nil
+		},
+		func(p Parser) (Node, error) { return expr, nil },
+	})
 }
 
 // GR: Suffix <- Primary (QUESTION / STAR / PLUS)?
 func (p *GrammarParser) ParseSuffix() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Suffix"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	primary, err := p.ParsePrimary()
 	if err != nil {
@@ -150,6 +196,9 @@ func (p *GrammarParser) ParseSuffix() (Node, error) {
 // GR:          / OPEN Expression CLOSE
 // GR:          / Literal / Class / DOT
 func (p *GrammarParser) ParsePrimary() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Primary"})
+	defer p.PopTraceSpan()
+
 	return Choice(p, []ParserFn[Node]{
 		func(p Parser) (Node, error) { return p.(*GrammarParser).ParseIdentifier() },
 		func(p Parser) (Node, error) { return p.(*GrammarParser).ParseParenExpression() },
@@ -163,6 +212,9 @@ func (p *GrammarParser) ParsePrimary() (Node, error) {
 // GR: IdentStart <- [a-zA-Z_]
 // GR: IdentCont  <- IdentStart / [0-9]
 func (p *GrammarParser) ParseIdentifier() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Identifier"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	value, err := p.parseIdentifier()
 	if err != nil {
@@ -236,6 +288,9 @@ func (p *GrammarParser) ParseParenExpression() (Node, error) {
 
 // GR: Class <- '[' (!']' Range)* ']' Spacing
 func (p *GrammarParser) ParseClass() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Class"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	if _, err := p.ExpectRune('['); err != nil {
 		return nil, err
@@ -258,6 +313,9 @@ func (p *GrammarParser) ParseClass() (Node, error) {
 
 // GR: Range <- Char '-' Char / Char
 func (p *GrammarParser) ParseRange() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Range"})
+	defer p.PopTraceSpan()
+
 	return Choice(p, []ParserFn[Node]{
 		func(p Parser) (Node, error) {
 			start := p.Location()
@@ -294,6 +352,9 @@ func (p *GrammarParser) ParseDot() (Node, error) {
 // GR: Literal <- ['] (!['] Char)* ['] Spacing
 // GR:          / ["] (!["] Char)* ["] Spacing
 func (p *GrammarParser) ParseLiteral() (Node, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Literal"})
+	defer p.PopTraceSpan()
+
 	start := p.Location()
 	value, err := Choice(p, []ParserFn[string]{
 		func(p Parser) (string, error) {

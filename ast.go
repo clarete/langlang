@@ -16,6 +16,9 @@ func NewLocation(line, column, cursor int) Location {
 }
 
 func (l Location) String() string {
+	if l.Line == 0 {
+		return fmt.Sprintf("%d", l.Column)
+	}
 	return fmt.Sprintf("%d:%d", l.Line, l.Column)
 }
 
@@ -30,6 +33,9 @@ func NewSpan(s, e Location) Span {
 
 func (s Span) String() string {
 	if s.Start.Line == s.End.Line && s.Start.Line == 0 {
+		if s.Start.Column == s.End.Column {
+			return fmt.Sprintf("%d", s.Start.Column)
+		}
 		return fmt.Sprintf("%d..%d", s.Start.Column, s.End.Column)
 	}
 	return fmt.Sprintf("%s..%s", s.Start, s.End)
@@ -247,6 +253,28 @@ func (n NotNode) IsSyntactic() bool { return true }
 
 func (n NotNode) String() string {
 	return fmt.Sprintf("Not(%s) @ %s", n.Expr, n.Span())
+}
+
+// Node Type: Labeled
+
+type LabeledNode struct {
+	span  Span
+	Label string
+	Expr  Node
+}
+
+func NewLabeledNode(label string, expr Node, s Span) *LabeledNode {
+	n := &LabeledNode{Label: label, Expr: expr}
+	n.span = s
+	return n
+}
+
+func (n LabeledNode) Span() Span { return n.span }
+
+func (n LabeledNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+
+func (n LabeledNode) String() string {
+	return fmt.Sprintf("Label%s(%s) @ %s", n.Label, n.Expr, n.Span())
 }
 
 // Node Type: Sequence

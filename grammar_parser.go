@@ -82,9 +82,11 @@ func (p *GrammarParser) ParseSequence() (Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(items) == 1 {
-		return items[0], nil
-	}
+
+	// Note: Don't shorten the path when the sequence has a single
+	// item.  We need a Sequence node with a single item in the
+	// output tree.  That way, the code generator traversal can
+	// properly decide introducing automatic space consumption.
 	return NewSequenceNode(items, NewSpan(start, p.Location())), nil
 }
 

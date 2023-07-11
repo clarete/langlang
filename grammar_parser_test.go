@@ -12,21 +12,22 @@ func TestParseDefinition(t *testing.T) {
 		parser := NewGrammarParser("A <- .")
 		output, err := parser.ParseDefinition()
 		require.NoError(t, err)
-		assert.Equal(t, `Definition[A](Any @ 5..6) @ 0..6`, output.String())
+		assert.Equal(t, `Definition[A](Sequence(Any @ 5..6) @ 5..6) @ 0..6`, output.String())
 	})
 
 	t.Run("Less simple", func(t *testing.T) {
 		parser := NewGrammarParser("A <- 'a' / 'b'")
 		output, err := parser.ParseDefinition()
 		require.NoError(t, err)
-		assert.Equal(t, `Definition[A](Choice(Literal(a) @ 5..8, Literal(b) @ 11..14) @ 5..14) @ 0..14`, output.String())
+		assert.Equal(t, "Definition[A](Choice(Sequence(Literal(a) @ 5..8) @ 5..9, "+
+			"Sequence(Literal(b) @ 11..14) @ 11..14) @ 5..14) @ 0..14", output.String())
 	})
 
 	t.Run("With comment", func(t *testing.T) {
 		parser := NewGrammarParser("A <- . # something something")
 		output, err := parser.ParseDefinition()
 		require.NoError(t, err)
-		assert.Equal(t, `Definition[A](Any @ 5..6) @ 0..28`, output.String())
+		assert.Equal(t, `Definition[A](Sequence(Any @ 5..6) @ 5..28) @ 0..28`, output.String())
 	})
 }
 
@@ -35,14 +36,16 @@ func TestParseExpression(t *testing.T) {
 		parser := NewGrammarParser(".")
 		output, err := parser.ParseExpression()
 		require.NoError(t, err)
-		assert.Equal(t, `Any @ 0..1`, output.String())
+		assert.Equal(t, `Sequence(Any @ 0..1) @ 0..1`, output.String())
 	})
 
 	t.Run("More items", func(t *testing.T) {
 		parser := NewGrammarParser("'a' / 'b' / 'c'")
 		output, err := parser.ParseExpression()
 		require.NoError(t, err)
-		assert.Equal(t, `Choice(Literal(a) @ 0..3, Literal(b) @ 6..9, Literal(c) @ 12..15) @ 0..15`, output.String())
+		assert.Equal(t, "Choice(Sequence(Literal(a) @ 0..3) @ 0..4, "+
+			"Sequence(Literal(b) @ 6..9) @ 6..10, "+
+			"Sequence(Literal(c) @ 12..15) @ 12..15) @ 0..15", output.String())
 	})
 }
 
@@ -51,7 +54,7 @@ func TestParseSequence(t *testing.T) {
 		parser := NewGrammarParser(".")
 		output, err := parser.ParseSequence()
 		require.NoError(t, err)
-		assert.Equal(t, `Any @ 0..1`, output.String())
+		assert.Equal(t, `Sequence(Any @ 0..1) @ 0..1`, output.String())
 	})
 
 	t.Run("More items", func(t *testing.T) {

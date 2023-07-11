@@ -59,8 +59,9 @@ func (p *Parser) ParseLiteral(literal string) (parsing.Value, error) {
 	return parsing.NewValueString(r, parsing.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser) ParseSpacing() {
-	parsing.ZeroOrMore(p, func(p parsing.Parser) (rune, error) {
+func (p *Parser) ParseSpacing() (parsing.Value, error) {
+	start := p.Location()
+	v, err := parsing.ZeroOrMore(p, func(p parsing.Parser) (rune, error) {
 		return parsing.Choice(p, []parsing.ParserFn[rune]{
 			p.ExpectRuneFn(' '),
 			p.ExpectRuneFn('\t'),
@@ -68,6 +69,10 @@ func (p *Parser) ParseSpacing() {
 			p.ExpectRuneFn('\n'),
 		})
 	})
+	if err != nil {
+		return nil, err
+	}
+	return parsing.NewValueString(string(v), parsing.NewSpan(start, p.Location())), nil
 }
 `)
 	return &goCodeEmitter{output: &output}
@@ -114,57 +119,52 @@ func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
 
 func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.writeIndent()
-
 	g.write("\nfunc (p *Parser) Parse")
 	g.write(n.Name)
 	g.write("() (parsing.Value, error) {\n")
 	g.indent()
-
-	g.writei("p.ParseSpacing()\n")
 	g.writei("return ")
 	g.visit(n.Expr)
-
 	g.unindent()
 	g.write("\n}\n")
 }
 
 func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
-	switch len(n.Items) {
-	case 0:
-		return
-	case 1:
-		g.visit(n.Items[0])
-	default:
-		g.write("(func(p parsing.Parser) (parsing.Value, error) {\n")
-		g.indent()
+	shouldConsumeSpaces := g.isUnderRuleLevel() && !n.IsSyntactic()
+	g.write("(func(p parsing.Parser) (parsing.Value, error) {\n")
+	g.indent()
 
-		g.writei("var (\n")
-		g.indent()
-		g.writei("start = p.Location()\n")
-		g.writei("items []parsing.Value\n")
-		g.writei("item  parsing.Value\n")
-		g.writei("err   error\n")
-		g.unindent()
-		g.writei(")\n")
+	g.writei("var (\n")
+	g.indent()
+	g.writei("start = p.Location()\n")
+	g.writei("items []parsing.Value\n")
+	g.writei("item  parsing.Value\n")
+	g.writei("err   error\n")
+	g.unindent()
+	g.writei(")\n")
 
-		for _, item := range n.Items {
-			g.writei("item, err = ")
-			g.visit(item)
-			g.write("\n")
-			g.wirteIfErr()
-
-			g.writei("if item != nil {\n")
-			g.indent()
+	for _, item := range n.Items {
+		if shouldConsumeSpaces {
+			g.writei("item, err = p.(*Parser).ParseSpacing()\n")
+			g.writeIfErr()
 			g.writei("items = append(items, item)\n")
-			g.unindent()
-			g.writei("}\n")
 		}
+		g.writei("item, err = ")
+		g.visit(item)
+		g.write("\n")
+		g.writeIfErr()
 
-		g.writei("return parsing.NewValueSequence(items, parsing.NewSpan(start, p.Location())), nil\n")
-
+		g.writei("if item != nil {\n")
+		g.indent()
+		g.writei("items = append(items, item)\n")
 		g.unindent()
-		g.writei("}(p))")
+		g.writei("}\n")
 	}
+
+	g.writei("return parsing.NewValueSequence(items, parsing.NewSpan(start, p.Location())), nil\n")
+
+	g.unindent()
+	g.writei("}(p))")
 }
 
 func (g *goCodeEmitter) visitOneOrMoreNode(n *OneOrMoreNode) {
@@ -274,7 +274,7 @@ func (g *goCodeEmitter) visitNotNode(n *NotNode) {
 
 func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
 	s := "p.(*Parser).Parse%s()"
-	if g.indentLevel == 1 {
+	if g.isAtRuleLevel() {
 		s = "p.Parse%s()"
 	}
 	fmt.Fprintf(g.output, s, n.Value)
@@ -284,7 +284,7 @@ var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
 
 func (g *goCodeEmitter) visitLiteralNode(n *LiteralNode) {
 	s := `p.(*Parser).ParseLiteral("%s")`
-	if g.indentLevel == 1 {
+	if g.isAtRuleLevel() {
 		s = `p.ParseLiteral("%s")`
 	}
 	fmt.Fprintf(g.output, s, quoteSanitizer.Replace(n.Value))
@@ -311,7 +311,7 @@ func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
 
 func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
 	s := "p.(*Parser).ParseRange('%s', '%s')"
-	if g.indentLevel == 1 {
+	if g.isAtRuleLevel() {
 		s = "p.ParseRange('%s', '%s')"
 	}
 	fmt.Fprintf(g.output, s, n.Left, n.Right)
@@ -319,11 +319,13 @@ func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
 
 func (g *goCodeEmitter) visitAnyNode() {
 	s := "p.(*Parser).ParseAny()"
-	if g.indentLevel == 1 {
+	if g.isAtRuleLevel() {
 		s = "p.ParseAny()"
 	}
 	g.write(s)
 }
+
+// Utilities to write data into the output buffer
 
 func (g *goCodeEmitter) wirteExprFn(expr Node) {
 	g.writei("func(p parsing.Parser) (parsing.Value, error) {\n")
@@ -360,12 +362,32 @@ func (g *goCodeEmitter) writeIndent() {
 	}
 }
 
+// Indentation related utilities
+
 func (g *goCodeEmitter) indent() {
 	g.indentLevel++
 }
 
 func (g *goCodeEmitter) unindent() {
 	g.indentLevel--
+}
+
+// other helpers
+
+// isInRuleLevel returns true exclusively if the traversal is exactly
+// one indent within the `DefinitionNode` traversal.  That's useful to
+// know because that's the only level in the generated parser that
+// doesn't need type casting the variable `p` from `parsing.Parser`
+// into the local concrete `Parser`.
+func (g *goCodeEmitter) isAtRuleLevel() bool {
+	return g.indentLevel == 1
+}
+
+// isUnderRuleLevel returns true when the traversal is any level
+// within the `DefinitionNode`.  It's only in that level that we
+// should be automatically handling spaces.
+func (g *goCodeEmitter) isUnderRuleLevel() bool {
+	return g.indentLevel >= 1
 }
 
 func (g *goCodeEmitter) String() string {

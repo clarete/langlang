@@ -42,6 +42,13 @@ type Node interface {
 
 	// String returns the string representation of a given node
 	String() string
+
+	// IsSyntactic returns true only for nodes that are considered
+	// syntactical rules.  Outside this module, it makes sense to
+	// call this method on a `DefinitionNode`, but it'd then
+	// trigger the recursive call needed to answer that question
+	// in such level
+	IsSyntactic() bool
 }
 
 // Node Type: Any
@@ -56,11 +63,9 @@ func NewAnyNode(s Span) *AnyNode {
 	return n
 }
 
-func (n AnyNode) Span() Span { return n.span }
-
-func (n AnyNode) String() string {
-	return fmt.Sprintf("Any @ %s", n.Span())
-}
+func (n AnyNode) Span() Span        { return n.span }
+func (n AnyNode) IsSyntactic() bool { return true }
+func (n AnyNode) String() string    { return fmt.Sprintf("Any @ %s", n.Span()) }
 
 // Node Type: Literal
 
@@ -75,11 +80,9 @@ func NewLiteralNode(v string, s Span) *LiteralNode {
 	return n
 }
 
-func (n LiteralNode) Span() Span { return n.span }
-
-func (n LiteralNode) String() string {
-	return fmt.Sprintf("Literal(%s) @ %s", n.Value, n.Span())
-}
+func (n LiteralNode) Span() Span        { return n.span }
+func (n LiteralNode) IsSyntactic() bool { return true }
+func (n LiteralNode) String() string    { return fmt.Sprintf("Literal(%s) @ %s", n.Value, n.Span()) }
 
 // Node Type: Identifier
 
@@ -94,11 +97,9 @@ func NewIdentifierNode(v string, s Span) *IdentifierNode {
 	return n
 }
 
-func (n IdentifierNode) Span() Span { return n.span }
-
-func (n IdentifierNode) String() string {
-	return fmt.Sprintf("Identifier(%s) @ %s", n.Value, n.Span())
-}
+func (n IdentifierNode) Span() Span        { return n.span }
+func (n IdentifierNode) IsSyntactic() bool { return false }
+func (n IdentifierNode) String() string    { return fmt.Sprintf("Identifier(%s) @ %s", n.Value, n.Span()) }
 
 // Node Type: Range
 
@@ -114,7 +115,8 @@ func NewRangeNode(left, right string, s Span) *RangeNode {
 	return n
 }
 
-func (n RangeNode) Span() Span { return n.span }
+func (n RangeNode) Span() Span        { return n.span }
+func (n RangeNode) IsSyntactic() bool { return true }
 
 func (n RangeNode) String() string {
 	return fmt.Sprintf("Range(%s, %s) @ %s", n.Left, n.Right, n.Span())
@@ -133,7 +135,8 @@ func NewClassNode(items []Node, s Span) *ClassNode {
 	return n
 }
 
-func (n ClassNode) Span() Span { return n.span }
+func (n ClassNode) Span() Span        { return n.span }
+func (n ClassNode) IsSyntactic() bool { return true }
 
 func (n ClassNode) String() string {
 	var (
@@ -170,11 +173,9 @@ func NewOptionalNode(expr Node, s Span) *OptionalNode {
 	return n
 }
 
-func (n OptionalNode) Span() Span { return n.span }
-
-func (n OptionalNode) String() string {
-	return fmt.Sprintf("Optional(%s) @ %s", n.Expr, n.Span())
-}
+func (n OptionalNode) Span() Span        { return n.span }
+func (n OptionalNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n OptionalNode) String() string    { return fmt.Sprintf("Optional(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: ZeroOrMore
 
@@ -189,11 +190,9 @@ func NewZeroOrMoreNode(expr Node, s Span) *ZeroOrMoreNode {
 	return n
 }
 
-func (n ZeroOrMoreNode) Span() Span { return n.span }
-
-func (n ZeroOrMoreNode) String() string {
-	return fmt.Sprintf("ZeroOrMore(%s) @ %s", n.Expr, n.Span())
-}
+func (n ZeroOrMoreNode) Span() Span        { return n.span }
+func (n ZeroOrMoreNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n ZeroOrMoreNode) String() string    { return fmt.Sprintf("ZeroOrMore(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: OneOrMore
 
@@ -208,11 +207,9 @@ func NewOneOrMoreNode(expr Node, s Span) *OneOrMoreNode {
 	return n
 }
 
-func (n OneOrMoreNode) Span() Span { return n.span }
-
-func (n OneOrMoreNode) String() string {
-	return fmt.Sprintf("OneOrMore(%s) @ %s", n.Expr, n.Span())
-}
+func (n OneOrMoreNode) Span() Span        { return n.span }
+func (n OneOrMoreNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
+func (n OneOrMoreNode) String() string    { return fmt.Sprintf("OneOrMore(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: And
 
@@ -227,11 +224,9 @@ func NewAndNode(expr Node, s Span) *AndNode {
 	return n
 }
 
-func (n AndNode) Span() Span { return n.span }
-
-func (n AndNode) String() string {
-	return fmt.Sprintf("And(%s) @ %s", n.Expr, n.Span())
-}
+func (n AndNode) Span() Span        { return n.span }
+func (n AndNode) IsSyntactic() bool { return true }
+func (n AndNode) String() string    { return fmt.Sprintf("And(%s) @ %s", n.Expr, n.Span()) }
 
 // Node Type: Not
 
@@ -247,6 +242,8 @@ func NewNotNode(expr Node, s Span) *NotNode {
 }
 
 func (n NotNode) Span() Span { return n.span }
+
+func (n NotNode) IsSyntactic() bool { return true }
 
 func (n NotNode) String() string {
 	return fmt.Sprintf("Not(%s) @ %s", n.Expr, n.Span())
@@ -266,6 +263,15 @@ func NewSequenceNode(items []Node, s Span) *SequenceNode {
 }
 
 func (n SequenceNode) Span() Span { return n.span }
+
+func (n SequenceNode) IsSyntactic() bool {
+	for _, expr := range n.Items {
+		if !expr.IsSyntactic() {
+			return false
+		}
+	}
+	return true
+}
 
 func (n SequenceNode) String() string {
 	var (
@@ -304,6 +310,15 @@ func NewChoiceNode(items []Node, s Span) *ChoiceNode {
 
 func (n ChoiceNode) Span() Span { return n.span }
 
+func (n ChoiceNode) IsSyntactic() bool {
+	for _, expr := range n.Items {
+		if !expr.IsSyntactic() {
+			return false
+		}
+	}
+	return true
+}
+
 func (n ChoiceNode) String() string {
 	var (
 		s  strings.Builder
@@ -340,7 +355,8 @@ func NewDefinitionNode(name string, expr Node, s Span) *DefinitionNode {
 	return n
 }
 
-func (n DefinitionNode) Span() Span { return n.span }
+func (n DefinitionNode) Span() Span        { return n.span }
+func (n DefinitionNode) IsSyntactic() bool { return n.Expr.IsSyntactic() }
 
 func (n DefinitionNode) String() string {
 	return fmt.Sprintf("Definition[%s](%s) @ %s", n.Name, n.Expr, n.Span())
@@ -359,7 +375,8 @@ func NewGrammarNode(items []Node, s Span) *GrammarNode {
 	return n
 }
 
-func (n GrammarNode) Span() Span { return n.span }
+func (n GrammarNode) Span() Span        { return n.span }
+func (n GrammarNode) IsSyntactic() bool { return false }
 
 func (n GrammarNode) String() string {
 	var (

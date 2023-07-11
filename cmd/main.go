@@ -2,10 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/clarete/langlang/go"
 )
@@ -16,7 +15,6 @@ func main() {
 	var (
 		grammarPath = flag.String("grammar", "", "Path to the grammar file")
 		language    = flag.String("language", "", "Output language")
-		outputPath  = flag.String("output", "", "Output path")
 	)
 	flag.Parse()
 
@@ -38,20 +36,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Can't parse grammar file: %s", err.Error())
 	}
-	var (
-		extension  string
-		outputData string
-	)
-
 	log.Printf("AST: %s\n", ast)
 
+	var outputData string
 	switch *language {
-	// case "go":
-	// 	extension = ".go"
-	// 	outputData, err = parsing.GenParserGo(ast)
+	case "go":
+		outputData, err = parsing.GenGo(ast)
 
 	// case "python":
-	// 	extension = ".py"
 	// 	outputData, err = parsing.GenParserPython(ast)
 	default:
 		log.Fatalf("Output language `%s` not supported", *language)
@@ -60,12 +52,5 @@ func main() {
 		log.Fatalf("Can't emit code: %s", err.Error())
 	}
 
-	base, ext := filepath.Base(*grammarPath), filepath.Ext(*grammarPath)
-	fileName := strings.TrimSuffix(base, ext)
-	outputFile := filepath.Join(*outputPath, fileName+extension)
-
-	err = os.WriteFile(outputFile, []byte(outputData), defaultWritePermission)
-	if err != nil {
-		log.Fatalf("Can't write output file: %s", err.Error())
-	}
+	fmt.Println(outputData)
 }

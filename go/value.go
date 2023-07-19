@@ -9,6 +9,7 @@ type Value interface {
 	Span() Span
 	String() string
 	Text() string
+	Type() string
 }
 
 // String Value
@@ -22,6 +23,7 @@ func NewValueString(value string, span Span) *ValueString {
 	return &ValueString{span: span, Value: value}
 }
 
+func (n ValueString) Type() string   { return "string" }
 func (n ValueString) Span() Span     { return n.span }
 func (n ValueString) String() string { return fmt.Sprintf(`"%s" @ %s`, n.Value, n.Span()) }
 func (n ValueString) Text() string   { return n.Value }
@@ -37,14 +39,18 @@ func NewValueSequence(items []Value, span Span) *ValueSequence {
 	return &ValueSequence{Items: items, span: span}
 }
 
-func (n ValueSequence) Span() Span { return n.span }
+func (n ValueSequence) Type() string { return "sequence" }
+func (n ValueSequence) Span() Span   { return n.span }
 func (n ValueSequence) String() string {
 	var s strings.Builder
-	s.WriteString("<[")
-	for _, expr := range n.Items {
+	s.WriteString("Sequence(")
+	for i, expr := range n.Items {
 		s.WriteString(expr.String())
+		if i < len(n.Items)-1 {
+			s.WriteString(", ")
+		}
 	}
-	fmt.Fprintf(&s, "] @ %s>", n.Span())
+	fmt.Fprintf(&s, ") @ %s", n.Span())
 	return s.String()
 }
 
@@ -68,15 +74,15 @@ func NewValueNode(name string, expr Value, span Span) *ValueNode {
 	return &ValueNode{Name: name, Expr: expr, span: span}
 }
 
-func (n ValueNode) Span() Span { return n.span }
-func (n ValueNode) String() string {
-	var s strings.Builder
-	fmt.Fprintf(&s, `<%s [`, n.Name)
-	s.WriteString(n.Expr.String())
-	fmt.Fprintf(&s, "] @ %s>", n.Span())
-	return s.String()
+func (n ValueNode) Type() string { return "node" }
+func (n ValueNode) Span() Span   { return n.span }
+func (n ValueNode) Text() string {
+	if n.Expr == nil {
+		return "???"
+	}
+	return n.Expr.Text()
 }
 
-func (n ValueNode) Text() string {
-	return n.Expr.Text()
+func (n ValueNode) String() string {
+	return fmt.Sprintf(`Node("%s", %s) @ %s`, n.Name, n.Expr, n.Span())
 }

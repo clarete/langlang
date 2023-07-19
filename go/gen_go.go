@@ -80,7 +80,11 @@ func (p *Parser$StructSuffix) ParseSpacing() (langlang.Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	return langlang.NewValueString(string(v), langlang.NewSpan(start, p.Location())), nil
+	r := string(v)
+	if len(r) == 0 {
+		return nil, nil
+	}
+	return langlang.NewValueString(r, langlang.NewSpan(start, p.Location())), nil
 }
 
 func (p *Parser$StructSuffix) ParseEOF() (langlang.Value, error) {
@@ -100,9 +104,21 @@ func (p *Parser$StructSuffix) ParseEOF() (langlang.Value, error) {
 		if item != nil {
 			items = append(items, item)
 		}
-		return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil
+		return p.(*Parser$StructSuffix).wrapSeq(items, langlang.NewSpan(start, p.Location())), nil
 	}(p))
 }
+
+func (p *Parser$StructSuffix) wrapSeq(items []langlang.Value, span langlang.Span) langlang.Value {
+	switch len(items) {
+	case 0:
+		return nil
+	case 1:
+		return items[0]
+	default:
+		return langlang.NewValueSequence(items, span)
+	}
+}
+
 `, opt.PackageName))
 	return emitter
 }
@@ -176,6 +192,11 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.visit(n.Expr)
 	g.write("\n")
 	g.writeIfErr()
+	g.writei("if item == nil {\n")
+	g.indent()
+	g.writei("return nil, nil")
+	g.unindent()
+	g.writei("}\n")
 
 	g.writei("return langlang.NewValueNode")
 	fmt.Fprintf(g.output, `("%s", item, langlang.NewSpan(start, p.Location())), nil`, n.Name)
@@ -203,7 +224,11 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 		if shouldConsumeSpaces && !isLexNode {
 			g.writei("item, err = p.(*Parser$StructSuffix).ParseSpacing()\n")
 			g.writeIfErr()
+			g.writei("if item != nil {\n")
+			g.indent()
 			g.writei("items = append(items, item)\n")
+			g.unindent()
+			g.writei("}\n")
 		}
 		g.writei("item, err = ")
 		g.visit(item)
@@ -217,7 +242,7 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 		g.writei("}\n")
 	}
 
-	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
+	g.writeSeqOrNode()
 
 	g.unindent()
 	g.writei("}(p))")
@@ -238,8 +263,7 @@ func (g *goCodeEmitter) visitOneOrMoreNode(n *OneOrMoreNode) {
 	g.unindent()
 	g.writei("})\n")
 	g.writeIfErr()
-
-	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
+	g.writeSeqOrNode()
 
 	g.unindent()
 	g.writei("}(p))")
@@ -260,8 +284,7 @@ func (g *goCodeEmitter) visitZeroOrMoreNode(n *ZeroOrMoreNode) {
 	g.unindent()
 	g.writei("})\n")
 	g.writeIfErr()
-
-	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
+	g.writeSeqOrNode()
 
 	g.unindent()
 	g.writei("}(p))")
@@ -418,6 +441,17 @@ func (g *goCodeEmitter) visitAnyNode() {
 }
 
 // Utilities to write data into the output buffer
+
+func (g *goCodeEmitter) writeSeqOrNode() {
+	g.writei("switch len(items) {\n")
+	g.writei("case 0: return nil, nil\n")
+	g.writei("case 1: return items[0], nil\n")
+	g.writei("default:\n")
+	g.indent()
+	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
+	g.unindent()
+	g.write("}\n")
+}
 
 func (g *goCodeEmitter) wirteExprFn(expr Node) {
 	g.writei("func(p langlang.Parser) (langlang.Value, error) {\n")

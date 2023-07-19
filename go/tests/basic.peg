@@ -29,3 +29,7 @@ Digit  <- [0-9]
 
 // Small test for the & syntactic sugar
 HashWithAnAnd <- &'#' . (&'*' .)* EOF
+
+// A simple match that uses an expression that may end up succeeding
+// without consuming any input
+MaybeNull <- "a"? / "b"*

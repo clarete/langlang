@@ -127,3 +127,12 @@ func TestAnd(t *testing.T) {
 		}
 	})
 }
+
+func TestNullable(t *testing.T) {
+	t.Run("matching will succeed but no input will be consumed", func(t *testing.T) {
+		p := NewParserBasic("c")
+		v, err := p.ParseMaybeNull()
+		require.NoError(t, err)
+		assert.Nil(t, v)
+	})
+}

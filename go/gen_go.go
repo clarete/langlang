@@ -1,48 +1,58 @@
 package langlang
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
+	"text/template"
 )
 
 type goCodeEmitter struct {
 	options     GenGoOptions
-	output      *strings.Builder
+	buffer      *strings.Builder
 	indentLevel int
 	lexLevel    int
 }
 
 type GenGoOptions struct {
-	PackageName  string
-	StructSuffix string
+	PackageName   string
+	StructSuffix  string
+	CaptureSpaces bool
 }
 
 func DefaultGenGoOptions() GenGoOptions {
 	return GenGoOptions{
-		PackageName:  "parser",
-		StructSuffix: "",
+		PackageName:   "parser",
+		StructSuffix:  "",
 	}
 }
 
 func newGoCodeEmitter(opt GenGoOptions) *goCodeEmitter {
-	emitter := &goCodeEmitter{options: opt, output: &strings.Builder{}}
-	emitter.write(fmt.Sprintf(`package %s
+	emitter := &goCodeEmitter{options: opt, buffer: &strings.Builder{}}
+	emitter.write(`package {{.PackageName}}
 
 import (
 	"github.com/clarete/langlang/go"
 )
 
-type Parser$StructSuffix struct {
+type Parser{{.StructSuffix}} struct {
 	langlang.BaseParser
+	captureSpaces bool
 }
 
-func NewParser$StructSuffix(input string) *Parser$StructSuffix {
-	p := &Parser$StructSuffix{}
+func NewParser{{.StructSuffix}}(input string) *Parser{{.StructSuffix}} {
+	p := &Parser{{.StructSuffix}}{
+		captureSpaces: true,
+	}
 	p.SetInput([]rune(input))
 	return p
 }
 
-func (p *Parser$StructSuffix) ParseAny() (langlang.Value, error) {
+func (p *Parser{{.StructSuffix}}) SetCaptureSpaces(v bool) {
+	p.captureSpaces = v
+}
+
+func (p *Parser{{.StructSuffix}}) ParseAny() (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.Any()
 	if err != nil {
@@ -52,7 +62,7 @@ func (p *Parser$StructSuffix) ParseAny() (langlang.Value, error) {
 	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseRange(left, right rune) (langlang.Value, error) {
+func (p *Parser{{.StructSuffix}}) ParseRange(left, right rune) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectRange(left, right)
 	if err != nil {
@@ -62,7 +72,7 @@ func (p *Parser$StructSuffix) ParseRange(left, right rune) (langlang.Value, erro
 	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseLiteral(literal string) (langlang.Value, error) {
+func (p *Parser{{.StructSuffix}}) ParseLiteral(literal string) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectLiteral(literal)
 	if err != nil {
@@ -72,7 +82,7 @@ func (p *Parser$StructSuffix) ParseLiteral(literal string) (langlang.Value, erro
 	return langlang.NewValueString(r, langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseSpacing() (langlang.Value, error) {
+func (p *Parser{{.StructSuffix}}) ParseSpacing() (langlang.Value, error) {
 	start := p.Location()
 	v, err := langlang.ZeroOrMore(p, func(p langlang.Parser) (rune, error) {
 		return langlang.ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
@@ -80,14 +90,18 @@ func (p *Parser$StructSuffix) ParseSpacing() (langlang.Value, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !p.captureSpaces {
+		return nil, nil
+	}
 	r := string(v)
 	if len(r) == 0 {
 		return nil, nil
 	}
-	return langlang.NewValueString(r, langlang.NewSpan(start, p.Location())), nil
+	s := langlang.NewValueString(r, langlang.NewSpan(start, p.Location()))
+	return langlang.NewValueNode("Spacing", s, langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser$StructSuffix) ParseEOF() (langlang.Value, error) {
+func (p *Parser{{.StructSuffix}}) ParseEOF() (langlang.Value, error) {
 	return (func(p langlang.Parser) (langlang.Value, error) {
 		var (
 			start = p.Location()
@@ -96,7 +110,7 @@ func (p *Parser$StructSuffix) ParseEOF() (langlang.Value, error) {
 			err   error
 		)
 		item, err = langlang.Not(p, func(p langlang.Parser) (langlang.Value, error) {
-			return p.(*Parser$StructSuffix).ParseAny()
+			return p.(*Parser{{.StructSuffix}}).ParseAny()
 		})
 		if err != nil {
 			return nil, err
@@ -104,11 +118,11 @@ func (p *Parser$StructSuffix) ParseEOF() (langlang.Value, error) {
 		if item != nil {
 			items = append(items, item)
 		}
-		return p.(*Parser$StructSuffix).wrapSeq(items, langlang.NewSpan(start, p.Location())), nil
+		return p.(*Parser{{.StructSuffix}}).wrapSeq(items, langlang.NewSpan(start, p.Location())), nil
 	}(p))
 }
 
-func (p *Parser$StructSuffix) wrapSeq(items []langlang.Value, span langlang.Span) langlang.Value {
+func (p *Parser{{.StructSuffix}}) wrapSeq(items []langlang.Value, span langlang.Span) langlang.Value {
 	switch len(items) {
 	case 0:
 		return nil
@@ -119,7 +133,7 @@ func (p *Parser$StructSuffix) wrapSeq(items []langlang.Value, span langlang.Span
 	}
 }
 
-`, opt.PackageName))
+`)
 	return emitter
 }
 
@@ -170,13 +184,13 @@ func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
 
 func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.writeIndent()
-	g.write("\nfunc (p *Parser$StructSuffix) Parse")
+	g.write("\nfunc (p *Parser{{.StructSuffix}}) Parse")
 	g.write(n.Name)
 	g.write("() (langlang.Value, error) {\n")
 	g.indent()
 
 	g.writei("p.PushTraceSpan")
-	fmt.Fprintf(g.output, `(langlang.TracerSpan{Name: "%s"})`, n.Name)
+	fmt.Fprintf(g.buffer, `(langlang.TracerSpan{Name: "%s"})`, n.Name)
 	g.write("\n")
 	g.writei("defer p.PopTraceSpan()\n")
 
@@ -199,7 +213,7 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.writei("}\n")
 
 	g.writei("return langlang.NewValueNode")
-	fmt.Fprintf(g.output, `("%s", item, langlang.NewSpan(start, p.Location())), nil`, n.Name)
+	fmt.Fprintf(g.buffer, `("%s", item, langlang.NewSpan(start, p.Location())), nil`, n.Name)
 
 	g.unindent()
 	g.write("\n}\n")
@@ -222,7 +236,7 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 	for _, item := range n.Items {
 		_, isLexNode := item.(*LexNode)
 		if shouldConsumeSpaces && !isLexNode {
-			g.writei("item, err = p.(*Parser$StructSuffix).ParseSpacing()\n")
+			g.writei("item, err = p.(*Parser{{.StructSuffix}}).ParseSpacing()\n")
 			g.writeIfErr()
 			g.writei("if item != nil {\n")
 			g.indent()
@@ -388,7 +402,7 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 }
 
 func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
-	s := "p.(*Parser$StructSuffix).Parse%s()"
+	s := "p.(*Parser{{.StructSuffix}}).Parse%s()"
 	if g.isAtRuleLevel() {
 		s = "p.Parse%s()"
 	}
@@ -398,7 +412,7 @@ func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
 var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
 
 func (g *goCodeEmitter) visitLiteralNode(n *LiteralNode) {
-	s := `p.(*Parser$StructSuffix).ParseLiteral("%s")`
+	s := `p.(*Parser{{.StructSuffix}}).ParseLiteral("%s")`
 	if g.isAtRuleLevel() {
 		s = `p.ParseLiteral("%s")`
 	}
@@ -425,7 +439,7 @@ func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
 }
 
 func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
-	s := "p.(*Parser$StructSuffix).ParseRange('%s', '%s')"
+	s := "p.(*Parser{{.StructSuffix}}).ParseRange('%s', '%s')"
 	if g.isAtRuleLevel() {
 		s = "p.ParseRange('%s', '%s')"
 	}
@@ -433,7 +447,7 @@ func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
 }
 
 func (g *goCodeEmitter) visitAnyNode() {
-	s := "p.(*Parser$StructSuffix).ParseAny()"
+	s := "p.(*Parser{{.StructSuffix}}).ParseAny()"
 	if g.isAtRuleLevel() {
 		s = "p.ParseAny()"
 	}
@@ -479,12 +493,12 @@ func (g *goCodeEmitter) writei(s string) {
 }
 
 func (g *goCodeEmitter) write(s string) {
-	g.output.WriteString(strings.ReplaceAll(s, "$StructSuffix", g.options.StructSuffix))
+	g.buffer.WriteString(strings.ReplaceAll(s, "{{.StructSuffix}}", g.options.StructSuffix))
 }
 
 func (g *goCodeEmitter) writeIndent() {
 	for i := 0; i < g.indentLevel; i++ {
-		g.output.WriteString("	")
+		g.buffer.WriteString("	")
 	}
 }
 
@@ -516,12 +530,19 @@ func (g *goCodeEmitter) isUnderRuleLevel() bool {
 	return g.indentLevel >= 1
 }
 
-func (g *goCodeEmitter) String() string {
-	return g.output.String()
+func (g *goCodeEmitter) output() (string, error) {
+	tmpl, err := template.New("gen_go").Parse(g.buffer.String())
+	if err != nil {
+		return "", err
+	}
+
+	var output bytes.Buffer
+	err = tmpl.Execute(&output, g.options)
+	return output.String(), nil
 }
 
 func GenGo(node Node, opt GenGoOptions) (string, error) {
 	g := newGoCodeEmitter(opt)
 	g.visit(node)
-	return g.String(), nil
+	return g.output()
 }

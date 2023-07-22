@@ -450,7 +450,7 @@ func (g *goCodeEmitter) writeSeqOrNode() {
 	g.indent()
 	g.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")
 	g.unindent()
-	g.write("}\n")
+	g.writei("}\n")
 }
 
 func (g *goCodeEmitter) wirteExprFn(expr Node) {

@@ -15,9 +15,9 @@ type goCodeEmitter struct {
 }
 
 type GenGoOptions struct {
-	PackageName  string
-	ParserPrefix string
-	ParserBase   string
+	PackageName string
+	Prefix      string
+	ParserBase  string
 }
 
 func GenGo(node Node, opt GenGoOptions) (string, error) {
@@ -27,8 +27,8 @@ func GenGo(node Node, opt GenGoOptions) (string, error) {
 }
 
 type tmplRenderOpts struct {
-	ParserName  string
 	PackageName string
+	ParserName  string
 }
 
 var prelude string = `package {{.PackageName}}
@@ -518,17 +518,18 @@ func (g *goCodeEmitter) isUnderRuleLevel() bool {
 }
 
 func (g *goCodeEmitter) output() (string, error) {
-	parserTmpl, err := template.New("gen_go").Parse(g.parser.buffer.String())
+	parserTmpl, err := template.New("parser").Parse(g.parser.buffer.String())
 	if err != nil {
 		return "", err
 	}
-
 	var output bytes.Buffer
 	vv := tmplRenderOpts{
 		PackageName: g.options.PackageName,
-		ParserName:  g.options.ParserPrefix + g.options.ParserBase,
+		ParserName:  g.options.Prefix + g.options.ParserBase,
 	}
-	err = parserTmpl.Execute(&output, vv)
+	if err = parserTmpl.Execute(&output, vv); err != nil {
+		return "", err
+	}
 	return output.String(), nil
 }
 

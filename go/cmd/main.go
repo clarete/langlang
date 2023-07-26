@@ -19,7 +19,7 @@ func main() {
 
 		// options specific to the go generator
 		goOptPackage      = flag.String("go-package", "parser", "Name of the go package in the generated parser")
-		goOptStructSuffix = flag.String("go-struct-suffix", "", "Suffix of the Go struct generated for the parser")
+		goOptStructPrefix = flag.String("go-parser-prefix", "", "Prefix of the Go struct generated for the parser")
 	)
 	flag.Parse()
 
@@ -51,7 +51,8 @@ func main() {
 	case "go":
 		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
 			PackageName:  *goOptPackage,
-			StructSuffix: *goOptStructSuffix,
+			ParserPrefix: *goOptStructPrefix,
+			ParserBase:   "Parser",
 		})
 
 	// case "python":

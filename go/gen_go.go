@@ -16,20 +16,19 @@ type goCodeEmitter struct {
 
 type GenGoOptions struct {
 	PackageName  string
-	StructSuffix string
-}
-
-func DefaultGenGoOptions() GenGoOptions {
-	return GenGoOptions{
-		PackageName:  "parser",
-		StructSuffix: "",
-	}
+	ParserPrefix string
+	ParserBase   string
 }
 
 func GenGo(node Node, opt GenGoOptions) (string, error) {
 	g := newGoCodeEmitter(opt)
 	g.visit(node)
 	return g.output()
+}
+
+type tmplRenderOpts struct {
+	ParserName  string
+	PackageName string
 }
 
 var prelude string = `package {{.PackageName}}
@@ -42,24 +41,24 @@ import (
 	"github.com/clarete/langlang/go"
 )
 
-type Parser{{.StructSuffix}} struct {
+type {{.ParserName}} struct {
 	langlang.BaseParser
 	captureSpaces bool
 }
 
-func NewParser{{.StructSuffix}}(input string) *Parser{{.StructSuffix}} {
-	p := &Parser{{.StructSuffix}}{
+func New{{.ParserName}}(input string) *{{.ParserName}} {
+	p := &{{.ParserName}}{
 		captureSpaces: true,
 	}
 	p.SetInput([]rune(input))
 	return p
 }
 
-func (p *Parser{{.StructSuffix}}) SetCaptureSpaces(v bool) {
+func (p *{{.ParserName}}) SetCaptureSpaces(v bool) {
 	p.captureSpaces = v
 }
 
-func (p *Parser{{.StructSuffix}}) ParseAny() (langlang.Value, error) {
+func (p *{{.ParserName}}) ParseAny() (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.Any()
 	if err != nil {
@@ -69,7 +68,7 @@ func (p *Parser{{.StructSuffix}}) ParseAny() (langlang.Value, error) {
 	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser{{.StructSuffix}}) ParseRange(left, right rune) (langlang.Value, error) {
+func (p *{{.ParserName}}) ParseRange(left, right rune) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectRange(left, right)
 	if err != nil {
@@ -79,7 +78,7 @@ func (p *Parser{{.StructSuffix}}) ParseRange(left, right rune) (langlang.Value, 
 	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser{{.StructSuffix}}) ParseLiteral(literal string) (langlang.Value, error) {
+func (p *{{.ParserName}}) ParseLiteral(literal string) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectLiteral(literal)
 	if err != nil {
@@ -89,7 +88,7 @@ func (p *Parser{{.StructSuffix}}) ParseLiteral(literal string) (langlang.Value, 
 	return langlang.NewValueString(r, langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser{{.StructSuffix}}) ParseSpacing() (langlang.Value, error) {
+func (p *{{.ParserName}}) ParseSpacing() (langlang.Value, error) {
 	start := p.Location()
 	v, err := langlang.ZeroOrMore(p, func(p langlang.Parser) (rune, error) {
 		return langlang.ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
@@ -108,7 +107,7 @@ func (p *Parser{{.StructSuffix}}) ParseSpacing() (langlang.Value, error) {
 	return langlang.NewValueNode("Spacing", s, langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *Parser{{.StructSuffix}}) ParseEOF() (langlang.Value, error) {
+func (p *{{.ParserName}}) ParseEOF() (langlang.Value, error) {
 	return (func(p langlang.Parser) (langlang.Value, error) {
 		var (
 			start = p.Location()
@@ -117,7 +116,7 @@ func (p *Parser{{.StructSuffix}}) ParseEOF() (langlang.Value, error) {
 			err   error
 		)
 		item, err = langlang.Not(p, func(p langlang.Parser) (langlang.Value, error) {
-			return p.(*Parser{{.StructSuffix}}).ParseAny()
+			return p.(*{{.ParserName}}).ParseAny()
 		})
 		if err != nil {
 			return nil, err
@@ -125,11 +124,11 @@ func (p *Parser{{.StructSuffix}}) ParseEOF() (langlang.Value, error) {
 		if item != nil {
 			items = append(items, item)
 		}
-		return p.(*Parser{{.StructSuffix}}).wrapSeq(items, langlang.NewSpan(start, p.Location())), nil
+		return p.(*{{.ParserName}}).wrapSeq(items, langlang.NewSpan(start, p.Location())), nil
 	}(p))
 }
 
-func (p *Parser{{.StructSuffix}}) wrapSeq(items []langlang.Value, span langlang.Span) langlang.Value {
+func (p *{{.ParserName}}) wrapSeq(items []langlang.Value, span langlang.Span) langlang.Value {
 	switch len(items) {
 	case 0:
 		return nil
@@ -197,7 +196,7 @@ func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
 }
 
 func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
-	g.parser.write("\nfunc (p *Parser{{.StructSuffix}}) Parse")
+	g.parser.write("\nfunc (p *{{.ParserName}}) Parse")
 	g.parser.write(n.Name)
 	g.parser.write("() (langlang.Value, error) {\n")
 	g.parser.indent()
@@ -249,7 +248,7 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 	for _, item := range n.Items {
 		_, isLexNode := item.(*LexNode)
 		if shouldConsumeSpaces && !isLexNode {
-			g.parser.writei("item, err = p.(*Parser{{.StructSuffix}}).ParseSpacing()\n")
+			g.parser.writei("item, err = p.(*{{.ParserName}}).ParseSpacing()\n")
 			g.writeIfErr()
 			g.parser.writei("if item != nil {\n")
 			g.parser.indent()
@@ -415,7 +414,7 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 }
 
 func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
-	s := "p.(*Parser{{.StructSuffix}}).Parse%s()"
+	s := "p.(*{{.ParserName}}).Parse%s()"
 	if g.isAtRuleLevel() {
 		s = "p.Parse%s()"
 	}
@@ -425,7 +424,7 @@ func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
 var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
 
 func (g *goCodeEmitter) visitLiteralNode(n *LiteralNode) {
-	s := `p.(*Parser{{.StructSuffix}}).ParseLiteral("%s")`
+	s := `p.(*{{.ParserName}}).ParseLiteral("%s")`
 	if g.isAtRuleLevel() {
 		s = `p.ParseLiteral("%s")`
 	}
@@ -452,7 +451,7 @@ func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
 }
 
 func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
-	s := "p.(*Parser{{.StructSuffix}}).ParseRange('%s', '%s')"
+	s := "p.(*{{.ParserName}}).ParseRange('%s', '%s')"
 	if g.isAtRuleLevel() {
 		s = "p.ParseRange('%s', '%s')"
 	}
@@ -460,7 +459,7 @@ func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
 }
 
 func (g *goCodeEmitter) visitAnyNode() {
-	s := "p.(*Parser{{.StructSuffix}}).ParseAny()"
+	s := "p.(*{{.ParserName}}).ParseAny()"
 	if g.isAtRuleLevel() {
 		s = "p.ParseAny()"
 	}
@@ -519,13 +518,17 @@ func (g *goCodeEmitter) isUnderRuleLevel() bool {
 }
 
 func (g *goCodeEmitter) output() (string, error) {
-	tmpl, err := template.New("gen_go").Parse(g.parser.buffer.String())
+	parserTmpl, err := template.New("gen_go").Parse(g.parser.buffer.String())
 	if err != nil {
 		return "", err
 	}
 
 	var output bytes.Buffer
-	err = tmpl.Execute(&output, g.options)
+	vv := tmplRenderOpts{
+		PackageName: g.options.PackageName,
+		ParserName:  g.options.ParserPrefix + g.options.ParserBase,
+	}
+	err = parserTmpl.Execute(&output, vv)
 	return output.String(), nil
 }
 

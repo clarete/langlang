@@ -84,5 +84,5 @@ func (n ValueNode) Text() string {
 }
 
 func (n ValueNode) String() string {
-	return fmt.Sprintf(`Node("%s", %s) @ %s`, n.Name, n.Expr, n.Span())
+	return fmt.Sprintf("%s(%s) @ %s", n.Name, n.Expr, n.Span())
 }

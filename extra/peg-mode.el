@@ -36,9 +36,8 @@
     (modify-syntax-entry ?' "\"" table)
     ;; " is a string delimiter too
     (modify-syntax-entry ?\" "\"" table)
-    ;; Comments start with #
-    (modify-syntax-entry ?# "< b" table)
-    ;; \n is a comment ender
+    ;; C++ style comments
+    (modify-syntax-entry ?/ ". 12b" table)
     (modify-syntax-entry ?\n "> b" table)
     table))
 
@@ -46,18 +45,23 @@
   `((
      ;; Color the name of the rule
      ("^\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*<-" 1 'font-lock-function-name-face)
+     ("^\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*->" 1 'font-lock-function-name-face)
+     ;; user defined enums and types
+     ("^type\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*enum" 1 'font-lock-function-name-face)
+     ("^type\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*struct" 1 'font-lock-function-name-face)
      ;; Color for the little assignment arrow
-     ("<-" . font-lock-type-face)
+     ("\s*\\(<-\\|->\\|type\\|enum\\|struct\\|string\\|bool\\|f32\\|f64\\|i32\\|i64\\)\s*" 1 'font-lock-type-face)
      ;; ! & * + ? ( ) / are operators
-     ("!\\|&\\|*\\|+\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
+     ("true\\|false\\|!\\|&\\|*\\|+\\|#\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
      ;; Color for label
-     ("\\(⇑[^\s]+\\)" 1 'font-lock-variable-name-face)
-     ("\\(\\^[^\s]+\\)" 1 'font-lock-variable-name-face))))
+     ("\\(\\^[a-zA-Z_][a-zA-Z0-9_]*\\)" 1 'font-lock-constant-face)
+     ;; Color for assignment of a name to a piece of the expression.
+     ("\\(:[^\s]+\\)" 1 'font-lock-variable-name-face))))
 
 ;;;###autoload
 (define-derived-mode peg-mode prog-mode "PEG Mode"
   :syntax-table peg-mode-syntax-table
-  (set (make-local-variable 'comment-start) "#")
+  (set (make-local-variable 'comment-start) "//")
   (set (make-local-variable 'comment-end) "")
   (set (make-local-variable 'font-lock-defaults)
        peg-font-lock-defaults)

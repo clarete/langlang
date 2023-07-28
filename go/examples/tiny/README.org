@@ -3,14 +3,16 @@
 This is a small but practical example of how to generate a parser
 targeting the Go language.
 
-The first interesting bit of this example is the build file.  You can
-run the test suite with this command:
+As this is just a teeny tiny example, we don't have a build system, we
+just use tools made available in the go toolchain.
 
-#+begin_src shell
-bzl test --sandbox_debug -- //libs/go/parsing/examples/tiny:go_default_test
+The test file ~tiny_test.go~ contains the line:
+
+#+begin_src go
+//go:generate go run ../../cmd -language go -grammar ./tiny.peg -output ./tiny.go
 #+end_src
 
-You are also encouraged to use the ~BUILD.bazel~ file in this
-directory as a template when adding this parsing library to your own
-code.  It shows how to use the command made available by the parsing
-library within a bazel build with the ~genrule~ directive.
+That is read and executed by ~go generate ./...~ and outputs the file
+~tiny.go~ into the same directory as the test file.  Which becomes a
+requirement to run before running ~go test ./...~.
+

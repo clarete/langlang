@@ -240,8 +240,12 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 	g.parser.indent()
 	g.parser.writei("start = p.Location()\n")
 	g.parser.writei("items []langlang.Value\n")
-	g.parser.writei("item  langlang.Value\n")
-	g.parser.writei("err   error\n")
+
+	if len(n.Items) > 0 {
+		g.parser.writei("item  langlang.Value\n")
+		g.parser.writei("err   error\n")
+	}
+
 	g.parser.unindent()
 	g.parser.writei(")\n")
 

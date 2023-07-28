@@ -220,7 +220,7 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.writeIfErr()
 	g.parser.writei("if item == nil {\n")
 	g.parser.indent()
-	g.parser.writei("return nil, nil")
+	g.parser.writei("return nil, nil\n")
 	g.parser.unindent()
 	g.parser.writei("}\n")
 
@@ -474,8 +474,16 @@ func (g *goCodeEmitter) visitAnyNode() {
 
 func (g *goCodeEmitter) writeSeqOrNode() {
 	g.parser.writei("switch len(items) {\n")
-	g.parser.writei("case 0: return nil, nil\n")
-	g.parser.writei("case 1: return items[0], nil\n")
+	g.parser.writei("case 0:\n")
+	g.parser.indent()
+	g.parser.writei("return nil, nil\n")
+	g.parser.unindent()
+
+	g.parser.writei("case 1:\n")
+	g.parser.indent()
+	g.parser.writei("return items[0], nil\n")
+	g.parser.unindent()
+
 	g.parser.writei("default:\n")
 	g.parser.indent()
 	g.parser.writei("return langlang.NewValueSequence(items, langlang.NewSpan(start, p.Location())), nil\n")

@@ -86,3 +86,32 @@ func (n ValueNode) Text() string {
 func (n ValueNode) String() string {
 	return fmt.Sprintf("%s(%s) @ %s", n.Name, n.Expr, n.Span())
 }
+
+// Node Error
+
+type ValueError struct {
+	span  Span
+	Label string
+	Expr  Value
+}
+
+func NewValueError(label string, expr Value, span Span) *ValueError {
+	return &ValueError{Label: label, Expr: expr, span: span}
+}
+
+func (n ValueError) Type() string { return "error" }
+func (n ValueError) Span() Span   { return n.span }
+
+func (n ValueError) Text() string {
+	if n.Expr == nil {
+		return "error"
+	}
+	return fmt.Sprintf("error %s", n.Expr.Text())
+}
+
+func (n ValueError) String() string {
+	if n.Expr == nil {
+		return fmt.Sprintf(`Error("%s") @ %s`, n.Label, n.Span())
+	}
+	return fmt.Sprintf(`Error("%s", %s) @ %s`, n.Label, n.Expr, n.Span())
+}

@@ -218,9 +218,6 @@ required:
  * [-] ???: [Go Lang] Decode output trees into structs
  * [ ] MID: import productions from other grammars: Complicates the
    deserialization I guess, so goes after that's working
- * [ ] MID: Error Recovery capabilities: If a production name matches
-   the name of a label, then throw shouldn't stop parsing, but instead
-   call the recovery expression associated with the label
  * [ ] MID: Build and display call graph for debugging purposes.
    Needs to visualize the backtracking and mark errors in red
  * [ ] MID: Python Code Generator

@@ -8,10 +8,13 @@ import (
 )
 
 type goCodeEmitter struct {
-	options     GenGoOptions
-	parser      *outputWriter
-	indentLevel int
-	lexLevel    int
+	options        GenGoOptions
+	parser         *outputWriter
+	indentLevel    int
+	lexLevel       int
+	predicateLevel int
+	labels         map[string]struct{}
+	productions    map[string]struct{}
 }
 
 type GenGoOptions struct {
@@ -22,7 +25,9 @@ type GenGoOptions struct {
 
 func GenGo(node Node, opt GenGoOptions) (string, error) {
 	g := newGoCodeEmitter(opt)
+	g.writePrelude()
 	g.visit(node)
+	g.writeConstructor()
 	return g.output()
 }
 
@@ -43,15 +48,9 @@ import (
 
 type {{.ParserName}} struct {
 	langlang.BaseParser
-	captureSpaces bool
-}
-
-func New{{.ParserName}}(input string) *{{.ParserName}} {
-	p := &{{.ParserName}}{
-		captureSpaces: true,
-	}
-	p.SetInput([]rune(input))
-	return p
+	captureSpaces  bool
+	predicateLevel int
+	recoveryTable  map[string]langlang.ParserFn[langlang.Value]
 }
 
 func (p *{{.ParserName}}) SetCaptureSpaces(v bool) {
@@ -142,12 +141,12 @@ func (p *{{.ParserName}}) wrapSeq(items []langlang.Value, span langlang.Span) la
 `
 
 func newGoCodeEmitter(opt GenGoOptions) *goCodeEmitter {
-	emitter := &goCodeEmitter{
-		options: opt,
-		parser:  newOutputWriter(),
+	return &goCodeEmitter{
+		options:     opt,
+		parser:      newOutputWriter(),
+		labels:      map[string]struct{}{},
+		productions: map[string]struct{}{},
 	}
-	emitter.parser.write(prelude)
-	return emitter
 }
 
 func (g *goCodeEmitter) visit(node Node) {
@@ -196,6 +195,8 @@ func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
 }
 
 func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
+	g.productions[n.Name] = struct{}{}
+
 	g.parser.write("\nfunc (p *{{.ParserName}}) Parse")
 	g.parser.write(n.Name)
 	g.parser.write("() (langlang.Value, error) {\n")
@@ -361,6 +362,9 @@ func (g *goCodeEmitter) visitAndNode(n *AndNode) {
 	g.parser.write("langlang.And(p, func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.parser.indent()
 
+	g.parser.writei("p.(*{{.ParserName}}).predicateLevel++\n")
+	g.parser.writei("defer func() { p.(*{{.ParserName}}).predicateLevel-- }()\n")
+
 	g.parser.writei("return ")
 	g.visit(n.Expr)
 	g.parser.write("\n")
@@ -372,6 +376,9 @@ func (g *goCodeEmitter) visitAndNode(n *AndNode) {
 func (g *goCodeEmitter) visitNotNode(n *NotNode) {
 	g.parser.write("langlang.Not(p, func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.parser.indent()
+
+	g.parser.writei("p.(*{{.ParserName}}).predicateLevel++\n")
+	g.parser.writei("defer func() { p.(*{{.ParserName}}).predicateLevel-- }()\n")
 
 	g.parser.writei("return ")
 	g.visit(n.Expr)
@@ -389,6 +396,8 @@ func (g *goCodeEmitter) visitLexNode(n *LexNode) {
 }
 
 func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
+	g.labels[n.Label] = struct{}{}
+
 	g.parser.write("func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.parser.indent()
 	g.parser.writei("start = p.Location()\n")
@@ -403,6 +412,22 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 	// if the expression failed, throw an error
 	g.parser.writei("func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.parser.indent()
+
+	g.parser.writei("if p.(*{{.ParserName}}).predicateLevel > 0 {\n")
+	g.parser.indent()
+	g.parser.writei("return nil, p.NewError")
+	fmt.Fprintf(g.parser.buffer, "(\"%s\", langlang.NewSpan(start, p.Location()))\n", n.Label)
+
+	g.parser.unindent()
+	g.parser.writei("}\n")
+
+	g.parser.writeIndent()
+	fmt.Fprintf(g.parser.buffer, "if fn, ok := p.(*{{.ParserName}}).recoveryTable[\"%s\"]; ok {\n", n.Label)
+	g.parser.indent()
+	g.parser.writei("return fn(p)\n")
+	g.parser.unindent()
+	g.parser.writei("}\n")
+
 	g.parser.writei("return nil, p.Throw")
 	g.parser.write(fmt.Sprintf(`("%s", langlang.NewSpan(start, p.Location()))`, n.Label))
 	g.parser.write("\n")
@@ -471,6 +496,48 @@ func (g *goCodeEmitter) visitAnyNode() {
 }
 
 // Utilities to write data into the output buffer
+
+func (g *goCodeEmitter) writePrelude() {
+	g.parser.write(prelude)
+}
+
+func (g *goCodeEmitter) writeConstructor() {
+	g.parser.writei("\nfunc New{{.ParserName}}(input string) *{{.ParserName}} {\n")
+	g.parser.indent()
+
+	g.parser.writei("p := &{{.ParserName}}{\n")
+	g.parser.indent()
+	g.parser.writei("captureSpaces: true,\n")
+	g.parser.writei("recoveryTable: map[string]langlang.ParserFn[langlang.Value]{},\n")
+	g.parser.unindent()
+	g.parser.writei("}\n")
+
+	for label := range g.labels {
+		if _, ok := g.productions[label]; ok {
+			g.parser.writei("p.recoveryTable[\"")
+			g.parser.write(label)
+
+			g.parser.write("\"] = func(p langlang.Parser) (langlang.Value, error) {\n")
+			g.parser.indent()
+
+			g.parser.writei("start := p.Location()\n")
+			g.parser.writei("item, err := p.(*{{.ParserName}})")
+			fmt.Fprintf(g.parser.buffer, ".Parse%s()\n", label)
+			g.writeIfErr()
+			g.parser.writei("return langlang.NewValueError")
+			fmt.Fprintf(g.parser.buffer, "(\"%s\", item, langlang.NewSpan(start, p.Location())), nil\n", label)
+
+			g.parser.unindent()
+			g.parser.write("}\n")
+		}
+	}
+
+	g.parser.writei("p.SetInput([]rune(input))\n")
+	g.parser.writei("return p\n")
+
+	g.parser.unindent()
+	g.parser.writei("}\n")
+}
 
 func (g *goCodeEmitter) writeSeqOrNode() {
 	g.parser.writei("switch len(items) {\n")

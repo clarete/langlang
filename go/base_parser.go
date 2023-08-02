@@ -16,9 +16,9 @@ type BaseParser struct {
 
 	lastErr    error
 	lastErrFFP int
-	stacktrace []TracerSpan
-	labelMsgs  map[string]string
 	predStkCnt int
+	labelMsgs  map[string]string
+	stacktrace []TracerSpan
 }
 
 // Location returns in which line/column/cursor the parser's input is currently in
@@ -30,9 +30,20 @@ func (p BaseParser) Location() Location {
 	}
 }
 
-// SetInput associates an input to the parser struct.  This should only be called once, obviously before parsing.
+// SetInput associates an input to the parser struct.  The state of
+// the parser is *partially* reset.  This doesn't reset the map
+// between labels and error messages.
 func (p *BaseParser) SetInput(input []rune) {
+	p.ffp = 0
+	p.cursor = 0
+	p.line = 0
+	p.column = 0
 	p.input = input
+
+	p.lastErr = nil
+	p.lastErrFFP = 0
+	p.stacktrace = []TracerSpan{}
+	p.predStkCnt = 0
 }
 
 // SetLabelMessages associates messages to labels, so `Throw` can pick it up and feed the error message it is

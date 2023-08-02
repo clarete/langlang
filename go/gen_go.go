@@ -503,7 +503,7 @@ func (g *goCodeEmitter) writePrelude() {
 }
 
 func (g *goCodeEmitter) writeConstructor() {
-	g.parser.writei("\nfunc New{{.ParserName}}(input string) *{{.ParserName}} {\n")
+	g.parser.writei("\nfunc New{{.ParserName}}() *{{.ParserName}} {\n")
 	g.parser.indent()
 
 	g.parser.writei("p := &{{.ParserName}}{\n")
@@ -529,11 +529,9 @@ func (g *goCodeEmitter) writeConstructor() {
 			fmt.Fprintf(g.parser.buffer, "(\"%s\", item, langlang.NewSpan(start, p.Location())), nil\n", label)
 
 			g.parser.unindent()
-			g.parser.write("}\n")
+			g.parser.writei("}\n")
 		}
 	}
-
-	g.parser.writei("p.SetInput([]rune(input))\n")
 	g.parser.writei("return p\n")
 
 	g.parser.unindent()

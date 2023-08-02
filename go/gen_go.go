@@ -12,7 +12,6 @@ type goCodeEmitter struct {
 	parser         *outputWriter
 	indentLevel    int
 	lexLevel       int
-	predicateLevel int
 	labels         map[string]struct{}
 	productions    map[string]struct{}
 }
@@ -43,6 +42,8 @@ var prelude string = `package {{.PackageName}}
 // you're fine with changes getting erased.
 
 import (
+	"fmt"
+
 	"github.com/clarete/langlang/go"
 )
 
@@ -50,11 +51,16 @@ type {{.ParserName}} struct {
 	langlang.BaseParser
 	captureSpaces  bool
 	predicateLevel int
+	printTraceback bool
 	recoveryTable  map[string]langlang.ParserFn[langlang.Value]
 }
 
 func (p *{{.ParserName}}) SetCaptureSpaces(v bool) {
 	p.captureSpaces = v
+}
+
+func (p *{{.ParserName}}) SetPrintTraceback(v bool) {
+	p.printTraceback = v
 }
 
 func (p *{{.ParserName}}) parseAny() (langlang.Value, error) {
@@ -206,7 +212,11 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	fmt.Fprintf(g.parser.buffer, `(langlang.TracerSpan{Name: "%s"})`, n.Name)
 	g.parser.write("\n")
 	g.parser.writei("defer p.PopTraceSpan()\n")
-	// g.parser.writei("fmt.Printf(\"%s; %s\\n\", p.Location(), p.PrintStackTrace())\n")
+	g.parser.writei("if p.printTraceback {\n")
+	g.parser.indent()
+	g.parser.writei("fmt.Printf(\"%s; %s\\n\", p.Location(), p.PrintStackTrace())\n")
+	g.parser.unindent()
+	g.parser.writei("}\n")
 
 	g.parser.writei("var (\n")
 	g.parser.indent()

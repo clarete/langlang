@@ -14,15 +14,27 @@ func (p *GrammarParser) Parse() (Node, error) {
 	return p.ParseGrammar()
 }
 
-// GR: Grammar <- Definition+ EndOfFile
+// GR: Grammar <- Import* Definition+ EndOfFile
 func (p *GrammarParser) ParseGrammar() (Node, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Grammar"})
 	defer p.PopTraceSpan()
 
 	p.ParseSpacing()
 	start := p.Location()
-	defs, err := OneOrMore(p, func(p Parser) (Node, error) {
-		return p.(*GrammarParser).ParseDefinition()
+	imports, err := ZeroOrMore(p, func(p Parser) (*ImportNode, error) {
+		return p.(*GrammarParser).ParseImport()
+	})
+	if err != nil {
+		return nil, err
+	}
+	defsByName := map[string]*DefinitionNode{}
+	defs, err := OneOrMore(p, func(p Parser) (*DefinitionNode, error) {
+		d, err := p.(*GrammarParser).ParseDefinition()
+		if err != nil {
+			return nil, err
+		}
+		defsByName[d.Name] = d
+		return d, nil
 	})
 	if err != nil {
 		return nil, err
@@ -32,11 +44,72 @@ func (p *GrammarParser) ParseGrammar() (Node, error) {
 	if _, err := Not(p, p.ExpectRuneFn('.')); err != nil {
 		return nil, err
 	}
-	return NewGrammarNode(defs, NewSpan(start, p.Location())), nil
+	return NewGrammarNode(imports, defs, defsByName, NewSpan(start, p.Location())), nil
+}
+
+// GR: Import <- '@import' Identifier ("," Identifier)* 'from' Literal
+func (p *GrammarParser) ParseImport() (*ImportNode, error) {
+	p.PushTraceSpan(TracerSpan{Name: "Import"})
+	defer p.PopTraceSpan()
+
+	p.ParseSpacing()
+	start := p.Location()
+
+	if _, err := p.ExpectLiteral("@import"); err != nil {
+		return nil, err
+	}
+
+	names, err := p.parseImportNames()
+	if err != nil {
+		return nil, err
+	}
+
+	p.ParseSpacing()
+	if _, err := p.ExpectLiteral("from"); err != nil {
+		return nil, err
+	}
+
+	p.ParseSpacing()
+	pathStart := p.Location()
+	path, err := p.parseLiteral()
+	if err != nil {
+		return nil, err
+	}
+	end := p.Location()
+	pathLiteral := NewLiteralNode(path, NewSpan(pathStart, end))
+	return NewImportNode(pathLiteral, names, NewSpan(start, end)), nil
+}
+
+func (p *GrammarParser) parseImportNames() ([]*LiteralNode, error) {
+	p.ParseSpacing()
+	start := p.Location()
+	headId, err := p.parseIdentifier()
+	if err != nil {
+		return nil, err
+	}
+	head := NewLiteralNode(headId, NewSpan(start, p.Location()))
+	tail, err := ZeroOrMore(p, func(p Parser) (*LiteralNode, error) {
+		p.(*GrammarParser).ParseSpacing()
+		if _, err := p.ExpectRune(','); err != nil {
+			return nil, err
+		}
+
+		p.(*GrammarParser).ParseSpacing()
+		start := p.Location()
+		id, err := p.(*GrammarParser).parseIdentifier()
+		if err != nil {
+			return nil, err
+		}
+		return NewLiteralNode(id, NewSpan(start, p.Location())), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append([]*LiteralNode{head}, tail...), nil
 }
 
 // GR: Definition <- Identifier LEFTARROW Expression
-func (p *GrammarParser) ParseDefinition() (Node, error) {
+func (p *GrammarParser) ParseDefinition() (*DefinitionNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Definition"})
 	defer p.PopTraceSpan()
 
@@ -416,16 +489,51 @@ func (p *GrammarParser) parseLiteral() (string, error) {
 	return value, nil
 }
 
-// !'\\' .
+// GR: Char <- '\\' [nrt’"\[\]\\]
+//           / !'\\' .
 func (p *GrammarParser) ParseChar() (Node, error) {
 	start := p.Location()
-	value, err := p.parseChar()
+	value, err := Choice(p, []ParserFn[string]{
+		func(p Parser) (string, error) { return p.(*GrammarParser).parseEscapedChar() },
+		func(p Parser) (string, error) { return p.(*GrammarParser).parseChar() },
+	})
 	if err != nil {
 		return nil, err
 	}
 	return NewLiteralNode(value, NewSpan(start, p.Location())), nil
 }
 
+// '\\' [nrt'"\[\]\\]
+func (p *GrammarParser) parseEscapedChar() (string, error) {
+	if _, err := p.ExpectRune('\\'); err != nil {
+		return "", err
+	}
+	var choices []ParserFn[string]
+	for _, choice := range []struct {
+		In  rune
+		Out string
+	}{
+		{In: 'n', Out: "\\n"},
+		{In: 'r', Out: "\\r"},
+		{In: 't', Out: "\\t"},
+		{In: '\'', Out: "'"},
+		{In: '"', Out: "\""},
+		{In: '[', Out: "["},
+		{In: ']', Out: "]"},
+		{In: '\\', Out: "\\\\"},
+	} {
+		c := choice
+		choices = append(choices, func(p Parser) (string, error) {
+			if _, err := p.ExpectRune(c.In); err != nil {
+				return "", err
+			}
+			return c.Out, nil
+		})
+	}
+	return Choice(p, choices)
+}
+
+// !'\\' .
 func (p *GrammarParser) parseChar() (string, error) {
 	if _, err := Not(p, p.ExpectRuneFn('\\')); err != nil {
 		return "", err

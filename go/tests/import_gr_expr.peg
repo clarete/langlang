@@ -1,0 +1,5 @@
+@import Value from "./import_gr_value.peg"
+
+Expr     <- Multi (( '+' / '-' ) Multi)*
+Multi    <- Primary (( '*' / '/' ) Primary)*
+Primary  <- Value / '(' Expr ')'

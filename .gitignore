@@ -6,3 +6,4 @@ _/
 go/examples/tiny/tiny.go
 go/tests/basic.go
 go/tests/recovery.go
+go/tests/import.go

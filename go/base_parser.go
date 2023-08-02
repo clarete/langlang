@@ -168,7 +168,7 @@ func (p *BaseParser) StackTrace() []TracerSpan {
 	return p.stacktrace
 }
 
-func (p *BaseParser) printStackTrace() string {
+func (p *BaseParser) PrintStackTrace() string {
 	var (
 		s     strings.Builder
 		stack = p.StackTrace()

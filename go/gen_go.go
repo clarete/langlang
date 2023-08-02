@@ -57,7 +57,7 @@ func (p *{{.ParserName}}) SetCaptureSpaces(v bool) {
 	p.captureSpaces = v
 }
 
-func (p *{{.ParserName}}) ParseAny() (langlang.Value, error) {
+func (p *{{.ParserName}}) parseAny() (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.Any()
 	if err != nil {
@@ -67,7 +67,7 @@ func (p *{{.ParserName}}) ParseAny() (langlang.Value, error) {
 	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *{{.ParserName}}) ParseRange(left, right rune) (langlang.Value, error) {
+func (p *{{.ParserName}}) parseRange(left, right rune) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectRange(left, right)
 	if err != nil {
@@ -77,7 +77,7 @@ func (p *{{.ParserName}}) ParseRange(left, right rune) (langlang.Value, error) {
 	return langlang.NewValueString(string(r), langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *{{.ParserName}}) ParseLiteral(literal string) (langlang.Value, error) {
+func (p *{{.ParserName}}) parseLiteral(literal string) (langlang.Value, error) {
 	start := p.Location()
 	r, err := p.ExpectLiteral(literal)
 	if err != nil {
@@ -87,7 +87,7 @@ func (p *{{.ParserName}}) ParseLiteral(literal string) (langlang.Value, error) {
 	return langlang.NewValueString(r, langlang.NewSpan(start, p.Location())), nil
 }
 
-func (p *{{.ParserName}}) ParseSpacing() (langlang.Value, error) {
+func (p *{{.ParserName}}) parseSpacing() (langlang.Value, error) {
 	start := p.Location()
 	v, err := langlang.ZeroOrMore(p, func(p langlang.Parser) (rune, error) {
 		return langlang.ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
@@ -115,7 +115,7 @@ func (p *{{.ParserName}}) ParseEOF() (langlang.Value, error) {
 			err   error
 		)
 		item, err = langlang.Not(p, func(p langlang.Parser) (langlang.Value, error) {
-			return p.(*{{.ParserName}}).ParseAny()
+			return p.(*{{.ParserName}}).parseAny()
 		})
 		if err != nil {
 			return nil, err
@@ -184,12 +184,12 @@ func (g *goCodeEmitter) visit(node Node) {
 	case *AnyNode:
 		g.visitAnyNode()
 	default:
-		panic(fmt.Sprintf("Unknown Grammar AST node: %#v", n))
+		panic(fmt.Sprintf("Unknown Grammar AST node: %s", n))
 	}
 }
 
 func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
-	for _, item := range n.Items {
+	for _, item := range n.GetItems() {
 		g.visit(item)
 	}
 }
@@ -206,6 +206,7 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	fmt.Fprintf(g.parser.buffer, `(langlang.TracerSpan{Name: "%s"})`, n.Name)
 	g.parser.write("\n")
 	g.parser.writei("defer p.PopTraceSpan()\n")
+	// g.parser.writei("fmt.Printf(\"%s; %s\\n\", p.Location(), p.PrintStackTrace())\n")
 
 	g.parser.writei("var (\n")
 	g.parser.indent()
@@ -253,7 +254,7 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 	for _, item := range n.Items {
 		_, isLexNode := item.(*LexNode)
 		if shouldConsumeSpaces && !isLexNode {
-			g.parser.writei("item, err = p.(*{{.ParserName}}).ParseSpacing()\n")
+			g.parser.writei("item, err = p.(*{{.ParserName}}).parseSpacing()\n")
 			g.writeIfErr()
 			g.parser.writei("if item != nil {\n")
 			g.parser.indent()
@@ -453,9 +454,9 @@ func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
 var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
 
 func (g *goCodeEmitter) visitLiteralNode(n *LiteralNode) {
-	s := `p.(*{{.ParserName}}).ParseLiteral("%s")`
+	s := `p.(*{{.ParserName}}).parseLiteral("%s")`
 	if g.isAtRuleLevel() {
-		s = `p.ParseLiteral("%s")`
+		s = `p.parseLiteral("%s")`
 	}
 	g.parser.write(fmt.Sprintf(s, quoteSanitizer.Replace(n.Value)))
 }
@@ -480,17 +481,17 @@ func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
 }
 
 func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
-	s := "p.(*{{.ParserName}}).ParseRange('%s', '%s')"
+	s := "p.(*{{.ParserName}}).parseRange('%s', '%s')"
 	if g.isAtRuleLevel() {
-		s = "p.ParseRange('%s', '%s')"
+		s = "p.parseRange('%s', '%s')"
 	}
 	g.parser.write(fmt.Sprintf(s, n.Left, n.Right))
 }
 
 func (g *goCodeEmitter) visitAnyNode() {
-	s := "p.(*{{.ParserName}}).ParseAny()"
+	s := "p.(*{{.ParserName}}).parseAny()"
 	if g.isAtRuleLevel() {
-		s = "p.ParseAny()"
+		s = "p.parseAny()"
 	}
 	g.parser.write(s)
 }

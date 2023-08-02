@@ -182,6 +182,39 @@ and ~th~.
 
 *** Error reporting with Labels
 
+*** Import system
+
+Productions of one grammar can be imported from another one.  That
+allows reusing rules and delivering more consolidate grammar files and
+more powerful parser generated at the end.
+
+#+begin_src peg
+  // file player.peg
+  @import AddrSpec from "./rfc5322.peg"
+
+  Player <- "Name:" Name "," "Score:" Number "," "Email:" AddrSpec
+  Name   <- [a-zA-Z ]+
+  Number <- [0-9]+
+  // ... elided for simplicity
+
+#+end_src
+
+#+begin_src peg
+  // file rfc5322.peg
+  // https://datatracker.ietf.org/doc/html/rfc5322#section-3.4.1
+
+  // ... elided for simplicity
+  AddrSpec  <- LocalPart "@" Domain
+  LocalPart <- DotAtom / QuotedString / ObsLocalPart
+  Domain    <- DotAtom / DomainLiteral / ObsDomain
+  // ... elided for simplicity
+#+end_src
+
+The above example illustrates that a rather complete email parser can
+be used in other grammars using imports.  Behind the scenes, the
+~AddrSpec~ rule and all its dependencies have been merged into the
+~player.peg~ grammar.
+
 * Generator Options
 ** Go
 

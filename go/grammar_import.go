@@ -1,0 +1,175 @@
+package langlang
+
+import (
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
+)
+
+type ImportResolver struct {
+	loader ImportLoader
+}
+
+func NewImportResolver(loader ImportLoader) *ImportResolver {
+	return &ImportResolver{loader: loader}
+}
+
+func (r *ImportResolver) Resolve(source string) (Node, error) {
+	f, err := r.resolve(source, source)
+	if err != nil {
+		return nil, nil
+	}
+	return f.Grammar, nil
+}
+
+func (r *ImportResolver) resolve(importPath, parentPath string) (*importerResolverFrame, error) {
+	parentFrame, err := r.createImporterResolverFrame(importPath, parentPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, importNode := range parentFrame.Grammar.Imports {
+		childFrame, err := r.resolve(importNode.GetPath(), parentFrame.ImportPath)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range importNode.GetNames() {
+			importedDefinition, ok := childFrame.Grammar.DefsByName[name]
+			if !ok {
+				return nil, fmt.Errorf("Name `%s` isn't declared in %s", name, childFrame.ImportPath)
+			}
+
+			parentFrame.addNewDefinition(importedDefinition)
+
+			for _, depDef := range childFrame.findDefinitionDeps(importedDefinition) {
+				parentFrame.addNewDefinition(depDef)
+			}
+		}
+		parentFrame.Grammar.Imports = []*ImportNode{}
+	}
+	return parentFrame, nil
+}
+
+func (r *ImportResolver) createImporterResolverFrame(importPath, parentPath string) (*importerResolverFrame, error) {
+	path, err := r.loader.GetPath(importPath, parentPath)
+	if err != nil {
+		return nil, err
+	}
+	data, err := r.loader.GetContent(path)
+	if err != nil {
+		return nil, err
+	}
+	node, err := NewGrammarParser(data).Parse()
+	if err != nil {
+		return nil, err
+	}
+	grammar, ok := node.(*GrammarNode)
+	if !ok {
+		return nil, fmt.Errorf("Grammar expected, but got %#v", node)
+	}
+	f := &importerResolverFrame{
+		ImportPath: path,
+		ParentPath: parentPath,
+		Grammar:    grammar,
+	}
+	return f, nil
+}
+
+type ImportLoader interface {
+	GetPath(importPath, parentPath string) (string, error)
+	GetContent(path string) (string, error)
+}
+
+type RelativeImportLoader struct{}
+
+func NewRelativeImportLoader() *RelativeImportLoader {
+	return &RelativeImportLoader{}
+}
+
+func (ril *RelativeImportLoader) GetPath(importPath, parentPath string) (string, error) {
+	// Root node handling
+	if importPath == parentPath {
+		return importPath, nil
+	}
+	var contents string
+	if len(importPath) < 3 {
+		return contents, fmt.Errorf("Path too short: %s", importPath)
+	}
+	if importPath[:2] != "./" {
+		return contents, fmt.Errorf("Path isn't relative to the import site: %s", importPath)
+	}
+	modulePath := importPath[2:]
+	return filepath.Join(filepath.Dir(parentPath), modulePath), nil
+}
+
+func (ril *RelativeImportLoader) GetContent(path string) (string, error) {
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
+
+type importerResolverFrame struct {
+	ImportPath string
+	ParentPath string
+	Grammar    *GrammarNode
+}
+
+func (f *importerResolverFrame) addNewDefinition(n *DefinitionNode) {
+	if _, ok := f.Grammar.DefsByName[n.Name]; !ok {
+		f.Grammar.Definitions = append(f.Grammar.Definitions, n)
+		f.Grammar.DefsByName[n.Name] = n
+	}
+}
+
+// findDefinitionDeps traverses the definition `node` and finds all
+// identifiers within it.  If the identifier hasn't been seen yet, it
+// will add it to the dependency list, and traverse into the
+// definition that points into that identifier.
+func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) map[string]*DefinitionNode {
+	deps := map[string]*DefinitionNode{}
+	f.doFindDefinitionDeps(node.Expr, &deps)
+	return deps
+}
+
+func (f *importerResolverFrame) doFindDefinitionDeps(node Node, deps *map[string]*DefinitionNode) {
+	switch n := node.(type) {
+	case *IdentifierNode:
+		// Built-in rule; has no dependencies
+		if n.Value == "EOF" {
+			return
+		}
+
+		// Let's not recurse if this dep has been seen already
+		if _, ok := (*deps)[n.Value]; ok {
+			return
+		}
+
+		// save definition as a dependency and recurse into it
+		def := f.Grammar.DefsByName[n.Value]
+		(*deps)[n.Value] = def
+		f.doFindDefinitionDeps(def.Expr, deps)
+	case *SequenceNode:
+		for _, item := range n.Items {
+			f.doFindDefinitionDeps(item, deps)
+		}
+	case *ChoiceNode:
+		for _, item := range n.Items {
+			f.doFindDefinitionDeps(item, deps)
+		}
+	case *OptionalNode:
+		f.doFindDefinitionDeps(n.Expr, deps)
+	case *ZeroOrMoreNode:
+		f.doFindDefinitionDeps(n.Expr, deps)
+	case *OneOrMoreNode:
+		f.doFindDefinitionDeps(n.Expr, deps)
+	case *AndNode:
+		f.doFindDefinitionDeps(n.Expr, deps)
+	case *NotNode:
+		f.doFindDefinitionDeps(n.Expr, deps)
+	case *LexNode:
+		f.doFindDefinitionDeps(n.Expr, deps)
+	case *LabeledNode:
+		f.doFindDefinitionDeps(n.Expr, deps)
+	}
+}

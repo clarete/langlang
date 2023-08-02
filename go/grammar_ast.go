@@ -355,23 +355,80 @@ func (n DefinitionNode) String() string {
 	return fmt.Sprintf("Definition[%s](%s) @ %s", n.Name, n.Expr, n.Span())
 }
 
+// Node Type: Import
+
+type ImportNode struct {
+	span  Span
+	Path  *LiteralNode
+	Names []*LiteralNode
+}
+
+func NewImportNode(path *LiteralNode, names []*LiteralNode, s Span) *ImportNode {
+	n := &ImportNode{Path: path, Names: names}
+	n.span = s
+	return n
+}
+
+func (n ImportNode) Span() Span        { return n.span }
+func (n ImportNode) IsSyntactic() bool { return false }
+
+func (n ImportNode) Text() string {
+	names := strings.Join(n.GetNames(), ", ")
+	return fmt.Sprintf("import %s from \"%s\"", names, n.GetPath())
+}
+
+func (n ImportNode) String() string {
+	names := strings.Join(n.GetNames(), ", ")
+	return fmt.Sprintf("Import([%s], %s) @ %s", names, n.GetPath(), n.Span())
+}
+
+func (n ImportNode) GetPath() string {
+	return n.Path.Value
+}
+
+func (n ImportNode) GetNames() []string {
+	var names []string
+	for _, name := range n.Names {
+		names = append(names, name.Value)
+	}
+	return names
+}
+
 // Node Type: Grammar
 
 type GrammarNode struct {
-	span  Span
-	Items []Node
+	span        Span
+	Imports     []*ImportNode
+	Definitions []*DefinitionNode
+	DefsByName  map[string]*DefinitionNode
 }
 
-func NewGrammarNode(items []Node, s Span) *GrammarNode {
-	n := &GrammarNode{Items: items}
+func NewGrammarNode(
+	imps []*ImportNode,
+	defs []*DefinitionNode,
+	defsByName map[string]*DefinitionNode,
+	s Span,
+) *GrammarNode {
+	n := &GrammarNode{Imports: imps, Definitions: defs, DefsByName: defsByName}
 	n.span = s
 	return n
 }
 
 func (n GrammarNode) Span() Span        { return n.span }
 func (n GrammarNode) IsSyntactic() bool { return false }
-func (n GrammarNode) Text() string      { return nodesText(n.Items, "\n") }
-func (n GrammarNode) String() string    { return nodesString("Grammar", n, n.Items) }
+func (n GrammarNode) Text() string      { return nodesText(n.GetItems(), "\n") }
+func (n GrammarNode) String() string    { return nodesString("Grammar", n, n.GetItems()) }
+
+func (n GrammarNode) GetItems() []Node {
+	var items []Node
+	for _, imp := range n.Imports {
+		items = append(items, imp)
+	}
+	for _, def := range n.Definitions {
+		items = append(items, def)
+	}
+	return items
+}
 
 // Helpers
 

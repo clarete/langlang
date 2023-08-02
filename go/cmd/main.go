@@ -31,15 +31,11 @@ func main() {
 		log.Fatal("Grammar not informed")
 	}
 
-	grammarData, err := os.ReadFile(*grammarPath)
+	importLoader := langlang.NewRelativeImportLoader()
+	importResolver := langlang.NewImportResolver(importLoader)
+	ast, err := importResolver.Resolve(*grammarPath)
 	if err != nil {
-		log.Fatalf("Can't read grammar file: %s", err.Error())
-	}
-
-	parser := langlang.NewGrammarParser(string(grammarData))
-	ast, err := parser.Parse()
-	if err != nil {
-		log.Fatalf("Can't parse grammar file: %s", err.Error())
+		log.Fatal(err)
 	}
 	if *astOnly {
 		log.Println(ast)

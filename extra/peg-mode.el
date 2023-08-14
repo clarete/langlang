@@ -50,9 +50,9 @@
      ("^type\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*enum" 1 'font-lock-function-name-face)
      ("^type\s*\\([a-zA-Z_][a-zA-Z0-9_]*\\)\s*struct" 1 'font-lock-function-name-face)
      ;; Color for the little assignment arrow
-     ("\s*\\(<-\\|->\\|type\\|enum\\|struct\\|string\\|bool\\|f32\\|f64\\|i32\\|i64\\)\s*" 1 'font-lock-type-face)
+     ("\s*\\(<-\\|->\\|type\\|import\\|from\\|enum\\|struct\\|string\\|bool\\|f32\\|f64\\|i32\\|i64\\)\s*" 1 'font-lock-type-face)
      ;; ! & * + ? ( ) / are operators
-     ("true\\|false\\|!\\|&\\|*\\|+\\|#\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
+     ("true\\|false\\|@\\|!\\|&\\|*\\|+\\|#\\|?\\|(\\|)\\|/" . font-lock-builtin-face)
      ;; Color for label
      ("\\(\\^[a-zA-Z_][a-zA-Z0-9_]*\\)" 1 'font-lock-constant-face)
      ;; Color for assignment of a name to a piece of the expression.

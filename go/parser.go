@@ -2,6 +2,7 @@ package langlang
 
 import (
 	"fmt"
+	"strings"
 )
 
 type Location struct {
@@ -47,7 +48,7 @@ func (s Span) String() string {
 
 type Parser interface {
 	// SetInput associates input to a concrete parser struct
-	SetInput(input []rune)
+	SetInput(input string)
 
 	// Peek returns the rune within the input that is under the
 	// parser cursor.  It does not change the cursor.
@@ -69,7 +70,7 @@ type Parser interface {
 	Location() Location
 
 	// NewError creates a new error message
-	NewError(msg string, span Span) error
+	NewError(expected, msg string, span Span) error
 
 	// SetLabelMessages associates a message to a label, so when a
 	// given label is thrown by the `Throw()` module
@@ -161,7 +162,7 @@ func ZeroOrMore[T any](p Parser, fn ParserFn[T]) ([]T, error) {
 		item, err := fn(p)
 		if err != nil {
 			p.Backtrack(state)
-			if isthrown(err) {
+			if isthrown(err) && !p.WithinPredicate() {
 				return nil, err
 			}
 			break
@@ -201,7 +202,11 @@ func ChoiceRune(p Parser, runes []rune) (rune, error) {
 // backtrack the parser cursor before each attempt, and it will fail
 // if no alternatives match.
 func Choice[T any](p Parser, fns []ParserFn[T]) (T, error) {
-	var zero T
+	var (
+		zero        T
+		expected    []string
+		expectedMap = map[string]struct{}{}
+	)
 	state := p.State()
 	for _, fn := range fns {
 		item, err := fn(p)
@@ -209,12 +214,20 @@ func Choice[T any](p Parser, fns []ParserFn[T]) (T, error) {
 			return item, nil
 		} else {
 			p.Backtrack(state)
-			if isthrown(err) { // && !p.WithinPredicate()
+			if isthrown(err) && !p.WithinPredicate() {
 				return zero, err
+			}
+			if berr, ok := err.(*backtrackingError); ok {
+				if _, ok := expectedMap[berr.Expected]; !ok {
+					expectedMap[berr.Expected] = struct{}{}
+					expected = append(expected, berr.Expected)
+				}
 			}
 		}
 	}
-	return zero, p.NewError("Choice Error", NewSpan(state.Location, p.Location()))
+	exp := strings.Join(expected, ", ")
+	msg := fmt.Sprintf("Expected %s but got `%c`", exp, p.Peek())
+	return zero, p.NewError(exp, msg, NewSpan(state.Location, p.Location()))
 }
 
 // Optional is a syntax sugar for an ordered choice in which the
@@ -242,7 +255,7 @@ func And[T any](p Parser, fn ParserFn[T]) (T, error) {
 	p.LeavePredicate()
 
 	if err != nil {
-		return zero, p.NewError("And Error", NewSpan(state.Location, p.Location()))
+		return zero, p.NewError("&", "And Error", NewSpan(state.Location, p.Location()))
 	}
 	return zero, nil
 }
@@ -259,7 +272,7 @@ func Not[T any](p Parser, fn ParserFn[T]) (T, error) {
 	p.LeavePredicate()
 
 	if err == nil {
-		return zero, p.NewError("Not Error", NewSpan(state.Location, p.Location()))
+		return zero, p.NewError("!", "Not Error", NewSpan(state.Location, p.Location()))
 	}
 	return zero, nil
 }

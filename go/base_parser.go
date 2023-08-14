@@ -7,12 +7,18 @@ import (
 
 const eof = -1
 
+// BaseParser keeps the state necessary to build parsing expressions
+// on top of the basic parsing expressions available, like Choice,
+// ZeroOrMore, OneOrMore, Options, etc.
 type BaseParser struct {
 	ffp    int
 	cursor int
 	line   int
 	column int
 	input  []rune
+
+	inputFile   string
+	grammarFile string
 
 	lastErr    error
 	lastErrFFP int
@@ -27,18 +33,31 @@ func (p BaseParser) Location() Location {
 		Line:   p.line,
 		Column: p.column,
 		Cursor: p.cursor,
+		File:   p.inputFile,
 	}
+}
+
+// SetFile allows users of the base parser to define the path of the
+// input file.  That is used in error messages.
+func (p *BaseParser) SetInputFile(file string) {
+	p.inputFile = file
+}
+
+// SetGrammarFile allows users of the base parser to define the path
+// of the grammar file.  That might be used in error messages.
+func (p *BaseParser) SetGrammarFile(f string) {
+	p.grammarFile = f
 }
 
 // SetInput associates an input to the parser struct.  The state of
 // the parser is *partially* reset.  This doesn't reset the map
 // between labels and error messages.
-func (p *BaseParser) SetInput(input []rune) {
+func (p *BaseParser) SetInput(input string) {
 	p.ffp = 0
 	p.cursor = 0
 	p.line = 0
 	p.column = 0
-	p.input = input
+	p.input = []rune(input)
 
 	p.lastErr = nil
 	p.lastErrFFP = 0
@@ -82,8 +101,10 @@ func (p *BaseParser) ExpectRune(v rune) (rune, error) {
 		return p.Any()
 	}
 
-	msg := fmt.Sprintf("Expected char `%c', got `%c'", v, c)
-	return 0, p.NewError(msg, NewSpan(start, p.Location()))
+	exp := fmt.Sprintf("`%c`", v)
+	msg := fmt.Sprintf("Expected `%c` but got `%c`", v, c)
+	err := p.NewError(exp, msg, NewSpan(start, p.Location()))
+	return 0, err
 }
 
 func (p *BaseParser) ExpectRuneFn(v rune) ParserFn[rune] {
@@ -97,8 +118,10 @@ func (p *BaseParser) ExpectRange(l, r rune) (rune, error) {
 		return p.Any()
 	}
 
-	msg := fmt.Sprintf("Expected char between `%c' and `%c', got `%c'", l, r, c)
-	return 0, p.NewError(msg, NewSpan(start, p.Location()))
+	exp := fmt.Sprintf("`%c-%c`", l, r)
+	msg := fmt.Sprintf("Expected `%c-%c` but got `%c`", l, r, c)
+	err := p.NewError(exp, msg, NewSpan(start, p.Location()))
+	return 0, err
 }
 
 func (p *BaseParser) ExpectRangeFn(l, r rune) ParserFn[rune] {
@@ -117,8 +140,10 @@ func (p *BaseParser) ExpectLiteral(literal string) (string, error) {
 		if c == v {
 			continue
 		}
-		return "", p.NewError(fmt.Sprintf("Missing `%s`", literal),
-			NewSpan(state.Location, p.Location()))
+
+		span := NewSpan(state.Location, p.Location())
+		err = p.NewError(fmt.Sprintf("`%s`", literal), fmt.Sprintf("Missing `%s`", literal), span)
+		return "", err
 	}
 	return literal, nil
 
@@ -129,7 +154,7 @@ func (p *BaseParser) Any() (rune, error) {
 	pos := p.Location()
 	c := p.Peek()
 	if c == eof {
-		return 0, p.NewError("EOF", NewSpan(pos, p.Location()))
+		return 0, p.NewError(".", "EOF", NewSpan(pos, p.Location()))
 	}
 	p.cursor++
 	p.column++
@@ -145,15 +170,16 @@ func (p *BaseParser) Any() (rune, error) {
 
 // NewError creates a type of error that is handled and discarded when
 // the parser backtracks the input position
-func (p *BaseParser) NewError(msg string, span Span) error {
-	if p.lastErr == nil || p.ffp > p.lastErrFFP {
-		n := p.PeekTraceSpan().Name
-		e := backtrackingError{Production: n, Message: msg, Span: span}
-		p.lastErr = e
-		p.lastErrFFP = p.ffp
-		return e
+func (p *BaseParser) NewError(exp, msg string, span Span) error {
+	n := p.PeekTraceSpan().Name
+	e := &backtrackingError{
+		Production: n,
+		Expected:   exp,
+		Message:    msg,
+		// ErrSpan:    errSpan,
+		Span:       span,
 	}
-	return p.lastErr
+	return e
 }
 
 func (p *BaseParser) PushTraceSpan(ts TracerSpan) {
@@ -199,7 +225,7 @@ func (p *BaseParser) PrintStackTrace() string {
 // and will error right away
 func (p *BaseParser) Throw(label string, span Span) error {
 	if p.WithinPredicate() {
-		return p.NewError(label, span)
+		return p.NewError(label, label, span)
 	}
 	production := p.PeekTraceSpan().Name
 	message := ""

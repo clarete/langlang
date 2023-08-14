@@ -58,7 +58,9 @@ func (r *ImportResolver) createImporterResolverFrame(importPath, parentPath stri
 	if err != nil {
 		return nil, err
 	}
-	node, err := NewGrammarParser(data).Parse()
+	p := NewGrammarParser(data)
+	p.SetGrammarFile(importPath)
+	node, err := p.Parse()
 	if err != nil {
 		return nil, err
 	}

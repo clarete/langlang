@@ -104,9 +104,9 @@ func (n ValueError) Span() Span   { return n.span }
 
 func (n ValueError) Text() string {
 	if n.Expr == nil {
-		return "error"
+		return "error[" + n.Label + "]"
 	}
-	return fmt.Sprintf("error %s", n.Expr.Text())
+	return fmt.Sprintf("error[%s: %s]", n.Label, n.Expr.Text())
 }
 
 func (n ValueError) String() string {

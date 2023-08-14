@@ -1,5 +1,9 @@
 @import Number from "./import_gr_number.peg"
 @import String from "./import_gr_string.peg"
 
-Value   <- Boolean / Number / String
+Value   <- String / Number / Boolean
 Boolean <- 'true' / 'false'
+
+// overrides what's defined within Number
+Binary      <- '0b' [0-1]+
+Hexadecimal <- '0x' [a-fA-F0-9]+

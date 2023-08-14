@@ -8,12 +8,12 @@ import (
 )
 
 type goCodeEmitter struct {
-	options        GenGoOptions
-	parser         *outputWriter
-	indentLevel    int
-	lexLevel       int
-	labels         map[string]struct{}
-	productions    map[string]struct{}
+	options     GenGoOptions
+	parser      *outputWriter
+	indentLevel int
+	lexLevel    int
+	labels      map[string]struct{}
+	productions map[string]struct{}
 }
 
 type GenGoOptions struct {
@@ -427,7 +427,7 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 	g.parser.writei("if p.(*{{.ParserName}}).predicateLevel > 0 {\n")
 	g.parser.indent()
 	g.parser.writei("return nil, p.NewError")
-	fmt.Fprintf(g.parser.buffer, "(\"%s\", langlang.NewSpan(start, p.Location()))\n", n.Label)
+	fmt.Fprintf(g.parser.buffer, "(\"%s\", \"%s\", langlang.NewSpan(start, p.Location()))\n", n.Label, n.Label)
 
 	g.parser.unindent()
 	g.parser.writei("}\n")

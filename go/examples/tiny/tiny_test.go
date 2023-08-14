@@ -36,25 +36,33 @@ func TestTiny(t *testing.T) {
 }
 
 func assertExpr(t *testing.T, expected, input string) {
-	v, err := NewParser(input).ParsePrimary()
+	p := NewParser()
+	p.SetInput(input)
+	v, err := p.ParsePrimary()
 	require.NoError(t, err)
 	require.Equal(t, expected, v.Text())
 }
 
 func assertCall(t *testing.T, expected, input string) {
-	v, err := NewParser(input).ParseCall()
+	p := NewParser()
+	p.SetInput(input)
+	v, err := p.ParseCall()
 	require.NoError(t, err)
 	require.Equal(t, expected, v.Text())
 }
 
 func assertNum(t *testing.T, expected, input string) {
-	v, err := NewParser(input).ParseNum()
+	p := NewParser()
+	p.SetInput(input)
+	v, err := p.ParseNum()
 	require.NoError(t, err)
 	require.Equal(t, expected, v.Text())
 }
 
 func assertId(t *testing.T, expected, input string) {
-	v, err := NewParser(input).ParseId()
+	p := NewParser()
+	p.SetInput(input)
+	v, err := p.ParseId()
 	require.NoError(t, err)
 	require.Equal(t, expected, v.Text())
 }

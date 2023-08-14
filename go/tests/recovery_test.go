@@ -47,7 +47,8 @@ func TestRecovery(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			p := NewRecoveryParser(test.Input)
+			p := NewRecoveryParser()
+			p.SetInput(test.Input)
 			p.SetCaptureSpaces(false)
 			v, err := p.ParseP()
 			require.NoError(t, err)

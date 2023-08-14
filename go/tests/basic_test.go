@@ -12,43 +12,43 @@ import (
 func TestIsSyntactic(t *testing.T) {
 	t.Run("sequence with literal terminals is always syntactic", func(t *testing.T) {
 		// Matches without the spaces in the input
-		p := NewBasicParser("abc")
+		p := newBasicParser("abc")
 		v, err := p.ParseSyntactic0()
 		require.NoError(t, err)
 		assert.Equal(t, "abc", v.Text())
 
 		// It doesn't expect spaces between the sequence items
-		p = NewBasicParser("a b c")
+		p = newBasicParser("a b c")
 		_, err = p.ParseSyntactic0()
 		require.Error(t, err)
-		assert.Equal(t, "Syntactic0: Missing `b` @ 1..2", err.Error())
+		assert.Equal(t, "Missing `b` @ 1..2", err.Error())
 	})
 
 	t.Run("sequence with grammar nodes that are not terminals are not syntactic", func(t *testing.T) {
 		// Optional spaces are introduced between the items
 		// within the top-level sequence
 
-		p := NewBasicParser("abcabc!")
+		p := newBasicParser("abcabc!")
 		v, err := p.ParseNotSyntactic0()
 		require.NoError(t, err)
 		assert.Equal(t, "abcabc!", v.Text())
 
-		p = NewBasicParser("abc abc !")
+		p = newBasicParser("abc abc !")
 		v, err = p.ParseNotSyntactic0()
 		require.NoError(t, err)
 		assert.Equal(t, "abc abc !", v.Text())
 	})
 
 	t.Run("Lexification operator on a single item within a syntactic rule", func(t *testing.T) {
-		p := NewBasicParser("1st")
+		p := newBasicParser("1st")
 		v, err := p.ParseOrdinal()
 		require.NoError(t, err)
 		assert.Equal(t, "1st", v.Text())
 
-		p = NewBasicParser("1 st")
+		p = newBasicParser("1 st")
 		_, err = p.ParseOrdinal()
 		require.Error(t, err)
-		assert.Equal(t, "Ordinal: ord @ 1", err.Error())
+		assert.Equal(t, "ord @ 1", err.Error())
 	})
 
 	t.Run("Lexification operator on a sequence within a sequence", func(t *testing.T) {
@@ -57,18 +57,18 @@ func TestIsSyntactic(t *testing.T) {
 			"a999:99",
 			"bb :12",
 		} {
-			p := NewBasicParser(test)
+			p := newBasicParser(test)
 			v, err := p.ParseSPC0()
 			require.NoError(t, err)
 			assert.Equal(t, test, v.Text())
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":   "Letter: Expected char between `a' and `z', got ` ' @ 0",
-			"a 999:99": "Alnum: Expected char between `a' and `z', got ` ' @ 1",
-			"a9: 30":   "Digit: Expected char between `0' and `9', got ` ' @ 3",
+			" a9:30":   "Expected `a-z`, `A-Z` but got ` ` @ 0",
+			"a 999:99": "Expected `a-z`, `A-Z`, `0-9` but got ` ` @ 1",
+			"a9: 30":   "Expected `0-9` but got ` ` @ 3",
 		} {
-			p := NewBasicParser(test)
+			p := newBasicParser(test)
 			_, err := p.ParseSPC0()
 			require.Error(t, err, test)
 			assert.Equal(t, errMsg, err.Error())
@@ -81,17 +81,17 @@ func TestIsSyntactic(t *testing.T) {
 			"a 999:99",
 			"a 999: 99",
 		} {
-			p := NewBasicParser(test)
+			p := newBasicParser(test)
 			v, err := p.ParseSPC1()
 			require.NoError(t, err)
 			assert.Equal(t, test, v.Text())
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":    "Letter: Expected char between `a' and `z', got ` ' @ 0",
-			"a 999 :99": "SPC1: Missing `:` @ 5..6",
+			" a9:30":    "Expected `a-z`, `A-Z` but got ` ` @ 0",
+			"a 999 :99": "Missing `:` @ 5..6",
 		} {
-			p := NewBasicParser(test)
+			p := newBasicParser(test)
 			_, err := p.ParseSPC1()
 			require.Error(t, err, test)
 			assert.Equal(t, errMsg, err.Error())
@@ -106,7 +106,7 @@ func TestAnd(t *testing.T) {
 			"#*",
 			"#***",
 		} {
-			p := NewBasicParser(test)
+			p := newBasicParser(test)
 			v, err := p.ParseHashWithAnAnd()
 			require.NoError(t, err)
 			assert.Equal(t, test, v.Text())
@@ -115,12 +115,12 @@ func TestAnd(t *testing.T) {
 
 	t.Run("all and uses do not match", func(t *testing.T) {
 		for test, errMsg := range map[string]string{
-			"x": "HashWithAnAnd: Missing `#` @ 0..1",
-			// these ones error because the rule ends on EOF
-			"##":   "HashWithAnAnd: Missing `*` @ 1..2",
-			"#**!": "HashWithAnAnd: Missing `*` @ 3..4",
+			"x":    "missingdot @ 0",
+			"##":   "Expected EOF @ 1",
+			"#**!": "Expected EOF @ 3",
 		} {
-			p := NewBasicParser(test)
+			p := newBasicParser(test)
+			p.SetLabelMessages(map[string]string{"eof": "Expected EOF"})
 			_, err := p.ParseHashWithAnAnd()
 			require.Error(t, err)
 			assert.Equal(t, errMsg, err.Error())
@@ -130,9 +130,15 @@ func TestAnd(t *testing.T) {
 
 func TestNullable(t *testing.T) {
 	t.Run("matching will succeed but no input will be consumed", func(t *testing.T) {
-		p := NewBasicParser("c")
+		p := newBasicParser("c")
 		v, err := p.ParseMaybeNull()
 		require.NoError(t, err)
 		assert.Nil(t, v)
 	})
+}
+
+func newBasicParser(input string) *BasicParser {
+	p := NewBasicParser()
+	p.SetInput(input)
+	return p
 }

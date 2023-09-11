@@ -124,6 +124,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "langlang_syntax"
+version = "0.0.1"
+
+[[package]]
 name = "libc"
 version = "0.2.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"

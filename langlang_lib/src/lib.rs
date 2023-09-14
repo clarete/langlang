@@ -1,15 +1,15 @@
-pub mod ast;
 pub mod compiler;
 pub mod format;
-pub mod parser;
 pub mod vm;
 
 mod tests;
 
+pub use langlang_syntax::parser;
+
 #[derive(Debug)]
 pub enum Error {
     CompilerError(compiler::Error),
-    ParserError(parser::Error),
+    ParserError(langlang_syntax::error::Error),
     RuntimeError(vm::Error),
     IOError(std::io::Error),
 }
@@ -39,8 +39,8 @@ impl From<compiler::Error> for Error {
     }
 }
 
-impl From<parser::Error> for Error {
-    fn from(e: parser::Error) -> Self {
+impl From<langlang_syntax::error::Error> for Error {
+    fn from(e: langlang_syntax::error::Error) -> Self {
         Error::ParserError(e)
     }
 }

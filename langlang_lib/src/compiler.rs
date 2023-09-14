@@ -2,8 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use log::debug;
 
-use crate::ast::AST;
 use crate::vm::{ContainerType, Instruction, Program};
+
+use langlang_syntax::ast;
+use langlang_syntax::visitor::Visitor;
 
 #[derive(Debug)]
 pub enum Error {
@@ -104,13 +106,13 @@ impl Compiler {
         }
     }
 
-    /// Access the output of the compilation process.  Call this
-    /// method after calling `compile_str()`.
-    pub fn compile(&mut self, ast: AST) -> Result<Program, Error> {
-        DetectLeftRec::default().run(&ast, &mut self.left_rec)?;
-        self.compile_node(ast)?;
+    /// compile a Grammar in its AST form into a program executable by
+    /// the virtual machine
+    pub fn compile(&mut self, grammar: &ast::Grammar) -> Result<Program, Error> {
+        DetectLeftRec::default().run(grammar, &mut self.left_rec)?;
+        self.visit_grammar(grammar);
         self.backpatch_callsites()?;
-        self.manual_recovery()?;
+        self.map_recovery_exprs()?;
 
         Ok(Program::new(
             self.identifiers.clone(),
@@ -121,10 +123,10 @@ impl Compiler {
         ))
     }
 
-    /// Try to find the string `s` within the table of interned
-    /// strings, and return its ID if it is found.  If the string `s`
-    /// doesn't exist within the interned table yet, it's inserted and
-    /// the index where it was inserted becomes its ID.
+    /// Try to find string `s` within the table of interned strings.
+    /// Return its ID if it is found.  If the string `s` doesn't exist
+    /// within the interned table yet, it's inserted and the index
+    /// where it was inserted becomes its ID.
     fn push_string(&mut self, s: &str) -> usize {
         let strid = self.strings.len();
         if let Some(id) = self.strings_map.get(s) {
@@ -163,8 +165,10 @@ impl Compiler {
                 }
             }
         }
+
+        // Mark Ps as left recursive if the detector marked it as such
         let main = &self.strings[self.identifiers[&2_usize]];
-        if self.left_rec[main] {
+        if self.left_rec.get(main).is_some() && self.left_rec[main] {
             self.code[0] = match self.code[0] {
                 Instruction::Call(..) => Instruction::Call(2, 1),
                 Instruction::CallB(..) => Instruction::CallB(2, 1),
@@ -177,7 +181,7 @@ impl Compiler {
     /// walk through all the collected label IDs, if any production
     /// name matches, set that production as the recovery expression
     /// for the label
-    fn manual_recovery(&mut self) -> Result<(), Error> {
+    fn map_recovery_exprs(&mut self) -> Result<(), Error> {
         for label_id in self.label_ids.iter() {
             if let Some(addr) = self.funcs.get(label_id) {
                 let n = &self.strings[self.identifiers[addr]];
@@ -188,210 +192,22 @@ impl Compiler {
         Ok(())
     }
 
-    /// Take an AST node and emit node into the private code vector
-    fn compile_node(&mut self, node: AST) -> Result<(), Error> {
-        match node {
-            AST::Grammar(rules) => {
-                self.emit(Instruction::Call(2, 0));
-                self.emit(Instruction::Halt);
-                for r in rules {
-                    self.compile_node(r)?;
-                }
-                Ok(())
-            }
-            AST::Definition(name, expr) => {
-                let addr = self.cursor;
-                let strid = self.push_string(&name);
-                self.identifiers.insert(addr, strid);
-                self.compile_node(*expr)?;
-                self.emit(Instruction::Return);
-                self.funcs.insert(strid, addr);
-                Ok(())
-            }
-            AST::LabelDefinition(name, message) => {
-                let name_id = self.push_string(&name);
-                let message_id = self.push_string(&message);
-                self.labels.insert(name_id, message_id);
-                Ok(())
-            }
-            AST::Label(name, element) => {
-                let label_id = self.push_string(&name);
-                let pos = self.cursor;
-                self.label_ids.insert(label_id);
-                self.emit(Instruction::Choice(0));
-                self.compile_node(*element)?;
-                self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
-                self.emit(Instruction::Commit(2));
-                self.emit(Instruction::Throw(label_id));
-                Ok(())
-            }
-            AST::Sequence(seq) => {
-                self.indent("Seq");
-                for s in seq.into_iter() {
-                    self.compile_node(s)?;
-                }
-                self.dedent("Seq");
-                Ok(())
-            }
-            AST::Optional(op) => {
-                self.emit(Instruction::CapPush);
-                let pos = self.cursor;
-                self.emit(Instruction::Choice(0));
-                self.compile_node(*op)?;
-                let size = self.cursor - pos;
-                self.code[pos] = Instruction::Choice(size + 1);
-                self.emit(Instruction::Commit(1));
-                self.emit(Instruction::CapCommit);
-                self.emit(Instruction::CapPop);
-                Ok(())
-            }
-            AST::Choice(choices) => {
-                let (mut i, last_choice) = (0, choices.len() - 1);
-                let mut commits = vec![];
-
-                for choice in choices {
-                    if i == last_choice {
-                        self.compile_node(choice)?;
-                        break;
-                    }
-                    i += 1;
-                    let pos = self.cursor;
-                    self.emit(Instruction::Choice(0));
-                    self.compile_node(choice)?;
-                    self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
-                    commits.push(self.cursor);
-                    self.emit(Instruction::Commit(0));
-                }
-
-                for commit in commits {
-                    self.code[commit] = Instruction::Commit(self.cursor - commit);
-                }
-
-                Ok(())
-            }
-            AST::Not(expr) => {
-                let pos = self.cursor;
-                match self.config.optimize {
-                    1 => {
-                        self.emit(Instruction::ChoiceP(0));
-                        self.compile_node(*expr)?;
-                        self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 1);
-                        self.emit(Instruction::FailTwice);
-                    }
-                    _ => {
-                        self.emit(Instruction::ChoiceP(0));
-                        self.compile_node(*expr)?;
-                        self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 2);
-                        self.emit(Instruction::Commit(1));
-                        self.emit(Instruction::Fail);
-                    }
-                }
-                Ok(())
-            }
-            AST::And(expr) => {
-                match self.config.optimize {
-                    1 => {
-                        let pos0 = self.cursor;
-                        self.emit(Instruction::ChoiceP(0));
-                        self.compile_node(*expr)?;
-                        let pos1 = self.cursor;
-                        self.code[pos0] = Instruction::ChoiceP(pos1 - pos0);
-                        self.emit(Instruction::BackCommit(0));
-                        self.emit(Instruction::Fail);
-                        self.code[pos1] = Instruction::BackCommit(self.cursor - pos1);
-                    }
-                    _ => self.compile_node(AST::Not(Box::new(AST::Not(expr))))?,
-                }
-                Ok(())
-            }
-            AST::ZeroOrMore(expr) => self.compile_seq(None, *expr),
-            AST::OneOrMore(expr) => self.compile_seq(Some(*expr.clone()), *expr),
-            AST::Identifier(name) => {
-                let precedence = match self.left_rec.get(&name) {
-                    Some(v) => usize::from(*v),
-                    None => {
-                        return Err(Error::NotFound(format!(
-                            "Rule {:#?} not found in grammar",
-                            name
-                        )))
-                    }
-                };
-                let id = self.push_string(&name);
-                match self.funcs.get(&id) {
-                    Some(func_addr) => {
-                        let addr = self.cursor - func_addr;
-                        self.emit(Instruction::CallB(addr, precedence));
-                    }
-                    None => {
-                        self.addrs.insert(self.cursor, id);
-                        self.emit(Instruction::Call(0, precedence));
-                    }
-                }
-                Ok(())
-            }
-            AST::Precedence(n, precedence) => {
-                let pos = self.cursor;
-                self.compile_node(*n)?;
-                // rewrite the above node with the precedence level
-                self.code[pos] = match self.code[pos] {
-                    Instruction::Call(addr, _) => Instruction::Call(addr, precedence),
-                    Instruction::CallB(addr, _) => Instruction::CallB(addr, precedence),
-                    _ => {
-                        return Err(Error::Semantic(
-                            "Precedence suffix should only be used at Identifiers".to_string(),
-                        ))
-                    }
-                };
-                Ok(())
-            }
-            AST::Node(name, items) => {
-                self.emit(Instruction::Open);
-                self.compile_node(AST::String(name))?;
-                for i in items {
-                    self.compile_node(i)?;
-                }
-                self.emit(Instruction::Close(ContainerType::Node));
-                Ok(())
-            }
-            AST::List(items) => {
-                self.emit(Instruction::Open);
-                for i in items {
-                    self.compile_node(i)?;
-                }
-                self.emit(Instruction::Close(ContainerType::List));
-                Ok(())
-            }
-            AST::Range(a, b) => {
-                self.emit(Instruction::Span(a, b));
-                Ok(())
-            }
-            AST::String(s) => {
-                let id = self.push_string(&s);
-                self.emit(Instruction::String(id));
-                Ok(())
-            }
-            AST::Char(c) => {
-                self.emit(Instruction::Char(c));
-                Ok(())
-            }
-            AST::Any => {
-                self.emit(Instruction::Any);
-                Ok(())
-            }
-            AST::Empty => Ok(()),
-        }
-    }
-
-    fn compile_seq(&mut self, prefix: Option<AST>, expr: AST) -> Result<(), Error> {
+    /// Generate bytecode for both ZeroOrMore and OneOrMore
+    fn compile_seq<'ast>(
+        &mut self,
+        prefix: Option<&'ast ast::Expression>,
+        expr: &'ast ast::Expression,
+    ) {
         self.emit(Instruction::CapPush);
 
         // For when emitting code for OneOrMore
         if let Some(n) = prefix {
-            self.compile_node(n)?;
+            self.visit_expression(n);
         }
+
         let pos = self.cursor;
         self.emit(Instruction::Choice(0));
-        self.compile_node(expr)?;
+        self.visit_expression(expr);
         self.emit(Instruction::CapCommit);
 
         let size = self.cursor - pos;
@@ -403,7 +219,6 @@ impl Compiler {
 
         self.emit(Instruction::CapCommit);
         self.emit(Instruction::CapPop);
-        Ok(())
     }
 
     /// Push `instruction` into the internal code vector and increment
@@ -431,6 +246,202 @@ impl Compiler {
     }
 }
 
+impl<'ast> Visitor<'ast> for Compiler {
+    fn visit_grammar(&mut self, n: &'ast ast::Grammar) {
+        self.emit(Instruction::Call(2, 0));
+        self.emit(Instruction::Halt);
+        for r in &n.definitions {
+            self.visit_definition(r);
+        }
+    }
+
+    fn visit_definition(&mut self, n: &'ast ast::Definition) {
+        let addr = self.cursor;
+        let strid = self.push_string(&n.name);
+        self.identifiers.insert(addr, strid);
+        self.visit_expression(&n.expr);
+        self.emit(Instruction::Return);
+        self.funcs.insert(strid, addr);
+    }
+
+    fn visit_sequence(&mut self, n: &'ast ast::Sequence) {
+        self.indent("Seq");
+        for s in &n.items {
+            self.visit_expression(s);
+        }
+        self.dedent("Seq");
+    }
+
+    fn visit_choice(&mut self, n: &'ast ast::Choice) {
+        let (mut i, last_choice) = (0, n.items.len() - 1);
+        let mut commits = vec![];
+        for choice in &n.items {
+            if i == last_choice {
+                self.visit_expression(choice);
+                break;
+            }
+            i += 1;
+            let pos = self.cursor;
+            self.emit(Instruction::Choice(0));
+            self.visit_expression(choice);
+            self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
+            commits.push(self.cursor);
+            self.emit(Instruction::Commit(0));
+        }
+        for commit in commits {
+            self.code[commit] = Instruction::Commit(self.cursor - commit);
+        }
+    }
+
+    fn visit_and(&mut self, n: &'ast ast::And) {
+        match self.config.optimize {
+            1 => {
+                let pos0 = self.cursor;
+                self.emit(Instruction::ChoiceP(0));
+                self.visit_expression(&n.expr);
+                let pos1 = self.cursor;
+                self.code[pos0] = Instruction::ChoiceP(pos1 - pos0);
+                self.emit(Instruction::BackCommit(0));
+                self.emit(Instruction::Fail);
+                self.code[pos1] = Instruction::BackCommit(self.cursor - pos1);
+            }
+            _ => {
+                let not = ast::Not::new(
+                    n.span.clone(),
+                    Box::new(ast::Not::new_expr(
+                        n.span.clone(),
+                        Box::new((*n.expr).clone()),
+                    )),
+                );
+                self.visit_not(&not);
+            }
+        }
+    }
+
+    fn visit_not(&mut self, n: &'ast ast::Not) {
+        let pos = self.cursor;
+        match self.config.optimize {
+            1 => {
+                self.emit(Instruction::ChoiceP(0));
+                self.visit_expression(&n.expr);
+                self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 1);
+                self.emit(Instruction::FailTwice);
+            }
+            _ => {
+                self.emit(Instruction::ChoiceP(0));
+                self.visit_expression(&n.expr);
+                self.code[pos] = Instruction::ChoiceP(self.cursor - pos + 2);
+                self.emit(Instruction::Commit(1));
+                self.emit(Instruction::Fail);
+            }
+        }
+    }
+
+    fn visit_optional(&mut self, n: &'ast ast::Optional) {
+        self.emit(Instruction::CapPush);
+        let pos = self.cursor;
+        self.emit(Instruction::Choice(0));
+        self.visit_expression(&n.expr);
+        let size = self.cursor - pos;
+        self.code[pos] = Instruction::Choice(size + 1);
+        self.emit(Instruction::Commit(1));
+        self.emit(Instruction::CapCommit);
+        self.emit(Instruction::CapPop);
+    }
+
+    fn visit_zero_or_more(&mut self, n: &'ast ast::ZeroOrMore) {
+        self.compile_seq(None, &n.expr);
+    }
+
+    fn visit_one_or_more(&mut self, n: &'ast ast::OneOrMore) {
+        self.compile_seq(Some(&n.expr), &n.expr);
+    }
+
+    fn visit_precedence(&mut self, n: &'ast ast::Precedence) {
+        let pos = self.cursor;
+        self.visit_expression(&n.expr);
+        // rewrite the above node with the precedence level
+        self.code[pos] = match self.code[pos] {
+            Instruction::Call(addr, _) => Instruction::Call(addr, n.precedence),
+            Instruction::CallB(addr, _) => Instruction::CallB(addr, n.precedence),
+            _ => unreachable!("Precedence only works on Identifiers"),
+        };
+    }
+
+    fn visit_label(&mut self, n: &'ast ast::Label) {
+        let label_id = self.push_string(&n.label);
+        let pos = self.cursor;
+        self.label_ids.insert(label_id);
+        self.emit(Instruction::Choice(0));
+        self.visit_expression(&n.expr);
+        self.code[pos] = Instruction::Choice(self.cursor - pos + 1);
+        self.emit(Instruction::Commit(2));
+        self.emit(Instruction::Throw(label_id));
+    }
+
+    fn visit_list(&mut self, n: &'ast ast::List) {
+        self.emit(Instruction::Open);
+        for i in &n.items {
+            self.visit_expression(i);
+        }
+        self.emit(Instruction::Close(ContainerType::List));
+    }
+
+    fn visit_node(&mut self, n: &'ast ast::Node) {
+        self.emit(Instruction::Open);
+        let id = self.push_string(&n.name);
+        self.emit(Instruction::String(id));
+        self.visit_expression(&n.expr);
+        self.emit(Instruction::Close(ContainerType::Node));
+    }
+
+    fn visit_identifier(&mut self, n: &'ast ast::Identifier) {
+        let precedence = match self.left_rec.get(&n.name) {
+            Some(v) => usize::from(*v),
+            None => 0,
+        };
+        let id = self.push_string(&n.name);
+        match self.funcs.get(&id) {
+            Some(func_addr) => {
+                let addr = self.cursor - func_addr;
+                self.emit(Instruction::CallB(addr, precedence));
+            }
+            None => {
+                self.addrs.insert(self.cursor, id);
+                self.emit(Instruction::Call(0, precedence));
+            }
+        }
+    }
+
+    fn visit_string(&mut self, n: &'ast ast::String_) {
+        let id = self.push_string(&n.value);
+        self.emit(Instruction::String(id));
+    }
+
+    fn visit_class(&mut self, n: &'ast ast::Class) {
+        let choice = ast::Choice::new(
+            n.span.clone(),
+            n.literals
+                .iter()
+                .map(|i| ast::Expression::Literal(i.clone()))
+                .collect(),
+        );
+        self.visit_choice(&choice);
+    }
+
+    fn visit_range(&mut self, n: &'ast ast::Range) {
+        self.emit(Instruction::Span(n.start, n.end));
+    }
+
+    fn visit_char(&mut self, n: &'ast ast::Char) {
+        self.emit(Instruction::Char(n.value));
+    }
+
+    fn visit_any(&mut self, _: &'ast ast::Any) {
+        self.emit(Instruction::Any);
+    }
+}
+
 impl Default for Compiler {
     fn default() -> Self {
         Self::new(Config::default())
@@ -443,32 +454,17 @@ struct DetectLeftRec<'a> {
 }
 
 impl<'a> DetectLeftRec<'a> {
-    fn run(&mut self, node: &'a AST, found: &mut HashMap<String, bool>) -> Result<(), Error> {
-        let mut rules: HashMap<&'a String, &'a AST> = HashMap::new();
-        match node {
-            AST::Grammar(definitions) => {
-                for definition in definitions {
-                    match definition {
-                        AST::LabelDefinition(..) => {}
-                        AST::Definition(n, expr) => {
-                            rules.insert(n, expr);
-                        }
-                        r => {
-                            return Err(Error::Semantic(format!(
-                                "Expected Definition rule, not {:#?}",
-                                r
-                            )))
-                        }
-                    }
-                }
-            }
-            r => {
-                return Err(Error::Semantic(format!(
-                    "Expected Grammar rule, not {:#?}",
-                    r
-                )))
-            }
+    fn run(
+        &mut self,
+        node: &'a ast::Grammar,
+        found: &mut HashMap<String, bool>,
+    ) -> Result<(), Error> {
+        let mut rules: HashMap<&'a String, &'a ast::Expression> = HashMap::new();
+
+        for d in &node.definitions {
+            rules.insert(&d.name, &d.expr);
         }
+
         for (name, expr) in &rules {
             let is_lr = self.is_left_recursive(name, expr, &rules)?;
             found.insert(name.to_string(), is_lr);
@@ -479,23 +475,23 @@ impl<'a> DetectLeftRec<'a> {
     fn is_left_recursive(
         &mut self,
         name: &'a str,
-        expr: &'a AST,
-        rules: &HashMap<&'a String, &'a AST>,
+        expr: &'a ast::Expression,
+        rules: &HashMap<&'a String, &'a ast::Expression>,
     ) -> Result<bool, Error> {
         match expr {
-            AST::Identifier(n) => {
+            ast::Expression::Identifier(n) => {
                 // for detecting mutual recursion
-                if !self.stack.is_empty() && self.stack[self.stack.len() - 1] == n {
+                if !self.stack.is_empty() && self.stack[self.stack.len() - 1] == n.name {
                     return Ok(true);
                 }
-                if n != name {
-                    self.stack.push(n);
-                    let r = match rules.get(&n) {
+                if n.name != name {
+                    self.stack.push(&n.name);
+                    let r = match rules.get(&n.name) {
                         Some(rule) => self.is_left_recursive(name, rule, rules)?,
                         None => {
                             return Err(Error::Semantic(format!(
                                 "Rule {:#?} not found in grammar",
-                                n
+                                n.name
                             )))
                         }
                     };
@@ -504,41 +500,63 @@ impl<'a> DetectLeftRec<'a> {
                 }
                 Ok(true)
             }
-            AST::Choice(choices) => {
-                for c in choices {
+            ast::Expression::Choice(n) => {
+                for c in &n.items {
                     if self.is_left_recursive(name, c, rules)? {
                         return Ok(true);
                     }
                 }
                 Ok(false)
             }
-            AST::Sequence(seq) => {
+            ast::Expression::Sequence(seq) => {
                 let mut i = 0;
-                while i < seq.len() && is_empty_possible(&seq[i]) {
+                while i < seq.items.len() && is_empty_possible(&seq.items[i]) {
                     i += 1;
                 }
-                if i < seq.len() {
-                    return self.is_left_recursive(name, &seq[i], rules);
+                if i < seq.items.len() {
+                    return self.is_left_recursive(name, &seq.items[i], rules);
                 }
                 Ok(false)
             }
-            AST::Precedence(n, _) => self.is_left_recursive(name, n, rules),
+            ast::Expression::Precedence(n) => self.is_left_recursive(name, &n.expr, rules),
             _ => Ok(false),
         }
     }
 }
 
-fn is_empty_possible(node: &AST) -> bool {
-    matches!(node, AST::ZeroOrMore(..) | AST::Optional(..))
+fn is_empty_possible(node: &ast::Expression) -> bool {
+    matches!(
+        node,
+        ast::Expression::ZeroOrMore(..) | ast::Expression::Optional(..)
+    )
+}
+
+pub fn expand(grammar: &ast::Grammar) -> ast::Grammar {
+    let defs = grammar.definitions.iter().map(|d| expand_def(d)).collect();
+    let imports = grammar.imports.iter().cloned().collect();
+    ast::Grammar::new(grammar.span.clone(), imports, defs)
+}
+
+fn expand_def(def: &ast::Definition) -> ast::Definition {
+    ast::Definition::new(
+        def.span.clone(),
+        def.name.clone(),
+        ast::Node::new_expr(
+            def.span.clone(),
+            def.name.clone(),
+            Box::new(def.expr.clone()),
+        ),
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser;
+    use langlang_syntax::parser;
 
     fn assert_detectlr(input: &str, expected: HashMap<String, bool>) {
-        let node = parser::Parser::new(input).parse().unwrap();
+        let mut p = parser::Parser::new(input);
+        let node = p.parse_grammar().unwrap();
         let mut dlr = DetectLeftRec::default();
         let mut found = HashMap::new();
         dlr.run(&node, &mut found).unwrap();
@@ -583,7 +601,7 @@ mod tests {
         // can start with a left recursive call
         assert_detectlr("A <- 'foo' / A", HashMap::from([("A".to_string(), true)]));
         assert_detectlr(
-            "A <- 'foo' / 'bar'/ A",
+            "A <- 'foo' / 'bar' / A",
             HashMap::from([("A".to_string(), true)]),
         );
         assert_detectlr(

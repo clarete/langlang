@@ -197,13 +197,11 @@ impl std::fmt::Display for Program {
             write!(f, "  {:#04} ", i)?;
             writeln!(f, "{:?}", string)?;
         }
-        writeln!(f, "Addresses")?;
-        for (address, id) in self.identifiers.iter() {
-            write!(f, "  {:#04} ", address)?;
-            writeln!(f, "{:?}", self.string_at(*id))?;
-        }
         writeln!(f, "Code: {}", self.code.len())?;
         for (i, instruction) in self.code.iter().enumerate() {
+            if let Some(id) = self.identifiers.get(&i) {
+                writeln!(f, " {}:", self.string_at(*id))?;
+            }
             write!(f, "  {:#04} ", i)?;
             writeln!(f, "{}", instruction_to_string(self, instruction, i))?;
         }
@@ -907,6 +905,7 @@ impl<'a> VM<'a> {
         #[cfg(debug_assertions)]
         {
             eprint!("{:#04}, {:#04} ", self.program_counter, self.cursor);
+
             self.dbg(&instruction_to_string(
                 self.program,
                 &self.program.code[self.program_counter],

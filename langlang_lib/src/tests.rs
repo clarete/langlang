@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::{compiler, format, parser, vm};
-    use log::debug;
+    use crate::{compiler, format, vm};
+    use langlang_syntax::parser;
+    // use log::debug;
+    use std::println as debug; // Workaround to use prinltn! for logs.
 
     #[test]
     fn test_char() {
@@ -433,10 +435,11 @@ mod tests {
 
         // Program that parses the output obtained upon successful
         // parsing with the initial program
-        let original_ast = parser::Parser::new(input_grammar).parse().unwrap();
-        let rewrite = parser::expand(original_ast).unwrap();
+        let original_ast = parser::parse(input_grammar).unwrap();
+        let rewrite = compiler::expand(&original_ast);
+
         let mut c = compiler::Compiler::new(cc);
-        let list_program = c.compile(rewrite).unwrap();
+        let list_program = c.compile(&rewrite).unwrap();
         let value = run(&list_program, vec![output.unwrap()]).unwrap();
         assert_match("A[A[F]]", value);
     }
@@ -444,11 +447,12 @@ mod tests {
     // -- Test Helpers ---------------------------------------------------------
 
     fn compile(cc: &compiler::Config, grammar: &str) -> vm::Program {
-        let mut p = parser::Parser::new(grammar);
-        let ast = p.parse().unwrap();
+        let ast = parser::parse(grammar).unwrap();
+        println!("{:#?}", ast);
+        debug!("PEG:\n{}", ast.to_string());
         let mut c = compiler::Compiler::new(cc.clone());
-        let program = c.compile(ast).unwrap();
-        debug!("p: {}", program);
+        let program = c.compile(&ast).unwrap();
+        debug!("PROGRAM:\n{}", program);
         program
     }
 

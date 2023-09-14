@@ -57,8 +57,8 @@ fn command_run(
     output_format: &Option<String>,
 ) -> Result<(), langlang_lib::Error> {
     let grammar = fs::read_to_string(grammar_file)?;
-    let ast = parser::Parser::new(&grammar).parse()?;
-    let program = compiler::Compiler::default().compile(ast)?;
+    let ast = parser::parse(&grammar)?;
+    let program = compiler::Compiler::default().compile(&ast)?;
     let fmt = formatter(output_format.as_ref().unwrap_or(&"fmt".to_string()));
 
     match input_file {

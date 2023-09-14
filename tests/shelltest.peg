@@ -1,16 +1,14 @@
-# Execute `RUST_LOG=debug cargo run --bin llsh tests/shelltest.peg`
-# and try this out
+// Execute the following command to try this out:
+//   RUST_LOG=debug cargo run --bin langlang run --grammar-file tests/shelltest.peg
 
-# Top level production for testing parsing hex numbers with a custom
-# error message or a list of emojies
+// Top level production for testing parsing hex numbers with a custom
+// error message or a list of emojies
 Value <- HexNum / Emoji
 
-# Read hex numbers.  The label hexDigit is there to say that if the
-# parser sees 0x, it MUST then succeed parsing the expression that
-# follows it ([a-fA-F0-9]+).  If it doesn't, the following message
-# will be shown instead of the automated one
-label hexDigit = 'Hexadecimals require digits matching [0-9a-fA-F]'
+// Read hex numbers.  The label hexDigit is there to say that the
+// expression labeled with it MUST succeed otherwise an error named
+// after the label will be thrown.
 HexNum <- '0x' [a-fA-F0-9]+^hexDigit
 
-# We do emojies too, try an animal
+// We do emojies too, try an animal
 Emoji  <- [🦄🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵]

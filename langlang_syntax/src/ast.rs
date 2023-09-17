@@ -103,12 +103,12 @@ pub trait IsSyntactic {
     }
 }
 
-fn is_syntactic_list<T: IsSyntactic>(items: &Vec<T>) -> bool {
+fn is_syntactic_list<T: IsSyntactic>(items: &[T]) -> bool {
     items
         .iter()
         .map(|i| i.is_syntactic())
         .reduce(|acc, i| acc && i)
-        .unwrap_or_else(|| false)
+        .unwrap_or(false)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -541,7 +541,7 @@ fn tree_height(n: &Expression) -> usize {
     }
 }
 
-fn items_height<'ast>(items: &Vec<Expression>) -> usize {
+fn items_height(items: &[Expression]) -> usize {
     items
         .iter()
         .map(tree_height)

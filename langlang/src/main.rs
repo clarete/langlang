@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use log::warn;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use langlang_lib::{compiler, format, import, vm};
@@ -56,8 +56,8 @@ fn formatter(name: &str) -> FormattingFunc {
 }
 
 fn command_run(
-    grammar_file: &PathBuf,
-    start_rule: &String,
+    grammar_file: &Path,
+    start_rule: &str,
     input_file: &Option<PathBuf>,
     output_format: &Option<String>,
 ) -> Result<(), langlang_lib::Error> {

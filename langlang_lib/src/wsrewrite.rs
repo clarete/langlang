@@ -56,7 +56,8 @@ impl WhiteSpaceHandlerInjector {
                 let should_consume_spaces = self.lex_level == 0 && !node.is_syntactic();
                 let mut items: Vec<ast::Expression> = vec![];
                 for (i, item) in node.items.iter().enumerate() {
-                    if should_consume_spaces && !(i == 0 && !consume_first) {
+                    let skip_first = !consume_first && i == 0;
+                    if should_consume_spaces && !skip_first {
                         match item {
                             ast::Expression::Lex(_) => {}
                             _ => items.push(mkwscall(&node.span)),

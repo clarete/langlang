@@ -672,11 +672,11 @@ mod tests {
             ("A <- .\n", "A <- .\n"),
             ("A <- 'a'\n", "A <- \"a\"\n"),
             ("A <- [a-z]\n", "A <- [a-z]\n"),
-            ("A <- 'a' / [b-e]\n", "A <- \"a\" / [b-e]\n"),
+            ("A <- 'a' / [b-e]\n", "A <- (\"a\" / [b-e])\n"),
         ];
         for (input, expected) in &tests {
             let output = parse(input);
-            assert!(!output.is_err());
+            assert!(output.is_ok());
             assert_eq!(expected, &output.unwrap().to_string());
         }
     }
@@ -741,7 +741,7 @@ mod tests {
         let span = Span::new(Position::new(0, 0, 0), Position::new(1, 0, 1));
         let expected = ast::Literal::Char(ast::Char::new(span, 'a'));
 
-        assert!(!out.is_err());
+        assert!(out.is_ok());
         assert_eq!(expected, out.unwrap());
     }
 

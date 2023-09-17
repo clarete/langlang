@@ -1,3 +1,5 @@
+use crate::consts::{END_OF_FILE_RULE_NAME, WHITE_SPACE_RULE_NAME};
+
 use langlang_syntax::visitor::Visitor;
 use langlang_syntax::{ast, parser};
 
@@ -87,7 +89,10 @@ impl<T: ImportLoader> ImportResolver<T> {
 
         let builtins = self.create_builtin_frame()?;
 
-        for name in &["WS".to_string(), "EOF".to_string()] {
+        for name in &[
+            WHITE_SPACE_RULE_NAME.to_string(),
+            END_OF_FILE_RULE_NAME.to_string(),
+        ] {
             let def = &builtins.grammar.definitions[name];
             frame.grammar.add_definition(def);
             for dep in builtins.find_definition_deps(def) {

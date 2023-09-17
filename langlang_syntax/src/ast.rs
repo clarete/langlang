@@ -135,7 +135,7 @@ impl IsSyntactic for Expression {
         match self {
             Expression::Choice(v) => is_syntactic_list(&v.items),
             Expression::Sequence(v) => v.is_syntactic(),
-            Expression::Lex(v) => v.expr.is_syntactic(),
+            Expression::Lex(_) => true,
             Expression::And(v) => v.expr.is_syntactic(),
             Expression::Not(v) => v.expr.is_syntactic(),
             Expression::Optional(v) => v.expr.is_syntactic(),
@@ -155,7 +155,7 @@ impl IsSyntactic for Expression {
 impl ToString for Expression {
     fn to_string(&self) -> String {
         match self {
-            Expression::Choice(v) => fmtlistsep(" / ", &v.items),
+            Expression::Choice(v) => format!("({})", fmtlistsep(" / ", &v.items)),
             Expression::Sequence(v) => fmtlistsep(" ", &v.items),
             Expression::Lex(v) => fmtprefix("#", &v.expr),
             Expression::And(v) => fmtprefix("&", &v.expr),
@@ -231,6 +231,10 @@ pub struct And {
 }
 
 impl And {
+    pub fn new_expr(span: Span, expr: Box<Expression>) -> Expression {
+        Expression::And(Self::new(span, expr))
+    }
+
     pub fn new(span: Span, expr: Box<Expression>) -> Self {
         Self { span, expr }
     }

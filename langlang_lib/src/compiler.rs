@@ -1,8 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use log::debug;
-
 use crate::vm::{ContainerType, Instruction, Program};
+use crate::wsrewrite::WhiteSpaceHandlerInjector;
 
 use langlang_syntax::ast;
 use langlang_syntax::visitor::Visitor;
@@ -26,24 +25,40 @@ impl std::fmt::Display for Error {
 #[derive(Debug, Clone)]
 pub struct Config {
     optimize: u8,
+    emit_wsh: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self::o0()
+        Self::o1()
     }
 }
 
 impl Config {
     /// o0 disables all optimizations
     pub fn o0() -> Self {
-        Self { optimize: 0 }
+        Self {
+            optimize: 0,
+            emit_wsh: true,
+        }
     }
 
     /// o1 enables some optimizations: `failtwice`, `partialcommit`,
     /// `backcommit`, `testchar` and `testany`
     pub fn o1() -> Self {
-        Self { optimize: 1 }
+        Self {
+            optimize: 1,
+            emit_wsh: true,
+        }
+    }
+
+    /// Generate a new Config instance disabling the flag that wraps
+    /// generating code that handle whitespaces automatically
+    pub fn disable_injecting_whitespace_handling(&self) -> Self {
+        Self {
+            optimize: self.optimize,
+            emit_wsh: false,
+        }
     }
 }
 
@@ -77,12 +92,11 @@ pub struct Compiler {
     // Map from label IDs to tuples with two things: address of the
     // recovery expression and its precedence level
     recovery: HashMap<usize, (usize, usize)>,
-    // Used for printing out debugging messages with the of the
-    // structure the call stack the compiler is traversing
-    indent_level: usize,
     // Map from the set of names of functions to the boolean defining
     // if the function is left recursive or not
     left_rec: HashMap<String, bool>,
+    // depth of the use of the lex ('#') operator
+    lex_level: usize,
 }
 
 impl Compiler {
@@ -101,8 +115,8 @@ impl Compiler {
             labels: HashMap::new(),
             label_ids: HashSet::new(),
             recovery: HashMap::new(),
-            indent_level: 0,
             left_rec: HashMap::new(),
+            lex_level: 0,
         }
     }
 
@@ -110,7 +124,7 @@ impl Compiler {
     /// the virtual machine
     pub fn compile(&mut self, grammar: &ast::Grammar, main: &str) -> Result<Program, Error> {
         DetectLeftRec::default().run(grammar, &mut self.left_rec)?;
-        self.visit_grammar(grammar);
+        self.code_gen(grammar);
         self.backpatch_callsites()?;
         self.map_recovery_exprs()?;
         self.pick_main(main);
@@ -122,6 +136,18 @@ impl Compiler {
             self.strings.clone(),
             self.code.clone(),
         ))
+    }
+
+    /// First tries decides if whitespace handling will be emitted, if
+    /// so, rewrites the AST to.  Then traverse the ast to generate
+    /// the bytecode into the internal code vector.
+    fn code_gen(&mut self, grammar: &ast::Grammar) {
+        if !self.config.emit_wsh {
+            self.visit_grammar(grammar);
+            return;
+        }
+        let g = WhiteSpaceHandlerInjector::default().run(grammar);
+        self.visit_grammar(&g);
     }
 
     /// Try to find string `s` within the table of interned strings.
@@ -234,25 +260,8 @@ impl Compiler {
     /// Push `instruction` into the internal code vector and increment
     /// the cursor that points at the next instruction
     fn emit(&mut self, instruction: Instruction) {
-        self.prt(&format!("emit {:?} {:?}", self.cursor, instruction));
         self.code.push(instruction);
         self.cursor += 1;
-    }
-
-    // Debugging helpers
-
-    fn prt(&mut self, msg: &str) {
-        debug!("{:indent$}{}", "", msg, indent = self.indent_level);
-    }
-
-    fn indent(&mut self, msg: &str) {
-        debug!("{:width$}Open {}", "", msg, width = self.indent_level);
-        self.indent_level += 2;
-    }
-
-    fn dedent(&mut self, msg: &str) {
-        self.indent_level -= 2;
-        debug!("{:width$}Close {}", "", msg, width = self.indent_level);
     }
 }
 
@@ -260,8 +269,8 @@ impl<'ast> Visitor<'ast> for Compiler {
     fn visit_grammar(&mut self, n: &'ast ast::Grammar) {
         self.emit(Instruction::Call(2, 0));
         self.emit(Instruction::Halt);
-        for r in &n.definitions {
-            self.visit_definition(r);
+        for d in n.definitions.values() {
+            self.visit_definition(d);
         }
     }
 
@@ -272,14 +281,6 @@ impl<'ast> Visitor<'ast> for Compiler {
         self.visit_expression(&n.expr);
         self.emit(Instruction::Return);
         self.funcs.insert(strid, addr);
-    }
-
-    fn visit_sequence(&mut self, n: &'ast ast::Sequence) {
-        self.indent("Seq");
-        for s in &n.items {
-            self.visit_expression(s);
-        }
-        self.dedent("Seq");
     }
 
     fn visit_choice(&mut self, n: &'ast ast::Choice) {
@@ -301,6 +302,12 @@ impl<'ast> Visitor<'ast> for Compiler {
         for commit in commits {
             self.code[commit] = Instruction::Commit(self.cursor - commit);
         }
+    }
+
+    fn visit_lex(&mut self, n: &'ast ast::Lex) {
+        self.lex_level += 1;
+        self.visit_expression(&n.expr);
+        self.lex_level -= 1;
     }
 
     fn visit_and(&mut self, n: &'ast ast::And) {
@@ -471,8 +478,8 @@ impl<'a> DetectLeftRec<'a> {
     ) -> Result<(), Error> {
         let mut rules: HashMap<&'a String, &'a ast::Expression> = HashMap::new();
 
-        for d in &node.definitions {
-            rules.insert(&d.name, &d.expr);
+        for (name, d) in &node.definitions {
+            rules.insert(name, &d.expr);
         }
 
         for (name, expr) in &rules {
@@ -542,19 +549,23 @@ fn is_empty_possible(node: &ast::Expression) -> bool {
 }
 
 pub fn expand(grammar: &ast::Grammar) -> ast::Grammar {
-    let defs = grammar.definitions.iter().map(|d| expand_def(d)).collect();
-    let imports = grammar.imports.iter().cloned().collect();
-    ast::Grammar::new(grammar.span.clone(), imports, defs)
+    let defs = grammar.definitions.values().map(expand_def).collect();
+    let def_names = grammar.definition_names.to_vec();
+    let imports = grammar.imports.to_vec();
+    ast::Grammar::new(grammar.span.clone(), imports, def_names, defs)
 }
 
-fn expand_def(def: &ast::Definition) -> ast::Definition {
-    ast::Definition::new(
-        def.span.clone(),
+fn expand_def(def: &ast::Definition) -> (String, ast::Definition) {
+    (
         def.name.clone(),
-        ast::Node::new_expr(
+        ast::Definition::new(
             def.span.clone(),
             def.name.clone(),
-            Box::new(def.expr.clone()),
+            ast::Node::new_expr(
+                def.span.clone(),
+                def.name.clone(),
+                Box::new(def.expr.clone()),
+            ),
         ),
     )
 }

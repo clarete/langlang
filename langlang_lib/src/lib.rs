@@ -3,7 +3,9 @@ pub mod format;
 pub mod import;
 pub mod vm;
 
+mod consts;
 mod tests;
+mod wsrewrite;
 
 pub use langlang_syntax::parser;
 

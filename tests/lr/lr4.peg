@@ -1,4 +1,4 @@
-# lr4.peg --- operator precedence
+// lr4.peg --- operator precedence
 E <- E¹ '+' E²
    / E¹ '-' E²
    / E² '*' E³

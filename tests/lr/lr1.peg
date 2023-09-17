@@ -1,2 +1,2 @@
-# lr1.peg --- left & right recursion
+// lr1.peg --- left & right recursion
 E <- E '+' E / 'n'

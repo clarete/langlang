@@ -44,8 +44,10 @@ func (r *ImportResolver) resolve(importPath, parentPath string) (*importerResolv
 				parentFrame.addNewDefinition(depDef)
 			}
 		}
-		parentFrame.Grammar.Imports = []*ImportNode{}
 	}
+
+	parentFrame.Grammar.Imports = []*ImportNode{}
+
 	return parentFrame, nil
 }
 
@@ -70,7 +72,6 @@ func (r *ImportResolver) createImporterResolverFrame(importPath, parentPath stri
 	}
 	f := &importerResolverFrame{
 		ImportPath: path,
-		ParentPath: parentPath,
 		Grammar:    grammar,
 	}
 	return f, nil
@@ -93,8 +94,8 @@ func (ril *RelativeImportLoader) GetPath(importPath, parentPath string) (string,
 		return importPath, nil
 	}
 	var contents string
-	if len(importPath) < 3 {
-		return contents, fmt.Errorf("Path too short: %s", importPath)
+	if len(importPath) < 4 {
+		return contents, fmt.Errorf("Path too short, it should start with ./: %s", importPath)
 	}
 	if importPath[:2] != "./" {
 		return contents, fmt.Errorf("Path isn't relative to the import site: %s", importPath)
@@ -113,7 +114,6 @@ func (ril *RelativeImportLoader) GetContent(path string) (string, error) {
 
 type importerResolverFrame struct {
 	ImportPath string
-	ParentPath string
 	Grammar    *GrammarNode
 }
 

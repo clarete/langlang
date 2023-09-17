@@ -589,7 +589,7 @@ func (g *goCodeEmitter) writeIfErr() {
 
 // other helpers
 
-// isInRuleLevel returns true exclusively if the traversal is exactly
+// isAtRuleLevel returns true exclusively if the traversal is exactly
 // one indent within the `DefinitionNode` traversal.  That's useful to
 // know because that's the only level in the generated parser that
 // doesn't need type casting the variable `p` from `parsing.Parser`

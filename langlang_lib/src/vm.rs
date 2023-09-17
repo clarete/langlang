@@ -6,8 +6,10 @@
 // machine.  This module has nothing to do with how patterns get
 // compiled to programs, but how programs get executted as patterns.
 //
+use crate::consts::WHITE_SPACE_RULE_NAME;
 #[cfg(debug_assertions)]
 use crate::format;
+
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
@@ -815,7 +817,9 @@ impl<'a> VM<'a> {
             let items = capframe.values;
             if !items.is_empty() {
                 let name = self.program.identifier(address);
-                self.capture(Value::Node { name, items })?;
+                if name != WHITE_SPACE_RULE_NAME {
+                    self.capture(Value::Node { name, items })?;
+                }
             }
             return Ok(());
         }

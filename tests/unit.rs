@@ -1,5 +1,5 @@
 mod helpers;
-use helpers::{assert_match, cc_run, compile, run, run_str};
+use helpers::{assert_match, cc_run, compile, run_str};
 
 use langlang_lib::{compiler, vm};
 use langlang_syntax::parser;
@@ -30,18 +30,15 @@ fn test_str() {
 
     // This works as both `f` chars get consummed by [a-f]+ one at
     // a time.
-    let value = run(
-        &p,
-        vec![
-            vm::Value::String("0x".to_string()),
-            vm::Value::Char('f'),
-            vm::Value::Char('f'),
-        ],
-    );
+    let value = vm::VM::new(&p).run(vec![
+        vm::Value::String("0x".to_string()),
+        vm::Value::Char('f'),
+        vm::Value::Char('f'),
+    ]);
     assert_match("A[0xff]", value);
 
     // Easiest case
-    let value = run(&p, vec![vm::Value::String("0".to_string())]);
+    let value = vm::VM::new(&p).run(vec![vm::Value::String("0".to_string())]);
     assert_match("A[0]", value);
 }
 
@@ -274,14 +271,11 @@ fn test_lr5() {
 fn test_list_with_no_list() {
     let cc = compiler::Config::default();
     let program = compile(&cc, "A <- { 'aba' }", "A");
-    let result = run(
-        &program,
-        vec![
-            vm::Value::Char('a'),
-            vm::Value::Char('b'),
-            vm::Value::Char('a'),
-        ],
-    );
+    let result = vm::VM::new(&program).run(vec![
+        vm::Value::Char('a'),
+        vm::Value::Char('b'),
+        vm::Value::Char('a'),
+    ]);
     assert!(result.is_err());
     assert_eq!(
         result.unwrap_err(),
@@ -299,10 +293,10 @@ fn test_list_0() {
         vm::Value::Char('b'),
         vm::Value::Char('a'),
     ])];
-    assert_match("A[[aba]]", run(&p, input_with_chr));
+    assert_match("A[[aba]]", vm::VM::new(&p).run(input_with_chr));
 
     let input_with_str = vec![vm::Value::List(vec![vm::Value::String("aba".to_string())])];
-    assert_match("A[[aba]]", run(&p, input_with_str))
+    assert_match("A[[aba]]", vm::VM::new(&p).run(input_with_str))
 }
 
 #[test]
@@ -321,13 +315,13 @@ fn test_list_nested_0() {
         vm::Value::Char('t'),
         vm::Value::Char('e'),
     ])];
-    assert_match("A[[[aba]cate]]", run(&p, input_with_chr));
+    assert_match("A[[[aba]cate]]", vm::VM::new(&p).run(input_with_chr));
 
     let input_with_str = vec![vm::Value::List(vec![
         vm::Value::List(vec![vm::Value::String("aba".to_string())]),
         vm::Value::String("cate".to_string()),
     ])];
-    assert_match("A[[[aba]cate]]", run(&p, input_with_str));
+    assert_match("A[[[aba]cate]]", vm::VM::new(&p).run(input_with_str));
 }
 
 #[test]
@@ -343,7 +337,7 @@ fn test_node_0() {
             vm::Value::Char('a'),
         ],
     }];
-    assert_match("A[A[aba]]", run(&p, input_with_chr));
+    assert_match("A[A[aba]]", vm::VM::new(&p).run(input_with_chr));
 }
 
 // -- Error Recovery -------------------------------------------------------
@@ -442,6 +436,6 @@ fn test_expand_tree_0() {
 
     let mut c = compiler::Compiler::new(cc);
     let list_program = c.compile(&rewrite, "A").unwrap();
-    let value = run(&list_program, vec![output.unwrap().unwrap()]);
+    let value = vm::VM::new(&list_program).run(vec![output.unwrap().unwrap()]);
     assert_match("A[A[F]]", value);
 }

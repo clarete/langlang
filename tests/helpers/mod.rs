@@ -25,11 +25,6 @@ pub fn run_str(program: &vm::Program, input: &str) -> Result<Option<vm::Value>, 
     machine.run_str(input)
 }
 
-pub fn run(program: &vm::Program, input: Vec<vm::Value>) -> Result<Option<vm::Value>, vm::Error> {
-    let mut machine = vm::VM::new(program);
-    machine.run(input)
-}
-
 pub fn cc_run(
     cc: &compiler::Config,
     grammar: &str,
@@ -47,4 +42,10 @@ pub fn assert_match(expected: &str, r: Result<Option<vm::Value>, vm::Error>) {
     assert!(o.is_some());
     let v = o.unwrap();
     assert_eq!(expected.to_string(), format::value_fmt1(&v));
+}
+
+pub fn assert_err(expected: vm::Error, r: Result<Option<vm::Value>, vm::Error>) {
+    assert!(r.is_err());
+    let e = r.unwrap_err();
+    assert_eq!(expected, e);
 }

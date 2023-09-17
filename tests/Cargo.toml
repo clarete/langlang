@@ -11,3 +11,7 @@ langlang_syntax = { path = "../langlang_syntax" }
 [[test]]
 name = "unit"
 path = "unit.rs"
+
+[[test]]
+name = "wshinsert"
+path = "wshinsert.rs"

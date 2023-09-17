@@ -25,6 +25,10 @@ pub trait Visitor<'ast>: Sized {
         walk_choice(self, n);
     }
 
+    fn visit_lex(&mut self, n: &'ast Lex) {
+        walk_lex(self, n);
+    }
+
     fn visit_and(&mut self, n: &'ast And) {
         walk_and(self, n);
     }
@@ -86,11 +90,12 @@ pub trait Visitor<'ast>: Sized {
 
 pub fn walk_grammar<'a, V: Visitor<'a>>(visitor: &mut V, g: &'a Grammar) {
     for i in &g.imports {
-        visitor.visit_import(i)
+        visitor.visit_import(i);
     }
 
-    for d in &g.definitions {
-        visitor.visit_definition(d)
+    for name in &g.definition_names {
+        let d = &g.definitions[name];
+        visitor.visit_definition(d);
     }
 }
 
@@ -104,6 +109,7 @@ pub fn walk_expression<'a, V: Visitor<'a>>(visitor: &mut V, e: &'a Expression) {
     match e {
         Expression::Sequence(n) => visitor.visit_sequence(n),
         Expression::Choice(n) => visitor.visit_choice(n),
+        Expression::Lex(n) => visitor.visit_lex(n),
         Expression::And(n) => visitor.visit_and(n),
         Expression::Not(n) => visitor.visit_not(n),
         Expression::Optional(n) => visitor.visit_optional(n),
@@ -129,6 +135,10 @@ pub fn walk_choice<'a, V: Visitor<'a>>(visitor: &mut V, n: &'a Choice) {
     for i in &n.items {
         visitor.visit_expression(i)
     }
+}
+
+pub fn walk_lex<'a, V: Visitor<'a>>(visitor: &mut V, n: &'a Lex) {
+    visitor.visit_expression(&n.expr)
 }
 
 pub fn walk_and<'a, V: Visitor<'a>>(visitor: &mut V, n: &'a And) {

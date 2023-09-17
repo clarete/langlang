@@ -1,27 +1,36 @@
 use crate::source_map::Span;
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::string::ToString;
-
-pub trait IsTerminal {
-    fn is_terminal(&self) -> bool {
-        false
-    }
-}
 
 /// Grammar is the top-level AST node for the input grammar language.
 #[derive(Debug)]
 pub struct Grammar {
     pub span: Span,
     pub imports: Vec<Import>,
-    pub definitions: Vec<Definition>,
+    pub definition_names: Vec<String>,
+    pub definitions: BTreeMap<String, Definition>,
 }
 
 impl Grammar {
-    pub fn new(span: Span, imports: Vec<Import>, definitions: Vec<Definition>) -> Self {
+    pub fn new(
+        span: Span,
+        imports: Vec<Import>,
+        definition_names: Vec<String>,
+        definitions: BTreeMap<String, Definition>,
+    ) -> Self {
         Self {
             span,
             imports,
+            definition_names,
             definitions,
+        }
+    }
+
+    pub fn add_definition(&mut self, d: &Definition) {
+        if self.definitions.get(&d.name).is_none() {
+            self.definition_names.push(d.name.clone());
+            self.definitions.insert(d.name.clone(), d.clone());
         }
     }
 }
@@ -33,7 +42,8 @@ impl ToString for Grammar {
             output.push_str(&i.to_string());
             output.push('\n');
         }
-        for d in &self.definitions {
+        for name in &self.definition_names {
+            let d = &self.definitions[name];
             output.push_str(&d.to_string());
             output.push('\n');
         }
@@ -68,7 +78,7 @@ impl Import {
 
 /// Definition represents a single production definition.  It stores
 /// both the name and the expression associated with the production.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Definition {
     pub span: Span,
     pub name: String,
@@ -87,10 +97,25 @@ impl ToString for Definition {
     }
 }
 
+pub trait IsSyntactic {
+    fn is_syntactic(&self) -> bool {
+        false
+    }
+}
+
+fn is_syntactic_list<T: IsSyntactic>(items: &Vec<T>) -> bool {
+    items
+        .iter()
+        .map(|i| i.is_syntactic())
+        .reduce(|acc, i| acc && i)
+        .unwrap_or_else(|| false)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Sequence(Sequence),
     Choice(Choice),
+    Lex(Lex),
     And(And),
     Not(Not),
     Optional(Optional),
@@ -105,16 +130,39 @@ pub enum Expression {
     Empty(Empty),
 }
 
+impl IsSyntactic for Expression {
+    fn is_syntactic(&self) -> bool {
+        match self {
+            Expression::Choice(v) => is_syntactic_list(&v.items),
+            Expression::Sequence(v) => v.is_syntactic(),
+            Expression::Lex(v) => v.expr.is_syntactic(),
+            Expression::And(v) => v.expr.is_syntactic(),
+            Expression::Not(v) => v.expr.is_syntactic(),
+            Expression::Optional(v) => v.expr.is_syntactic(),
+            Expression::ZeroOrMore(v) => v.expr.is_syntactic(),
+            Expression::OneOrMore(v) => v.expr.is_syntactic(),
+            Expression::Precedence(v) => v.expr.is_syntactic(),
+            Expression::Label(v) => v.expr.is_syntactic(),
+            Expression::List(v) => is_syntactic_list(&v.items),
+            Expression::Node(v) => v.expr.is_syntactic(),
+            Expression::Identifier(_) => false,
+            Expression::Literal(_) => true,
+            Expression::Empty(_) => true,
+        }
+    }
+}
+
 impl ToString for Expression {
     fn to_string(&self) -> String {
         match self {
             Expression::Choice(v) => fmtlistsep(" / ", &v.items),
             Expression::Sequence(v) => fmtlistsep(" ", &v.items),
+            Expression::Lex(v) => fmtprefix("#", &v.expr),
             Expression::And(v) => fmtprefix("&", &v.expr),
             Expression::Not(v) => fmtprefix("!", &v.expr),
-            Expression::Optional(v) => format!("{}?", v.expr.to_string()),
-            Expression::ZeroOrMore(v) => format!("{}*", v.expr.to_string()),
-            Expression::OneOrMore(v) => format!("{}+", v.expr.to_string()),
+            Expression::Optional(v) => fmtsuffix("?", &v.expr),
+            Expression::ZeroOrMore(v) => fmtsuffix("*", &v.expr),
+            Expression::OneOrMore(v) => fmtsuffix("+", &v.expr),
             Expression::Precedence(v) => format!("{}{}", v.expr.to_string(), v.precedence),
             Expression::Label(v) => format!("{}^{}", v.expr.to_string(), v.label),
             Expression::List(v) => format!("[{}]", fmtlistsep(", ", &v.items)),
@@ -138,6 +186,12 @@ impl Sequence {
     }
 }
 
+impl IsSyntactic for Sequence {
+    fn is_syntactic(&self) -> bool {
+        is_syntactic_list(&self.items)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Choice {
     pub span: Span,
@@ -151,6 +205,22 @@ impl Choice {
 
     pub fn new(span: Span, items: Vec<Expression>) -> Self {
         Self { span, items }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Lex {
+    pub span: Span,
+    pub expr: Box<Expression>,
+}
+
+impl Lex {
+    pub fn new_expr(span: Span, expr: Box<Expression>) -> Expression {
+        Expression::Lex(Lex::new(span, expr))
+    }
+
+    pub fn new(span: Span, expr: Box<Expression>) -> Self {
+        Self { span, expr }
     }
 }
 
@@ -281,7 +351,11 @@ pub struct Identifier {
 
 impl Identifier {
     pub fn new_expr(span: Span, name: String) -> Expression {
-        Expression::Identifier(Self { span, name })
+        Expression::Identifier(Self::new(span, name))
+    }
+
+    pub fn new(span: Span, name: String) -> Self {
+        Self { span, name }
     }
 }
 
@@ -300,7 +374,7 @@ impl ToString for Literal {
             Literal::String(v) => format!("\"{}\"", v.value),
             Literal::Class(v) => v.to_string(),
             Literal::Range(v) => format!("{}-{}", v.start, v.end),
-            Literal::Char(v) => format!("\"{}\"", v.value),
+            Literal::Char(v) => v.to_string(),
             Literal::Any(_) => ".".to_string(),
         }
     }
@@ -368,6 +442,15 @@ impl Char {
     }
 }
 
+impl ToString for Char {
+    fn to_string(&self) -> String {
+        match self.value {
+            '\n' => "\\n".to_string(),
+            _ => format!("{}", self.value),
+        }
+    }
+}
+
 /// Any is the operator that matches anything but EOF
 #[derive(Clone, Debug, PartialEq)]
 pub struct Any {
@@ -414,13 +497,31 @@ fn fmtprefix(prefix: &str, node: &Expression) -> String {
     if tree_height(node) > 1 {
         return format!("{}({})", prefix, node.to_string());
     }
+    if let Expression::Sequence(seq) = node {
+        if seq.items.len() > 1 {
+            return format!("{}({})", prefix, node.to_string());
+        }
+    }
     format!("{}{}", prefix, node.to_string())
+}
+
+fn fmtsuffix(suffix: &str, node: &Expression) -> String {
+    if tree_height(node) > 1 {
+        return format!("({}){}", node.to_string(), suffix);
+    }
+    if let Expression::Sequence(seq) = node {
+        if seq.items.len() > 1 {
+            return format!("({}){}", node.to_string(), suffix);
+        }
+    }
+    format!("{}{}", node.to_string(), suffix)
 }
 
 fn tree_height(n: &Expression) -> usize {
     match n {
         Expression::Sequence(v) => items_height(&v.items),
         Expression::Choice(v) => items_height(&v.items) + 1,
+        Expression::Lex(v) => tree_height(&v.expr) + 1,
         Expression::And(v) => tree_height(&v.expr) + 1,
         Expression::Not(v) => tree_height(&v.expr) + 1,
         Expression::Optional(v) => tree_height(&v.expr) + 1,

@@ -1,6 +1,22 @@
 use crate::ast;
-use crate::error::Error;
 use crate::source_map::{Position, Span};
+
+use std::collections::BTreeMap;
+
+#[derive(Debug)]
+pub enum Error {
+    BacktrackError(usize, String),
+}
+
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::BacktrackError(i, m) => write!(f, "Syntax Error: {}: {}", i, m),
+        }
+    }
+}
 
 pub fn parse(input: &str) -> Result<ast::Grammar, Error> {
     let mut p = Parser::new(input);
@@ -28,15 +44,22 @@ impl Parser {
         };
     }
 
-    // GR: Grammar <- Spacing (Definition / LabelDefinition)+ EndOfFile
+    // GR: Grammar <- Spacing Import* Definition* EndOfFile
     pub fn parse_grammar(&mut self) -> Result<ast::Grammar, Error> {
         self.parse_spacing()?;
         let start = self.pos();
         let imports = self.zero_or_more(|p| p.parse_import())?;
-        let defs = self.one_or_more(|p| p.parse_definition())?;
+        let mut defs = BTreeMap::new();
+        let mut def_names = Vec::new();
+        self.zero_or_more(|p| {
+            let def = p.parse_definition()?;
+            def_names.push(def.name.clone());
+            defs.insert(def.name.clone(), def);
+            Ok(())
+        })?;
         self.parse_eof()?;
         let span = self.span_from(start);
-        Ok(ast::Grammar::new(span, imports, defs))
+        Ok(ast::Grammar::new(span, imports, def_names, defs))
     }
 
     // GR: Import <- "@import" Identifier ("," Identifier)* "from" Literal
@@ -52,7 +75,8 @@ impl Parser {
         })?);
         self.parse_spacing()?;
         self.expect_str("from")?;
-        let path = self.parse_identifier()?;
+        self.parse_spacing()?;
+        let path = self.parse_literal_string()?;
         let span = self.span_from(start);
         Ok(ast::Import::new(span, path, names))
     }
@@ -103,11 +127,15 @@ impl Parser {
         })
     }
 
-    // GR: Prefix <- (AND / NOT)? Labeled
+    // GR: Prefix <- ('#' / '&' / '!')? Labeled
     fn parse_prefix(&mut self) -> Result<ast::Expression, Error> {
         self.parse_spacing()?;
         let start = self.pos();
         let prefix = self.choice(vec![
+            |p| {
+                p.expect_str("#")?;
+                Ok("#")
+            },
             |p| {
                 p.expect_str("&")?;
                 Ok("&")
@@ -121,6 +149,7 @@ impl Parser {
         let labeled = self.parse_labeled()?;
         let span = self.span_from(start);
         Ok(match prefix {
+            Ok("#") => ast::Expression::Lex(ast::Lex::new(span, Box::new(labeled))),
             Ok("&") => ast::Expression::And(ast::And::new(span, Box::new(labeled))),
             Ok("!") => ast::Expression::Not(ast::Not::new(span, Box::new(labeled))),
             _ => labeled,
@@ -296,9 +325,13 @@ impl Parser {
     fn parse_literal(&mut self) -> Result<ast::Expression, Error> {
         self.parse_spacing()?;
         let start = self.pos();
-        let value = self.choice(vec![|p| p.parse_simple_quote(), |p| p.parse_double_quote()])?;
+        let value = self.parse_literal_string()?;
         let span = self.span_from(start);
         Ok(ast::String_::new_expr(span, value))
+    }
+
+    fn parse_literal_string(&mut self) -> Result<String, Error> {
+        self.choice(vec![|p| p.parse_simple_quote(), |p| p.parse_double_quote()])
     }
 
     fn parse_simple_quote(&mut self) -> Result<String, Error> {
@@ -336,7 +369,7 @@ impl Parser {
         self.parse_spacing()?;
         let start = self.pos();
         self.expect('[')?;
-        let ranges = self.zero_or_more::<ast::Literal>(|p| {
+        let ranges = self.zero_or_more::<ast::Literal, _>(|p| {
             p.not(|pp| pp.expect(']'))?;
             p.parse_range()
         })?;
@@ -515,13 +548,16 @@ impl Parser {
         }
     }
 
-    fn one_or_more<T>(&mut self, func: ParseFn<T>) -> Result<Vec<T>, Error> {
-        let mut output = vec![func(self)?];
-        output.append(&mut self.zero_or_more::<T>(func)?);
-        Ok(output)
-    }
+    // fn one_or_more<T>(&mut self, func: ParseFn<T>) -> Result<Vec<T>, Error> {
+    //     let mut output = vec![func(self)?];
+    //     output.append(&mut self.zero_or_more::<T>(func)?);
+    //     Ok(output)
+    // }
 
-    fn zero_or_more<T>(&mut self, func: ParseFn<T>) -> Result<Vec<T>, Error> {
+    fn zero_or_more<T, P>(&mut self, mut func: P) -> Result<Vec<T>, Error>
+    where
+        P: FnMut(&mut Parser) -> Result<T, Error>,
+    {
         let mut output = vec![];
         loop {
             match func(self) {
@@ -778,7 +814,7 @@ mod tests {
     fn zero_or_more() -> Result<(), Error> {
         let mut parser = Parser::new("ab2");
 
-        let prefix = parser.zero_or_more::<char>(|p| p.expect_range('a', 'z'))?;
+        let prefix = parser.zero_or_more::<char, _>(|p| p.expect_range('a', 'z'))?;
 
         assert_eq!(vec!['a', 'b'], prefix);
         assert_eq!(2, parser.cursor);

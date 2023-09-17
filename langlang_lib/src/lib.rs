@@ -9,7 +9,7 @@ pub use langlang_syntax::parser;
 #[derive(Debug)]
 pub enum Error {
     CompilerError(compiler::Error),
-    ParserError(langlang_syntax::error::Error),
+    ParserError(parser::Error),
     RuntimeError(vm::Error),
     IOError(std::io::Error),
 }
@@ -39,8 +39,8 @@ impl From<compiler::Error> for Error {
     }
 }
 
-impl From<langlang_syntax::error::Error> for Error {
-    fn from(e: langlang_syntax::error::Error) -> Self {
+impl From<parser::Error> for Error {
+    fn from(e: parser::Error) -> Self {
         Error::ParserError(e)
     }
 }

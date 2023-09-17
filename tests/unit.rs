@@ -1,9 +1,8 @@
-use langlang_lib::{compiler, format, import, vm};
-use langlang_syntax::parser;
+mod helpers;
+use helpers::{assert_match, cc_run, compile, run, run_str};
 
-use std::path::Path;
-// use log::debug;
-use std::println as debug; // Workaround to use prinltn! for logs.
+use langlang_lib::{compiler, vm};
+use langlang_syntax::parser;
 
 #[test]
 fn test_char() {
@@ -39,11 +38,11 @@ fn test_str() {
             vm::Value::Char('f'),
         ],
     );
-    assert_match("A[0xff]", value.unwrap());
+    assert_match("A[0xff]", value);
 
     // Easiest case
     let value = run(&p, vec![vm::Value::String("0".to_string())]);
-    assert_match("A[0]", value.unwrap());
+    assert_match("A[0]", value);
 }
 
 #[test]
@@ -119,7 +118,7 @@ fn test_var_ending_with_zero_or_more() {
     assert_match("A[111]", run_str(&program, "111"));
     assert_match("A[11]", run_str(&program, "11"));
     assert_match("A[1]", run_str(&program, "1"));
-    assert!(run_str(&program, "").is_none())
+    assert!(run_str(&program, "").unwrap().is_none())
 }
 
 #[test]
@@ -300,10 +299,10 @@ fn test_list_0() {
         vm::Value::Char('b'),
         vm::Value::Char('a'),
     ])];
-    assert_match("A[[aba]]", run(&p, input_with_chr).unwrap());
+    assert_match("A[[aba]]", run(&p, input_with_chr));
 
     let input_with_str = vec![vm::Value::List(vec![vm::Value::String("aba".to_string())])];
-    assert_match("A[[aba]]", run(&p, input_with_str).unwrap())
+    assert_match("A[[aba]]", run(&p, input_with_str))
 }
 
 #[test]
@@ -322,13 +321,13 @@ fn test_list_nested_0() {
         vm::Value::Char('t'),
         vm::Value::Char('e'),
     ])];
-    assert_match("A[[[aba]cate]]", run(&p, input_with_chr).unwrap());
+    assert_match("A[[[aba]cate]]", run(&p, input_with_chr));
 
     let input_with_str = vec![vm::Value::List(vec![
         vm::Value::List(vec![vm::Value::String("aba".to_string())]),
         vm::Value::String("cate".to_string()),
     ])];
-    assert_match("A[[[aba]cate]]", run(&p, input_with_str).unwrap());
+    assert_match("A[[[aba]cate]]", run(&p, input_with_str));
 }
 
 #[test]
@@ -344,7 +343,7 @@ fn test_node_0() {
             vm::Value::Char('a'),
         ],
     }];
-    assert_match("A[A[aba]]", run(&p, input_with_chr).unwrap());
+    assert_match("A[A[aba]]", run(&p, input_with_chr));
 }
 
 // -- Error Recovery -------------------------------------------------------
@@ -443,41 +442,6 @@ fn test_expand_tree_0() {
 
     let mut c = compiler::Compiler::new(cc);
     let list_program = c.compile(&rewrite, "A").unwrap();
-    let value = run(&list_program, vec![output.unwrap()]).unwrap();
+    let value = run(&list_program, vec![output.unwrap().unwrap()]);
     assert_match("A[A[F]]", value);
-}
-
-// -- Test Helpers ---------------------------------------------------------
-
-fn compile(cc: &compiler::Config, grammar: &str, start: &str) -> vm::Program {
-    let mut loader = import::InMemoryImportLoader::default();
-    loader.add_grammar("main", grammar);
-    let importer = import::ImportResolver::new(loader);
-    let ast = importer.resolve(Path::new("main")).unwrap();
-    debug!("PEG:\n{}", ast.to_string());
-    let mut c = compiler::Compiler::new(cc.clone());
-    let program = c.compile(&ast, start).unwrap();
-    debug!("PROGRAM:\n{}", program);
-    program
-}
-
-fn run_str(program: &vm::Program, input: &str) -> Option<vm::Value> {
-    let mut machine = vm::VM::new(program);
-    machine.run_str(input).expect("Unexpected")
-}
-
-fn run(program: &vm::Program, input: Vec<vm::Value>) -> Result<Option<vm::Value>, vm::Error> {
-    let mut machine = vm::VM::new(program);
-    machine.run(input)
-}
-
-fn cc_run(cc: &compiler::Config, grammar: &str, start: &str, input: &str) -> Option<vm::Value> {
-    let prog = compile(cc, grammar, start);
-    let mut machine = vm::VM::new(&prog);
-    machine.run_str(input).expect("Unexpected")
-}
-
-fn assert_match(expected: &str, value: Option<vm::Value>) {
-    assert!(value.is_some());
-    assert_eq!(expected.to_string(), format::value_fmt1(&value.unwrap()));
 }

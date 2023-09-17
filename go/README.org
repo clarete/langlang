@@ -1,3 +1,6 @@
+
+* NOTICE: THIS GO IMPLEMENTATION IS DEPRECATED DON'T USE IT
+
 * Introduction
 
 Bring your own grammar and get a feature rich parser generated for

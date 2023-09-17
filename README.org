@@ -1,123 +1,279 @@
-* langlang
+* Introduction
 
-** Intro
+Bring your own grammar and get a feature rich parser generated for
+different languages.  The are reasons why you might want to use this:
 
-langlang is a parser generator based on [[https://en.wikipedia.org/wiki/Parsing_expression_grammar][Parsing Expression Grammars]]
+ - Concise input grammar format and intuitive algorithm: generates
+   recursive top-down parsers based on Parsing Expression Grammars
+ - Automatic handling of white spaces, making grammars less cluttered
+ - Error reporting with custom messages via failure ~labels~
+ - Partial support for declaring error recovery rules, which allow
+   incremental parsing that returns an output tree even upon errors.
 
-** Usage
+** Currently supported output languages
 
-Provide an input grammar and an input to be parsed with the grammar.
+ * [X] Rust¹
+ * [X] Go Lang²
+ * [ ] Python
+ * [ ] Java Script
+ * [ ] Write your own code generator
 
-Let's look at an example in which the data to be parsed is in a form
-of comma separated values.  Here's the simplest expression that could
-parse input in such format:
+*** Notes
+
+ 1. Rust is supported with a runtime virtual machine that, and not
+    with a generated parser.  This design may or may not change.
+
+ 2. We're in the middle of dropping the Go implementation of the
+    library and a Go generator written in Rust will replace it.
+
+** Basic Usage
+
+If you just want to test the waters, point the command line utility at
+a grammar and pick a starting rule:
+
+#+begin_src bash
+cargo run --bin langlang run --grammar-file grammars/json.peg --start-rule JSON
+#+end_src
+
+That will drop you into an initeractive shell that allows you to try
+out different input expressions.
+
+Take a look at other grammars at the directory ~grammars~ in the root
+of the repository.  It contains a library of grammar files for
+commonly used input formats.
+
+* Input Language
+** Productions and Expressions
+
+The input grammar is as simple as it can get. It builds off of the
+original PEG format, the other features are added conservatively.
+Take the following input as an example:
 
 #+begin_src peg
-File <- Line*
-Line <- Val (',' Val)* '\n'
-Val  <- (![,\n] .)*
+  Production <- Expression
 #+end_src
 
-If the above grammar is fed with the following input:
+At the left side of the arrow there is an identifier and on the right
+side, there is an expression.  These two together are called either
+productions or (parsing) rules.  And each production in a grammar is
+translated to a function.  Let's go over what's valid in an expression
+and how to compose them.  If you've ever seen or used regular
+expressions, you've got a head start.
 
-#+begin_src text
-c1,c2
-10,20
-30,40
-#+end_src
+** Terminals
 
-This is the output returned
+ - *Any* e.g.: ~.~ this matches any character, and only errors if it
+   reaches the end of the input
 
-#+begin_src text
-File {
-    Line {
-        Val {
-            "c"
-            "1"
-        }
-        ","
-        Val {
-            "c"
-            "2"
-        }
-        "\n"
-    }
-    Line {
-        Val {
-            "1"
-            "0"
-        }
-        ","
-        Val {
-            "2"
-            "0"
-        }
-        "\n"
-    }
-    Line {
-        Val {
-            "3"
-            "0"
-        }
-        ","
-        Val {
-            "4"
-            "0"
-        }
-        "\n"
-    }
-}
-#+end_src
+ - *Literal* e.g.: ~'x'~ anything around quotes (single and double
+   are the same)
 
-** Line by line
+ - *Class and Range* e.g.: ~[0-9]~, ~[a-zA-Z]~, ~[a-f0-9_]~.
+   Notice that classes may contain either ranges or single characters.
+   The last example contains two ranges (~a-f~ and ~0-9~) and one
+   single char (~_~).  It means *match either one of these*. e.g.:
+   ~[a-cA-C]~ is translated to ~'a' / 'b' / 'c' / 'A' / 'B' / 'C'~.
 
-Parsing expression grammars are interpreted top-down, and left to
-right.  The identifiers before the left arrow are called _rules_ or
-_productions_, and at the right side of the arrow are the
-_expressions_.  These expressions borrow a whole lot from [[https://en.wikipedia.org/wiki/Regular_expression][Regular
-Expressions]].
+** Non-Terminals
 
-*** File
+The biggest addition of this type of grammar on top of regular
+expressions is the ability to define and recursively call productions.
+Here's a grammar snippet for parsing numbers:
 
 #+begin_src peg
-File <- Line*
+Signed   <- ('-' / '+') Signed / Decimal
+Decimal  <- ([1-9][0-9]*) / '0'
 #+end_src
 
-The STAR (~*~) operator for once, has the exact same semantics.  It is
-going to try to match the expression ~Line~ *one or more* times.  The
-identifiers in the expression side are how productions *call* other
-productions.  Notice that ~File~ is the first production to be called
-because it is the first one to appear in the input.
+The topmost production ~Signed~ calls itself or the production
+~Decimal~.  It allows parsing signed and unsigned numbers
+recursively. (e.g.: ~+-+--1~ and so forth would be accepted).
 
-*** Line
+** Expression Composition
+
+The following operators can be used on both Terminals and
+Non-Terminals, on top of parenthesized expressions:
+
+| operator         | example   | comment                    |
+|------------------+-----------+----------------------------|
+| *ordered choice* | =e1 / e2= |                            |
+| *not predicate*  | =!e=      |                            |
+| *and predicate*  | =&e=      | sugar for =!!e=            |
+| *zero or more*   | =e*=      |                            |
+| *one or more*    | =e+=      | sugar for =ee*=            |
+| *optional*       | =e?=      | sugar for =&ee / !e=       |
+| *lexification*   | =#e=      |                            |
+| *label*          | =e^label= | sugar for =e/throw(label)= |
+
+*** Ordered Choice
+
+This operator tries expressions one at a time, from left to right, and
+stops at the first one to succeed.  Or error if no alternatives work.
+E.g.:
 
 #+begin_src peg
-Line <- Val (',' Val)* '\n'
+SomeDigits <- '0' / '1' / '2' / '3' / '4'
 #+end_src
 
-Both ~File~ and ~Line~ productions is the STAR operator and call out
-to other productions.  ~Line~ introduces the use of parenthesizing
-that intuitively will try to match the COMMA (~,~) character followed
-by a ~Val~ call *one or more* times.  And it has to end with the
-NEWLINE (~\n~) escape char.
+Passing ~6~ to the above expression will generate an error.
 
-*** Var
+*** Predicates (Not/And)
+
+Predicates are the mechanism that allows unlimited look ahead, as they
+do not consume any input.  e.g.:
 
 #+begin_src peg
-Val  <- (![,\n] .)*
+BracketString <- "[" (!"]" .)* "]"
 #+end_src
 
-The production ~Val~ demonstrates another similarity with *Regular
-Expressions* in the usage of the Char class selector (~[]~).  That
-same selector also takes ranges (e.g.: ~[0-9]~, ~[a-zA-Z]~, etc).  It
-also demonstrates the use of the ANY (~.~) matcher, that succeeds on
-any input, and only fails if matched against ~EOF~.
+In the above example, the *any* expression isn't evaluated if the
+parser finds the closing square bracket.
 
-But this same production also includes the operator NOT (~!~) that,
-although may be syntactically similar to the one in *Regular
-Expressions*, its meaning is significantly different in *Parsing
-Expression Grammars*.  The NOT (~!~) operator has a very special
-property: it doesn't consume input any input, even when it succeeds.
-So, the use of the NOT operator is followed with something that will
-actually consume the input.  In the above case, it the expression will
-match anything that isn't either a COMMA (~,~) or a NEWLINE (~\n~).
+The *and* predicate (~&~) is just syntactical sugar for ~!!~.
+
+*** Repetition ({Zero,One} Or More)
+
+ * *Zero Or More* it never fails, as it can match its expression at
+   least zero times:
+
+ * *One Or More* is the syntax sugar for calling the expression once,
+   followed by applying zero or more to the same expression.  It can
+   fail at the first time it matches the expression
+
+ * *Optional* it will match an expression zero or one time
+
+*** Lexification
+
+By default, the generated parsers emit code to consume whitespaces
+automatically before each item within a sequence of a production
+that's considered not syntactic.  Productions are considered syntactic
+if all their expressions are syntactic.  Expressions are considered
+syntactic if their output tree is composed only of terminal matches.
+If there's any path to a non-terminal match, the entire expression,
+and production are considered non syntactic.  e.g.:
+
+#+begin_src peg
+NotSyntactic <- Syntactic "!"
+Syntactic    <- "a" "b" "c"
+#+end_src
+
+In the above example, there is no automatic space consumption injected
+before the items of the sequence expression ~"a" "b" "c"~ as all of
+them are terminals.  And the ~NotSyntactic~ production contains non
+terminal calls, which makes it non-syntactic.  Therefore, automatic
+space handling will be enabled for ~NotSyntactic~ and disabled for
+~Syntactic~
+
+For *disabling* automatic space handling of an expression, prefix it
+with the lexification operator ~#~. e.g.:
+
+#+begin_src peg
+Ordinal <- Decimal #('st' / 'nd' / 'rd' / 'th')^ord
+Decimal <- ([1-9][0-9]*) / '0'
+#+end_src
+
+In the above expression, ~Decimal~ is considered syntactic, which
+disables automatic space handling.  ~Ordinal~ is not syntactic because
+it calls out to another production with a non-terminal.  So, automatic
+space handling is enabled for that production.  However, between the
+non-terminal and the choice with terminals, space handling is
+disabled.  This is what is expected
+
+| Input   | Result   |
+|---------+----------|
+| " 3rd"  | succeeds |
+| "50th"  | succeeds |
+| "2 0th" | fails    |
+| "2 th"  | fails    |
+
+The first input succeeds because space consumption is automatically
+added to the left of the call to the non terminal ~Decimal~, as
+~Ordinal~ is not syntactic.  But, because the expression that follows
+the non terminal is marked with the lexification operator, automatic
+space handling won't be injected between the call to the non terminal
+and the ordered choice with the syntactic suffixed ~st~, ~nd~, ~rd~,
+and ~th~.
+
+Here is maybe the most classic example of where lexification is
+needed: Non-Syntactic String Literals.  Which uses eager look ahead
+and spaces are significant.  e.g.:
+
+#+begin_src peg
+  SyntacticStringLiteral     <- '"' (!'"' .) '"'
+  NonSyntacticStringLiteral  <- DQ #((!DQ .)  DQ)
+#+end_src
+
+Without using the lexification operator on the rule
+~NonSyntacticStringLiteral~, it would eat up the spaces after the
+first quote, which can be undesired for string fields.
+
+The rule ~SyntacticStringLiteral~ doesn't need the lexification
+operator because all of its sub-expressions are terminals, therefore
+the rule is syntactic and space consumption won't be generated by
+default anyway.
+
+There are definitely more use-cases of the lexification operator out
+there, these are just the common ones.
+
+*** Error reporting with Labels
+*** Import system
+
+Productions of one grammar can be imported from another one.  That
+allows reusing rules and delivering more consolidate grammar files and
+more powerful parser generated at the end.
+
+#+begin_src peg
+  // file player.peg
+  @import AddrSpec from "./rfc5322.peg"
+
+  Player <- "Name:" Name "," "Score:" Number "," "Email:" AddrSpec
+  Name   <- [a-zA-Z ]+
+  Number <- [0-9]+
+  // ... elided for simplicity
+
+#+end_src
+
+#+begin_src peg
+  // file rfc5322.peg
+  // https://datatracker.ietf.org/doc/html/rfc5322#section-3.4.1
+
+  // ... elided for simplicity
+  AddrSpec  <- LocalPart "@" Domain
+  LocalPart <- DotAtom / QuotedString / ObsLocalPart
+  Domain    <- DotAtom / DomainLiteral / ObsDomain
+  // ... elided for simplicity
+#+end_src
+
+The above example illustrates that a rather complete email parser can
+be used in other grammars using imports.  Behind the scenes, the
+~AddrSpec~ rule and all its dependencies have been merged into the
+~player.peg~ grammar.
+
+* Generator Options
+** Go
+
+The Go code generator provides the following additional knobs to the
+command line:
+
+ * ~--go-package~: allows customizing what goes in the ~package~
+   directive that starts each Go file.
+
+ * ~--go-prefix~: allows customizing structs generated prefixing what
+   is passed to this option.  This is especially useful if there are
+   two grammars to be parsed in the same package.  At least one will
+   need a prefix, so the generic ~Parser~ name doesn't collide. e.g.:
+   ~-go-prefix Tiny~ would generate a ~TinyParser~ struct, a
+   ~NewTinyParser~ constructor, etc.
+
+* Roadmap
+
+ * [ ] MID: [gen_go] rewrite Go generator in Rust
+ * [ ] MID: [genall] generator interface to be shared by all targets
+ * [ ] SML: [gen_go] memoize results to guarantee O(1) parsing time
+ * [ ] SML: [gen_go] allocate output nodes in an arena
+ * [ ] MID: [gen_py] Python Code Generator: Start from scratch
+ * [ ] MID: [gen_js] Java Script Code Generator
+ * [ ] MID: [gen_go] explore generating Go ASM code instead of text
+ * [ ] MID: Display Call Graph for debugging purposes
+ * [ ] BIG: Bootstrap off hand written parser, so grammar writters can
+   take advantage of the features baked into the parser generator

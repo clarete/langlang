@@ -1,0 +1,4 @@
+WS  <- SPC*
+SPC <- ' ' / '\t' / EOL
+EOL <- '\r\n' / '\n' / '\r'
+EOF <- !.

@@ -1,5 +1,6 @@
 pub mod compiler;
 pub mod format;
+pub mod import;
 pub mod vm;
 
 mod tests;
@@ -10,6 +11,7 @@ pub use langlang_syntax::parser;
 pub enum Error {
     CompilerError(compiler::Error),
     ParserError(parser::Error),
+    ImportError(import::Error),
     RuntimeError(vm::Error),
     IOError(std::io::Error),
 }
@@ -19,6 +21,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::ParserError(e) => write!(f, "Parsing Error: {:#?}", e),
             Error::CompilerError(e) => write!(f, "Compiler Error: {:#?}", e),
+            Error::ImportError(e) => write!(f, "Import Error: {:#?}", e),
             Error::RuntimeError(e) => write!(f, "Runtime Error: {:#?}", e),
             Error::IOError(e) => write!(f, "Input/Output Error: {:#?}", e),
         }
@@ -42,6 +45,12 @@ impl From<compiler::Error> for Error {
 impl From<parser::Error> for Error {
     fn from(e: parser::Error) -> Self {
         Error::ParserError(e)
+    }
+}
+
+impl From<import::Error> for Error {
+    fn from(e: import::Error) -> Self {
+        Error::ImportError(e)
     }
 }
 

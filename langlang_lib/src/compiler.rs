@@ -108,11 +108,12 @@ impl Compiler {
 
     /// compile a Grammar in its AST form into a program executable by
     /// the virtual machine
-    pub fn compile(&mut self, grammar: &ast::Grammar) -> Result<Program, Error> {
+    pub fn compile(&mut self, grammar: &ast::Grammar, main: &str) -> Result<Program, Error> {
         DetectLeftRec::default().run(grammar, &mut self.left_rec)?;
         self.visit_grammar(grammar);
         self.backpatch_callsites()?;
         self.map_recovery_exprs()?;
+        self.pick_main(main);
 
         Ok(Program::new(
             self.identifiers.clone(),
@@ -165,16 +166,6 @@ impl Compiler {
                 }
             }
         }
-
-        // Mark Ps as left recursive if the detector marked it as such
-        let main = &self.strings[self.identifiers[&2_usize]];
-        if self.left_rec.get(main).is_some() && self.left_rec[main] {
-            self.code[0] = match self.code[0] {
-                Instruction::Call(..) => Instruction::Call(2, 1),
-                Instruction::CallB(..) => Instruction::CallB(2, 1),
-                _ => unreachable!(),
-            }
-        }
         Ok(())
     }
 
@@ -190,6 +181,25 @@ impl Compiler {
             }
         }
         Ok(())
+    }
+
+    /// Find the address of the production `main` and write a call
+    /// instruction pointing to such address at the first entry of the
+    /// code vector.
+    fn pick_main(&mut self, main: &str) {
+        let id = self.push_string(main);
+        let addr = self.funcs[&id];
+        // Mark Ps as left recursive if the detector marked it as such
+        let lr = if self.left_rec.get(main).is_some() && self.left_rec[main] {
+            1
+        } else {
+            0
+        };
+        self.code[0] = match self.code[0] {
+            Instruction::Call(..) => Instruction::Call(addr, lr),
+            Instruction::CallB(..) => Instruction::CallB(addr, lr),
+            _ => unreachable!(),
+        }
     }
 
     /// Generate bytecode for both ZeroOrMore and OneOrMore

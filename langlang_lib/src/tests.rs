@@ -8,13 +8,13 @@ mod tests {
     #[test]
     fn test_char() {
         let cc = compiler::Config::default();
-        assert_match("A[a]", cc_run(&cc, "A <- 'a'", "a"));
+        assert_match("A[a]", cc_run(&cc, "A <- 'a'", "A", "a"));
     }
 
     #[test]
     fn test_str() {
         let cc = compiler::Config::default();
-        let p = compile(&cc, "A <- '0x' [0-9a-fA-F]+ / '0'");
+        let p = compile(&cc, "A <- '0x' [0-9a-fA-F]+ / '0'", "A");
 
         // Note: run_str uses VM::run_str, which maps each character
         // of the input string into a `Value::Char`, and the fact that
@@ -49,13 +49,13 @@ mod tests {
     #[test]
     fn test_not_0() {
         let cc = compiler::Config::o0();
-        assert_match("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
+        assert_match("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "A", "c"));
     }
 
     #[test]
     fn test_not_opt() {
         let cc = compiler::Config::o1();
-        assert_match("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "c"));
+        assert_match("A[c]", cc_run(&cc, "A <- (!('a' / 'b') .)", "A", "c"));
     }
 
     #[test]
@@ -68,6 +68,7 @@ mod tests {
             Identifier <- [a-zA-Z_][a-zA-Z0-9_]*
             LEFTARROW  <- '<-'
             ",
+            "Primary",
         );
         assert_match("Primary[Identifier[A]]", run_str(&p, "A"));
     }
@@ -75,13 +76,13 @@ mod tests {
     #[test]
     fn test_and_0() {
         let cc = compiler::Config::o0();
-        assert_match("A[a]", cc_run(&cc, "A <- (&('a' / 'b') .)", "a"));
+        assert_match("A[a]", cc_run(&cc, "A <- (&('a' / 'b') .)", "A", "a"));
     }
 
     #[test]
     fn test_and_opt() {
         let cc = compiler::Config::o1();
-        assert_match("A[a]", cc_run(&cc, "A <- &'a' .", "a"));
+        assert_match("A[a]", cc_run(&cc, "A <- &'a' .", "A", "a"));
     }
 
     #[test]
@@ -89,32 +90,32 @@ mod tests {
         let cc = compiler::Config::o0();
         assert_match(
             "A[abada]",
-            cc_run(&cc, "A <- ('abacate' / 'abada')+", "abada"),
+            cc_run(&cc, "A <- ('abacate' / 'abada')+", "A", "abada"),
         );
     }
 
     #[test]
     fn test_star_0() {
         let cc = compiler::Config::o0();
-        assert_match("A[abab]", cc_run(&cc, "A <- .*", "abab"));
+        assert_match("A[abab]", cc_run(&cc, "A <- .*", "A", "abab"));
     }
 
     #[test]
     fn test_star_opt() {
         let cc = compiler::Config::o1();
-        assert_match("A[abab]", cc_run(&cc, "A <- .*", "abab"));
+        assert_match("A[abab]", cc_run(&cc, "A <- .*", "A", "abab"));
     }
 
     #[test]
     fn test_var0() {
         let cc = compiler::Config::default();
-        assert_match("A[11]", cc_run(&cc, "A <- '1' '1'", "11"));
+        assert_match("A[11]", cc_run(&cc, "A <- '1' '1'", "A", "11"));
     }
 
     #[test]
     fn test_var_ending_with_zero_or_more() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "A <- '1'*");
+        let program = compile(&cc, "A <- '1'*", "A");
         assert_match("A[111]", run_str(&program, "111"));
         assert_match("A[11]", run_str(&program, "11"));
         assert_match("A[1]", run_str(&program, "1"));
@@ -124,7 +125,7 @@ mod tests {
     #[test]
     fn test_var_ending_with_one_or_more() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "A <- '1'+");
+        let program = compile(&cc, "A <- '1'+", "A");
         assert_match("A[111]", run_str(&program, "111"));
         assert_match("A[11]", run_str(&program, "11"));
         assert_match("A[1]", run_str(&program, "1"));
@@ -133,7 +134,7 @@ mod tests {
     #[test]
     fn test_var_ending_with_option() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "A <- '1' '1'?");
+        let program = compile(&cc, "A <- '1' '1'?", "A");
         assert_match("A[11]", run_str(&program, "11"));
         assert_match("A[1]", run_str(&program, "1"));
     }
@@ -143,8 +144,8 @@ mod tests {
     #[test]
     fn test_unicode_0() {
         let cc = compiler::Config::default();
-        assert_match("A[♡]", cc_run(&cc, "A <- [♡]", "♡"));
-        assert_match("A[♡]", cc_run(&cc, "A <- '♡'", "♡"));
+        assert_match("A[♡]", cc_run(&cc, "A <- [♡]", "A", "♡"));
+        assert_match("A[♡]", cc_run(&cc, "A <- '♡'", "A", "♡"));
     }
 
     // -- Left Recursion -------------------------------------------------------
@@ -152,7 +153,7 @@ mod tests {
     #[test]
     fn test_lr0() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "E <- E '+n' / 'n'");
+        let program = compile(&cc, "E <- E '+n' / 'n'", "E");
         assert_match("E[n]", run_str(&program, "n"));
         assert_match("E[E[n]+n]", run_str(&program, "n+n"));
         assert_match("E[E[E[n]+n]+n]", run_str(&program, "n+n+n"));
@@ -161,7 +162,7 @@ mod tests {
     #[test]
     fn test_lr1() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "E <- E '+' E / 'n'+");
+        let program = compile(&cc, "E <- E '+' E / 'n'+", "E");
         assert_match("E[n]", run_str(&program, "n"));
         assert_match("E[E[n]+E[n]]", run_str(&program, "n+n"));
         assert_match("E[E[n]+E[E[n]+E[n]]]", run_str(&program, "n+n+n"));
@@ -177,6 +178,7 @@ mod tests {
              E <- M '+' E / M
              M <- M '-n' / 'n'
             ",
+            "E",
         );
         assert_match("E[M[n]]", run_str(&program, "n"));
         assert_match("E[M[M[n]-n]]", run_str(&program, "n-n"));
@@ -196,6 +198,7 @@ mod tests {
                 / E '/' E
                 / 'n'
             ",
+            "E",
         );
         // Right associative, as E is both left and right recursive,
         // without precedence
@@ -229,6 +232,7 @@ mod tests {
                 / '(' E¹ ')'
                 / [0-9]+
             ",
+            "E",
         );
 
         // left associative with different precedences
@@ -259,6 +263,7 @@ mod tests {
                 L <- P '.x' / 'x'
                 P <- P '(n)' / L
                 ",
+                "L",
                 "x(n)(n).x(n).x",
             ),
         );
@@ -269,7 +274,7 @@ mod tests {
     #[test]
     fn test_list_with_no_list() {
         let cc = compiler::Config::default();
-        let program = compile(&cc, "A <- { 'aba' }");
+        let program = compile(&cc, "A <- { 'aba' }", "A");
         let result = run(
             &program,
             vec![
@@ -288,7 +293,7 @@ mod tests {
     #[test]
     fn test_list_0() {
         let cc = compiler::Config::default();
-        let p = compile(&cc, "A <- { 'aba' }");
+        let p = compile(&cc, "A <- { 'aba' }", "A");
 
         let input_with_chr = vec![vm::Value::List(vec![
             vm::Value::Char('a'),
@@ -304,7 +309,7 @@ mod tests {
     #[test]
     fn test_list_nested_0() {
         let cc = compiler::Config::default();
-        let p = compile(&cc, "A <- { { 'aba' } 'cate' }");
+        let p = compile(&cc, "A <- { { 'aba' } 'cate' }", "A");
 
         let input_with_chr = vec![vm::Value::List(vec![
             vm::Value::List(vec![
@@ -329,7 +334,7 @@ mod tests {
     #[test]
     fn test_node_0() {
         let cc = compiler::Config::default();
-        let p = compile(&cc, "A <- { A: 'aba' }");
+        let p = compile(&cc, "A <- { A: 'aba' }", "A");
 
         let input_with_chr = vec![vm::Value::Node {
             name: "A".to_string(),
@@ -383,6 +388,7 @@ mod tests {
             assignexpr <- _
             assignsemi <- _
             ",
+            "P",
         );
 
         // makes sure the above grammar works
@@ -430,7 +436,7 @@ mod tests {
 
         // Program that parses the initial input
         let input_grammar = "A <- 'F'";
-        let program = compile(&cc, input_grammar);
+        let program = compile(&cc, input_grammar, "A");
         let output = run_str(&program, "F");
 
         // Program that parses the output obtained upon successful
@@ -439,19 +445,19 @@ mod tests {
         let rewrite = compiler::expand(&original_ast);
 
         let mut c = compiler::Compiler::new(cc);
-        let list_program = c.compile(&rewrite).unwrap();
+        let list_program = c.compile(&rewrite, "A").unwrap();
         let value = run(&list_program, vec![output.unwrap()]).unwrap();
         assert_match("A[A[F]]", value);
     }
 
     // -- Test Helpers ---------------------------------------------------------
 
-    fn compile(cc: &compiler::Config, grammar: &str) -> vm::Program {
+    fn compile(cc: &compiler::Config, grammar: &str, start: &str) -> vm::Program {
         let ast = parser::parse(grammar).unwrap();
         println!("{:#?}", ast);
         debug!("PEG:\n{}", ast.to_string());
         let mut c = compiler::Compiler::new(cc.clone());
-        let program = c.compile(&ast).unwrap();
+        let program = c.compile(&ast, start).unwrap();
         debug!("PROGRAM:\n{}", program);
         program
     }
@@ -466,8 +472,8 @@ mod tests {
         machine.run(input)
     }
 
-    fn cc_run(cc: &compiler::Config, grammar: &str, input: &str) -> Option<vm::Value> {
-        let prog = compile(cc, grammar);
+    fn cc_run(cc: &compiler::Config, grammar: &str, start: &str, input: &str) -> Option<vm::Value> {
+        let prog = compile(cc, grammar, start);
         let mut machine = vm::VM::new(&prog);
         machine.run_str(input).expect("Unexpected")
     }

@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::{fs, io};
 
-use langlang_lib::{compiler, format, parser, vm};
+use langlang_lib::{compiler, format, import, vm};
 
 /// Enumeration of all sub commands supported by this binary
 #[derive(Subcommand)]
@@ -16,6 +16,10 @@ enum Command {
         /// Path to the grammar file to be executed
         #[arg(short, long)]
         grammar_file: std::path::PathBuf,
+
+        /// Choose what's the first production to run
+        #[arg(short, long)]
+        start_rule: String,
 
         /// Path to the content to be matched against the grammar;
         /// Omitting it will drop you in an interactive shell
@@ -53,12 +57,13 @@ fn formatter(name: &str) -> FormattingFunc {
 
 fn command_run(
     grammar_file: &PathBuf,
+    start_rule: &String,
     input_file: &Option<PathBuf>,
     output_format: &Option<String>,
 ) -> Result<(), langlang_lib::Error> {
-    let grammar = fs::read_to_string(grammar_file)?;
-    let ast = parser::parse(&grammar)?;
-    let program = compiler::Compiler::default().compile(&ast)?;
+    let importer = import::ImportResolver::new(import::RelativeImportLoader::default());
+    let ast = importer.resolve(grammar_file)?;
+    let program = compiler::Compiler::default().compile(&ast, start_rule)?;
     let fmt = formatter(output_format.as_ref().unwrap_or(&"fmt".to_string()));
 
     match input_file {
@@ -112,10 +117,11 @@ fn run() -> Result<(), langlang_lib::Error> {
     match &cli.command {
         Command::Run {
             grammar_file,
+            start_rule,
             input_file,
             output_format,
         } => {
-            command_run(grammar_file, input_file, output_format)?;
+            command_run(grammar_file, start_rule, input_file, output_format)?;
         }
     }
     Ok(())

@@ -251,6 +251,7 @@ name = "tests"
 version = "0.0.1"
 dependencies = [
  "langlang_lib",
+ "langlang_syntax",
 ]
 
 [[package]]

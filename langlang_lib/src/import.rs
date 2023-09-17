@@ -193,3 +193,39 @@ impl ImportLoader for RelativeImportLoader {
         Ok(fs::read_to_string(path)?)
     }
 }
+
+#[derive(Default)]
+pub struct InMemoryImportLoader<'a> {
+    grammars: BTreeMap<&'a str, &'a str>,
+}
+
+impl<'a> InMemoryImportLoader<'a> {
+    pub fn add_grammar(&mut self, name: &'a str, grammar: &'a str) {
+        self.grammars.insert(name, grammar);
+    }
+}
+
+impl<'a> ImportLoader for InMemoryImportLoader<'a> {
+    fn get_path(&self, import_path: &Path, _: &Path) -> Result<PathBuf, Error> {
+        Ok(import_path.to_path_buf())
+    }
+
+    fn get_content(&self, path: &Path) -> Result<String, Error> {
+        let p = match path.to_str() {
+            Some(p) => p,
+            None => {
+                return Err(Error::InvalidArgument(format!(
+                    "Invalid path: {}",
+                    path.display()
+                )))
+            }
+        };
+        match self.grammars.get(&p) {
+            Some(grammar) => Ok(grammar.to_string()),
+            None => Err(Error::FileNotFound(format!(
+                "Grammar {} not registered",
+                path.display(),
+            ))),
+        }
+    }
+}

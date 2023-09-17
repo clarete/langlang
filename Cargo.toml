@@ -6,4 +6,5 @@ members = [
     "langlang",
     "langlang_syntax",
     "langlang_lib",
+    "tests",
 ]

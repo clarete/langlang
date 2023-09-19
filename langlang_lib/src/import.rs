@@ -3,7 +3,7 @@ use crate::consts::{END_OF_FILE_RULE_NAME, WHITE_SPACE_RULE_NAME};
 use langlang_syntax::visitor::Visitor;
 use langlang_syntax::{ast, parser};
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
@@ -140,14 +140,14 @@ impl ImporterResolverFrame {
 
 struct DepFinder<'ast> {
     grammar: &'ast ast::Grammar,
-    deps: BTreeMap<&'ast String, &'ast ast::Definition>,
+    deps: HashMap<&'ast String, &'ast ast::Definition>,
 }
 
 impl<'ast> DepFinder<'ast> {
     fn new(grammar: &'ast ast::Grammar) -> Self {
         Self {
             grammar,
-            deps: BTreeMap::new(),
+            deps: HashMap::new(),
         }
     }
 }
@@ -196,7 +196,7 @@ impl ImportLoader for RelativeImportLoader {
 
 #[derive(Default)]
 pub struct InMemoryImportLoader<'a> {
-    grammars: BTreeMap<&'a str, &'a str>,
+    grammars: HashMap<&'a str, &'a str>,
 }
 
 impl<'a> InMemoryImportLoader<'a> {

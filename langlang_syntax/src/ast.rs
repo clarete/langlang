@@ -1,5 +1,5 @@
 use crate::source_map::Span;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::string::ToString;
 
@@ -9,7 +9,7 @@ pub struct Grammar {
     pub span: Span,
     pub imports: Vec<Import>,
     pub definition_names: Vec<String>,
-    pub definitions: BTreeMap<String, Definition>,
+    pub definitions: HashMap<String, Definition>,
 }
 
 impl Grammar {
@@ -17,7 +17,7 @@ impl Grammar {
         span: Span,
         imports: Vec<Import>,
         definition_names: Vec<String>,
-        definitions: BTreeMap<String, Definition>,
+        definitions: HashMap<String, Definition>,
     ) -> Self {
         Self {
             span,

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use langlang_syntax::ast;
 use langlang_syntax::ast::IsSyntactic;
@@ -14,7 +14,7 @@ pub(crate) struct WhiteSpaceHandlerInjector {
 
 impl WhiteSpaceHandlerInjector {
     pub(crate) fn run(&mut self, grammar: &ast::Grammar) -> ast::Grammar {
-        let mut definitions = BTreeMap::new();
+        let mut definitions = HashMap::new();
         let mut definition_names = Vec::new();
 
         for name in &grammar.definition_names {

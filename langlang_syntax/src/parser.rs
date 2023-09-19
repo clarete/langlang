@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::source_map::{Position, Span};
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum Error {
@@ -49,7 +49,7 @@ impl Parser {
         self.parse_spacing()?;
         let start = self.pos();
         let imports = self.zero_or_more(|p| p.parse_import())?;
-        let mut defs = BTreeMap::new();
+        let mut defs = HashMap::new();
         let mut def_names = Vec::new();
         self.zero_or_more(|p| {
             let def = p.parse_definition()?;

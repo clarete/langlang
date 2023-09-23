@@ -8,7 +8,8 @@ different languages.  The are reasons why you might want to use this:
  - Automatic handling of white spaces, making grammars less cluttered
  - Error reporting with custom messages via failure ~labels~
  - Partial support for declaring error recovery rules, which allow
-   incremental parsing that returns an output tree even upon errors.
+   incremental parsing that returns an output tree even upon multiple
+   parsing errors.
 
 ** Currently supported output languages
 
@@ -24,7 +25,8 @@ different languages.  The are reasons why you might want to use this:
     with a generated parser.  This design may or may not change.
 
  2. We're in the middle of dropping the Go implementation of the
-    library and a Go generator written in Rust will replace it.
+    library in favor of a generating a go parser from the code written
+    in Rust.
 
 ** Basic Usage
 
@@ -38,15 +40,15 @@ cargo run --bin langlang run --grammar-file grammars/json.peg --start-rule JSON
 That will drop you into an initeractive shell that allows you to try
 out different input expressions.
 
-Take a look at other grammars at the directory ~grammars~ in the root
-of the repository.  It contains a library of grammar files for
-commonly used input formats.
+Take a look at other examples at the directory ~grammars~ in the root
+of the repository.  It contains a grammar library for commonly used
+input formats.
 
 * Input Language
 ** Productions and Expressions
 
-The input grammar is as simple as it can get. It builds off of the
-original PEG format, the other features are added conservatively.
+The input grammar is as simple as it can get.  It builds off of the
+original PEG format, and other features are added conservatively.
 Take the following input as an example:
 
 #+begin_src peg
@@ -55,24 +57,23 @@ Take the following input as an example:
 
 At the left side of the arrow there is an identifier and on the right
 side, there is an expression.  These two together are called either
-productions or (parsing) rules.  And each production in a grammar is
-translated to a function.  Let's go over what's valid in an expression
-and how to compose them.  If you've ever seen or used regular
-expressions, you've got a head start.
+productions or (parsing) rules.  Let's go over how to compose them.
+If you've ever seen or used regular expressions, you've got a head
+start.
 
 ** Terminals
 
- - *Any* e.g.: ~.~ this matches any character, and only errors if it
-   reaches the end of the input
+ - *Any*: matches any character, and only errors if it reaches
+   the end of the input.  e.g.: ~.~
 
- - *Literal* e.g.: ~'x'~ anything around quotes (single and double
-   are the same)
+ - *Literal*: anything around quotes (single and double quotes are the
+   same).  e.g.: ~'x'~
 
- - *Class and Range* e.g.: ~[0-9]~, ~[a-zA-Z]~, ~[a-f0-9_]~.
-   Notice that classes may contain either ranges or single characters.
-   The last example contains two ranges (~a-f~ and ~0-9~) and one
-   single char (~_~).  It means *match either one of these*. e.g.:
-   ~[a-cA-C]~ is translated to ~'a' / 'b' / 'c' / 'A' / 'B' / 'C'~.
+ - *Class and Range*: classes may contain either ranges or single
+   characters.  e.g.: ~[0-9]~, ~[a-zA-Z]~, ~[a-f0-9_]~.  This last
+   example contains two ranges (~a-f~ and ~0-9~) and one single char
+   (~_~).  It means *match either one of these*. e.g.: ~[a-cA-C]~ is
+   translated to ~'a' / 'b' / 'c' / 'A' / 'B' / 'C'~.
 
 ** Non-Terminals
 
@@ -133,14 +134,14 @@ The *and* predicate (~&~) is just syntactical sugar for ~!!~.
 
 *** Repetition ({Zero,One} Or More)
 
- * *Zero Or More* it never fails, as it can match its expression at
-   least zero times:
+ * *Zero Or More*: it never fails, as it can match its expression at
+   least zero times.
 
  * *One Or More* is the syntax sugar for calling the expression once,
    followed by applying zero or more to the same expression.  It can
-   fail at the first time it matches the expression
+   fail at the first time it matches the expression.
 
- * *Optional* it will match an expression zero or one time
+ * *Optional* it will match an expression zero or one time.
 
 *** Lexification
 

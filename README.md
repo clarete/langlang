@@ -1,27 +1,27 @@
 
 # Table of Contents
 
-1.  [Introduction](#orgf2ad816)
-    1.  [Currently supported output languages](#org586d9cc)
-        1.  [Notes](#orgbccc9ac)
-    2.  [Basic Usage](#org82c9662)
-2.  [Input Language](#org2f765d8)
-    1.  [Productions and Expressions](#orgebec6b0)
-    2.  [Terminals](#orgd4fc29e)
-    3.  [Non-Terminals](#org98ec01d)
-    4.  [Expression Composition](#orge410c8a)
-        1.  [Ordered Choice](#org3221b28)
-        2.  [Predicates (Not/And)](#orgf875e9c)
-        3.  [Repetition ({Zero,One} Or More)](#org7ad75f4)
-        4.  [Lexification](#orga609f73)
-        5.  [Error reporting with Labels](#orgf7a497e)
-        6.  [Import system](#org961a71b)
-3.  [Generator Options](#orga0c4bf8)
-    1.  [Go](#orgb5afe85)
-4.  [Roadmap](#orge6f756c)
+1.  [Introduction](#org4bcd411)
+    1.  [Currently supported output languages](#org252fdd4)
+        1.  [Notes](#orgcd042ce)
+    2.  [Basic Usage](#org4250b20)
+2.  [Input Language](#org5906f55)
+    1.  [Productions and Expressions](#orgb378f25)
+    2.  [Terminals](#org379c32a)
+    3.  [Non-Terminals](#orgd2eb62d)
+    4.  [Expression Composition](#orge91499c)
+        1.  [Ordered Choice](#orgc13ecc9)
+        2.  [Predicates (Not/And)](#org1910c26)
+        3.  [Repetition ({Zero,One} Or More)](#orgdc599e6)
+        4.  [Lexification](#orgc9dc5f7)
+        5.  [Error reporting with Labels](#orgafba795)
+        6.  [Import system](#org7a5d477)
+3.  [Generator Options](#org14d7e62)
+    1.  [Go](#org3db93f0)
+4.  [Roadmap](#org2eee97c)
 
 
-<a id="orgf2ad816"></a>
+<a id="org4bcd411"></a>
 
 # Introduction
 
@@ -33,10 +33,11 @@ different languages.  The are reasons why you might want to use this:
 -   Automatic handling of white spaces, making grammars less cluttered
 -   Error reporting with custom messages via failure `labels`
 -   Partial support for declaring error recovery rules, which allow
-    incremental parsing that returns an output tree even upon errors.
+    incremental parsing that returns an output tree even upon multiple
+    parsing errors.
 
 
-<a id="org586d9cc"></a>
+<a id="org252fdd4"></a>
 
 ## Currently supported output languages
 
@@ -47,7 +48,7 @@ different languages.  The are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="orgbccc9ac"></a>
+<a id="orgcd042ce"></a>
 
 ### Notes
 
@@ -55,10 +56,11 @@ different languages.  The are reasons why you might want to use this:
     with a generated parser.  This design may or may not change.
 
 2.  We're in the middle of dropping the Go implementation of the
-    library and a Go generator written in Rust will replace it.
+    library in favor of a generating a go parser from the code written
+    in Rust.
 
 
-<a id="org82c9662"></a>
+<a id="org4250b20"></a>
 
 ## Basic Usage
 
@@ -70,52 +72,51 @@ a grammar and pick a starting rule:
 That will drop you into an initeractive shell that allows you to try
 out different input expressions.
 
-Take a look at other grammars at the directory `grammars` in the root
-of the repository.  It contains a library of grammar files for
-commonly used input formats.
+Take a look at other examples at the directory `grammars` in the root
+of the repository.  It contains a grammar library for commonly used
+input formats.
 
 
-<a id="org2f765d8"></a>
+<a id="org5906f55"></a>
 
 # Input Language
 
 
-<a id="orgebec6b0"></a>
+<a id="orgb378f25"></a>
 
 ## Productions and Expressions
 
-The input grammar is as simple as it can get. It builds off of the
-original PEG format, the other features are added conservatively.
+The input grammar is as simple as it can get.  It builds off of the
+original PEG format, and other features are added conservatively.
 Take the following input as an example:
 
     Production <- Expression
 
 At the left side of the arrow there is an identifier and on the right
 side, there is an expression.  These two together are called either
-productions or (parsing) rules.  And each production in a grammar is
-translated to a function.  Let's go over what's valid in an expression
-and how to compose them.  If you've ever seen or used regular
-expressions, you've got a head start.
+productions or (parsing) rules.  Let's go over how to compose them.
+If you've ever seen or used regular expressions, you've got a head
+start.
 
 
-<a id="orgd4fc29e"></a>
+<a id="org379c32a"></a>
 
 ## Terminals
 
--   **Any** e.g.: `.` this matches any character, and only errors if it
-    reaches the end of the input
+-   **Any**: matches any character, and only errors if it reaches
+    the end of the input.  e.g.: `.`
 
--   **Literal** e.g.: `'x'` anything around quotes (single and double
-    are the same)
+-   **Literal**: anything around quotes (single and double quotes are the
+    same).  e.g.: `'x'`
 
--   **Class and Range** e.g.: `[0-9]`, `[a-zA-Z]`, `[a-f0-9_]`.
-    Notice that classes may contain either ranges or single characters.
-    The last example contains two ranges (`a-f` and `0-9`) and one
-    single char (`_`).  It means **match either one of these**. e.g.:
-    `[a-cA-C]` is translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
+-   **Class and Range**: classes may contain either ranges or single
+    characters.  e.g.: `[0-9]`, `[a-zA-Z]`, `[a-f0-9_]`.  This last
+    example contains two ranges (`a-f` and `0-9`) and one single char
+    (`_`).  It means **match either one of these**. e.g.: `[a-cA-C]` is
+    translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="org98ec01d"></a>
+<a id="orgd2eb62d"></a>
 
 ## Non-Terminals
 
@@ -131,7 +132,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orge410c8a"></a>
+<a id="orge91499c"></a>
 
 ## Expression Composition
 
@@ -215,7 +216,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="org3221b28"></a>
+<a id="orgc13ecc9"></a>
 
 ### Ordered Choice
 
@@ -228,7 +229,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="orgf875e9c"></a>
+<a id="org1910c26"></a>
 
 ### Predicates (Not/And)
 
@@ -243,21 +244,21 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="org7ad75f4"></a>
+<a id="orgdc599e6"></a>
 
 ### Repetition ({Zero,One} Or More)
 
--   **Zero Or More** it never fails, as it can match its expression at
-    least zero times:
+-   **Zero Or More**: it never fails, as it can match its expression at
+    least zero times.
 
 -   **One Or More** is the syntax sugar for calling the expression once,
     followed by applying zero or more to the same expression.  It can
-    fail at the first time it matches the expression
+    fail at the first time it matches the expression.
 
--   **Optional** it will match an expression zero or one time
+-   **Optional** it will match an expression zero or one time.
 
 
-<a id="orga609f73"></a>
+<a id="orgc9dc5f7"></a>
 
 ### Lexification
 
@@ -361,12 +362,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="orgf7a497e"></a>
+<a id="orgafba795"></a>
 
 ### Error reporting with Labels
 
 
-<a id="org961a71b"></a>
+<a id="org7a5d477"></a>
 
 ### Import system
 
@@ -397,12 +398,12 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="orga0c4bf8"></a>
+<a id="org14d7e62"></a>
 
 # Generator Options
 
 
-<a id="orgb5afe85"></a>
+<a id="org3db93f0"></a>
 
 ## Go
 
@@ -420,7 +421,7 @@ command line:
     `NewTinyParser` constructor, etc.
 
 
-<a id="orge6f756c"></a>
+<a id="org2eee97c"></a>
 
 # Roadmap
 

@@ -11,7 +11,7 @@ different languages.  The are reasons why you might want to use this:
    incremental parsing that returns an output tree even upon multiple
    parsing errors.
 
-*** Project Status
+** Project Status
 
  - We're not 1.0 yet, so the API is not stable, which means that data
    structure shapes might change, and/or behavihor might change,

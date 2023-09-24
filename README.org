@@ -11,6 +11,15 @@ different languages.  The are reasons why you might want to use this:
    incremental parsing that returns an output tree even upon multiple
    parsing errors.
 
+*** Project Status
+
+ - We're not 1.0 yet, so the API is not stable, which means that data
+   structure shapes might change, and/or behavihor might change,
+   drastically, and without much notice.
+ - Don't submit pull requests without opening an issue and discussing
+   your idea.  We will take the slow approach aiming at great design
+   first, then being stable, then being featureful.
+
 ** Currently supported output languages
 
  * [X] Rust¹
@@ -21,12 +30,20 @@ different languages.  The are reasons why you might want to use this:
 
 *** Notes
 
- 1. Rust is supported with a runtime virtual machine that, and not
-    with a generated parser.  This design may or may not change.
+ 1. Rust support is based on a virtual machine as its runtime, and not
+    on a generated parser.  That is unlikely to change because our
+    tooling will be built in Rust, so we need more flexibility on the
+    "host implementation".  We may give an option to also generate a
+    parser in Rust code that doesn't depend on any libraries, if it
+    provides any value.  But such work isn't planned as of right now.
 
- 2. We're in the middle of dropping the Go implementation of the
-    library in favor of a generating a go parser from the code written
-    in Rust.
+ 2. We're in the middle of dropping the Go implementation in favor of
+    a generating a Go parser from the code written in Rust.
+    Prototyping a few features, like the import system and automatic
+    space handling, was very useful, but once the refactoring of the
+    Rust implementation is in a good place, the Rust version will be
+    better as it will make it easier to generate parsers for other
+    languages than Rust and Go.
 
 ** Basic Usage
 

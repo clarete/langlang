@@ -1,27 +1,28 @@
 
 # Table of Contents
 
-1.  [Introduction](#org4bcd411)
-    1.  [Currently supported output languages](#org252fdd4)
-        1.  [Notes](#orgcd042ce)
-    2.  [Basic Usage](#org4250b20)
-2.  [Input Language](#org5906f55)
-    1.  [Productions and Expressions](#orgb378f25)
-    2.  [Terminals](#org379c32a)
-    3.  [Non-Terminals](#orgd2eb62d)
-    4.  [Expression Composition](#orge91499c)
-        1.  [Ordered Choice](#orgc13ecc9)
-        2.  [Predicates (Not/And)](#org1910c26)
-        3.  [Repetition ({Zero,One} Or More)](#orgdc599e6)
-        4.  [Lexification](#orgc9dc5f7)
-        5.  [Error reporting with Labels](#orgafba795)
-        6.  [Import system](#org7a5d477)
-3.  [Generator Options](#org14d7e62)
-    1.  [Go](#org3db93f0)
-4.  [Roadmap](#org2eee97c)
+1.  [Introduction](#orgf64856f)
+        1.  [Project Status](#org87b345f)
+    1.  [Currently supported output languages](#orgde22045)
+        1.  [Notes](#orgd9223f5)
+    2.  [Basic Usage](#org82b4a24)
+2.  [Input Language](#org5f0b41b)
+    1.  [Productions and Expressions](#org7f3d46c)
+    2.  [Terminals](#orgceffe74)
+    3.  [Non-Terminals](#org7e25fc8)
+    4.  [Expression Composition](#orgd8144e5)
+        1.  [Ordered Choice](#orgd1e8576)
+        2.  [Predicates (Not/And)](#org1e4ccc8)
+        3.  [Repetition ({Zero,One} Or More)](#orgda1226f)
+        4.  [Lexification](#orgc6fda45)
+        5.  [Error reporting with Labels](#org3149127)
+        6.  [Import system](#org8f33a55)
+3.  [Generator Options](#org9dbd598)
+    1.  [Go](#org3f5484b)
+4.  [Roadmap](#org167a881)
 
 
-<a id="org4bcd411"></a>
+<a id="orgf64856f"></a>
 
 # Introduction
 
@@ -37,7 +38,19 @@ different languages.  The are reasons why you might want to use this:
     parsing errors.
 
 
-<a id="org252fdd4"></a>
+<a id="org87b345f"></a>
+
+### Project Status
+
+-   We're not 1.0 yet, so the API is not stable, which means that data
+    structure shapes might change, and/or behavihor might change,
+    drastically, and without much notice.
+-   Don't submit pull requests without opening an issue and discussing
+    your idea.  We will take the slow approach aiming at great design
+    first, then being stable, then being featureful.
+
+
+<a id="orgde22045"></a>
 
 ## Currently supported output languages
 
@@ -48,19 +61,27 @@ different languages.  The are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="orgcd042ce"></a>
+<a id="orgd9223f5"></a>
 
 ### Notes
 
-1.  Rust is supported with a runtime virtual machine that, and not
-    with a generated parser.  This design may or may not change.
+1.  Rust support is based on a virtual machine as its runtime, and not
+    on a generated parser.  That is unlikely to change because our
+    tooling will be built in Rust, so we need more flexibility on the
+    "host implementation".  We may give an option to also generate a
+    parser in Rust code that doesn't depend on any libraries, if it
+    provides any value.  But such work isn't planned as of right now.
 
-2.  We're in the middle of dropping the Go implementation of the
-    library in favor of a generating a go parser from the code written
-    in Rust.
+2.  We're in the middle of dropping the Go implementation in favor of
+    a generating a Go parser from the code written in Rust.
+    Prototyping a few features, like the import system and automatic
+    space handling, was very useful, but once the refactoring of the
+    Rust implementation is in a good place, the Rust version will be
+    better as it will make it easier to generate parsers for other
+    languages than Rust and Go.
 
 
-<a id="org4250b20"></a>
+<a id="org82b4a24"></a>
 
 ## Basic Usage
 
@@ -77,12 +98,12 @@ of the repository.  It contains a grammar library for commonly used
 input formats.
 
 
-<a id="org5906f55"></a>
+<a id="org5f0b41b"></a>
 
 # Input Language
 
 
-<a id="orgb378f25"></a>
+<a id="org7f3d46c"></a>
 
 ## Productions and Expressions
 
@@ -99,7 +120,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="org379c32a"></a>
+<a id="orgceffe74"></a>
 
 ## Terminals
 
@@ -116,7 +137,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="orgd2eb62d"></a>
+<a id="org7e25fc8"></a>
 
 ## Non-Terminals
 
@@ -132,7 +153,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orge91499c"></a>
+<a id="orgd8144e5"></a>
 
 ## Expression Composition
 
@@ -216,7 +237,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="orgc13ecc9"></a>
+<a id="orgd1e8576"></a>
 
 ### Ordered Choice
 
@@ -229,7 +250,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="org1910c26"></a>
+<a id="org1e4ccc8"></a>
 
 ### Predicates (Not/And)
 
@@ -244,7 +265,7 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="orgdc599e6"></a>
+<a id="orgda1226f"></a>
 
 ### Repetition ({Zero,One} Or More)
 
@@ -258,7 +279,7 @@ The **and** predicate (`&`) is just syntactical sugar for `!!`.
 -   **Optional** it will match an expression zero or one time.
 
 
-<a id="orgc9dc5f7"></a>
+<a id="orgc6fda45"></a>
 
 ### Lexification
 
@@ -362,12 +383,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="orgafba795"></a>
+<a id="org3149127"></a>
 
 ### Error reporting with Labels
 
 
-<a id="org7a5d477"></a>
+<a id="org8f33a55"></a>
 
 ### Import system
 
@@ -398,12 +419,12 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="org14d7e62"></a>
+<a id="org9dbd598"></a>
 
 # Generator Options
 
 
-<a id="org3db93f0"></a>
+<a id="org3f5484b"></a>
 
 ## Go
 
@@ -421,7 +442,7 @@ command line:
     `NewTinyParser` constructor, etc.
 
 
-<a id="org2eee97c"></a>
+<a id="org167a881"></a>
 
 # Roadmap
 

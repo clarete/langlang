@@ -327,7 +327,7 @@ impl Parser {
         let start = self.pos();
         let value = self.parse_literal_string()?;
         let span = self.span_from(start);
-        Ok(ast::String_::new_expr(span, value))
+        Ok(ast::String::new_expr(span, value))
     }
 
     fn parse_literal_string(&mut self) -> Result<String, Error> {

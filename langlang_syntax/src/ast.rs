@@ -1,23 +1,23 @@
 use crate::source_map::Span;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::string::ToString;
+use std::string::{String as StdString, ToString};
 
 /// Grammar is the top-level AST node for the input grammar language.
 #[derive(Debug)]
 pub struct Grammar {
     pub span: Span,
     pub imports: Vec<Import>,
-    pub definition_names: Vec<String>,
-    pub definitions: HashMap<String, Definition>,
+    pub definition_names: Vec<StdString>,
+    pub definitions: HashMap<StdString, Definition>,
 }
 
 impl Grammar {
     pub fn new(
         span: Span,
         imports: Vec<Import>,
-        definition_names: Vec<String>,
-        definitions: HashMap<String, Definition>,
+        definition_names: Vec<StdString>,
+        definitions: HashMap<StdString, Definition>,
     ) -> Self {
         Self {
             span,
@@ -36,8 +36,8 @@ impl Grammar {
 }
 
 impl ToString for Grammar {
-    fn to_string(&self) -> String {
-        let mut output = String::new();
+    fn to_string(&self) -> StdString {
+        let mut output = StdString::new();
         for i in &self.imports {
             output.push_str(&i.to_string());
             output.push('\n');
@@ -56,12 +56,12 @@ impl ToString for Grammar {
 #[derive(Clone, Debug)]
 pub struct Import {
     pub span: Span,
-    pub path: String,
-    pub names: Vec<String>,
+    pub path: StdString,
+    pub names: Vec<StdString>,
 }
 
 impl ToString for Import {
-    fn to_string(&self) -> String {
+    fn to_string(&self) -> StdString {
         format!(
             "@import {} from \"{}\"",
             fmtlistsep(", ", &self.names),
@@ -71,7 +71,7 @@ impl ToString for Import {
 }
 
 impl Import {
-    pub fn new(span: Span, path: String, names: Vec<String>) -> Self {
+    pub fn new(span: Span, path: StdString, names: Vec<StdString>) -> Self {
         Self { span, path, names }
     }
 }
@@ -81,18 +81,18 @@ impl Import {
 #[derive(Clone, Debug)]
 pub struct Definition {
     pub span: Span,
-    pub name: String,
+    pub name: StdString,
     pub expr: Expression,
 }
 
 impl Definition {
-    pub fn new(span: Span, name: String, expr: Expression) -> Self {
+    pub fn new(span: Span, name: StdString, expr: Expression) -> Self {
         Self { span, name, expr }
     }
 }
 
 impl ToString for Definition {
-    fn to_string(&self) -> String {
+    fn to_string(&self) -> StdString {
         format!("{} <- {}", self.name, self.expr.to_string())
     }
 }
@@ -153,7 +153,7 @@ impl IsSyntactic for Expression {
 }
 
 impl ToString for Expression {
-    fn to_string(&self) -> String {
+    fn to_string(&self) -> StdString {
         match self {
             Expression::Choice(v) => format!("({})", fmtlistsep(" / ", &v.items)),
             Expression::Sequence(v) => fmtlistsep(" ", &v.items),
@@ -312,12 +312,12 @@ impl Precedence {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Label {
     pub span: Span,
-    pub label: String,
+    pub label: StdString,
     pub expr: Box<Expression>,
 }
 
 impl Label {
-    pub fn new_expr(span: Span, label: String, expr: Box<Expression>) -> Expression {
+    pub fn new_expr(span: Span, label: StdString, expr: Box<Expression>) -> Expression {
         Expression::Label(Self { span, label, expr })
     }
 }
@@ -337,12 +337,12 @@ impl List {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {
     pub span: Span,
-    pub name: String,
+    pub name: StdString,
     pub expr: Box<Expression>,
 }
 
 impl Node {
-    pub fn new_expr(span: Span, name: String, expr: Box<Expression>) -> Expression {
+    pub fn new_expr(span: Span, name: StdString, expr: Box<Expression>) -> Expression {
         Expression::Node(Self { span, name, expr })
     }
 }
@@ -350,22 +350,22 @@ impl Node {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Identifier {
     pub span: Span,
-    pub name: String,
+    pub name: StdString,
 }
 
 impl Identifier {
-    pub fn new_expr(span: Span, name: String) -> Expression {
+    pub fn new_expr(span: Span, name: StdString) -> Expression {
         Expression::Identifier(Self::new(span, name))
     }
 
-    pub fn new(span: Span, name: String) -> Self {
+    pub fn new(span: Span, name: StdString) -> Self {
         Self { span, name }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
-    String(String_),
+    String(String),
     Class(Class),
     Range(Range),
     Char(Char),
@@ -373,7 +373,7 @@ pub enum Literal {
 }
 
 impl ToString for Literal {
-    fn to_string(&self) -> String {
+    fn to_string(&self) -> StdString {
         match self {
             Literal::String(v) => format!("\"{}\"", v.value),
             Literal::Class(v) => v.to_string(),
@@ -385,13 +385,13 @@ impl ToString for Literal {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct String_ {
+pub struct String {
     pub span: Span,
-    pub value: String,
+    pub value: StdString,
 }
 
-impl String_ {
-    pub fn new_expr(span: Span, value: String) -> Expression {
+impl String {
+    pub fn new_expr(span: Span, value: StdString) -> Expression {
         Expression::Literal(Literal::String(Self { span, value }))
     }
 }
@@ -409,8 +409,8 @@ impl Class {
 }
 
 impl ToString for Class {
-    fn to_string(&self) -> String {
-        let mut output = String::new();
+    fn to_string(&self) -> StdString {
+        let mut output = StdString::new();
         output.push('[');
         for l in &self.literals {
             output.push_str(&l.to_string());
@@ -447,7 +447,7 @@ impl Char {
 }
 
 impl ToString for Char {
-    fn to_string(&self) -> String {
+    fn to_string(&self) -> StdString {
         match self.value {
             '\n' => "\\n".to_string(),
             _ => format!("{}", self.value),
@@ -483,8 +483,8 @@ impl Empty {
 
 // formatting functions
 
-fn fmtlistsep<T: ToString>(sep: &str, items: &Vec<T>) -> String {
-    let mut output = String::new();
+fn fmtlistsep<T: ToString>(sep: &str, items: &Vec<T>) -> StdString {
+    let mut output = StdString::new();
     let len = items.len();
 
     for (index, item) in items.iter().enumerate() {
@@ -497,7 +497,7 @@ fn fmtlistsep<T: ToString>(sep: &str, items: &Vec<T>) -> String {
     output
 }
 
-fn fmtprefix(prefix: &str, node: &Expression) -> String {
+fn fmtprefix(prefix: &str, node: &Expression) -> StdString {
     if tree_height(node) > 1 {
         return format!("{}({})", prefix, node.to_string());
     }
@@ -509,7 +509,7 @@ fn fmtprefix(prefix: &str, node: &Expression) -> String {
     format!("{}{}", prefix, node.to_string())
 }
 
-fn fmtsuffix(suffix: &str, node: &Expression) -> String {
+fn fmtsuffix(suffix: &str, node: &Expression) -> StdString {
     if tree_height(node) > 1 {
         return format!("({}){}", node.to_string(), suffix);
     }

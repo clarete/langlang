@@ -73,7 +73,7 @@ pub trait Visitor<'ast>: Sized {
         walk_literal(self, n);
     }
 
-    fn visit_string(&mut self, _: &'ast String_) {}
+    fn visit_string(&mut self, _: &'ast String) {}
 
     fn visit_class(&mut self, _: &'ast Class) {}
 

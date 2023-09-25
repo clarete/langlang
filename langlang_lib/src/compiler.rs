@@ -430,7 +430,7 @@ impl<'ast> Visitor<'ast> for Compiler {
         }
     }
 
-    fn visit_string(&mut self, n: &'ast ast::String_) {
+    fn visit_string(&mut self, n: &'ast ast::String) {
         let id = self.push_string(&n.value);
         self.emit(Instruction::String(id));
     }

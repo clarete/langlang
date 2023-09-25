@@ -3,6 +3,8 @@ use helpers::{assert_match, cc_run, compile, run_str};
 
 use langlang_lib::{compiler, vm};
 use langlang_syntax::parser;
+use langlang_value::source_map::{Position, Span};
+use langlang_value::value;
 
 #[test]
 fn test_char() {
@@ -31,14 +33,26 @@ fn test_str() {
     // This works as both `f` chars get consummed by [a-f]+ one at
     // a time.
     let value = vm::VM::new(&p).run(vec![
-        vm::Value::String("0x".to_string()),
-        vm::Value::Char('f'),
-        vm::Value::Char('f'),
+        value::String::new_val(
+            Span::new(Position::new(0, 0, 0), Position::new(2, 0, 2)),
+            "0x".to_string(),
+        ),
+        value::Char::new_val(
+            Span::new(Position::new(2, 0, 2), Position::new(3, 0, 3)),
+            'f',
+        ),
+        value::Char::new_val(
+            Span::new(Position::new(3, 0, 3), Position::new(4, 0, 4)),
+            'f',
+        ),
     ]);
     assert_match("A[0xff]", value);
 
     // Easiest case
-    let value = vm::VM::new(&p).run(vec![vm::Value::String("0".to_string())]);
+    let value = vm::VM::new(&p).run(vec![value::String::new_val(
+        Span::new(Position::new(0, 0, 0), Position::new(1, 0, 2)),
+        "0".to_string(),
+    )]);
     assert_match("A[0]", value);
 }
 
@@ -272,9 +286,9 @@ fn test_list_with_no_list() {
     let cc = compiler::Config::default();
     let program = compile(&cc, "A <- { 'aba' }", "A");
     let result = vm::VM::new(&program).run(vec![
-        vm::Value::Char('a'),
-        vm::Value::Char('b'),
-        vm::Value::Char('a'),
+        value::Char::new_val(Span::default(), 'a'),
+        value::Char::new_val(Span::default(), 'b'),
+        value::Char::new_val(Span::default(), 'a'),
     ]);
     assert!(result.is_err());
     assert_eq!(
@@ -288,14 +302,20 @@ fn test_list_0() {
     let cc = compiler::Config::default();
     let p = compile(&cc, "A <- { 'aba' }", "A");
 
-    let input_with_chr = vec![vm::Value::List(vec![
-        vm::Value::Char('a'),
-        vm::Value::Char('b'),
-        vm::Value::Char('a'),
-    ])];
+    let input_with_chr = vec![value::List::new_val(
+        Span::default(),
+        vec![
+            value::Char::new_val(Span::default(), 'a'),
+            value::Char::new_val(Span::default(), 'b'),
+            value::Char::new_val(Span::default(), 'a'),
+        ],
+    )];
     assert_match("A[[aba]]", vm::VM::new(&p).run(input_with_chr));
 
-    let input_with_str = vec![vm::Value::List(vec![vm::Value::String("aba".to_string())])];
+    let input_with_str = vec![value::List::new_val(
+        Span::default(),
+        vec![value::String::new_val(Span::default(), "aba".to_string())],
+    )];
     assert_match("A[[aba]]", vm::VM::new(&p).run(input_with_str))
 }
 
@@ -304,23 +324,35 @@ fn test_list_nested_0() {
     let cc = compiler::Config::default();
     let p = compile(&cc, "A <- { { 'aba' } 'cate' }", "A");
 
-    let input_with_chr = vec![vm::Value::List(vec![
-        vm::Value::List(vec![
-            vm::Value::Char('a'),
-            vm::Value::Char('b'),
-            vm::Value::Char('a'),
-        ]),
-        vm::Value::Char('c'),
-        vm::Value::Char('a'),
-        vm::Value::Char('t'),
-        vm::Value::Char('e'),
-    ])];
+    let input_with_chr = vec![value::List::new_val(
+        Span::default(),
+        vec![
+            value::List::new_val(
+                Span::default(),
+                vec![
+                    value::Char::new_val(Span::default(), 'a'),
+                    value::Char::new_val(Span::default(), 'b'),
+                    value::Char::new_val(Span::default(), 'a'),
+                ],
+            ),
+            value::Char::new_val(Span::default(), 'c'),
+            value::Char::new_val(Span::default(), 'a'),
+            value::Char::new_val(Span::default(), 't'),
+            value::Char::new_val(Span::default(), 'e'),
+        ],
+    )];
     assert_match("A[[[aba]cate]]", vm::VM::new(&p).run(input_with_chr));
 
-    let input_with_str = vec![vm::Value::List(vec![
-        vm::Value::List(vec![vm::Value::String("aba".to_string())]),
-        vm::Value::String("cate".to_string()),
-    ])];
+    let input_with_str = vec![value::List::new_val(
+        Span::default(),
+        vec![
+            value::List::new_val(
+                Span::default(),
+                vec![value::String::new_val(Span::default(), "aba".to_string())],
+            ),
+            value::String::new_val(Span::default(), "cate".to_string()),
+        ],
+    )];
     assert_match("A[[[aba]cate]]", vm::VM::new(&p).run(input_with_str));
 }
 
@@ -328,16 +360,18 @@ fn test_list_nested_0() {
 fn test_node_0() {
     let cc = compiler::Config::default();
     let p = compile(&cc, "A <- { A: 'aba' }", "A");
-
-    let input_with_chr = vec![vm::Value::Node {
-        name: "A".to_string(),
-        items: vec![
-            vm::Value::Char('a'),
-            vm::Value::Char('b'),
-            vm::Value::Char('a'),
-        ],
-    }];
-    assert_match("A[A[aba]]", vm::VM::new(&p).run(input_with_chr));
+    assert_match(
+        "A[A[aba]]",
+        vm::VM::new(&p).run(vec![value::Node::new_val(
+            Span::default(),
+            "A".to_string(),
+            vec![
+                value::Char::new_val(Span::default(), 'a'),
+                value::Char::new_val(Span::default(), 'b'),
+                value::Char::new_val(Span::default(), 'a'),
+            ],
+        )]),
+    );
 }
 
 // -- Error Recovery -------------------------------------------------------

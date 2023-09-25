@@ -4,7 +4,8 @@ resolver = "2"
 
 members = [
     "langlang",
-    "langlang_syntax",
     "langlang_lib",
+    "langlang_syntax",
+    "langlang_value",
     "tests",
 ]

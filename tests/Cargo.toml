@@ -7,6 +7,7 @@ publish = false
 [dev-dependencies]
 langlang_lib = { path = "../langlang_lib" }
 langlang_syntax = { path = "../langlang_syntax" }
+langlang_value = { path = "../langlang_value" }
 
 [[test]]
 name = "unit"

@@ -1,6 +1,7 @@
 mod helpers;
 
 use langlang_lib::{compiler, vm};
+use langlang_value::value::Value;
 
 #[test]
 fn is_syntactic_sequence_with_literals() {
@@ -41,7 +42,7 @@ fn test_lexification_on_single_item() {
     );
 }
 
-fn run(start: &str, input: &str) -> Result<Option<vm::Value>, vm::Error> {
+fn run(start: &str, input: &str) -> Result<Option<Value>, vm::Error> {
     let cc = compiler::Config::default();
     let program = helpers::compile_file(&cc, "wshinsert.peg", start);
     helpers::run_str(&program, input)

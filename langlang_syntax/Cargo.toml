@@ -1,4 +1,7 @@
 [package]
 name = "langlang_syntax"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+langlang_value = { path = "../langlang_value" }

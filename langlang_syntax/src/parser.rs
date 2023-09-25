@@ -1,6 +1,5 @@
 use crate::ast;
-use crate::source_map::{Position, Span};
-
+use langlang_value::source_map::{Position, Span};
 use std::collections::HashMap;
 
 #[derive(Debug)]

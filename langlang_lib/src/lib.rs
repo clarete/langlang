@@ -1,5 +1,4 @@
 pub mod compiler;
-pub mod format;
 pub mod import;
 pub mod vm;
 

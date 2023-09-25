@@ -112,6 +112,7 @@ dependencies = [
  "clap",
  "env_logger",
  "langlang_lib",
+ "langlang_value",
  "log",
 ]
 
@@ -121,12 +122,20 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "langlang_syntax",
+ "langlang_value",
  "log",
 ]
 
 [[package]]
 name = "langlang_syntax"
-version = "0.0.1"
+version = "0.1.0"
+dependencies = [
+ "langlang_value",
+]
+
+[[package]]
+name = "langlang_value"
+version = "0.1.0"
 
 [[package]]
 name = "libc"
@@ -252,6 +261,7 @@ version = "0.0.1"
 dependencies = [
  "langlang_lib",
  "langlang_syntax",
+ "langlang_value",
 ]
 
 [[package]]

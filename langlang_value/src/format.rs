@@ -1,4 +1,4 @@
-use crate::vm::Value;
+use crate::value::Value;
 
 pub fn value_fmt0(value: &Value) -> String {
     let mut s = String::new();
@@ -9,27 +9,27 @@ pub fn value_fmt0(value: &Value) -> String {
 pub fn value_fmt1(value: &Value) -> String {
     let mut s = String::new();
     match value {
-        Value::Char(v) => s.push(*v),
-        Value::String(v) => s.push_str(v),
-        Value::Node { name, items } => {
-            s.push_str(name);
+        Value::Char(ref v) => s.push(v.value),
+        Value::String(ref v) => s.push_str(&v.value),
+        Value::Node(ref node) => {
+            s.push_str(&node.name);
             s.push('[');
-            for i in items {
+            for i in &node.items {
                 s.push_str(value_fmt1(i).as_str())
             }
             s.push(']');
         }
-        Value::List(items) => {
+        Value::List(ref list) => {
             s.push('[');
-            for c in items {
+            for c in &list.values {
                 s.push_str(value_fmt1(c).as_str())
             }
             s.push(']');
         }
-        Value::Error { label, message } => {
+        Value::Error(ref err) => {
             s.push_str("Error[");
-            s.push_str(label);
-            if let Some(m) = message {
+            s.push_str(&err.label);
+            if let Some(m) = &err.message {
                 s.push_str(": ");
                 s.push_str(m);
             }
@@ -48,7 +48,7 @@ pub fn value_fmt2(value: &Value) -> String {
                     s.push_str("    ");
                 }
                 s.push('"');
-                match *v {
+                match v.value {
                     '\n' => s.push_str("\\n"),
                     vv => s.push(vv),
                 }
@@ -60,16 +60,16 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 s.push_str(format!(r"{:#?}", v).as_str());
             }
-            Value::Node { name, items } => {
+            Value::Node(n) => {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
-                s.push_str(name);
+                s.push_str(&n.name);
                 s.push(':');
                 s.push(' ');
                 s.push('[');
                 s.push('\n');
-                for i in items {
+                for i in &n.items {
                     s.push_str(f(i, indent + 1).as_str());
                     s.push('\n');
                 }
@@ -79,12 +79,12 @@ pub fn value_fmt2(value: &Value) -> String {
                 s.push(']');
             }
 
-            Value::List(items) => {
+            Value::List(n) => {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
                 s.push('{');
-                for c in items {
+                for c in &n.values {
                     s.push_str(f(c, indent + 1).as_str())
                 }
                 for _ in 0..indent {
@@ -92,13 +92,13 @@ pub fn value_fmt2(value: &Value) -> String {
                 }
                 s.push('}');
             }
-            Value::Error { label, message } => {
+            Value::Error(n) => {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
                 s.push_str("Error{");
-                s.push_str(label);
-                if let Some(m) = message {
+                s.push_str(&n.label);
+                if let Some(m) = &n.message {
                     s.push_str(": ");
                     s.push_str(m);
                 }
@@ -113,16 +113,16 @@ pub fn value_fmt2(value: &Value) -> String {
 pub fn value_html(value: &Value) -> String {
     let mut s = String::new();
     match value {
-        Value::Char(v) => match *v {
+        Value::Char(v) => match v.value {
             '\n' => s.push_str("\\n"),
             vv => s.push(vv),
         },
-        Value::String(v) => s.push_str(v),
-        Value::Node { name, items } => {
+        Value::String(v) => s.push_str(&v.value),
+        Value::Node(node) => {
             s.push_str("<span class=\"");
-            s.push_str(name);
+            s.push_str(&node.name);
             s.push_str("\">");
-            for i in items {
+            for i in &node.items {
                 s.push_str(value_html(i).as_str());
             }
             s.push_str("</span>");

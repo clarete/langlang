@@ -14,3 +14,4 @@ readme = "../README.org"
 log = "0.4"
 env_logger = "0.8"
 langlang_syntax = { path = "../langlang_syntax" }
+langlang_value = { path = "../langlang_value" }

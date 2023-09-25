@@ -1,7 +1,8 @@
-use crate::source_map::Span;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::string::{String as StdString, ToString};
+
+use langlang_value::source_map::Span;
 
 /// Grammar is the top-level AST node for the input grammar language.
 #[derive(Debug)]

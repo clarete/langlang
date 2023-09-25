@@ -1,6 +1,9 @@
-use langlang_lib::{compiler, format, import, vm};
+use langlang_lib::{compiler, import, vm};
+use langlang_value::format;
+use langlang_value::value::Value;
 use std::path::Path;
 
+#[allow(dead_code)]
 pub fn compile(cc: &compiler::Config, grammar: &str, start: &str) -> vm::Program {
     let mut loader = import::InMemoryImportLoader::default();
     loader.add_grammar("main", grammar);
@@ -13,6 +16,7 @@ pub fn compile(cc: &compiler::Config, grammar: &str, start: &str) -> vm::Program
     program
 }
 
+#[allow(dead_code)]
 pub fn compile_file(cc: &compiler::Config, grammar_file: &str, start_rule: &str) -> vm::Program {
     let importer = import::ImportResolver::new(import::RelativeImportLoader::default());
     let ast = importer.resolve(Path::new(grammar_file)).unwrap();
@@ -20,23 +24,25 @@ pub fn compile_file(cc: &compiler::Config, grammar_file: &str, start_rule: &str)
     c.compile(&ast, start_rule).unwrap()
 }
 
-pub fn run_str(program: &vm::Program, input: &str) -> Result<Option<vm::Value>, vm::Error> {
+#[allow(dead_code)]
+pub fn run_str(program: &vm::Program, input: &str) -> Result<Option<Value>, vm::Error> {
     let mut machine = vm::VM::new(program);
     machine.run_str(input)
 }
 
+#[allow(dead_code)]
 pub fn cc_run(
     cc: &compiler::Config,
     grammar: &str,
     start: &str,
     input: &str,
-) -> Result<Option<vm::Value>, vm::Error> {
+) -> Result<Option<Value>, vm::Error> {
     let prog = compile(cc, grammar, start);
     let mut machine = vm::VM::new(&prog);
     machine.run_str(input)
 }
 
-pub fn assert_match(expected: &str, r: Result<Option<vm::Value>, vm::Error>) {
+pub fn assert_match(expected: &str, r: Result<Option<Value>, vm::Error>) {
     assert!(r.is_ok());
     let o = r.unwrap();
     assert!(o.is_some());
@@ -44,7 +50,8 @@ pub fn assert_match(expected: &str, r: Result<Option<vm::Value>, vm::Error>) {
     assert_eq!(expected.to_string(), format::value_fmt1(&v));
 }
 
-pub fn assert_err(expected: vm::Error, r: Result<Option<vm::Value>, vm::Error>) {
+#[allow(dead_code)]
+pub fn assert_err(expected: vm::Error, r: Result<Option<Value>, vm::Error>) {
     assert!(r.is_err());
     let e = r.unwrap_err();
     assert_eq!(expected, e);

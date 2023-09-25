@@ -4,7 +4,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
-use langlang_lib::{compiler, format, import, vm};
+use langlang_lib::vm::VM;
+use langlang_lib::{compiler, import};
+use langlang_value::format;
+use langlang_value::value::Value;
 
 /// Enumeration of all sub commands supported by this binary
 #[derive(Subcommand)]
@@ -40,7 +43,7 @@ struct Cli {
     command: Command,
 }
 
-type FormattingFunc = fn(v: &vm::Value) -> String;
+type FormattingFunc = fn(v: &Value) -> String;
 
 fn formatter(name: &str) -> FormattingFunc {
     match name {
@@ -69,7 +72,7 @@ fn command_run(
     match input_file {
         Some(input_file) => {
             let input_data = fs::read_to_string(input_file)?;
-            let mut m = vm::VM::new(&program);
+            let mut m = VM::new(&program);
             match m.run_str(&input_data)? {
                 None => println!("not much"),
                 Some(v) => println!("{}", fmt(&v)),
@@ -101,7 +104,7 @@ fn command_run(
                 line.pop();
 
                 // run the line
-                let mut m = vm::VM::new(&program);
+                let mut m = VM::new(&program);
                 match m.run_str(&line)? {
                     None => println!("not much"),
                     Some(v) => println!("{}", fmt(&v)),

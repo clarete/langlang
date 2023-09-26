@@ -1,11 +1,11 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::{fs, io};
+
 use crate::consts::{END_OF_FILE_RULE_NAME, WHITE_SPACE_RULE_NAME};
 
 use langlang_syntax::visitor::Visitor;
 use langlang_syntax::{ast, parser};
-
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::{fs, io};
 
 #[derive(Debug)]
 pub enum Error {

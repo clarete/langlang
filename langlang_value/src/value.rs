@@ -1,5 +1,6 @@
-use crate::source_map::Span;
 use std::string::String as StdString;
+
+use crate::source_map::Span;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum Value {

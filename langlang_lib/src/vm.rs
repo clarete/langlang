@@ -6,8 +6,9 @@
 // machine.  This module has nothing to do with how patterns get
 // compiled to programs, but how programs get executted as patterns.
 //
-use crate::consts::WHITE_SPACE_RULE_NAME;
 use std::collections::HashMap;
+
+use crate::consts::WHITE_SPACE_RULE_NAME;
 
 #[cfg(debug_assertions)]
 use langlang_value::format;

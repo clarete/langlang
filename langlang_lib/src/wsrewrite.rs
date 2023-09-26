@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
+use crate::consts::WHITE_SPACE_RULE_NAME;
+
 use langlang_syntax::ast;
 use langlang_syntax::ast::IsSyntactic;
 use langlang_value::source_map::Span;
-
-use crate::consts::WHITE_SPACE_RULE_NAME;
 
 #[derive(Default)]
 pub(crate) struct WhiteSpaceHandlerInjector {

@@ -1,11 +1,11 @@
+pub use langlang_syntax::parser;
+
 pub mod compiler;
 pub mod import;
 pub mod vm;
 
 mod consts;
 mod wsrewrite;
-
-pub use langlang_syntax::parser;
 
 #[derive(Debug)]
 pub enum Error {

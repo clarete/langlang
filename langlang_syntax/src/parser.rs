@@ -1,6 +1,8 @@
-use crate::ast;
-use langlang_value::source_map::{Position, Span};
 use std::collections::HashMap;
+
+use crate::ast;
+
+use langlang_value::source_map::{Position, Span};
 
 #[derive(Debug)]
 pub enum Error {

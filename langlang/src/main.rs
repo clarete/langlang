@@ -1,5 +1,3 @@
-use clap::{Parser, Subcommand};
-use log::warn;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -8,6 +6,9 @@ use langlang_lib::vm::VM;
 use langlang_lib::{compiler, import};
 use langlang_value::format;
 use langlang_value::value::Value;
+
+use clap::{Parser, Subcommand};
+use log::warn;
 
 /// Enumeration of all sub commands supported by this binary
 #[derive(Subcommand)]

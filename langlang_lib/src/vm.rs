@@ -1014,7 +1014,7 @@ impl<'a> VM<'a> {
                 top.index,
                 top.values
                     .iter()
-                    .map(format::value_fmt1)
+                    .map(format::compact)
                     .collect::<Vec<_>>()
                     .join(", ")
             ));

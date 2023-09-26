@@ -48,13 +48,14 @@ type FormattingFunc = fn(v: &Value) -> String;
 
 fn formatter(name: &str) -> FormattingFunc {
     match name {
-        "fmt0" => format::value_fmt0,
-        "fmt1" => format::value_fmt1,
-        "fmt2" => format::value_fmt2,
-        "html" => format::value_html,
+        "" => format::compact,
+        "compact" => format::compact,
+        "html" => format::html,
+        "indented" => format::indented,
+        "raw" => format::raw,
         _ => {
             warn!("oh no! an invalud formatter: {}", name);
-            format::value_fmt0
+            format::raw
         }
     }
 }

@@ -143,6 +143,6 @@ impl<'a> Visitor<'a> for IndentedFormatter {
             self.output.push_str(": ");
             self.output.push_str(m);
         }
-        self.output.push_str("}");
+        self.output.push('}');
     }
 }

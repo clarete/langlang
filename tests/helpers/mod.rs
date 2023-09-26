@@ -47,7 +47,7 @@ pub fn assert_match(expected: &str, r: Result<Option<Value>, vm::Error>) {
     let o = r.unwrap();
     assert!(o.is_some());
     let v = o.unwrap();
-    assert_eq!(expected.to_string(), format::value_fmt1(&v));
+    assert_eq!(expected.to_string(), format::compact(&v));
 }
 
 #[allow(dead_code)]

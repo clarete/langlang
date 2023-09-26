@@ -58,7 +58,7 @@ pub fn value_fmt2(value: &Value) -> String {
                 for _ in 0..indent {
                     s.push_str("    ");
                 }
-                s.push_str(format!(r"{:#?}", v).as_str());
+                s.push_str(format!(r"{:#?}", v.value).as_str());
             }
             Value::Node(n) => {
                 for _ in 0..indent {

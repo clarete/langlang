@@ -471,22 +471,16 @@ impl<'a> VM<'a> {
     }
 
     fn capture_flatten(&mut self, address: usize, items: Vec<Value>) -> Result<(), Error> {
-        if items.is_empty() {
-            return Ok(());
-        }
         let name = self.program.identifier(address);
-        if items.len() == 1 {
-            if let Value::Node(n) = &items[0] {
-                if n.name == name {
-                    self.capture(items[0].clone())?;
-                    return Ok(());
-                }
+        match &items[..] {
+            [] => Ok(()),
+            [Value::Node(n)] if n.name == name => self.capture(items[0].clone()),
+            _ => {
+                let start = items[0].span().start;
+                let end = items[items.len() - 1].span().end;
+                self.capture(value::Node::new_val(Span::new(start, end), name, items))
             }
         }
-        let start = items[0].span().start;
-        let end = items[items.len() - 1].span().end;
-        self.capture(value::Node::new_val(Span::new(start, end), name, items))?;
-        Ok(())
     }
 
     /// mark all values captured on the top of the stack as commited

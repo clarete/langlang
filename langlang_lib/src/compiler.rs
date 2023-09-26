@@ -269,8 +269,8 @@ impl<'ast> Visitor<'ast> for Compiler {
     fn visit_grammar(&mut self, n: &'ast ast::Grammar) {
         self.emit(Instruction::Call(2, 0));
         self.emit(Instruction::Halt);
-        for d in n.definitions.values() {
-            self.visit_definition(d);
+        for d in &n.definition_names {
+            self.visit_definition(&n.definitions[d]);
         }
     }
 

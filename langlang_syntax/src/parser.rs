@@ -131,26 +131,17 @@ impl Parser {
         self.parse_spacing()?;
         let start = self.pos();
         let prefix = self.choice(vec![
-            |p| {
-                p.expect_str("#")?;
-                Ok("#")
-            },
-            |p| {
-                p.expect_str("&")?;
-                Ok("&")
-            },
-            |p| {
-                p.expect_str("!")?;
-                Ok("!")
-            },
-            |_| Ok(""),
-        ]);
+            |p| p.expect_str("#"),
+            |p| p.expect_str("&"),
+            |p| p.expect_str("!"),
+            |_| Ok("".to_string()),
+        ])?;
         let labeled = self.parse_labeled()?;
         let span = self.span_from(start);
-        Ok(match prefix {
-            Ok("#") => ast::Expression::Lex(ast::Lex::new(span, Box::new(labeled))),
-            Ok("&") => ast::Expression::And(ast::And::new(span, Box::new(labeled))),
-            Ok("!") => ast::Expression::Not(ast::Not::new(span, Box::new(labeled))),
+        Ok(match prefix.as_str() {
+            "#" => ast::Expression::Lex(ast::Lex::new(span, Box::new(labeled))),
+            "&" => ast::Expression::And(ast::And::new(span, Box::new(labeled))),
+            "!" => ast::Expression::Not(ast::Not::new(span, Box::new(labeled))),
             _ => labeled,
         })
     }
@@ -183,19 +174,18 @@ impl Parser {
 
         self.parse_spacing()?;
         let suffix = self.choice(vec![
-            |p| {
-                p.expect_str("?")?;
-                Ok("?".to_string())
-            },
-            |p| {
-                p.expect_str("*")?;
-                Ok("*".to_string())
-            },
-            |p| {
-                p.expect_str("+")?;
-                Ok("+".to_string())
-            },
-            |p| p.parse_superscript(),
+            |p| p.expect_str("?"),
+            |p| p.expect_str("*"),
+            |p| p.expect_str("+"),
+            |p| p.expect_str("¹"),
+            |p| p.expect_str("²"),
+            |p| p.expect_str("³"),
+            |p| p.expect_str("⁴"),
+            |p| p.expect_str("⁵"),
+            |p| p.expect_str("⁶"),
+            |p| p.expect_str("⁷"),
+            |p| p.expect_str("⁸"),
+            |p| p.expect_str("⁹"),
             |_| Ok("".to_string()),
         ])?;
         let span = self.span_from(start);
@@ -216,21 +206,6 @@ impl Parser {
         })
     }
 
-    // GR: Superscript <- [¹-⁹]
-    fn parse_superscript(&mut self) -> Result<String, Error> {
-        self.choice(vec![
-            |p| p.expect_str("¹"),
-            |p| p.expect_str("²"),
-            |p| p.expect_str("³"),
-            |p| p.expect_str("⁴"),
-            |p| p.expect_str("⁵"),
-            |p| p.expect_str("⁶"),
-            |p| p.expect_str("⁷"),
-            |p| p.expect_str("⁸"),
-            |p| p.expect_str("⁹"),
-        ])
-    }
-
     // GR: Primary <- Identifier !(LEFTARROW / (Identifier EQ))
     // GR:          / OPEN Expression CLOSE
     // GR:          / Node / List / Literal / Class / DOT
@@ -242,8 +217,7 @@ impl Parser {
                 let id = p.parse_identifier()?;
                 p.not(|p| {
                     p.parse_spacing()?;
-                    p.expect('<')?;
-                    p.expect('-')
+                    p.expect_str("<-")
                 })?;
                 let span = p.span_from(start);
                 Ok(ast::Identifier::new_expr(span, id))

@@ -32,28 +32,32 @@ fn test_str() {
 
     // This works as both `f` chars get consummed by [a-f]+ one at
     // a time.
-    let value = vm::VM::new(&p).run(vec![
-        value::String::new_val(
-            Span::new(Position::new(0, 0, 0), Position::new(2, 0, 2)),
-            "0x".to_string(),
-        ),
-        value::Char::new_val(
-            Span::new(Position::new(2, 0, 2), Position::new(3, 0, 3)),
-            'f',
-        ),
-        value::Char::new_val(
-            Span::new(Position::new(3, 0, 3), Position::new(4, 0, 4)),
-            'f',
-        ),
-    ]);
-    assert_match("A[0xff]", value);
+    assert_match(
+        "A[0xff]",
+        vm::VM::new(&p).run(vec![
+            value::String::new_val(
+                Span::new(Position::new(0, 0, 0), Position::new(2, 0, 2)),
+                "0x".to_string(),
+            ),
+            value::Char::new_val(
+                Span::new(Position::new(2, 0, 2), Position::new(3, 0, 3)),
+                'f',
+            ),
+            value::Char::new_val(
+                Span::new(Position::new(3, 0, 3), Position::new(4, 0, 4)),
+                'f',
+            ),
+        ]),
+    );
 
     // Easiest case
-    let value = vm::VM::new(&p).run(vec![value::String::new_val(
-        Span::new(Position::new(0, 0, 0), Position::new(1, 0, 2)),
-        "0".to_string(),
-    )]);
-    assert_match("A[0]", value);
+    assert_match(
+        "A[0]",
+        vm::VM::new(&p).run(vec![value::String::new_val(
+            Span::new(Position::new(0, 0, 0), Position::new(1, 0, 2)),
+            "0".to_string(),
+        )]),
+    );
 }
 
 #[test]

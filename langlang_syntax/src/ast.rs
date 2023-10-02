@@ -43,6 +43,7 @@ impl ToString for Grammar {
             output.push_str(&i.to_string());
             output.push('\n');
         }
+        output.push('\n');
         for name in &self.definition_names {
             let d = &self.definitions[name];
             output.push_str(&d.to_string());
@@ -376,7 +377,7 @@ pub enum Literal {
 impl ToString for Literal {
     fn to_string(&self) -> StdString {
         match self {
-            Literal::String(v) => format!("\"{}\"", v.value),
+            Literal::String(v) => format!("\"{}\"", v.to_string()),
             Literal::Class(v) => v.to_string(),
             Literal::Range(v) => format!("{}-{}", v.start, v.end),
             Literal::Char(v) => v.to_string(),
@@ -394,6 +395,15 @@ pub struct String {
 impl String {
     pub fn new_expr(span: Span, value: StdString) -> Expression {
         Expression::Literal(Literal::String(Self { span, value }))
+    }
+}
+
+impl ToString for String {
+    fn to_string(&self) -> StdString {
+        self.value
+            .chars()
+            .flat_map(|c| c.escape_default())
+            .collect()
     }
 }
 
@@ -449,10 +459,7 @@ impl Char {
 
 impl ToString for Char {
     fn to_string(&self) -> StdString {
-        match self.value {
-            '\n' => "\\n".to_string(),
-            _ => format!("{}", self.value),
-        }
+        self.value.escape_default().collect()
     }
 }
 

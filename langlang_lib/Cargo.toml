@@ -7,7 +7,7 @@ description = "langlang is a parser generator based on Parsing Expression Gramma
 homepage = "https://github.com/clarete/langlang"
 repository = "https://github.com/clarete/langlang"
 license = "GPL-3.0-or-later"
-documentation = "https://docs.rs/langlang"
+documentation = "https://docs.rs/langlang_lib"
 readme = "../README.org"
 
 [dependencies]

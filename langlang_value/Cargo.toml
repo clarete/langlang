@@ -2,7 +2,10 @@
 name = "langlang_value"
 version = "0.1.1"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
+description = "langlang is a parser generator based on Parsing Expression Grammars (library)"
+homepage = "https://github.com/clarete/langlang"
+repository = "https://github.com/clarete/langlang"
+license = "GPL-3.0-or-later"
+documentation = "https://docs.rs/langlang_value"
+readme = "../README.org"

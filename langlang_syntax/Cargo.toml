@@ -2,6 +2,13 @@
 name = "langlang_syntax"
 version = "0.1.1"
 edition = "2021"
+authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
+description = "langlang is a parser generator based on Parsing Expression Grammars (library)"
+homepage = "https://github.com/clarete/langlang"
+repository = "https://github.com/clarete/langlang"
+license = "GPL-3.0-or-later"
+documentation = "https://docs.rs/langlang_syntax"
+readme = "../README.org"
 
 [dependencies]
 langlang_value = { path = "../langlang_value" }

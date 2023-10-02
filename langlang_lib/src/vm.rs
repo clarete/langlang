@@ -504,7 +504,7 @@ impl<'a> VM<'a> {
             .enumerate()
             .map(|(i, c)| {
                 let start = Position::new(i, line, column);
-                let end = Position::new(i + 1, line, column);
+                let end = Position::new(i + 1, line, column + 1);
                 column += 1;
                 if c == '\n' {
                     column = 0;
@@ -865,8 +865,7 @@ impl<'a> VM<'a> {
                 let label = self.program.identifier(address);
                 let message = self.program.label_message(label_id);
                 let start = Position::new(frame.cursor, frame.line, frame.column);
-                let end = Position::new(self.cursor, 0, 0);
-                let span = Span::new(start, end);
+                let span = Span::new(start, self.pos());
                 self.capture(value::Error::new_val(span, label, message))?;
                 return Ok(());
             }
@@ -916,12 +915,6 @@ impl<'a> VM<'a> {
         let values = capframe.values.drain(..capframe.index).collect();
         capframe.values.clear();
         self.capture_flatten(address, values)?;
-
-        // if capframe.index > 0 {
-        //     let values: Vec<_> = capframe.values.drain(..capframe.index).collect();
-        //     capframe.values.clear();
-        //     self.capture_flatten(address, values)?;
-        // }
         self.dbg_captures()?;
         Ok(())
     }

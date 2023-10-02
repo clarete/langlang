@@ -1,6 +1,6 @@
 [package]
 name = "langlang_lib"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
 edition = "2021"
 description = "langlang is a parser generator based on Parsing Expression Grammars (library)"
@@ -8,10 +8,10 @@ homepage = "https://github.com/clarete/langlang"
 repository = "https://github.com/clarete/langlang"
 license = "GPL-3.0-or-later"
 documentation = "https://docs.rs/langlang_lib"
-readme = "../README.org"
+readme = "../README.md"
 
 [dependencies]
 log = "0.4"
 env_logger = "0.8"
-langlang_syntax = { path = "../langlang_syntax", version = "0.1.1" }
-langlang_value = { path = "../langlang_value", version = "0.1.1" }
+langlang_syntax = { path = "../langlang_syntax", version = "0.1.2" }
+langlang_value = { path = "../langlang_value", version = "0.1.2" }

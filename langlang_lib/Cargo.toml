@@ -1,6 +1,6 @@
 [package]
 name = "langlang_lib"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Lincoln de Sousa <lincoln@clarete.li>"]
 edition = "2021"
 description = "langlang is a parser generator based on Parsing Expression Grammars (library)"

@@ -11,4 +11,4 @@ documentation = "https://docs.rs/langlang_syntax"
 readme = "../README.org"
 
 [dependencies]
-langlang_value = { path = "../langlang_value" }
+langlang_value = { path = "../langlang_value", version = "0.1.1" }

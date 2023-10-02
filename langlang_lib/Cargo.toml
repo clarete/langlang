@@ -13,5 +13,5 @@ readme = "../README.org"
 [dependencies]
 log = "0.4"
 env_logger = "0.8"
-langlang_syntax = { path = "../langlang_syntax" }
-langlang_value = { path = "../langlang_value" }
+langlang_syntax = { path = "../langlang_syntax", version = "0.1.1" }
+langlang_value = { path = "../langlang_value", version = "0.1.1" }

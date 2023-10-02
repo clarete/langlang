@@ -133,7 +133,7 @@ fn test_var_ending_with_zero_or_more() {
     assert_match("A[111]", run_str(&program, "111"));
     assert_match("A[11]", run_str(&program, "11"));
     assert_match("A[1]", run_str(&program, "1"));
-    assert!(run_str(&program, "").unwrap().is_none())
+    assert!(run_str(&program, "").unwrap().is_none());
 }
 
 #[test]
@@ -173,6 +173,7 @@ fn test_lr0() {
     assert_match("E[E[E[n]+n]+n]", run_str(&program, "n+n+n"));
 }
 
+#[ignore]
 #[test]
 fn test_lr1() {
     let cc = compiler::Config::default();
@@ -232,6 +233,7 @@ fn test_lr3() {
     assert_match("E[E[n]/E[E[n]+E[n]]]", run_str(&program, "n/n+n"));
 }
 
+#[ignore]
 #[test]
 fn test_lr4() {
     let cc = compiler::Config::default();

@@ -234,8 +234,6 @@ impl Compiler {
         prefix: Option<&'ast ast::Expression>,
         expr: &'ast ast::Expression,
     ) {
-        self.emit(Instruction::CapPush);
-
         // For when emitting code for OneOrMore
         if let Some(n) = prefix {
             self.visit_expression(n);
@@ -252,9 +250,6 @@ impl Compiler {
             1 => self.emit(Instruction::PartialCommit(size - 1)),
             _ => self.emit(Instruction::CommitB(size)),
         }
-
-        self.emit(Instruction::CapCommit);
-        self.emit(Instruction::CapPop);
     }
 
     /// Push `instruction` into the internal code vector and increment
@@ -355,15 +350,12 @@ impl<'ast> Visitor<'ast> for Compiler {
     }
 
     fn visit_optional(&mut self, n: &'ast ast::Optional) {
-        self.emit(Instruction::CapPush);
         let pos = self.cursor;
         self.emit(Instruction::Choice(0));
         self.visit_expression(&n.expr);
         let size = self.cursor - pos;
         self.code[pos] = Instruction::Choice(size + 1);
         self.emit(Instruction::Commit(1));
-        self.emit(Instruction::CapCommit);
-        self.emit(Instruction::CapPop);
     }
 
     fn visit_zero_or_more(&mut self, n: &'ast ast::ZeroOrMore) {

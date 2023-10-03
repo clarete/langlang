@@ -389,20 +389,13 @@ impl<'a> VM<'a> {
     fn advance_cursor(&mut self) -> Result<(), Error> {
         let c = &self.source[self.cursor];
         self.cursor += 1;
-        self.column += 1;
-
-        match c {
-            value::Value::Char(c) if c.value == '\n' => {
-                self.column = 0;
-                self.line += 1;
-            }
-            _ => {}
-        }
-
+        // re-use work done in run_str()
+        let start = c.span().start;
+        self.line = start.line;
+        self.column = start.column;
         if self.cursor > self.ffp {
             self.ffp = self.cursor;
         }
-
         Ok(())
     }
 
@@ -498,7 +491,7 @@ impl<'a> VM<'a> {
 
     pub fn run_str(&mut self, input: &str) -> Result<Option<Value>, Error> {
         let mut line = 0;
-        let mut column = 0;
+        let mut column = 1;
         let source = input
             .chars()
             .enumerate()
@@ -507,7 +500,7 @@ impl<'a> VM<'a> {
                 let end = Position::new(i + 1, line, column + 1);
                 column += 1;
                 if c == '\n' {
-                    column = 0;
+                    column = 1;
                     line += 1;
                 }
                 value::Char::new_val(Span::new(start, end), c)

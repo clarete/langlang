@@ -43,7 +43,9 @@ impl ToString for Grammar {
             output.push_str(&i.to_string());
             output.push('\n');
         }
-        output.push('\n');
+        if !self.imports.is_empty() {
+            output.push('\n');
+        }
         for name in &self.definition_names {
             let d = &self.definitions[name];
             output.push_str(&d.to_string());

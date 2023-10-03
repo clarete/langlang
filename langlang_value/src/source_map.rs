@@ -1,11 +1,11 @@
 #[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
 pub struct Position {
     /// number of chars have been seen since the begining of the input
-    offset: usize,
+    pub offset: usize,
     /// number of EOL sequences seen since the begining of the input
-    line: usize,
+    pub line: usize,
     /// number of chars seen since the begining of the line
-    column: usize,
+    pub column: usize,
 }
 
 impl Position {

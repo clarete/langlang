@@ -157,8 +157,8 @@ impl Program {
         }
     }
 
-    pub fn string_at(&self, id: usize) -> String {
-        self.strings[id].clone()
+    pub fn string_at(&self, id: usize) -> &String {
+        &self.strings[id]
     }
 }
 
@@ -571,7 +571,7 @@ impl<'a> VM<'a> {
                     }
                     let expected = self.program.string_at(id);
                     match &self.source[self.cursor] {
-                        Value::String(ref s) if s.value == expected => {
+                        Value::String(ref s) if &s.value == expected => {
                             self.capture(self.source[self.cursor].clone())?;
                             self.advance_cursor()?;
                             continue;
@@ -588,17 +588,18 @@ impl<'a> VM<'a> {
                                     break Err(Error::EOF);
                                 }
                                 match &self.source[self.cursor] {
-                                    Value::Char(ref current) if current.value == current_char => {}
+                                    Value::Char(ref current) if current.value == current_char => {
+                                        self.advance_cursor()?;
+                                    }
                                     _ => {
                                         break Err(Error::Matching(self.ffp, expected.clone()));
                                     }
                                 };
-                                self.advance_cursor()?;
                             } {
                                 Err(e) => self.fail(e)?,
                                 Ok(()) => self.capture(value::String::new_val(
                                     Span::new(start, self.pos()),
-                                    expected,
+                                    expected.clone(),
                                 ))?,
                             }
                         }

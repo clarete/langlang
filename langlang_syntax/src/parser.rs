@@ -136,11 +136,11 @@ impl Parser {
             |p| p.expect_str("#"),
             |p| p.expect_str("&"),
             |p| p.expect_str("!"),
-            |_| Ok("".to_string()),
+            |_| Ok(""),
         ])?;
         let labeled = self.parse_labeled()?;
         let span = self.span_from(start);
-        Ok(match prefix.as_str() {
+        Ok(match prefix {
             "#" => ast::Expression::Lex(ast::Lex::new(span, Box::new(labeled))),
             "&" => ast::Expression::And(ast::And::new(span, Box::new(labeled))),
             "!" => ast::Expression::Not(ast::Not::new(span, Box::new(labeled))),
@@ -188,7 +188,7 @@ impl Parser {
             |p| p.expect_str("⁷"),
             |p| p.expect_str("⁸"),
             |p| p.expect_str("⁹"),
-            |_| Ok("".to_string()),
+            |_| Ok(""),
         ])?;
         let span = self.span_from(start);
         Ok(match suffix.as_ref() {
@@ -562,11 +562,11 @@ impl Parser {
 
     /// Tries to match each character within `expected` against the
     /// input source.  It starts from where the read cursor currently is.
-    fn expect_str(&mut self, expected: &str) -> Result<String, Error> {
+    fn expect_str(&mut self, expected: &'static str) -> Result<&'static str, Error> {
         for c in expected.chars() {
             self.expect(c)?;
         }
-        Ok(expected.to_string())
+        Ok(expected)
     }
 
     /// Compares `expected` to the current character under the cursor,

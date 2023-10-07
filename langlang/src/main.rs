@@ -8,7 +8,6 @@ use langlang_value::format;
 use langlang_value::value::Value;
 
 use clap::{Parser, Subcommand};
-use log::warn;
 
 /// Enumeration of all sub commands supported by this binary
 #[derive(Subcommand)]
@@ -44,19 +43,16 @@ struct Cli {
     command: Command,
 }
 
-type FormattingFunc = fn(v: &Value) -> String;
+type FormattingFunc = fn(v: &Value);
 
-fn formatter(name: &str) -> FormattingFunc {
+fn outputfn(name: &str) -> FormattingFunc {
     match name {
-        "" => format::compact,
-        "compact" => format::compact,
-        "html" => format::html,
-        "indented" => format::indented,
-        "raw" => format::raw,
-        _ => {
-            warn!("oh no! an invalud formatter: {}", name);
-            format::raw
-        }
+        "nil" => |_| {},
+        "compact" => |v| println!("{}", format::compact(v)),
+        "html" => |v| println!("{}", format::html(v)),
+        "indented" => |v| println!("{}", format::indented(v)),
+        "raw" => |v| println!("{}", format::raw(v)),
+        _ => |_| println!(""),
     }
 }
 
@@ -69,7 +65,7 @@ fn command_run(
     let importer = import::ImportResolver::new(import::RelativeImportLoader::default());
     let ast = importer.resolve(grammar_file)?;
     let program = compiler::Compiler::default().compile(&ast, start_rule)?;
-    let fmt = formatter(output_format.as_ref().unwrap_or(&"fmt".to_string()));
+    let fmt = outputfn(output_format.as_ref().unwrap_or(&"raw".to_string()));
 
     match input_file {
         Some(input_file) => {
@@ -77,7 +73,7 @@ fn command_run(
             let mut m = VM::new(&program);
             match m.run_str(&input_data)? {
                 None => println!("not much"),
-                Some(v) => println!("{}", fmt(&v)),
+                Some(v) => fmt(&v),
             }
         }
         None => {
@@ -109,7 +105,7 @@ fn command_run(
                 let mut m = VM::new(&program);
                 match m.run_str(&line)? {
                     None => println!("not much"),
-                    Some(v) => println!("{}", fmt(&v)),
+                    Some(v) => fmt(&v),
                 }
             }
         }

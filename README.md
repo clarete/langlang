@@ -1,28 +1,28 @@
 
 # Table of Contents
 
-1.  [Introduction](#org397e947)
-    1.  [Project Status](#org4dca803)
-    2.  [Currently supported output languages](#org2d37dca)
-        1.  [Notes](#org9c99f76)
-    3.  [Basic Usage](#orgbc211c8)
-2.  [Input Language](#org27c724b)
-    1.  [Productions and Expressions](#orged6c072)
-    2.  [Terminals](#org669fbde)
-    3.  [Non-Terminals](#org6cdff7b)
-    4.  [Expression Composition](#org428af61)
-        1.  [Ordered Choice](#org472bf5e)
-        2.  [Syntactic Predicates](#orgda8d13c)
-        3.  [Repetitions](#org8ddf247)
-        4.  [Lexification](#org39cef91)
-        5.  [Error reporting with Labels](#orgb773c62)
-        6.  [Import system](#org6c4da32)
-3.  [Generator Options](#orgf820c66)
-    1.  [Go](#org4d5f143)
-4.  [Roadmap](#orga59342f)
+1.  [Introduction](#org8732973)
+    1.  [Project Status](#orge7a5a11)
+    2.  [Currently supported output languages](#org089cdd8)
+        1.  [Notes](#orgefa277d)
+    3.  [Basic Usage](#org70d99bb)
+2.  [Input Language](#org91326ec)
+    1.  [Productions and Expressions](#org0f6995b)
+    2.  [Terminals](#org8644a5d)
+    3.  [Non-Terminals](#org93b29d7)
+    4.  [Expression Composition](#org4574f72)
+        1.  [Ordered Choice](#org77a3e72)
+        2.  [Syntactic Predicates](#orgeb93c03)
+        3.  [Repetitions](#org0849921)
+        4.  [Lexification](#orga52c89c)
+        5.  [Error reporting with Labels](#org55404e7)
+        6.  [Import system](#org1ef85e7)
+3.  [Generator Options](#org201e3a6)
+    1.  [Go](#org894b7c3)
+4.  [Roadmap](#orgebfe363)
 
 
-<a id="org397e947"></a>
+<a id="org8732973"></a>
 
 # Introduction
 
@@ -31,14 +31,14 @@ different languages.  The are reasons why you might want to use this:
 
 -   Concise input grammar format and intuitive algorithm: generates
     recursive top-down parsers based on Parsing Expression Grammars
--   Automatic handling of white spaces, making grammars less cluttered
+-   Automatic handling of whitespaces, making grammars less cluttered
 -   Error reporting with custom messages via failure `labels`
 -   Partial support for declaring error recovery rules, which allow
     incremental parsing that returns an output tree even upon multiple
     parsing errors.
 
 
-<a id="org4dca803"></a>
+<a id="orge7a5a11"></a>
 
 ## Project Status
 
@@ -50,7 +50,7 @@ different languages.  The are reasons why you might want to use this:
     first, then being stable, then being featureful.
 
 
-<a id="org2d37dca"></a>
+<a id="org089cdd8"></a>
 
 ## Currently supported output languages
 
@@ -61,7 +61,7 @@ different languages.  The are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="org9c99f76"></a>
+<a id="orgefa277d"></a>
 
 ### Notes
 
@@ -81,7 +81,7 @@ different languages.  The are reasons why you might want to use this:
     languages than Rust and Go.
 
 
-<a id="orgbc211c8"></a>
+<a id="org70d99bb"></a>
 
 ## Basic Usage
 
@@ -98,12 +98,12 @@ of the repository.  It contains a grammar library for commonly used
 input formats.
 
 
-<a id="org27c724b"></a>
+<a id="org91326ec"></a>
 
 # Input Language
 
 
-<a id="orged6c072"></a>
+<a id="org0f6995b"></a>
 
 ## Productions and Expressions
 
@@ -120,7 +120,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="org669fbde"></a>
+<a id="org8644a5d"></a>
 
 ## Terminals
 
@@ -137,7 +137,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="org6cdff7b"></a>
+<a id="org93b29d7"></a>
 
 ## Non-Terminals
 
@@ -153,7 +153,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="org428af61"></a>
+<a id="org4574f72"></a>
 
 ## Expression Composition
 
@@ -237,7 +237,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="org472bf5e"></a>
+<a id="org77a3e72"></a>
 
 ### Ordered Choice
 
@@ -250,7 +250,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="orgda8d13c"></a>
+<a id="orgeb93c03"></a>
 
 ### Syntactic Predicates
 
@@ -265,7 +265,7 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="org8ddf247"></a>
+<a id="org0849921"></a>
 
 ### Repetitions
 
@@ -279,7 +279,7 @@ The **and** predicate (`&`) is just syntactical sugar for `!!`.
 -   **Optional** will match an expression zero or one time.
 
 
-<a id="org39cef91"></a>
+<a id="orga52c89c"></a>
 
 ### Lexification
 
@@ -383,12 +383,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="orgb773c62"></a>
+<a id="org55404e7"></a>
 
 ### Error reporting with Labels
 
 
-<a id="org6c4da32"></a>
+<a id="org1ef85e7"></a>
 
 ### Import system
 
@@ -419,12 +419,12 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="orgf820c66"></a>
+<a id="org201e3a6"></a>
 
 # Generator Options
 
 
-<a id="org4d5f143"></a>
+<a id="org894b7c3"></a>
 
 ## Go
 
@@ -442,7 +442,7 @@ command line:
     `NewTinyParser` constructor, etc.
 
 
-<a id="orga59342f"></a>
+<a id="orgebfe363"></a>
 
 # Roadmap
 

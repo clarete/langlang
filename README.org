@@ -5,7 +5,7 @@ different languages.  The are reasons why you might want to use this:
 
  - Concise input grammar format and intuitive algorithm: generates
    recursive top-down parsers based on Parsing Expression Grammars
- - Automatic handling of white spaces, making grammars less cluttered
+ - Automatic handling of whitespaces, making grammars less cluttered
  - Error reporting with custom messages via failure ~labels~
  - Partial support for declaring error recovery rules, which allow
    incremental parsing that returns an output tree even upon multiple

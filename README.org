@@ -135,7 +135,7 @@ SomeDigits <- '0' / '1' / '2' / '3' / '4'
 
 Passing ~6~ to the above expression will generate an error.
 
-*** Predicates (Not/And)
+*** Syntactic Predicates
 
 Predicates are the mechanism that allows unlimited look ahead, as they
 do not consume any input.  e.g.:

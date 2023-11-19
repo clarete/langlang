@@ -149,7 +149,7 @@ parser finds the closing square bracket.
 
 The *and* predicate (~&~) is just syntactical sugar for ~!!~.
 
-*** Repetition ({Zero,One} Or More)
+*** Repetitions
 
  * *Zero Or More* never fails because, as it can match its expression at
    least zero times.

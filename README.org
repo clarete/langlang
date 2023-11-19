@@ -151,14 +151,14 @@ The *and* predicate (~&~) is just syntactical sugar for ~!!~.
 
 *** Repetition ({Zero,One} Or More)
 
- * *Zero Or More*: it never fails, as it can match its expression at
+ * *Zero Or More* never fails because, as it can match its expression at
    least zero times.
 
- * *One Or More* is the syntax sugar for calling the expression once,
-   followed by applying zero or more to the same expression.  It can
+ * *One Or More* the syntax sugar for calling the expression once,
+   followed by applying zero or more to the same expression. It can
    fail at the first time it matches the expression.
 
- * *Optional* it will match an expression zero or one time.
+ * *Optional* will match an expression zero or one time.
 
 *** Lexification
 

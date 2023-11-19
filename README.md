@@ -1,28 +1,28 @@
 
 # Table of Contents
 
-1.  [Introduction](#org405acc6)
-    1.  [Project Status](#org556f9ce)
-    2.  [Currently supported output languages](#org4776c16)
-        1.  [Notes](#org876df59)
-    3.  [Basic Usage](#org542ba43)
-2.  [Input Language](#org90c5995)
-    1.  [Productions and Expressions](#org62beac2)
-    2.  [Terminals](#orgc384b13)
-    3.  [Non-Terminals](#org7f00c6a)
-    4.  [Expression Composition](#orgb0d9185)
-        1.  [Ordered Choice](#orga7d7338)
-        2.  [Predicates (Not/And)](#org4265dd1)
-        3.  [Repetition ({Zero,One} Or More)](#orgbe29b6e)
-        4.  [Lexification](#orgac292e8)
-        5.  [Error reporting with Labels](#org8205c07)
-        6.  [Import system](#orgbdb40ca)
-3.  [Generator Options](#org51dc365)
-    1.  [Go](#org0c9b4e4)
-4.  [Roadmap](#org5a22e12)
+1.  [Introduction](#org54db36f)
+    1.  [Project Status](#orgba20120)
+    2.  [Currently supported output languages](#orgf06766e)
+        1.  [Notes](#orgde7c6cd)
+    3.  [Basic Usage](#org827a58e)
+2.  [Input Language](#org5f257fc)
+    1.  [Productions and Expressions](#org713e789)
+    2.  [Terminals](#org8826913)
+    3.  [Non-Terminals](#org66ef859)
+    4.  [Expression Composition](#org6c47633)
+        1.  [Ordered Choice](#orge286c6f)
+        2.  [Predicates (Not/And)](#orgc6beb07)
+        3.  [Repetition ({Zero,One} Or More)](#org8b405ea)
+        4.  [Lexification](#org9844f2b)
+        5.  [Error reporting with Labels](#orgf86f54e)
+        6.  [Import system](#org676394a)
+3.  [Generator Options](#org6e14752)
+    1.  [Go](#org97388b4)
+4.  [Roadmap](#org9ae64c5)
 
 
-<a id="org405acc6"></a>
+<a id="org54db36f"></a>
 
 # Introduction
 
@@ -38,7 +38,7 @@ different languages.  The are reasons why you might want to use this:
     parsing errors.
 
 
-<a id="org556f9ce"></a>
+<a id="orgba20120"></a>
 
 ## Project Status
 
@@ -50,7 +50,7 @@ different languages.  The are reasons why you might want to use this:
     first, then being stable, then being featureful.
 
 
-<a id="org4776c16"></a>
+<a id="orgf06766e"></a>
 
 ## Currently supported output languages
 
@@ -61,7 +61,7 @@ different languages.  The are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="org876df59"></a>
+<a id="orgde7c6cd"></a>
 
 ### Notes
 
@@ -81,7 +81,7 @@ different languages.  The are reasons why you might want to use this:
     languages than Rust and Go.
 
 
-<a id="org542ba43"></a>
+<a id="org827a58e"></a>
 
 ## Basic Usage
 
@@ -98,12 +98,12 @@ of the repository.  It contains a grammar library for commonly used
 input formats.
 
 
-<a id="org90c5995"></a>
+<a id="org5f257fc"></a>
 
 # Input Language
 
 
-<a id="org62beac2"></a>
+<a id="org713e789"></a>
 
 ## Productions and Expressions
 
@@ -120,7 +120,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="orgc384b13"></a>
+<a id="org8826913"></a>
 
 ## Terminals
 
@@ -137,7 +137,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="org7f00c6a"></a>
+<a id="org66ef859"></a>
 
 ## Non-Terminals
 
@@ -153,7 +153,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orgb0d9185"></a>
+<a id="org6c47633"></a>
 
 ## Expression Composition
 
@@ -237,7 +237,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="orga7d7338"></a>
+<a id="orge286c6f"></a>
 
 ### Ordered Choice
 
@@ -250,7 +250,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="org4265dd1"></a>
+<a id="orgc6beb07"></a>
 
 ### Predicates (Not/And)
 
@@ -265,21 +265,21 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="orgbe29b6e"></a>
+<a id="org8b405ea"></a>
 
 ### Repetition ({Zero,One} Or More)
 
--   **Zero Or More**: it never fails, as it can match its expression at
+-   **Zero Or More** never fails because, as it can match its expression at
     least zero times.
 
--   **One Or More** is the syntax sugar for calling the expression once,
-    followed by applying zero or more to the same expression.  It can
+-   **One Or More** the syntax sugar for calling the expression once,
+    followed by applying zero or more to the same expression. It can
     fail at the first time it matches the expression.
 
--   **Optional** it will match an expression zero or one time.
+-   **Optional** will match an expression zero or one time.
 
 
-<a id="orgac292e8"></a>
+<a id="org9844f2b"></a>
 
 ### Lexification
 
@@ -383,12 +383,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="org8205c07"></a>
+<a id="orgf86f54e"></a>
 
 ### Error reporting with Labels
 
 
-<a id="orgbdb40ca"></a>
+<a id="org676394a"></a>
 
 ### Import system
 
@@ -419,12 +419,12 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="org51dc365"></a>
+<a id="org6e14752"></a>
 
 # Generator Options
 
 
-<a id="org0c9b4e4"></a>
+<a id="org97388b4"></a>
 
 ## Go
 
@@ -442,7 +442,7 @@ command line:
     `NewTinyParser` constructor, etc.
 
 
-<a id="org5a22e12"></a>
+<a id="org9ae64c5"></a>
 
 # Roadmap
 

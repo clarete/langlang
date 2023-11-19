@@ -1,56 +1,57 @@
 
 # Table of Contents
 
-1.  [Introduction](#org6c3d217)
-    1.  [Project Status](#org6c5d5ef)
-    2.  [Currently supported output languages](#orgf688c54)
-        1.  [Notes](#org8cb0b98)
-    3.  [Basic Usage](#org9d8ed89)
-2.  [Input Language](#orgc8eb565)
-    1.  [Productions and Expressions](#org31bbc90)
-    2.  [Terminals](#org9ba338b)
-    3.  [Non-Terminals](#orgb5b47dc)
-    4.  [Expression Composition](#orgf59985e)
-        1.  [Ordered Choice](#org06520a7)
-        2.  [Predicates (Not/And)](#org41c997f)
-        3.  [Repetition ({Zero,One} Or More)](#org71bd02e)
-        4.  [Lexification](#orgd670ab2)
-        5.  [Error reporting with Labels](#org1fcee3d)
-        6.  [Import system](#orgf182d74)
-3.  [Generator Options](#orgcd645aa)
-    1.  [Go](#orgfd49fb8)
-4.  [Roadmap](#orgd15f717)
+1.  [Introduction](#org7e30ee3)
+    1.  [Project Status](#orga8607c2)
+    2.  [Currently supported output languages](#org8b85247)
+        1.  [Notes](#org0e35eea)
+    3.  [Installation](#org5cf7a75)
+    4.  [Basic Usage](#org0c4491d)
+2.  [Input Language](#org9d0d47e)
+    1.  [Productions and Expressions](#org5ff44e3)
+    2.  [Terminals](#orgd8b081f)
+    3.  [Non-Terminals](#orgecb2efb)
+    4.  [Expression Composition](#orgfd8502d)
+        1.  [Ordered Choice](#orgce6abfe)
+        2.  [Predicates (Not/And)](#org1cd7d71)
+        3.  [Repetition ({Zero,One} Or More)](#org947fe5e)
+        4.  [Lexification](#orgef08cd1)
+        5.  [Error reporting with Labels](#orge78757c)
+        6.  [Import system](#org32c2020)
+3.  [Generator Options](#org3b96b44)
+    1.  [Go](#orga40bf10)
+4.  [Roadmap](#org4535272)
 
 
-<a id="org6c3d217"></a>
+<a id="org7e30ee3"></a>
 
 # Introduction
 
-Bring your own grammar and get a feature rich parser generated for
-different languages.  The are reasons why you might want to use this:
+Bring your own grammar and get a feature-rich parser generated for
+different languages. The reasons why you might want to use this:
 
--   Concise input grammar format and intuitive algorithm: generates
-    recursive top-down parsers based on Parsing Expression Grammars
--   Automatic handling of white spaces, making grammars less cluttered
+-   Concise input-grammar format and intuitive algorithm: generates
+    recursive top-down parsers based on [Parsing Expression Grammars](https://doi.org/10.1145/964001.964011)
+-   Automatic handling of white-spaces, making grammars less cluttered
 -   Error reporting with custom messages via failure `labels`
 -   Partial support for declaring error recovery rules, which allow
     incremental parsing that returns an output tree even upon multiple
     parsing errors.
 
 
-<a id="org6c5d5ef"></a>
+<a id="orga8607c2"></a>
 
 ## Project Status
 
 -   We're not 1.0 yet, so the API is not stable, which means that data
-    structure shapes might change, and/or behavihor might change,
-    drastically, and without much notice.
+    structure shapes might change, and/or behavihor might change
+    drastically and without much notice.
 -   Don't submit pull requests without opening an issue and discussing
     your idea.  We will take the slow approach aiming at great design
     first, then being stable, then being featureful.
 
 
-<a id="orgf688c54"></a>
+<a id="org8b85247"></a>
 
 ## Currently supported output languages
 
@@ -61,7 +62,7 @@ different languages.  The are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="org8cb0b98"></a>
+<a id="org0e35eea"></a>
 
 ### Notes
 
@@ -81,29 +82,38 @@ different languages.  The are reasons why you might want to use this:
     languages than Rust and Go.
 
 
-<a id="org9d8ed89"></a>
+<a id="org5cf7a75"></a>
+
+## Installation
+
+    cargo install langlang
+
+
+<a id="org0c4491d"></a>
 
 ## Basic Usage
 
-If you just want to test the waters, point the command line utility at
-a grammar and pick a starting rule:
+Let's start by validating a pre-defined grammar.
 
-    cargo run --bin langlang run --grammar-file grammars/json.peg --start-rule JSON
+Langlang's command-line includes an interactive shell for validating PEG files and inspecting its rules.
 
-That will drop you into an initeractive shell that allows you to try
-out different input expressions.
+For instance, let's inspect the [json](https://github.com/clarete/langlang/blob/205d212cdf9ebe00a7ff4b367e818af98ec32d89/grammars/json.peg) grammar:
 
-Take a look at other examples at the directory `grammars` in the root
-of the repository.  It contains a grammar library for commonly used
-input formats.
+    langlang run --grammar-file grammars/json.peg --start-rule JSON
+
+Notice that the `start-rule` points to the [PEG rule](https://github.com/clarete/langlang/blob/205d212cdf9ebe00a7ff4b367e818af98ec32d89/grammars/json.peg#L3) which points to its siblings and in this particular case is labeled by the nonterminal `JSON`
+
+Langlang's command-line utility leverages debugging other rules as well, which can be useful throughout the feedback-loop of developing a new grammar.
+
+Take a look at the [`grammars`](https://github.com/clarete/langlang/tree/205d212cdf9ebe00a7ff4b367e818af98ec32d89/grammars) directory of the Langlang repo which contains definitions for common grammars such as JSON, CSV, RFC3986 URI's et cetera.
 
 
-<a id="orgc8eb565"></a>
+<a id="org9d0d47e"></a>
 
 # Input Language
 
 
-<a id="org31bbc90"></a>
+<a id="org5ff44e3"></a>
 
 ## Productions and Expressions
 
@@ -120,7 +130,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="org9ba338b"></a>
+<a id="orgd8b081f"></a>
 
 ## Terminals
 
@@ -137,7 +147,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="orgb5b47dc"></a>
+<a id="orgecb2efb"></a>
 
 ## Non-Terminals
 
@@ -153,7 +163,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orgf59985e"></a>
+<a id="orgfd8502d"></a>
 
 ## Expression Composition
 
@@ -237,7 +247,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="org06520a7"></a>
+<a id="orgce6abfe"></a>
 
 ### Ordered Choice
 
@@ -250,7 +260,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="org41c997f"></a>
+<a id="org1cd7d71"></a>
 
 ### Predicates (Not/And)
 
@@ -265,7 +275,7 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="org71bd02e"></a>
+<a id="org947fe5e"></a>
 
 ### Repetition ({Zero,One} Or More)
 
@@ -279,7 +289,7 @@ The **and** predicate (`&`) is just syntactical sugar for `!!`.
 -   **Optional** it will match an expression zero or one time.
 
 
-<a id="orgd670ab2"></a>
+<a id="orgef08cd1"></a>
 
 ### Lexification
 
@@ -383,12 +393,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="org1fcee3d"></a>
+<a id="orge78757c"></a>
 
 ### Error reporting with Labels
 
 
-<a id="orgf182d74"></a>
+<a id="org32c2020"></a>
 
 ### Import system
 
@@ -398,7 +408,7 @@ more powerful parser generated at the end.
 
     // file player.peg
     @import AddrSpec from "./rfc5322.peg"
-    
+
     Player <- "Name:" Name "," "Score:" Number "," "Email:" AddrSpec
     Name   <- [a-zA-Z ]+
     Number <- [0-9]+
@@ -406,7 +416,7 @@ more powerful parser generated at the end.
 
     // file rfc5322.peg
     // https://datatracker.ietf.org/doc/html/rfc5322#section-3.4.1
-    
+
     // ... elided for simplicity
     AddrSpec  <- LocalPart "@" Domain
     LocalPart <- DotAtom / QuotedString / ObsLocalPart
@@ -419,12 +429,12 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="orgcd645aa"></a>
+<a id="org3b96b44"></a>
 
 # Generator Options
 
 
-<a id="orgfd49fb8"></a>
+<a id="orga40bf10"></a>
 
 ## Go
 
@@ -442,7 +452,7 @@ command line:
     `NewTinyParser` constructor, etc.
 
 
-<a id="orgd15f717"></a>
+<a id="org4535272"></a>
 
 # Roadmap
 
@@ -456,4 +466,3 @@ command line:
 -   [ ] MID: Display Call Graph for debugging purposes
 -   [ ] BIG: Bootstrap off hand written parser, so grammar writters can
     take advantage of the features baked into the parser generator
-

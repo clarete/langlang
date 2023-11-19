@@ -1,11 +1,11 @@
 * Introduction
 
-Bring your own grammar and get a feature rich parser generated for
-different languages.  The are reasons why you might want to use this:
+Bring your own grammar and get a feature-rich parser generated for
+different languages. The reasons why you might want to use this:
 
- - Concise input grammar format and intuitive algorithm: generates
-   recursive top-down parsers based on Parsing Expression Grammars
- - Automatic handling of white spaces, making grammars less cluttered
+ - Concise input-grammar format and intuitive algorithm: generates
+   recursive top-down parsers based on [[https://doi.org/10.1145/964001.964011][Parsing Expression Grammars]]
+ - Automatic handling of white-spaces, making grammars less cluttered
  - Error reporting with custom messages via failure ~labels~
  - Partial support for declaring error recovery rules, which allow
    incremental parsing that returns an output tree even upon multiple
@@ -14,8 +14,8 @@ different languages.  The are reasons why you might want to use this:
 ** Project Status
 
  - We're not 1.0 yet, so the API is not stable, which means that data
-   structure shapes might change, and/or behavihor might change,
-   drastically, and without much notice.
+   structure shapes might change, and/or behavihor might change
+   drastically and without much notice.
  - Don't submit pull requests without opening an issue and discussing
    your idea.  We will take the slow approach aiming at great design
    first, then being stable, then being featureful.
@@ -45,21 +45,32 @@ different languages.  The are reasons why you might want to use this:
     better as it will make it easier to generate parsers for other
     languages than Rust and Go.
 
-** Basic Usage
 
-If you just want to test the waters, point the command line utility at
-a grammar and pick a starting rule:
+** Installation
 
 #+begin_src bash
-cargo run --bin langlang run --grammar-file grammars/json.peg --start-rule JSON
+cargo install langlang
 #+end_src
 
-That will drop you into an initeractive shell that allows you to try
-out different input expressions.
 
-Take a look at other examples at the directory ~grammars~ in the root
-of the repository.  It contains a grammar library for commonly used
-input formats.
+** Basic Usage
+
+Let's start by validating a pre-defined grammar.
+
+Langlang's command-line includes an interactive shell for validating PEG files and inspecting its rules.
+
+For instance, let's inspect the [[https://github.com/clarete/langlang/blob/205d212cdf9ebe00a7ff4b367e818af98ec32d89/grammars/json.peg][json]] grammar:
+
+#+begin_src bash
+langlang run --grammar-file grammars/json.peg --start-rule JSON
+#+end_src
+
+Notice that the ~start-rule~ points to the [[https://github.com/clarete/langlang/blob/205d212cdf9ebe00a7ff4b367e818af98ec32d89/grammars/json.peg#L3][PEG rule]] which points to its siblings and in this particular case is labeled by the nonterminal ~JSON~
+
+Langlang's command-line utility leverages debugging other rules as well, which can be useful throughout the feedback-loop of developing a new grammar.
+
+Take a look at the [[https://github.com/clarete/langlang/tree/205d212cdf9ebe00a7ff4b367e818af98ec32d89/grammars][~grammars~]] directory of the Langlang repo which contains definitions for common grammars such as JSON, CSV, RFC3986 URI's et cetera.
+
 
 * Input Language
 ** Productions and Expressions

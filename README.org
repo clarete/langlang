@@ -5,7 +5,7 @@ different languages.  The are reasons why you might want to use this:
 
  - Concise input grammar format and intuitive algorithm: generates
    recursive top-down parsers based on Parsing Expression Grammars
- - Automatic handling of white spaces, making grammars less cluttered
+ - Automatic handling of whitespaces, making grammars less cluttered
  - Error reporting with custom messages via failure ~labels~
  - Partial support for declaring error recovery rules, which allow
    incremental parsing that returns an output tree even upon multiple
@@ -135,7 +135,7 @@ SomeDigits <- '0' / '1' / '2' / '3' / '4'
 
 Passing ~6~ to the above expression will generate an error.
 
-*** Predicates (Not/And)
+*** Syntactic Predicates
 
 Predicates are the mechanism that allows unlimited look ahead, as they
 do not consume any input.  e.g.:
@@ -149,16 +149,16 @@ parser finds the closing square bracket.
 
 The *and* predicate (~&~) is just syntactical sugar for ~!!~.
 
-*** Repetition ({Zero,One} Or More)
+*** Repetitions
 
- * *Zero Or More*: it never fails, as it can match its expression at
+ * *Zero Or More* never fails because, as it can match its expression at
    least zero times.
 
- * *One Or More* is the syntax sugar for calling the expression once,
-   followed by applying zero or more to the same expression.  It can
+ * *One Or More* the syntax sugar for calling the expression once,
+   followed by applying zero or more to the same expression. It can
    fail at the first time it matches the expression.
 
- * *Optional* it will match an expression zero or one time.
+ * *Optional* will match an expression zero or one time.
 
 *** Lexification
 
@@ -206,7 +206,7 @@ disabled.  This is what is expected
 
 The first input succeeds because space consumption is automatically
 added to the left of the call to the non terminal ~Decimal~, as
-~Ordinal~ is not syntactic.  But, because the expression that follows
+~Ordinal~ is not syntactic.  But because the expression that follows
 the non terminal is marked with the lexification operator, automatic
 space handling won't be injected between the call to the non terminal
 and the ordered choice with the syntactic suffixed ~st~, ~nd~, ~rd~,

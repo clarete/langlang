@@ -411,7 +411,7 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 
 	g.parser.write("func(p langlang.Parser) (langlang.Value, error) {\n")
 	g.parser.indent()
-	g.parser.writei("start = p.Location()\n")
+	g.parser.writei("start := p.Location()\n")
 
 	g.parser.writei("return langlang.Choice(p, []langlang.ParserFn[langlang.Value]{\n")
 	g.parser.indent()

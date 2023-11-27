@@ -40,8 +40,10 @@ func (r *ImportResolver) resolve(importPath, parentPath string) (*importerResolv
 
 			parentFrame.addNewDefinition(importedDefinition)
 
-			for _, depDef := range childFrame.findDefinitionDeps(importedDefinition) {
-				parentFrame.addNewDefinition(depDef)
+			deps := childFrame.findDefinitionDeps(importedDefinition)
+
+			for _, depName := range deps.names {
+				parentFrame.addNewDefinition(deps.nodes[depName])
 			}
 		}
 	}
@@ -124,17 +126,22 @@ func (f *importerResolverFrame) addNewDefinition(n *DefinitionNode) {
 	}
 }
 
+type sortedDeps struct {
+	names []string
+	nodes map[string]*DefinitionNode
+}
+
 // findDefinitionDeps traverses the definition `node` and finds all
 // identifiers within it.  If the identifier hasn't been seen yet, it
 // will add it to the dependency list, and traverse into the
 // definition that points into that identifier.
-func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) map[string]*DefinitionNode {
-	deps := map[string]*DefinitionNode{}
-	f.doFindDefinitionDeps(node.Expr, &deps)
+func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) *sortedDeps {
+	deps := &sortedDeps{names: []string{}, nodes: map[string]*DefinitionNode{}}
+	f.doFindDefinitionDeps(node.Expr, deps)
 	return deps
 }
 
-func (f *importerResolverFrame) doFindDefinitionDeps(node Node, deps *map[string]*DefinitionNode) {
+func (f *importerResolverFrame) doFindDefinitionDeps(node Node, deps *sortedDeps) {
 	switch n := node.(type) {
 	case *IdentifierNode:
 		// Built-in rule; has no dependencies
@@ -143,13 +150,14 @@ func (f *importerResolverFrame) doFindDefinitionDeps(node Node, deps *map[string
 		}
 
 		// Let's not recurse if this dep has been seen already
-		if _, ok := (*deps)[n.Value]; ok {
+		if _, ok := deps.nodes[n.Value]; ok {
 			return
 		}
 
 		// save definition as a dependency and recurse into it
 		def := f.Grammar.DefsByName[n.Value]
-		(*deps)[n.Value] = def
+		deps.nodes[n.Value] = def
+		deps.names = append(deps.names, n.Value)
 		f.doFindDefinitionDeps(def.Expr, deps)
 	case *SequenceNode:
 		for _, item := range n.Items {

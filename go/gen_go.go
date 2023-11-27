@@ -243,7 +243,7 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.parser.writei(fmt.Sprintf("langlang.NewValueNode(\"%s\", item, langlang.NewSpan(start, p.Location())),\n", n.Name))
 
 	g.parser.unindent()
-	g.parser.writei("\n)\n")
+	g.parser.writei(")\n")
 
 	g.parser.unindent()
 	g.parser.write("\n}\n")

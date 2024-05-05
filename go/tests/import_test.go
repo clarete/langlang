@@ -50,6 +50,10 @@ func TestImport(t *testing.T) {
 		Error string
 	}{
 		{
+			Name:  " accept overriden",
+			Input: "0xLOL",
+			Error: "LabelHex @ 2",
+		}, {
 			Name:  "Dont accept overriden",
 			Input: "3+#xC0FFEE",
 			Error: "term_right_operand @ 2",

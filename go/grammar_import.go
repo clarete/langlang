@@ -180,6 +180,12 @@ func (f *importerResolverFrame) doFindDefinitionDeps(node Node, deps *sortedDeps
 	case *LexNode:
 		f.doFindDefinitionDeps(n.Expr, deps)
 	case *LabeledNode:
+		// save definition as a dependency and recurse into it
+		if def, ok := f.Grammar.DefsByName[n.Label]; ok {
+			deps.nodes[n.Label] = def
+			deps.names = append(deps.names, n.Label)
+			f.doFindDefinitionDeps(def.Expr, deps)
+		}
 		f.doFindDefinitionDeps(n.Expr, deps)
 	}
 }

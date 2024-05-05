@@ -6,4 +6,8 @@ Boolean <- 'true' / 'false'
 
 // overrides what's defined within Number
 Binary      <- '0b' [0-1]+
-Hexadecimal <- '0x' [a-fA-F0-9]+
+Hexadecimal <- '0x' [a-fA-F0-9]+^LabelHex
+
+// recovery expression for failure on the last subexpression of the
+// Hexadecimal rule
+LabelHex    <- (!Value .)*

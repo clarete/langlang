@@ -16,3 +16,7 @@ path = "unit.rs"
 [[test]]
 name = "wshinsert"
 path = "wshinsert.rs"
+
+[[test]]
+name = "import_integration"
+path = "import_integration.rs"

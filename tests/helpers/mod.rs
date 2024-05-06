@@ -11,13 +11,17 @@ pub fn compile(cc: &compiler::Config, grammar: &str, start: &str) -> vm::Program
     let ast = importer.resolve(Path::new("main")).unwrap();
     println!("PEG:\n{}", ast.to_string());
     let mut c = compiler::Compiler::new(cc.clone());
-    let program = c.compile(&ast, start).unwrap();
+    let program = c.compile(&ast, Some(start)).unwrap();
     println!("PROGRAM:\n{}", program);
     program
 }
 
 #[allow(dead_code)]
-pub fn compile_file(cc: &compiler::Config, grammar_file: &str, start_rule: &str) -> vm::Program {
+pub fn compile_file(
+    cc: &compiler::Config,
+    grammar_file: &str,
+    start_rule: Option<&str>,
+) -> vm::Program {
     let importer = import::ImportResolver::new(import::RelativeImportLoader::default());
     let ast = importer.resolve(Path::new(grammar_file)).unwrap();
     let mut c = compiler::Compiler::new(cc.clone());

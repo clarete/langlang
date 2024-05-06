@@ -475,7 +475,7 @@ fn test_expand_tree_0() {
     let rewrite = compiler::expand(&original_ast);
 
     let mut c = compiler::Compiler::new(cc);
-    let list_program = c.compile(&rewrite, "A").unwrap();
+    let list_program = c.compile(&rewrite, Some("A")).unwrap();
     let value = vm::VM::new(&list_program).run(vec![output.unwrap().unwrap()]);
     assert_match("A[A[F]]", value);
 }

@@ -44,6 +44,6 @@ fn test_lexification_on_single_item() {
 
 fn run(start: &str, input: &str) -> Result<Option<Value>, vm::Error> {
     let cc = compiler::Config::default();
-    let program = helpers::compile_file(&cc, "wshinsert.peg", start);
+    let program = helpers::compile_file(&cc, "wshinsert.peg", Some(start));
     helpers::run_str(&program, input)
 }

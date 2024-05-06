@@ -22,7 +22,7 @@ enum Command {
 
         /// Choose what's the first production to run
         #[arg(short, long)]
-        start_rule: String,
+        start_rule: Option<String>,
 
         /// Path to the content to be matched against the grammar;
         /// Omitting it will drop you in an interactive shell
@@ -58,13 +58,20 @@ fn outputfn(name: &str) -> FormattingFunc {
 
 fn command_run(
     grammar_file: &Path,
-    start_rule: &str,
+    start_rule: &Option<String>,
     input_file: &Option<PathBuf>,
     output_format: &Option<String>,
 ) -> Result<(), langlang_lib::Error> {
     let importer = import::ImportResolver::new(import::RelativeImportLoader::default());
     let ast = importer.resolve(grammar_file)?;
-    let program = compiler::Compiler::default().compile(&ast, start_rule)?;
+    // This is a little ugly but it's converting from &Option<String> to Option<&str>
+    let program = compiler::Compiler::default().compile(
+        &ast,
+        match start_rule {
+            Some(n) => Some(&n),
+            None => None,
+        },
+    )?;
     let fmt = outputfn(output_format.as_ref().unwrap_or(&"raw".to_string()));
 
     match input_file {

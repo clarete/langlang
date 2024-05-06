@@ -80,6 +80,9 @@ pub struct Compiler {
     // Map from set of positions of the first instruction of rules to
     // the position of their index in the strings map
     identifiers: HashMap<usize, usize>,
+    // Vec of identifier addresses sorted by the order they appear in
+    // the grammar.
+    identifier_names: Vec<usize>,
     // Map from call site addresses to production names that keeps
     // calls that need to be patched because they occurred syntaticaly
     // before the definition of the production
@@ -110,6 +113,7 @@ impl Compiler {
             strings: vec![],
             strings_map: HashMap::new(),
             identifiers: HashMap::new(),
+            identifier_names: Vec::new(),
             funcs: HashMap::new(),
             addrs: HashMap::new(),
             labels: HashMap::new(),
@@ -122,7 +126,11 @@ impl Compiler {
 
     /// compile a Grammar in its AST form into a program executable by
     /// the virtual machine
-    pub fn compile(&mut self, grammar: &ast::Grammar, main: &str) -> Result<Program, Error> {
+    pub fn compile(
+        &mut self,
+        grammar: &ast::Grammar,
+        main: Option<&str>,
+    ) -> Result<Program, Error> {
         DetectLeftRec::default().run(grammar, &mut self.left_rec)?;
         self.code_gen(grammar);
         self.backpatch_callsites()?;
@@ -212,11 +220,21 @@ impl Compiler {
     /// Find the address of the production `main` and write a call
     /// instruction pointing to such address at the first entry of the
     /// code vector.
-    fn pick_main(&mut self, main: &str) {
-        let id = self.push_string(main);
+    fn pick_main(&mut self, main: Option<&str>) {
+        let (id, name) = match main {
+            None => (
+                self.identifier_names[0],
+                &self.strings[self.identifier_names[0]],
+            ),
+            Some(name) => {
+                let sid = self.push_string(name);
+                (sid, &self.strings[sid])
+            }
+        };
+        // let id = self.push_string(main);
         let addr = self.funcs[&id];
         // Mark Ps as left recursive if the detector marked it as such
-        let lr = if self.left_rec.get(main).is_some() && self.left_rec[main] {
+        let lr = if self.left_rec.get(name).is_some() && self.left_rec[name] {
             1
         } else {
             0
@@ -273,6 +291,7 @@ impl<'ast> Visitor<'ast> for Compiler {
         let addr = self.cursor;
         let strid = self.push_string(&n.name);
         self.identifiers.insert(addr, strid);
+        self.identifier_names.push(strid);
         self.visit_expression(&n.expr);
         self.emit(Instruction::Return);
         self.funcs.insert(strid, addr);

@@ -160,6 +160,15 @@ impl<'ast> Visitor<'ast> for DepFinder<'ast> {
             self.visit_definition(def);
         }
     }
+
+    fn visit_label(&mut self, n: &'ast ast::Label) {
+        if self.deps.get(&n.label).is_none() {
+            if let Some(def) = self.grammar.definitions.get(&n.label) {
+                self.deps.insert(&n.label, def);
+                self.visit_definition(def);
+            }
+        }
+    }
 }
 
 #[derive(Default)]

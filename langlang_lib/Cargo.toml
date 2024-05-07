@@ -11,7 +11,5 @@ documentation = "https://docs.rs/langlang_lib"
 readme = "../README.md"
 
 [dependencies]
-log = "0.4"
-env_logger = "0.8"
 langlang_syntax = { path = "../langlang_syntax", version = "0.1.2" }
 langlang_value = { path = "../langlang_value", version = "0.1.2" }

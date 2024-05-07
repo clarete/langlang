@@ -1,6 +1,6 @@
 @import Value from "./import_gr_value.peg"
 
 Expr     <- Term EOF^eof
-Term     <- Multi   (( '+' / '-' ) Multi^term_right_operand   )*
-Multi    <- Primary (( '*' / '/' ) Primary^multi_right_operand)*
+Term     <- Multi   (( '+' / '-' ) Multi^TermRightOperand   )*
+Multi    <- Primary (( '*' / '/' ) Primary^MultiRightOperand)*
 Primary  <- Value / '(' Expr ')'

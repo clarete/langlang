@@ -50,13 +50,9 @@ func TestImport(t *testing.T) {
 		Error string
 	}{
 		{
-			Name:  " accept overriden",
-			Input: "0xLOL",
-			Error: "LabelHex @ 2",
-		}, {
 			Name:  "Dont accept overriden",
 			Input: "3+#xC0FFEE",
-			Error: "term_right_operand @ 2",
+			Error: "TermRightOperand @ 2",
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -65,6 +61,26 @@ func TestImport(t *testing.T) {
 			_, err := p.ParseExpr()
 			require.Error(t, err)
 			assert.Equal(t, test.Error, err.Error())
+		})
+	}
+
+	for _, test := range []struct {
+		Name  string
+		Input string
+		Expected string
+	}{
+		{
+			Name:  "label dependency",
+			Input: "0xG + 2",
+			Expected: "0xerror[LabelHex: G] + 2",
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			p := NewImportParser()
+			p.SetInput(test.Input)
+			v, err := p.ParseExpr()
+			require.NoError(t, err)
+			assert.Equal(t, test.Expected, v.Text())
 		})
 	}
 }

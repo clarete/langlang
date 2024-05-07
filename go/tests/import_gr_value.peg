@@ -10,4 +10,4 @@ Hexadecimal <- '0x' [a-fA-F0-9]+^LabelHex
 
 // recovery expression for failure on the last subexpression of the
 // Hexadecimal rule
-LabelHex    <- (!Value .)*
+LabelHex    <- (!' ' .)*

@@ -380,6 +380,24 @@ fn test_node_0() {
     );
 }
 
+// -- Error Reporting ------------------------------------------------------
+
+#[test]
+fn test_reporting_0() {
+    let cc = compiler::Config::default();
+    let program = compile(&cc, "A <- 'abada' / 'abacate' / 'abadia' / 'aba'", "A");
+    let result = run_str(&program, "foo");
+
+    assert!(result.is_err());
+    assert_eq!(
+        result.unwrap_err(),
+        vm::Error::Matching(
+            0,
+            "syntax error, expecting: 'abada', 'abacate', 'abadia', 'aba'".to_string()
+        )
+    );
+}
+
 // -- Error Recovery -------------------------------------------------------
 
 #[test]

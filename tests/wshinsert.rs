@@ -10,7 +10,7 @@ fn is_syntactic_sequence_with_literals() {
 
     // It doesn't expect spaces between the sequence items
     helpers::assert_err(
-        vm::Error::Matching(1, "b".to_string()),
+        vm::Error::Matching(1, "syntax error, expecting: 'b'".to_string()),
         run("Syntactic0", "a b c"),
     );
 }

@@ -6,7 +6,7 @@
 // machine.  This module has nothing to do with how patterns get
 // compiled to programs, but how programs get executted as patterns.
 //
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::consts::WHITE_SPACE_RULE_NAME;
 
@@ -366,6 +366,12 @@ pub struct VM<'a> {
     captures: Vec<CapStackFrame>,
     // boolean flag that remembers if the VM is within a predicate
     within_predicate: bool,
+    // expected_set keeps tabs on which tokens are expected but didn't
+    // match the current tokens under the cursor
+    expected_set: HashSet<String>,
+    // expected_vec contains the ordered list of tokens that are
+    // expected but didn't match the current token under the cursor
+    expected_vec: Vec<String>,
 }
 
 impl<'a> VM<'a> {
@@ -383,6 +389,8 @@ impl<'a> VM<'a> {
             lrmemo: HashMap::new(),
             captures: vec![],
             within_predicate: false,
+            expected_set: HashSet::new(),
+            expected_vec: vec![],
         }
     }
 
@@ -393,10 +401,37 @@ impl<'a> VM<'a> {
         let start = c.span().start;
         self.line = start.line;
         self.column = start.column;
+        Ok(())
+    }
+
+    fn ffp_err(&mut self, expected: Value) -> Error {
+        // update the farther failure position if it is behind where
+        // the cursor currently is.  If we match that condition, we'll
+        // also reset the set of expected tokens.
         if self.cursor > self.ffp {
             self.ffp = self.cursor;
+            self.expected_set = HashSet::new();
+            self.expected_vec = Vec::new();
         }
-        Ok(())
+
+        // add the new term to the set of expected tokens that haven't
+        // matched with the input
+        let e = expected.to_string();
+        if self.expected_set.get(&e).is_none() {
+            self.expected_vec.push(format!("'{}'", e));
+            self.expected_set.insert(e);
+        }
+
+        // fill up the error instance with the appropriate message
+        return Error::Matching(
+            self.ffp,
+            format!("syntax error, expecting: {}", self.expected_vec.join(", ")),
+        );
+    }
+
+    fn ffp_fail(&mut self, expected: Value) -> Result<(), Error> {
+        let err = self.ffp_err(expected);
+        self.fail(err)
     }
 
     // stack management
@@ -528,9 +563,13 @@ impl<'a> VM<'a> {
                     self.advance_cursor()?;
                 }
                 Instruction::Char(expected) => {
+                    let start = self.pos();
                     self.program_counter += 1;
                     if self.cursor >= self.source.len() {
-                        self.fail(Error::EOF)?;
+                        self.ffp_fail(value::Char::new_val(
+                            Span::new(start, self.pos()),
+                            expected,
+                        ))?;
                         continue;
                     }
                     match &self.source[self.cursor] {
@@ -539,15 +578,22 @@ impl<'a> VM<'a> {
                             self.advance_cursor()?;
                         }
                         _ => {
-                            self.fail(Error::Matching(self.ffp, expected.to_string()))?;
+                            self.ffp_fail(value::Char::new_val(
+                                Span::new(start, self.pos()),
+                                expected,
+                            ))?;
                             continue;
                         }
                     }
                 }
                 Instruction::Span(start, end) => {
+                    let start_pos = self.pos();
                     self.program_counter += 1;
                     if self.cursor >= self.source.len() {
-                        self.fail(Error::EOF)?;
+                        self.ffp_fail(value::String::new_val(
+                            Span::new(start_pos.clone(), self.pos()),
+                            format!("[{}-{}]", start, end),
+                        ))?;
                         continue;
                     }
                     match &self.source[self.cursor] {
@@ -558,18 +604,27 @@ impl<'a> VM<'a> {
                             self.advance_cursor()?;
                         }
                         _ => {
-                            self.fail(Error::Matching(self.ffp, format!("[{}-{}]", start, end)))?;
+                            self.ffp_fail(value::String::new_val(
+                                Span::new(start_pos.clone(), self.pos()),
+                                format!("[{}-{}]", start, end),
+                            ))?;
                             continue;
                         }
                     }
                 }
                 Instruction::String(id) => {
                     self.program_counter += 1;
+                    let expected = self.program.string_at(id);
+                    let start = self.pos();
+
                     if self.cursor >= self.source.len() {
-                        self.fail(Error::EOF)?;
+                        self.ffp_fail(value::String::new_val(
+                            Span::new(start.clone(), self.pos()),
+                            expected.clone(),
+                        ))?;
                         continue;
                     }
-                    let expected = self.program.string_at(id);
+
                     match &self.source[self.cursor] {
                         Value::String(ref s) if &s.value == expected => {
                             self.capture(self.source[self.cursor].clone())?;
@@ -577,7 +632,6 @@ impl<'a> VM<'a> {
                             continue;
                         }
                         _ => {
-                            let start = self.pos();
                             let mut expected_chars = expected.chars();
                             match loop {
                                 let current_char = match expected_chars.next() {
@@ -592,7 +646,10 @@ impl<'a> VM<'a> {
                                         self.advance_cursor()?;
                                     }
                                     _ => {
-                                        break Err(Error::Matching(self.ffp, expected.clone()));
+                                        break Err(self.ffp_err(value::String::new_val(
+                                            Span::new(start.clone(), self.pos()),
+                                            expected.clone(),
+                                        )));
                                     }
                                 };
                             } {
@@ -1067,7 +1124,10 @@ mod tests {
         let result = vm.run_str("b");
 
         assert!(result.is_err());
-        assert_eq!(Error::Matching(0, "a".to_string()), result.unwrap_err());
+        assert_eq!(
+            Error::Matching(0, "syntax error, expecting: 'a'".to_string()),
+            result.unwrap_err()
+        );
     }
 
     // (span.1)
@@ -1123,7 +1183,10 @@ mod tests {
         let result = vm.run_str("9");
 
         assert!(result.is_err());
-        assert_eq!(Error::Matching(0, "[a-z]".to_string()), result.unwrap_err());
+        assert_eq!(
+            Error::Matching(0, "syntax error, expecting: '[a-z]'".to_string()),
+            result.unwrap_err()
+        );
     }
 
     // (any.1)
@@ -1241,8 +1304,8 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(Error::Fail, result.unwrap_err());
-        // assert!(vm.cursor.is_err());
-        assert_eq!(1, vm.ffp);
+        assert_eq!(1, vm.cursor);
+        assert_eq!(0, vm.ffp);
     }
 
     // (ord.1)
@@ -1274,7 +1337,10 @@ mod tests {
 
         assert!(result.is_err());
         // currently shows the last error
-        assert_eq!(Error::Matching(0, "b".to_string()), result.unwrap_err());
+        assert_eq!(
+            Error::Matching(0, "syntax error, expecting: 'a', 'b'".to_string()),
+            result.unwrap_err()
+        );
     }
 
     // (ord.2)
@@ -1337,7 +1403,6 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(1, vm.cursor);
-        assert_eq!(1, vm.ffp);
     }
 
     // (rep.1)
@@ -1436,7 +1501,7 @@ mod tests {
 
         assert!(result.is_ok());
         assert_eq!(3, vm.cursor);
-        assert_eq!(3, vm.ffp);
+        assert_eq!(2, vm.ffp);
     }
 
     // (var.2)
@@ -1474,7 +1539,10 @@ mod tests {
         let result = vm.run_str("1+2");
 
         assert!(result.is_err());
-        assert_eq!(Error::Matching(2, "1".to_string()), result.unwrap_err());
+        assert_eq!(
+            Error::Matching(2, "syntax error, expecting: '0', '1'".to_string()),
+            result.unwrap_err()
+        );
     }
 
     #[test]
@@ -1717,7 +1785,7 @@ mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            Error::Matching(5, "abacate".to_string()),
+            Error::Matching(5, "syntax error, expecting: 'abacate'".to_string()),
             result.unwrap_err(),
         );
     }

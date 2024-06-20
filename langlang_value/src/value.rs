@@ -1,8 +1,9 @@
 use std::string::String as StdString;
 
+use crate::format;
 use crate::source_map::Span;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub enum Value {
     Char(Char),
     String(String),
@@ -31,7 +32,13 @@ impl Value {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+impl ToString for Value {
+    fn to_string(&self) -> std::string::String {
+        format::compact(self)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct Char {
     pub span: Span,
     pub value: char,
@@ -47,7 +54,7 @@ impl Char {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct String {
     pub span: Span,
     pub value: StdString,
@@ -63,7 +70,7 @@ impl String {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct List {
     pub span: Span,
     pub values: Vec<Value>,
@@ -79,7 +86,7 @@ impl List {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct Node {
     pub span: Span,
     pub name: StdString,
@@ -96,7 +103,7 @@ impl Node {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Hash)]
 pub struct Error {
     pub span: Span,
     pub label: StdString,

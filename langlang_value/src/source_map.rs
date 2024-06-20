@@ -1,4 +1,4 @@
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Eq, Hash)]
 pub struct Position {
     /// number of chars have been seen since the begining of the input
     pub offset: usize,
@@ -24,7 +24,7 @@ impl ToString for Position {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, PartialEq, PartialOrd, Eq, Hash)]
 pub struct Span {
     pub start: Position,
     pub end: Position,

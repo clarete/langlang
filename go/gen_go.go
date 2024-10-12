@@ -42,6 +42,7 @@ func GenGo(node AstNode, opt GenGoOptions) (string, error) {
 }
 
 type tmplRenderOpts struct {
+	GrammarPath string
 	PackageName string
 }
 

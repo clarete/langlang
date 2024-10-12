@@ -17,9 +17,12 @@ func main() {
 		language    = flag.String("language", "", "Output language")
 		astOnly     = flag.Bool("ast-only", false, "Output the AST of the grammar")
 
-		// options specific to the go generator
-		goOptPackage   = flag.String("go-package", "parser", "Name of the go package in the generated parser")
-		goOptRemoveLib = flag.Bool("go-remove-lib", false, "Include lib in the output parser")
+		// removeLib will configure the generator to not
+		// include the common prelude in the output parser.
+		removeLib = flag.Bool("remove-lib", false, "Include lib in the output parser")
+
+		// goOptPackage
+		goOptPackage = flag.String("go-package", "parser", "Name of the go package in the generated parser")
 	)
 	flag.Parse()
 
@@ -47,11 +50,14 @@ func main() {
 	case "go":
 		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
 			PackageName: *goOptPackage,
-			RemoveLib:   *goOptRemoveLib,
+			RemoveLib:   *removeLib,
 		})
 
-	// case "python":
-	// 	outputData, err = langlang.GenParserPython(ast)
+	case "python":
+		outputData, err = langlang.GenPy(ast, langlang.GenPyOptions{
+			GrammarPath: *grammarPath,
+			RemoveLib:   *removeLib,
+		})
 	default:
 		log.Fatalf("Output language `%s` not supported", *language)
 	}

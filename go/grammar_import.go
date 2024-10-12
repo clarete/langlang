@@ -14,7 +14,7 @@ func NewImportResolver(loader ImportLoader) *ImportResolver {
 	return &ImportResolver{loader: loader}
 }
 
-func (r *ImportResolver) Resolve(source string) (Node, error) {
+func (r *ImportResolver) Resolve(source string) (AstNode, error) {
 	f, err := r.resolve(source, source)
 	if err != nil {
 		return nil, nil
@@ -141,7 +141,7 @@ func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) *sorted
 	return deps
 }
 
-func (f *importerResolverFrame) doFindDefinitionDeps(node Node, deps *sortedDeps) {
+func (f *importerResolverFrame) doFindDefinitionDeps(node AstNode, deps *sortedDeps) {
 	switch n := node.(type) {
 	case *IdentifierNode:
 		// Built-in rule; has no dependencies

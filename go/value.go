@@ -14,44 +14,44 @@ type Value interface {
 }
 
 type ValueVisitor interface {
-	VisitValueString(n *ValueString) error
-	VisitValueSequence(n *ValueSequence) error
-	VisitValueNode(n *ValueNode) error
-	VisitValueError(n *ValueError) error
+	VisitString(n *String) error
+	VisitSequence(n *Sequence) error
+	VisitNode(n *Node) error
+	VisitError(n *Error) error
 }
 
 // String Value
 
-type ValueString struct {
+type String struct {
 	span  Span
 	Value string
 }
 
-func NewValueString(value string, span Span) *ValueString {
-	return &ValueString{span: span, Value: value}
+func NewString(value string, span Span) *String {
+	return &String{span: span, Value: value}
 }
 
-func (n ValueString) Type() string          { return "string" }
-func (n ValueString) Span() Span            { return n.span }
-func (n ValueString) String() string        { return fmt.Sprintf(`"%s" @ %s`, n.Value, n.Span()) }
-func (n ValueString) Text() string          { return n.Value }
-func (n ValueString) Accept(v ValueVisitor) { v.VisitValueString(&n) }
+func (n String) Type() string          { return "string" }
+func (n String) Span() Span            { return n.span }
+func (n String) String() string        { return fmt.Sprintf(`"%s" @ %s`, n.Value, n.Span()) }
+func (n String) Text() string          { return n.Value }
+func (n String) Accept(v ValueVisitor) { v.VisitString(&n) }
 
 // Sequence Value
 
-type ValueSequence struct {
+type Sequence struct {
 	span  Span
 	Items []Value
 }
 
-func NewValueSequence(items []Value, span Span) *ValueSequence {
-	return &ValueSequence{Items: items, span: span}
+func NewSequence(items []Value, span Span) *Sequence {
+	return &Sequence{Items: items, span: span}
 }
 
-func (n ValueSequence) Type() string          { return "sequence" }
-func (n ValueSequence) Span() Span            { return n.span }
-func (n ValueSequence) Accept(v ValueVisitor) { v.VisitValueSequence(&n) }
-func (n ValueSequence) String() string {
+func (n Sequence) Type() string          { return "sequence" }
+func (n Sequence) Span() Span            { return n.span }
+func (n Sequence) Accept(v ValueVisitor) { v.VisitSequence(&n) }
+func (n Sequence) String() string {
 	var s strings.Builder
 	s.WriteString("Sequence(")
 	for i, expr := range n.Items {
@@ -64,7 +64,7 @@ func (n ValueSequence) String() string {
 	return s.String()
 }
 
-func (n ValueSequence) Text() string {
+func (n Sequence) Text() string {
 	var s strings.Builder
 	for _, expr := range n.Items {
 		s.WriteString(expr.Text())
@@ -74,55 +74,55 @@ func (n ValueSequence) Text() string {
 
 // Node Value
 
-type ValueNode struct {
+type Node struct {
 	span Span
 	Name string
 	Expr Value
 }
 
-func NewValueNode(name string, expr Value, span Span) *ValueNode {
-	return &ValueNode{Name: name, Expr: expr, span: span}
+func NewNode(name string, expr Value, span Span) *Node {
+	return &Node{Name: name, Expr: expr, span: span}
 }
 
-func (n ValueNode) Type() string          { return "node" }
-func (n ValueNode) Span() Span            { return n.span }
-func (n ValueNode) Accept(v ValueVisitor) { v.VisitValueNode(&n) }
+func (n Node) Type() string          { return "node" }
+func (n Node) Span() Span            { return n.span }
+func (n Node) Accept(v ValueVisitor) { v.VisitNode(&n) }
 
-func (n ValueNode) Text() string {
+func (n Node) Text() string {
 	if n.Expr == nil {
 		return "???"
 	}
 	return n.Expr.Text()
 }
 
-func (n ValueNode) String() string {
+func (n Node) String() string {
 	return fmt.Sprintf("%s(%s) @ %s", n.Name, n.Expr, n.Span())
 }
 
 // Node Error
 
-type ValueError struct {
+type Error struct {
 	span  Span
 	Label string
 	Expr  Value
 }
 
-func NewValueError(label string, expr Value, span Span) *ValueError {
-	return &ValueError{Label: label, Expr: expr, span: span}
+func NewError(label string, expr Value, span Span) *Error {
+	return &Error{Label: label, Expr: expr, span: span}
 }
 
-func (n ValueError) Type() string          { return "error" }
-func (n ValueError) Span() Span            { return n.span }
-func (n ValueError) Accept(v ValueVisitor) { v.VisitValueError(&n) }
+func (n Error) Type() string          { return "error" }
+func (n Error) Span() Span            { return n.span }
+func (n Error) Accept(v ValueVisitor) { v.VisitError(&n) }
 
-func (n ValueError) Text() string {
+func (n Error) Text() string {
 	if n.Expr == nil {
 		return "error[" + n.Label + "]"
 	}
 	return fmt.Sprintf("error[%s: %s]", n.Label, n.Expr.Text())
 }
 
-func (n ValueError) String() string {
+func (n Error) String() string {
 	if n.Expr == nil {
 		return fmt.Sprintf(`Error("%s") @ %s`, n.Label, n.Span())
 	}

@@ -77,8 +77,8 @@ type Parser interface {
 	SetLabelMessages(map[string]string)
 
 	// SetAction registers `action` as a function to be called
-	SetAction(string, func(*ValueNode) (Value, error))
-	RunAction(string, *ValueNode) (Value, error)
+	SetAction(string, func(*Node) (Value, error))
+	RunAction(string, *Node) (Value, error)
 
 	// Throw creates an error that can't be handled by backtracking
 	Throw(label string, span Span) error

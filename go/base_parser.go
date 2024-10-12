@@ -25,7 +25,7 @@ type BaseParser struct {
 	predStkCnt int
 	labelMsgs  map[string]string
 	stacktrace []TracerSpan
-	actionFns  map[string]func(*ValueNode) (Value, error)
+	actionFns  map[string]func(*Node) (Value, error)
 }
 
 // Location returns in which line/column/cursor the parser's input is currently in
@@ -72,14 +72,14 @@ func (p *BaseParser) SetLabelMessages(m map[string]string) {
 	p.labelMsgs = m
 }
 
-func (p *BaseParser) SetAction(name string, fn func(*ValueNode) (Value, error)) {
+func (p *BaseParser) SetAction(name string, fn func(*Node) (Value, error)) {
 	if p.actionFns == nil {
-		p.actionFns = map[string]func(*ValueNode) (Value, error){}
+		p.actionFns = map[string]func(*Node) (Value, error){}
 	}
 	p.actionFns[name] = fn
 }
 
-func (p *BaseParser) RunAction(name string, node *ValueNode) (Value, error) {
+func (p *BaseParser) RunAction(name string, node *Node) (Value, error) {
 	action, ok := p.actionFns[name]
 	if !ok {
 		return node, nil
@@ -193,7 +193,7 @@ func (p *BaseParser) NewError(exp, msg string, span Span) error {
 		Expected:   exp,
 		Message:    msg,
 		// ErrSpan:    errSpan,
-		Span:       span,
+		Span: span,
 	}
 	return e
 }

@@ -6,7 +6,7 @@ import (
 )
 
 // Node is the interface that defines all behavior needed by the values output by the parser
-type Node interface {
+type AstNode interface {
 	// Span returns the location span in which the node was found within the input text
 	Span() Span
 
@@ -28,7 +28,7 @@ type Node interface {
 
 type TypeExpr interface {
 	TypeExpr() string
-	Node
+	AstNode
 }
 
 // Node Type: Any
@@ -108,10 +108,10 @@ func (n RangeNode) String() string {
 
 type ClassNode struct {
 	span  Span
-	Items []Node
+	Items []AstNode
 }
 
-func NewClassNode(items []Node, s Span) *ClassNode {
+func NewClassNode(items []AstNode, s Span) *ClassNode {
 	n := &ClassNode{Items: items}
 	n.span = s
 	return n
@@ -147,10 +147,10 @@ func (n ClassNode) String() string {
 
 type OptionalNode struct {
 	span Span
-	Expr Node
+	Expr AstNode
 }
 
-func NewOptionalNode(expr Node, s Span) *OptionalNode {
+func NewOptionalNode(expr AstNode, s Span) *OptionalNode {
 	n := &OptionalNode{Expr: expr}
 	n.span = s
 	return n
@@ -165,10 +165,10 @@ func (n OptionalNode) String() string    { return fmt.Sprintf("Optional(%s) @ %s
 
 type ZeroOrMoreNode struct {
 	span Span
-	Expr Node
+	Expr AstNode
 }
 
-func NewZeroOrMoreNode(expr Node, s Span) *ZeroOrMoreNode {
+func NewZeroOrMoreNode(expr AstNode, s Span) *ZeroOrMoreNode {
 	n := &ZeroOrMoreNode{Expr: expr}
 	n.span = s
 	return n
@@ -183,10 +183,10 @@ func (n ZeroOrMoreNode) String() string    { return fmt.Sprintf("ZeroOrMore(%s) 
 
 type OneOrMoreNode struct {
 	span Span
-	Expr Node
+	Expr AstNode
 }
 
-func NewOneOrMoreNode(expr Node, s Span) *OneOrMoreNode {
+func NewOneOrMoreNode(expr AstNode, s Span) *OneOrMoreNode {
 	n := &OneOrMoreNode{Expr: expr}
 	n.span = s
 	return n
@@ -201,10 +201,10 @@ func (n OneOrMoreNode) String() string    { return fmt.Sprintf("OneOrMore(%s) @ 
 
 type AndNode struct {
 	span Span
-	Expr Node
+	Expr AstNode
 }
 
-func NewAndNode(expr Node, s Span) *AndNode {
+func NewAndNode(expr AstNode, s Span) *AndNode {
 	n := &AndNode{Expr: expr}
 	n.span = s
 	return n
@@ -219,10 +219,10 @@ func (n AndNode) String() string    { return fmt.Sprintf("And(%s) @ %s", n.Expr,
 
 type NotNode struct {
 	span Span
-	Expr Node
+	Expr AstNode
 }
 
-func NewNotNode(expr Node, s Span) *NotNode {
+func NewNotNode(expr AstNode, s Span) *NotNode {
 	n := &NotNode{Expr: expr}
 	n.span = s
 	return n
@@ -237,10 +237,10 @@ func (n NotNode) String() string    { return fmt.Sprintf("Not(%s) @ %s", n.Expr,
 
 type LexNode struct {
 	span Span
-	Expr Node
+	Expr AstNode
 }
 
-func NewLexNode(expr Node, s Span) *LexNode {
+func NewLexNode(expr AstNode, s Span) *LexNode {
 	n := &LexNode{Expr: expr}
 	n.span = s
 	return n
@@ -262,10 +262,10 @@ func (n LexNode) Text() string {
 type LabeledNode struct {
 	span  Span
 	Label string
-	Expr  Node
+	Expr  AstNode
 }
 
-func NewLabeledNode(label string, expr Node, s Span) *LabeledNode {
+func NewLabeledNode(label string, expr AstNode, s Span) *LabeledNode {
 	n := &LabeledNode{Label: label, Expr: expr}
 	n.span = s
 	return n
@@ -283,10 +283,10 @@ func (n LabeledNode) String() string {
 
 type SequenceNode struct {
 	span  Span
-	Items []Node
+	Items []AstNode
 }
 
-func NewSequenceNode(items []Node, s Span) *SequenceNode {
+func NewSequenceNode(items []AstNode, s Span) *SequenceNode {
 	n := &SequenceNode{Items: items}
 	n.span = s
 	return n
@@ -310,10 +310,10 @@ func (n SequenceNode) String() string { return nodesString("Sequence", n, n.Item
 
 type ChoiceNode struct {
 	span  Span
-	Items []Node
+	Items []AstNode
 }
 
-func NewChoiceNode(items []Node, s Span) *ChoiceNode {
+func NewChoiceNode(items []AstNode, s Span) *ChoiceNode {
 	n := &ChoiceNode{Items: items}
 	n.span = s
 	return n
@@ -338,10 +338,10 @@ func (n ChoiceNode) String() string { return nodesString("Choice", n, n.Items) }
 type DefinitionNode struct {
 	span Span
 	Name string
-	Expr Node
+	Expr AstNode
 }
 
-func NewDefinitionNode(name string, expr Node, s Span) *DefinitionNode {
+func NewDefinitionNode(name string, expr AstNode, s Span) *DefinitionNode {
 	n := &DefinitionNode{Name: name, Expr: expr}
 	n.span = s
 	return n
@@ -419,8 +419,8 @@ func (n GrammarNode) IsSyntactic() bool { return false }
 func (n GrammarNode) Text() string      { return nodesText(n.GetItems(), "\n") }
 func (n GrammarNode) String() string    { return nodesString("Grammar", n, n.GetItems()) }
 
-func (n GrammarNode) GetItems() []Node {
-	var items []Node
+func (n GrammarNode) GetItems() []AstNode {
+	var items []AstNode
 	for _, imp := range n.Imports {
 		items = append(items, imp)
 	}
@@ -434,7 +434,7 @@ func (n GrammarNode) GetItems() []Node {
 
 type asString interface{ String() string }
 
-func nodesString[T asString](name string, n Node, items []T) string {
+func nodesString[T asString](name string, n AstNode, items []T) string {
 	var (
 		s  strings.Builder
 		ln = len(items) - 1

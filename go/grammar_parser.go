@@ -10,12 +10,12 @@ func NewGrammarParser(grammar string) *GrammarParser {
 
 // Parse kicks off parsing the input string and generates an AST
 // describing a grammar
-func (p *GrammarParser) Parse() (Node, error) {
+func (p *GrammarParser) Parse() (AstNode, error) {
 	return p.ParseGrammar()
 }
 
 // GR: Grammar <- Import* Definition+ EndOfFile
-func (p *GrammarParser) ParseGrammar() (Node, error) {
+func (p *GrammarParser) ParseGrammar() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Grammar"})
 	defer p.PopTraceSpan()
 
@@ -132,7 +132,7 @@ func (p *GrammarParser) ParseDefinition() (*DefinitionNode, error) {
 }
 
 // GR: Expression <- Sequence (SLASH Sequence)*
-func (p *GrammarParser) ParseExpression() (Node, error) {
+func (p *GrammarParser) ParseExpression() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Expression"})
 	defer p.PopTraceSpan()
 
@@ -142,7 +142,7 @@ func (p *GrammarParser) ParseExpression() (Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	tail, err := ZeroOrMore(p, func(p Parser) (Node, error) {
+	tail, err := ZeroOrMore(p, func(p Parser) (AstNode, error) {
 		p.(*GrammarParser).ParseSpacing()
 		if _, err := p.ExpectRune('/'); err != nil {
 			return nil, err
@@ -157,17 +157,17 @@ func (p *GrammarParser) ParseExpression() (Node, error) {
 	if len(tail) == 0 {
 		return head, nil
 	}
-	items := append([]Node{head}, tail...)
+	items := append([]AstNode{head}, tail...)
 	return NewChoiceNode(items, NewSpan(start, p.Location())), nil
 }
 
 // GR: Sequence <- Prefix*
-func (p *GrammarParser) ParseSequence() (Node, error) {
+func (p *GrammarParser) ParseSequence() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Sequence"})
 	defer p.PopTraceSpan()
 
 	start := p.Location()
-	items, err := ZeroOrMore(p, func(p Parser) (Node, error) {
+	items, err := ZeroOrMore(p, func(p Parser) (AstNode, error) {
 		return p.(*GrammarParser).ParsePrefix()
 	})
 	if err != nil {
@@ -182,7 +182,7 @@ func (p *GrammarParser) ParseSequence() (Node, error) {
 }
 
 // GR: Prefix <- (AND / NOT / LEX)? Labeled
-func (p *GrammarParser) ParsePrefix() (Node, error) {
+func (p *GrammarParser) ParsePrefix() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Prefix"})
 	defer p.PopTraceSpan()
 
@@ -214,7 +214,7 @@ func (p *GrammarParser) ParsePrefix() (Node, error) {
 }
 
 // GR: Labeled <- Suffix (LABEL Identifier)?
-func (p *GrammarParser) ParseLabeled() (Node, error) {
+func (p *GrammarParser) ParseLabeled() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Labeled"})
 	defer p.PopTraceSpan()
 
@@ -224,8 +224,8 @@ func (p *GrammarParser) ParseLabeled() (Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Choice(p, []ParserFn[Node]{
-		func(p Parser) (Node, error) {
+	return Choice(p, []ParserFn[AstNode]{
+		func(p Parser) (AstNode, error) {
 			if _, err := p.ExpectRune('^'); err != nil {
 				return nil, err
 			}
@@ -235,12 +235,12 @@ func (p *GrammarParser) ParseLabeled() (Node, error) {
 			}
 			return NewLabeledNode(label, expr, NewSpan(start, p.Location())), nil
 		},
-		func(p Parser) (Node, error) { return expr, nil },
+		func(p Parser) (AstNode, error) { return expr, nil },
 	})
 }
 
 // GR: Suffix <- Primary (QUESTION / STAR / PLUS)?
-func (p *GrammarParser) ParseSuffix() (Node, error) {
+func (p *GrammarParser) ParseSuffix() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Suffix"})
 	defer p.PopTraceSpan()
 
@@ -277,23 +277,23 @@ func (p *GrammarParser) ParseSuffix() (Node, error) {
 // GR: Primary <- Identifier !LEFTARROW
 // GR:          / OPEN Expression CLOSE
 // GR:          / Literal / Class / DOT
-func (p *GrammarParser) ParsePrimary() (Node, error) {
+func (p *GrammarParser) ParsePrimary() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Primary"})
 	defer p.PopTraceSpan()
 
-	return Choice(p, []ParserFn[Node]{
-		func(p Parser) (Node, error) { return p.(*GrammarParser).ParseIdentifier() },
-		func(p Parser) (Node, error) { return p.(*GrammarParser).ParseParenExpression() },
-		func(p Parser) (Node, error) { return p.(*GrammarParser).ParseLiteral() },
-		func(p Parser) (Node, error) { return p.(*GrammarParser).ParseClass() },
-		func(p Parser) (Node, error) { return p.(*GrammarParser).ParseDot() },
+	return Choice(p, []ParserFn[AstNode]{
+		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseIdentifier() },
+		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseParenExpression() },
+		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseLiteral() },
+		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseClass() },
+		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseDot() },
 	})
 }
 
 // GR: Identifier <- IdentStart IdentCont*
 // GR: IdentStart <- [a-zA-Z_]
 // GR: IdentCont  <- IdentStart / [0-9]
-func (p *GrammarParser) ParseIdentifier() (Node, error) {
+func (p *GrammarParser) ParseIdentifier() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Identifier"})
 	defer p.PopTraceSpan()
 
@@ -305,7 +305,7 @@ func (p *GrammarParser) ParseIdentifier() (Node, error) {
 	}
 	end := p.Location()
 
-	if _, err := Not(p, func(p Parser) (Node, error) {
+	if _, err := Not(p, func(p Parser) (AstNode, error) {
 		return nil, p.(*GrammarParser).ParseLeftArrow()
 	}); err != nil {
 		return nil, err
@@ -349,7 +349,7 @@ func (p *GrammarParser) ParseLeftArrow() error {
 	return nil
 }
 
-func (p *GrammarParser) ParseParenExpression() (Node, error) {
+func (p *GrammarParser) ParseParenExpression() (AstNode, error) {
 	p.ParseSpacing()
 	if _, err := p.ExpectRune('('); err != nil {
 		return nil, err
@@ -369,7 +369,7 @@ func (p *GrammarParser) ParseParenExpression() (Node, error) {
 }
 
 // GR: Class <- '[' (!']' Range)* ']'
-func (p *GrammarParser) ParseClass() (Node, error) {
+func (p *GrammarParser) ParseClass() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Class"})
 	defer p.PopTraceSpan()
 
@@ -378,7 +378,7 @@ func (p *GrammarParser) ParseClass() (Node, error) {
 	if _, err := p.ExpectRune('['); err != nil {
 		return nil, err
 	}
-	ranges, err := ZeroOrMore(p, func(p Parser) (Node, error) {
+	ranges, err := ZeroOrMore(p, func(p Parser) (AstNode, error) {
 		if _, err := Not(p, p.ExpectRuneFn(']')); err != nil {
 			return nil, err
 		}
@@ -394,12 +394,12 @@ func (p *GrammarParser) ParseClass() (Node, error) {
 }
 
 // GR: Range <- Char '-' Char / Char
-func (p *GrammarParser) ParseRange() (Node, error) {
+func (p *GrammarParser) ParseRange() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Range"})
 	defer p.PopTraceSpan()
 
-	return Choice(p, []ParserFn[Node]{
-		func(p Parser) (Node, error) {
+	return Choice(p, []ParserFn[AstNode]{
+		func(p Parser) (AstNode, error) {
 			start := p.Location()
 			left, err := p.(*GrammarParser).parseChar()
 			if err != nil {
@@ -414,13 +414,13 @@ func (p *GrammarParser) ParseRange() (Node, error) {
 			}
 			return NewRangeNode(left, right, NewSpan(start, p.Location())), nil
 		},
-		func(p Parser) (Node, error) {
+		func(p Parser) (AstNode, error) {
 			return p.(*GrammarParser).ParseChar()
 		},
 	})
 }
 
-func (p *GrammarParser) ParseDot() (Node, error) {
+func (p *GrammarParser) ParseDot() (AstNode, error) {
 	p.ParseSpacing()
 	start := p.Location()
 	if _, err := p.ExpectRune('.'); err != nil {
@@ -431,7 +431,7 @@ func (p *GrammarParser) ParseDot() (Node, error) {
 
 // GR: Literal <- ['] (!['] Char)* [']
 // GR:          / ["] (!["] Char)* ["]
-func (p *GrammarParser) ParseLiteral() (Node, error) {
+func (p *GrammarParser) ParseLiteral() (AstNode, error) {
 	p.PushTraceSpan(TracerSpan{Name: "Literal"})
 	defer p.PopTraceSpan()
 
@@ -490,8 +490,9 @@ func (p *GrammarParser) parseLiteral() (string, error) {
 }
 
 // GR: Char <- '\\' [nrt’"\[\]\\]
-//           / !'\\' .
-func (p *GrammarParser) ParseChar() (Node, error) {
+//
+//	/ !'\\' .
+func (p *GrammarParser) ParseChar() (AstNode, error) {
 	start := p.Location()
 	value, err := Choice(p, []ParserFn[string]{
 		func(p Parser) (string, error) { return p.(*GrammarParser).parseEscapedChar() },

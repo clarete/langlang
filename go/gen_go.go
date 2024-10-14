@@ -18,7 +18,8 @@ type goCodeEmitter struct {
 	parser      *outputWriter
 	indentLevel int
 	lexLevel    int
-	labels      map[string]struct{}
+	labelsMap   map[string]struct{}
+	labels      []string
 	grammarNode *GrammarNode
 }
 
@@ -45,9 +46,10 @@ var content embed.FS
 
 func newGoCodeEmitter(opt GenGoOptions) *goCodeEmitter {
 	return &goCodeEmitter{
-		options: opt,
-		parser:  newOutputWriter(),
-		labels:  map[string]struct{}{},
+		options:   opt,
+		parser:    newOutputWriter(),
+		labelsMap: map[string]struct{}{},
+		labels:    []string{},
 	}
 }
 
@@ -312,7 +314,14 @@ func (g *goCodeEmitter) visitLexNode(n *LexNode) {
 }
 
 func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
-	g.labels[n.Label] = struct{}{}
+	// keep both the set of labels as well as an ordered list.
+	// The set prevents duplicates in the ordered list.
+	// Duplicates come from using the same label more than once in
+	// the grammar, which is totally valid.
+	if _, ok := g.labelsMap[n.Label]; !ok {
+		g.labelsMap[n.Label] = struct{}{}
+		g.labels = append(g.labels, n.Label)
+	}
 
 	g.parser.write("func(p Backtrackable) (Value, error) {\n")
 	g.parser.indent()
@@ -455,7 +464,7 @@ func (g *goCodeEmitter) writeConstructor() {
 	g.parser.unindent()
 	g.parser.writei("}\n")
 
-	for label := range g.labels {
+	for _, label := range g.labels {
 		if _, ok := g.grammarNode.DefsByName[label]; ok {
 			g.parser.writei("p.recoveryTable[\"")
 			g.parser.write(label)

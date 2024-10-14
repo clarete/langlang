@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../cmd -language go -grammar ./import_gr_expr.peg -go-prefix Import -output ./import.go
+//go:generate go run ../../cmd -language go -grammar ./import_gr_expr.peg -output ./import.go
 
 func TestImport(t *testing.T) {
 	for _, test := range []struct {
@@ -36,7 +36,7 @@ func TestImport(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			p := NewImportParser()
+			p := NewParser()
 			p.SetInput(test.Match)
 			v, err := p.ParseExpr()
 			require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestImport(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			p := NewImportParser()
+			p := NewParser()
 			p.SetInput(test.Input)
 			_, err := p.ParseExpr()
 			require.Error(t, err)
@@ -65,18 +65,18 @@ func TestImport(t *testing.T) {
 	}
 
 	for _, test := range []struct {
-		Name  string
-		Input string
+		Name     string
+		Input    string
 		Expected string
 	}{
 		{
-			Name:  "label dependency",
-			Input: "0xG + 2",
+			Name:     "label dependency",
+			Input:    "0xG + 2",
 			Expected: "0xerror[LabelHex: G] + 2",
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			p := NewImportParser()
+			p := NewParser()
 			p.SetInput(test.Input)
 			v, err := p.ParseExpr()
 			require.NoError(t, err)

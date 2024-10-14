@@ -31,6 +31,9 @@ Char        <- '\\' [nrt'"\[\]\\]
 Superscript <- [¹²³⁴⁵⁶⁷⁸⁹]
 LEFTARROW   <- '<-'
 
-// This adds the rule `Comment` to the builtin `WS` rule
-WS       <- (SPC / Comment)*
-Comment  <- #('//' (!EOL .)* EOL)
+// Override the builtin spacing rule. Notice, it *must* be a lexical
+// rule, otherwise it becomes an unbounded recursion
+Spacing     <- #(Comment / Space / EOL)*
+Comment     <- #('//' (!EOL .)* EOL)
+Space       <- ' ' / '\t'
+EOL         <- '\n' / '\r\n' / '\r'

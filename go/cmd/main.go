@@ -18,8 +18,8 @@ func main() {
 		astOnly     = flag.Bool("ast-only", false, "Output the AST of the grammar")
 
 		// options specific to the go generator
-		goOptPackage = flag.String("go-package", "parser", "Name of the go package in the generated parser")
-		goOptPrefix  = flag.String("go-prefix", "", "Prefix of the Parser struct and Visitor interface")
+		goOptPackage   = flag.String("go-package", "parser", "Name of the go package in the generated parser")
+		goOptRemoveLib = flag.Bool("go-remove-lib", false, "Include lib in the output parser")
 	)
 	flag.Parse()
 
@@ -47,8 +47,7 @@ func main() {
 	case "go":
 		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
 			PackageName: *goOptPackage,
-			Prefix:      *goOptPrefix,
-			ParserBase:  "Parser",
+			RemoveLib:   *goOptRemoveLib,
 		})
 
 	// case "python":

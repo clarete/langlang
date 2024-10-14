@@ -1,11 +1,11 @@
 package langlang
 
 type GrammarParser struct {
-	BaseParser
+	Parser
 }
 
 func NewGrammarParser(grammar string) *GrammarParser {
-	return &GrammarParser{BaseParser{input: []rune(grammar)}}
+	return &GrammarParser{Parser{input: []rune(grammar)}}
 }
 
 // Parse kicks off parsing the input string and generates an AST
@@ -21,14 +21,14 @@ func (p *GrammarParser) ParseGrammar() (AstNode, error) {
 
 	p.ParseSpacing()
 	start := p.Location()
-	imports, err := ZeroOrMore(p, func(p Parser) (*ImportNode, error) {
+	imports, err := ZeroOrMore(p, func(p Backtrackable) (*ImportNode, error) {
 		return p.(*GrammarParser).ParseImport()
 	})
 	if err != nil {
 		return nil, err
 	}
 	defsByName := map[string]*DefinitionNode{}
-	defs, err := OneOrMore(p, func(p Parser) (*DefinitionNode, error) {
+	defs, err := OneOrMore(p, func(p Backtrackable) (*DefinitionNode, error) {
 		d, err := p.(*GrammarParser).ParseDefinition()
 		if err != nil {
 			return nil, err
@@ -88,9 +88,9 @@ func (p *GrammarParser) parseImportNames() ([]*LiteralNode, error) {
 		return nil, err
 	}
 	head := NewLiteralNode(headId, NewSpan(start, p.Location()))
-	tail, err := ZeroOrMore(p, func(p Parser) (*LiteralNode, error) {
+	tail, err := ZeroOrMore(p, func(p Backtrackable) (*LiteralNode, error) {
 		p.(*GrammarParser).ParseSpacing()
-		if _, err := p.ExpectRune(','); err != nil {
+		if _, err := p.(*GrammarParser).ExpectRune(','); err != nil {
 			return nil, err
 		}
 
@@ -142,9 +142,9 @@ func (p *GrammarParser) ParseExpression() (AstNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	tail, err := ZeroOrMore(p, func(p Parser) (AstNode, error) {
+	tail, err := ZeroOrMore(p, func(p Backtrackable) (AstNode, error) {
 		p.(*GrammarParser).ParseSpacing()
-		if _, err := p.ExpectRune('/'); err != nil {
+		if _, err := p.(*GrammarParser).ExpectRune('/'); err != nil {
 			return nil, err
 		}
 
@@ -167,7 +167,7 @@ func (p *GrammarParser) ParseSequence() (AstNode, error) {
 	defer p.PopTraceSpan()
 
 	start := p.Location()
-	items, err := ZeroOrMore(p, func(p Parser) (AstNode, error) {
+	items, err := ZeroOrMore(p, func(p Backtrackable) (AstNode, error) {
 		return p.(*GrammarParser).ParsePrefix()
 	})
 	if err != nil {
@@ -192,7 +192,7 @@ func (p *GrammarParser) ParsePrefix() (AstNode, error) {
 		p.ExpectRuneFn('&'),
 		p.ExpectRuneFn('!'),
 		p.ExpectRuneFn('#'),
-		func(p Parser) (rune, error) { return 0, nil },
+		func(p Backtrackable) (rune, error) { return 0, nil },
 	})
 	if err != nil {
 		return nil, err
@@ -225,8 +225,8 @@ func (p *GrammarParser) ParseLabeled() (AstNode, error) {
 		return nil, err
 	}
 	return Choice(p, []ParserFn[AstNode]{
-		func(p Parser) (AstNode, error) {
-			if _, err := p.ExpectRune('^'); err != nil {
+		func(p Backtrackable) (AstNode, error) {
+			if _, err := p.(*GrammarParser).ExpectRune('^'); err != nil {
 				return nil, err
 			}
 			label, err := p.(*GrammarParser).parseIdentifier()
@@ -235,7 +235,7 @@ func (p *GrammarParser) ParseLabeled() (AstNode, error) {
 			}
 			return NewLabeledNode(label, expr, NewSpan(start, p.Location())), nil
 		},
-		func(p Parser) (AstNode, error) { return expr, nil },
+		func(p Backtrackable) (AstNode, error) { return expr, nil },
 	})
 }
 
@@ -256,7 +256,7 @@ func (p *GrammarParser) ParseSuffix() (AstNode, error) {
 		p.ExpectRuneFn('?'),
 		p.ExpectRuneFn('*'),
 		p.ExpectRuneFn('+'),
-		func(p Parser) (rune, error) { return 0, nil },
+		func(p Backtrackable) (rune, error) { return 0, nil },
 	})
 	if err != nil {
 		return nil, err
@@ -282,11 +282,11 @@ func (p *GrammarParser) ParsePrimary() (AstNode, error) {
 	defer p.PopTraceSpan()
 
 	return Choice(p, []ParserFn[AstNode]{
-		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseIdentifier() },
-		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseParenExpression() },
-		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseLiteral() },
-		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseClass() },
-		func(p Parser) (AstNode, error) { return p.(*GrammarParser).ParseDot() },
+		func(p Backtrackable) (AstNode, error) { return p.(*GrammarParser).ParseIdentifier() },
+		func(p Backtrackable) (AstNode, error) { return p.(*GrammarParser).ParseParenExpression() },
+		func(p Backtrackable) (AstNode, error) { return p.(*GrammarParser).ParseLiteral() },
+		func(p Backtrackable) (AstNode, error) { return p.(*GrammarParser).ParseClass() },
+		func(p Backtrackable) (AstNode, error) { return p.(*GrammarParser).ParseDot() },
 	})
 }
 
@@ -305,7 +305,7 @@ func (p *GrammarParser) ParseIdentifier() (AstNode, error) {
 	}
 	end := p.Location()
 
-	if _, err := Not(p, func(p Parser) (AstNode, error) {
+	if _, err := Not(p, func(p Backtrackable) (AstNode, error) {
 		return nil, p.(*GrammarParser).ParseLeftArrow()
 	}); err != nil {
 		return nil, err
@@ -323,12 +323,12 @@ func (p *GrammarParser) parseIdentifier() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tail, err := ZeroOrMore(p, func(p Parser) (rune, error) {
+	tail, err := ZeroOrMore(p, func(p Backtrackable) (rune, error) {
 		return Choice(p, []ParserFn[rune]{
-			p.ExpectRangeFn('a', 'z'),
-			p.ExpectRangeFn('A', 'Z'),
-			p.ExpectRangeFn('0', '9'),
-			p.ExpectRuneFn('_'),
+			p.(*GrammarParser).ExpectRangeFn('a', 'z'),
+			p.(*GrammarParser).ExpectRangeFn('A', 'Z'),
+			p.(*GrammarParser).ExpectRangeFn('0', '9'),
+			p.(*GrammarParser).ExpectRuneFn('_'),
 		})
 	})
 	if err != nil {
@@ -378,8 +378,8 @@ func (p *GrammarParser) ParseClass() (AstNode, error) {
 	if _, err := p.ExpectRune('['); err != nil {
 		return nil, err
 	}
-	ranges, err := ZeroOrMore(p, func(p Parser) (AstNode, error) {
-		if _, err := Not(p, p.ExpectRuneFn(']')); err != nil {
+	ranges, err := ZeroOrMore(p, func(p Backtrackable) (AstNode, error) {
+		if _, err := Not(p, p.(*GrammarParser).ExpectRuneFn(']')); err != nil {
 			return nil, err
 		}
 		return p.(*GrammarParser).ParseRange()
@@ -399,13 +399,13 @@ func (p *GrammarParser) ParseRange() (AstNode, error) {
 	defer p.PopTraceSpan()
 
 	return Choice(p, []ParserFn[AstNode]{
-		func(p Parser) (AstNode, error) {
+		func(p Backtrackable) (AstNode, error) {
 			start := p.Location()
 			left, err := p.(*GrammarParser).parseChar()
 			if err != nil {
 				return nil, err
 			}
-			if _, err := p.ExpectRune('-'); err != nil {
+			if _, err := p.(*GrammarParser).ExpectRune('-'); err != nil {
 				return nil, err
 			}
 			right, err := p.(*GrammarParser).parseChar()
@@ -414,7 +414,7 @@ func (p *GrammarParser) ParseRange() (AstNode, error) {
 			}
 			return NewRangeNode(left, right, NewSpan(start, p.Location())), nil
 		},
-		func(p Parser) (AstNode, error) {
+		func(p Backtrackable) (AstNode, error) {
 			return p.(*GrammarParser).ParseChar()
 		},
 	})
@@ -446,38 +446,38 @@ func (p *GrammarParser) ParseLiteral() (AstNode, error) {
 
 func (p *GrammarParser) parseLiteral() (string, error) {
 	value, err := Choice(p, []ParserFn[string]{
-		func(p Parser) (string, error) {
-			if _, err := p.ExpectRune('\''); err != nil {
+		func(p Backtrackable) (string, error) {
+			if _, err := p.(*GrammarParser).ExpectRune('\''); err != nil {
 				return "", err
 			}
-			s, err := ZeroOrMore(p, func(p Parser) (rune, error) {
-				if _, err := Not(p, p.ExpectRuneFn('\'')); err != nil {
+			s, err := ZeroOrMore(p, func(p Backtrackable) (rune, error) {
+				if _, err := Not(p, p.(*GrammarParser).ExpectRuneFn('\'')); err != nil {
 					return 0, err
 				}
-				return p.Any()
+				return p.(*GrammarParser).Any()
 			})
 			if err != nil {
 				return "", err
 			}
-			if _, err := p.ExpectRune('\''); err != nil {
+			if _, err := p.(*GrammarParser).ExpectRune('\''); err != nil {
 				return "", err
 			}
 			return string(s), nil
 		},
-		func(p Parser) (string, error) {
-			if _, err := p.ExpectRune('"'); err != nil {
+		func(p Backtrackable) (string, error) {
+			if _, err := p.(*GrammarParser).ExpectRune('"'); err != nil {
 				return "", err
 			}
-			s, err := ZeroOrMore(p, func(p Parser) (rune, error) {
-				if _, err := Not(p, p.ExpectRuneFn('"')); err != nil {
+			s, err := ZeroOrMore(p, func(p Backtrackable) (rune, error) {
+				if _, err := Not(p, p.(*GrammarParser).ExpectRuneFn('"')); err != nil {
 					return 0, err
 				}
-				return p.Any()
+				return p.(*GrammarParser).Any()
 			})
 			if err != nil {
 				return "", err
 			}
-			if _, err := p.ExpectRune('"'); err != nil {
+			if _, err := p.(*GrammarParser).ExpectRune('"'); err != nil {
 				return "", err
 			}
 			return string(s), nil
@@ -495,8 +495,8 @@ func (p *GrammarParser) parseLiteral() (string, error) {
 func (p *GrammarParser) ParseChar() (AstNode, error) {
 	start := p.Location()
 	value, err := Choice(p, []ParserFn[string]{
-		func(p Parser) (string, error) { return p.(*GrammarParser).parseEscapedChar() },
-		func(p Parser) (string, error) { return p.(*GrammarParser).parseChar() },
+		func(p Backtrackable) (string, error) { return p.(*GrammarParser).parseEscapedChar() },
+		func(p Backtrackable) (string, error) { return p.(*GrammarParser).parseChar() },
 	})
 	if err != nil {
 		return nil, err
@@ -524,8 +524,8 @@ func (p *GrammarParser) parseEscapedChar() (string, error) {
 		{In: '\\', Out: "\\\\"},
 	} {
 		c := choice
-		choices = append(choices, func(p Parser) (string, error) {
-			if _, err := p.ExpectRune(c.In); err != nil {
+		choices = append(choices, func(p Backtrackable) (string, error) {
+			if _, err := p.(*GrammarParser).ExpectRune(c.In); err != nil {
 				return "", err
 			}
 			return c.Out, nil
@@ -548,12 +548,12 @@ func (p *GrammarParser) parseChar() (string, error) {
 
 // GR: ParseSpacing <- ' ' / '\t' / '\r' / '\n'
 func (p *GrammarParser) ParseSpacing() {
-	ZeroOrMore(p, func(p Parser) (rune, error) {
+	ZeroOrMore(p, func(p Backtrackable) (rune, error) {
 		return Choice(p, []ParserFn[rune]{
-			func(p Parser) (rune, error) {
+			func(p Backtrackable) (rune, error) {
 				return 0, p.(*GrammarParser).ParseComment()
 			},
-			func(p Parser) (rune, error) {
+			func(p Backtrackable) (rune, error) {
 				return ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
 			},
 		})
@@ -569,11 +569,11 @@ func (p *GrammarParser) ParseComment() error {
 		return err
 	}
 
-	ZeroOrMore(p, func(p Parser) (rune, error) {
-		if _, err := Not(p, p.ExpectRuneFn('\n')); err != nil {
+	ZeroOrMore(p, func(p Backtrackable) (rune, error) {
+		if _, err := Not(p, p.(*GrammarParser).ExpectRuneFn('\n')); err != nil {
 			return 0, err
 		}
-		return p.Any()
+		return p.(*GrammarParser).Any()
 	})
 
 	p.ExpectRune('\n')

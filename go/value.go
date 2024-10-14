@@ -2,15 +2,28 @@ package langlang
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
+
+type FormatToken int
+
+const (
+	FormatToken_None FormatToken = iota
+	FormatToken_Span
+	FormatToken_Literal
+	FormatToken_Error
+)
+
+type FormatFn func(input string, token FormatToken) string
 
 type Value interface {
 	Span() Span
 	String() string
 	Text() string
 	Type() string
-	Accept(ValueVisitor)
+	Accept(ValueVisitor) error
+	Format(FormatFn) string
 }
 
 type ValueVisitor interface {
@@ -31,11 +44,12 @@ func NewString(value string, span Span) *String {
 	return &String{span: span, Value: value}
 }
 
-func (n String) Type() string          { return "string" }
-func (n String) Span() Span            { return n.span }
-func (n String) String() string        { return fmt.Sprintf(`"%s" @ %s`, n.Value, n.Span()) }
-func (n String) Text() string          { return n.Value }
-func (n String) Accept(v ValueVisitor) { v.VisitString(&n) }
+func (n String) Type() string                { return "string" }
+func (n String) Span() Span                  { return n.span }
+func (n String) String() string              { return fmt.Sprintf(`"%s" @ %s`, n.Value, n.Span()) }
+func (n String) Text() string                { return n.Value }
+func (n String) Accept(v ValueVisitor) error { return v.VisitString(&n) }
+func (n String) Format(fn FormatFn) string   { return formatNode(n, fn) }
 
 // Sequence Value
 
@@ -48,9 +62,10 @@ func NewSequence(items []Value, span Span) *Sequence {
 	return &Sequence{Items: items, span: span}
 }
 
-func (n Sequence) Type() string          { return "sequence" }
-func (n Sequence) Span() Span            { return n.span }
-func (n Sequence) Accept(v ValueVisitor) { v.VisitSequence(&n) }
+func (n Sequence) Type() string                { return "sequence" }
+func (n Sequence) Span() Span                  { return n.span }
+func (n Sequence) Accept(v ValueVisitor) error { return v.VisitSequence(&n) }
+func (n Sequence) Format(fn FormatFn) string   { return formatNode(n, fn) }
 func (n Sequence) String() string {
 	var s strings.Builder
 	s.WriteString("Sequence(")
@@ -84,9 +99,10 @@ func NewNode(name string, expr Value, span Span) *Node {
 	return &Node{Name: name, Expr: expr, span: span}
 }
 
-func (n Node) Type() string          { return "node" }
-func (n Node) Span() Span            { return n.span }
-func (n Node) Accept(v ValueVisitor) { v.VisitNode(&n) }
+func (n Node) Type() string                { return "node" }
+func (n Node) Span() Span                  { return n.span }
+func (n Node) Accept(v ValueVisitor) error { return v.VisitNode(&n) }
+func (n Node) Format(fn FormatFn) string   { return formatNode(n, fn) }
 
 func (n Node) Text() string {
 	if n.Expr == nil {
@@ -111,9 +127,10 @@ func NewError(label string, expr Value, span Span) *Error {
 	return &Error{Label: label, Expr: expr, span: span}
 }
 
-func (n Error) Type() string          { return "error" }
-func (n Error) Span() Span            { return n.span }
-func (n Error) Accept(v ValueVisitor) { v.VisitError(&n) }
+func (n Error) Type() string                { return "error" }
+func (n Error) Span() Span                  { return n.span }
+func (n Error) Accept(v ValueVisitor) error { return v.VisitError(&n) }
+func (n Error) Format(fn FormatFn) string   { return formatNode(n, fn) }
 
 func (n Error) Text() string {
 	if n.Expr == nil {
@@ -127,4 +144,102 @@ func (n Error) String() string {
 		return fmt.Sprintf(`Error("%s") @ %s`, n.Label, n.Span())
 	}
 	return fmt.Sprintf(`Error("%s", %s) @ %s`, n.Label, n.Expr, n.Span())
+}
+
+type ValuePrinter struct {
+	padStr *[]string
+	output *strings.Builder
+	format FormatFn
+}
+
+func NewValuePrinter(format FormatFn) *ValuePrinter {
+	return &ValuePrinter{
+		padStr: &[]string{},
+		output: &strings.Builder{},
+		format: format,
+	}
+}
+
+func formatNode(node Value, fmtFn FormatFn) string {
+	p := NewValuePrinter(fmtFn)
+	node.Accept(p)
+	return p.output.String()
+}
+
+func (v *ValuePrinter) VisitString(n *String) error {
+	escaped := strconv.Quote(n.Value)
+	v.write(v.format(escaped, FormatToken_Literal))
+	v.write(v.format(fmt.Sprintf(" (%s)", n.Span()), FormatToken_Span))
+	return nil
+}
+
+func (v *ValuePrinter) VisitError(n *Error) error {
+	v.write(v.format("Error", FormatToken_Error))
+	v.write(v.format(fmt.Sprintf(" (%s)", n.Span()), FormatToken_Span))
+	return nil
+}
+
+func (v *ValuePrinter) VisitSequence(n *Sequence) error {
+	seq := fmt.Sprintf("Sequence<%d> (%s)", len(n.Items), n.Span())
+	v.writel(v.format(seq, FormatToken_Span))
+	for i, item := range n.Items {
+		switch {
+		case i == len(n.Items)-1:
+			v.pwrite("└── ")
+			v.indent("    ")
+			item.Accept(v)
+			v.unindent()
+		default:
+			v.pwrite("├── ")
+			v.indent("│   ")
+			item.Accept(v)
+			v.unindent()
+			v.write("\n")
+		}
+	}
+	return nil
+}
+
+func (v *ValuePrinter) VisitNode(n *Node) error {
+	v.write(v.format(n.Name, FormatToken_Literal))
+	v.writel(v.format(fmt.Sprintf(" (%s)", n.Span()), FormatToken_Span))
+	v.pwrite("└── ")
+	v.indent("    ")
+	n.Expr.Accept(v)
+	v.unindent()
+	return nil
+}
+
+func (v *ValuePrinter) indent(s string) {
+	*v.padStr = append(*v.padStr, s)
+}
+
+func (v *ValuePrinter) unindent() {
+	index := len(*v.padStr) - 1
+	*v.padStr = (*v.padStr)[:index]
+}
+
+func (v *ValuePrinter) padding() {
+	for _, item := range *v.padStr {
+		v.write(item)
+	}
+}
+
+func (v *ValuePrinter) writel(s string) {
+	v.write(s)
+	v.output.WriteRune('\n')
+}
+
+func (v *ValuePrinter) pwritel(s string) {
+	v.pwrite(s)
+	v.output.WriteRune('\n')
+}
+
+func (v *ValuePrinter) write(s string) {
+	v.output.WriteString(s)
+}
+
+func (v *ValuePrinter) pwrite(s string) {
+	v.padding()
+	v.write(s)
 }

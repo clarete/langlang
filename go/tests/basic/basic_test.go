@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../cmd -language go -grammar ./basic.peg -go-prefix Basic -output ./basic.go
+//go:generate go run ../../cmd -language go -grammar ./basic.peg -output ./basic.go
 
 func TestIsSyntactic(t *testing.T) {
 	t.Run("sequence with literal terminals is always syntactic", func(t *testing.T) {
@@ -137,8 +137,8 @@ func TestNullable(t *testing.T) {
 	})
 }
 
-func newBasicParser(input string) *BasicParser {
-	p := NewBasicParser()
+func newBasicParser(input string) *Parser {
+	p := NewParser()
 	p.SetInput(input)
 	return p
 }

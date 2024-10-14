@@ -26,11 +26,6 @@ type AstNode interface {
 	IsSyntactic() bool
 }
 
-type TypeExpr interface {
-	TypeExpr() string
-	AstNode
-}
-
 // Node Type: Any
 
 type AnyNode struct{ span Span }

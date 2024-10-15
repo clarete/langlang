@@ -270,18 +270,37 @@ be used in other grammars using imports.  Behind the scenes, the
 * Generator Options
 ** Go
 
+For using the [deprecated] go generator, you can run the following
+command:
+
+#+begin_src shell
+go run ./go/cmd -grammar grammars.json
+#+end_src
+
+*** Basic command line arguments
+
+ * ~--grammar FILE~: is the only required parameter.  It takes the
+   grammar FILE as input and if no other command line arguments are
+   provided, the output is printed to ~stdout~.
+
+ * ~--output PATH~: this option replaces ~stdout~ as the output with
+   the PATH value provided to this command.
+
+ * ~--ast-only~: this will prevent the generator from outputing the
+   final parser, and instead, it output the grammar's AST.
+
+ * ~--language LANG~: this will cause the generator to output a parser
+   in the target language LANG.  As of this writing, the only
+   supported value is ~go~, but there are plans to extend support to
+   both Python and JavaScript/TypeScript.
+
+*** Additional options
+
 The Go code generator provides the following additional knobs to the
 command line:
 
  * ~--go-package~: allows customizing what goes in the ~package~
    directive that starts each Go file.
-
- * ~--go-prefix~: allows customizing structs generated prefixing what
-   is passed to this option.  This is especially useful if there are
-   two grammars to be parsed in the same package.  At least one will
-   need a prefix, so the generic ~Parser~ name doesn't collide. e.g.:
-   ~-go-prefix Tiny~ would generate a ~TinyParser~ struct, a
-   ~NewTinyParser~ constructor, etc.
 
 * Roadmap
 
@@ -295,3 +314,11 @@ command line:
  * [ ] MID: Display Call Graph for debugging purposes
  * [ ] BIG: Bootstrap off hand written parser, so grammar writters can
    take advantage of the features baked into the parser generator
+
+* Changelog
+
+** go/v0.0.5
+
+ - [[https://github.com/clarete/langlang/commit/fb6fdc9cf56dae3dcdd48c29ebc0ffae9c14ae9b][BREAKING CHANGE: Remove runtime dependencies from output parser]]
+ - [[https://github.com/clarete/langlang/commit/3d276aeb7e89c31f0bca6acba1174f6889f7e45c][BREAKING CHANGE: Overhaul naming of all the node types]]
+ - [[https://github.com/clarete/langlang/commit/71c702ac3265bf80e6b5a3dd696b307a018ecc71][BUG FIX: Labels must be serched as well for recovery rules]]

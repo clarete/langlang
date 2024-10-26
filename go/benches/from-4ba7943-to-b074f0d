@@ -1,0 +1,23 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/import
+                       │ 4ba7943/txt │             b074f0d/txt             │
+                       │   sec/op    │   sec/op     vs base                │
+Parser/Single_Digit-10   29.71µ ± 1%   15.27µ ± 0%  -48.59% (p=0.000 n=15)
+Parser/Term-10           57.41µ ± 3%   30.21µ ± 1%  -47.38% (p=0.000 n=15)
+Parser/Multi-10          52.51µ ± 2%   27.69µ ± 1%  -47.27% (p=0.000 n=15)
+geomean                  44.74µ        23.38µ       -47.75%
+
+                       │ 4ba7943/txt  │             b074f0d/txt              │
+                       │     B/op     │     B/op      vs base                │
+Parser/Single_Digit-10   23.52Ki ± 0%   12.78Ki ± 0%  -45.68% (p=0.000 n=15)
+Parser/Term-10           44.60Ki ± 0%   24.90Ki ± 0%  -44.16% (p=0.000 n=15)
+Parser/Multi-10          40.67Ki ± 0%   22.74Ki ± 0%  -44.09% (p=0.000 n=15)
+geomean                  34.94Ki        19.34Ki       -44.65%
+
+                       │ 4ba7943/txt │            b074f0d/txt             │
+                       │  allocs/op  │ allocs/op   vs base                │
+Parser/Single_Digit-10    594.0 ± 0%   322.0 ± 0%  -45.79% (p=0.000 n=15)
+Parser/Term-10           1119.0 ± 0%   627.0 ± 0%  -43.97% (p=0.000 n=15)
+Parser/Multi-10          1019.0 ± 0%   569.0 ± 0%  -44.16% (p=0.000 n=15)
+geomean                   878.2        486.1       -44.65%

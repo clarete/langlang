@@ -269,6 +269,23 @@ required:
   go test ./... -v
 #+end_src
 
+*** Run Benchmarks
+
+Start creating a new directory for keeping the output files
+
+#+begin_src shell
+mkdir benches/$(git rev-parse --short HEAD)
+#+end_src
+
+Run the benchmark command:
+
+#+begin_src shell
+  go test ./tests/import/... -v -run=^$ -bench=BenchmarkParser -benchmem \
+     -memprofile "benches/$(git rev-parse --short HEAD)/mem.out" \
+     -cpuprofile "benches/$(git rev-parse --short HEAD)/cpu.out" \
+     -benchtime 2s -count 15 | tee benches/$(git rev-parse --short HEAD)/txt
+#+end_src
+
 * Roadmap
 
  * [ ] MID: [genall] generator interface to be shared by all targets

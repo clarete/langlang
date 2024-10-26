@@ -84,3 +84,32 @@ func TestImport(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkParser(b *testing.B) {
+	type scenario struct {
+		Name  string
+		Query string
+	}
+	for _, scenario := range []scenario{
+		{
+			Name:  "Single Digit",
+			Query: "1",
+		},
+		{
+			Name:  "Term",
+			Query: "41 + 22",
+		},
+		{
+			Name:  "Multi",
+			Query: "33 * 44",
+		},
+	} {
+		b.Run(scenario.Name, func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				p := NewParser()
+				p.SetInput(scenario.Query)
+				p.ParseExpr()
+			}
+		})
+	}
+}

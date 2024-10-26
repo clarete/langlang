@@ -444,10 +444,19 @@ func (p *Parser) parseLiteral(literal string) (Value, error) {
 	return NewString(r, NewSpan(start, p.Location())), nil
 }
 
+func (p *Parser) parseSpacingChar() (rune, error) {
+	return ChoiceRune(p, map[rune]struct{}{
+		' ':  struct{}{},
+		'\t': struct{}{},
+		'\r': struct{}{},
+		'\n': struct{}{},
+	})
+}
+
 func (p *Parser) parseSpacing() (Value, error) {
 	start := p.Location()
 	v, err := ZeroOrMore(p, func(p Backtrackable) (rune, error) {
-		return ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
+		return p.(*Parser).parseSpacingChar()
 	})
 	if err != nil {
 		return nil, err
@@ -546,12 +555,20 @@ func OneOrMore[T any](p Backtrackable, fn ParserFn[T]) ([]T, error) {
 
 // ChoiceRune is a specialization of `Choice` that's less verbose for
 // picking from a slice of runes
-func ChoiceRune(p Backtrackable, runes []rune) (rune, error) {
-	var fns []ParserFn[rune]
-	for _, r := range runes {
-		fns = append(fns, p.ExpectRuneFn(r))
+func ChoiceRune(p Backtrackable, runes map[rune]struct{}) (rune, error) {
+	r := p.Peek()
+	if _, ok := runes[r]; ok {
+		return p.Any()
 	}
-	return Choice(p, fns)
+
+	expected := make([]string, len(runes))
+	for k := range runes {
+		expected = append(expected, string(k))
+	}
+	exp := strings.Join(expected, ", ")
+	msg := fmt.Sprintf("Expected %s but got `%c`", exp, r)
+	state := p.State()
+	return ' ', p.NewError(exp, msg, NewSpan(state.Location, p.Location()))
 }
 
 // Choice walks through fns and return the first to succeed.  It will

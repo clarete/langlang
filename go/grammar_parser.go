@@ -554,7 +554,7 @@ func (p *GrammarParser) ParseSpacing() {
 				return 0, p.(*GrammarParser).ParseComment()
 			},
 			func(p Backtrackable) (rune, error) {
-				return ChoiceRune(p, []rune{' ', '\t', '\r', '\n'})
+				return p.(*GrammarParser).parseSpacingChar()
 			},
 		})
 	})

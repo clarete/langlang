@@ -174,8 +174,15 @@ func (v *ValuePrinter) VisitString(n *String) error {
 }
 
 func (v *ValuePrinter) VisitError(n *Error) error {
-	v.write(v.format("Error", FormatToken_Error))
+	v.write(v.format(fmt.Sprintf("Error<%s>", n.Label), FormatToken_Error))
 	v.write(v.format(fmt.Sprintf(" (%s)", n.Span()), FormatToken_Span))
+	if n.Expr != nil {
+		v.writel("")
+		v.pwrite("└── ")
+		v.indent("    ")
+		n.Expr.Accept(v)
+		v.unindent()
+	}
 	return nil
 }
 

@@ -118,13 +118,14 @@ func (n Node) String() string {
 // Node Error
 
 type Error struct {
-	span  Span
-	Label string
-	Expr  Value
+	span    Span
+	Label   string
+	Message string
+	Expr    Value
 }
 
-func NewError(label string, expr Value, span Span) *Error {
-	return &Error{Label: label, Expr: expr, span: span}
+func NewError(label, message string, expr Value, span Span) *Error {
+	return &Error{Label: label, Message: message, Expr: expr, span: span}
 }
 
 func (n Error) Type() string                { return "error" }
@@ -144,6 +145,14 @@ func (n Error) String() string {
 		return fmt.Sprintf(`Error("%s") @ %s`, n.Label, n.Span())
 	}
 	return fmt.Sprintf(`Error("%s", %s) @ %s`, n.Label, n.Expr, n.Span())
+}
+
+func (n Error) AsError() ParsingError {
+	return ParsingError{
+		Label:   n.Label,
+		Message: n.Message,
+		Span:    n.Span(),
+	}
 }
 
 type ValuePrinter struct {

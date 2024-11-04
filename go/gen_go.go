@@ -386,7 +386,7 @@ var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
 func (g *goCodeEmitter) VisitLiteralNode(n *LiteralNode) error {
 	s := `p.(*Parser).parseLiteral("%s")`
 	if g.isAtRuleLevel() {
-		s = "p.Parse%s()"
+		s = `p.parseLiteral("%s")`
 	}
 	g.parser.write(fmt.Sprintf(s, quoteSanitizer.Replace(n.Value)))
 

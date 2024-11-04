@@ -31,7 +31,11 @@ type GenGoOptions struct {
 func GenGo(node AstNode, opt GenGoOptions) (string, error) {
 	g := newGoCodeEmitter(opt)
 	g.writePrelude()
-	g.visit(node)
+
+	if err := node.Accept(g); err != nil {
+		return "", err
+	}
+
 	g.writeConstructor()
 	g.writeEmbeds()
 	return g.output()
@@ -47,59 +51,22 @@ var content embed.FS
 func newGoCodeEmitter(opt GenGoOptions) *goCodeEmitter {
 	return &goCodeEmitter{
 		options:   opt,
-		parser:    newOutputWriter(),
+		parser:    newOutputWriter("\t"),
 		labelsMap: map[string]struct{}{},
 		labels:    []string{},
 	}
 }
 
-func (g *goCodeEmitter) visit(node AstNode) {
-	switch n := node.(type) {
-	case *GrammarNode:
-		g.visitGrammarNode(n)
-	case *DefinitionNode:
-		g.visitDefinitionNode(n)
-	case *SequenceNode:
-		g.visitSequenceNode(n)
-	case *OneOrMoreNode:
-		g.visitOneOrMoreNode(n)
-	case *ZeroOrMoreNode:
-		g.visitZeroOrMoreNode(n)
-	case *OptionalNode:
-		g.visitOptionalNode(n)
-	case *ChoiceNode:
-		g.visitChoiceNode(n)
-	case *AndNode:
-		g.visitAndNode(n)
-	case *NotNode:
-		g.visitNotNode(n)
-	case *LexNode:
-		g.visitLexNode(n)
-	case *LabeledNode:
-		g.visitLabeledNode(n)
-	case *IdentifierNode:
-		g.visitIdentifierNode(n)
-	case *LiteralNode:
-		g.visitLiteralNode(n)
-	case *ClassNode:
-		g.visitClassNode(n)
-	case *RangeNode:
-		g.visitRangeNode(n)
-	case *AnyNode:
-		g.visitAnyNode()
-	default:
-		panic(fmt.Sprintf("Unknown Grammar AST node: %s", n))
-	}
+func (g *goCodeEmitter) VisitImportNode(n *ImportNode) error {
+	return fmt.Errorf("unreachable")
 }
 
-func (g *goCodeEmitter) visitGrammarNode(n *GrammarNode) {
+func (g *goCodeEmitter) VisitGrammarNode(n *GrammarNode) error {
 	g.grammarNode = n
-	for _, item := range n.GetItems() {
-		g.visit(item)
-	}
+	return WalkGrammarNode(g, n)
 }
 
-func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
+func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.write("\nfunc (p *Parser) Parse")
 	g.parser.write(n.Name)
 	g.parser.writel("() (Value, error) {")
@@ -122,7 +89,11 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 	g.parser.writeil(")")
 
 	g.parser.writei("item, err = ")
-	g.visit(n.Expr)
+
+	if err := n.Expr.Accept(g); err != nil {
+		return err
+	}
+
 	g.parser.write("\n")
 	g.writeIfErr()
 	g.parser.writeil("if item == nil {")
@@ -140,9 +111,11 @@ func (g *goCodeEmitter) visitDefinitionNode(n *DefinitionNode) {
 
 	g.parser.unindent()
 	g.parser.writel("\n}")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
+func (g *goCodeEmitter) VisitSequenceNode(n *SequenceNode) error {
 	shouldConsumeSpaces := g.lexLevel == 0 && g.isUnderRuleLevel() && !n.IsSyntactic()
 	g.parser.writel("(func(p Backtrackable) (Value, error) {")
 	g.parser.indent()
@@ -176,7 +149,11 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 			g.parser.writeil("}")
 		}
 		g.parser.writei("item, err = ")
-		g.visit(item)
+
+		if err := item.Accept(g); err != nil {
+			return err
+		}
+
 		g.parser.write("\n")
 		g.writeIfErr()
 
@@ -191,9 +168,11 @@ func (g *goCodeEmitter) visitSequenceNode(n *SequenceNode) {
 
 	g.parser.unindent()
 	g.parser.writei("}(p))")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitOneOrMoreNode(n *OneOrMoreNode) {
+func (g *goCodeEmitter) VisitOneOrMoreNode(n *OneOrMoreNode) error {
 	g.parser.writel("(func(p Backtrackable) (Value, error) {")
 	g.parser.indent()
 
@@ -202,7 +181,11 @@ func (g *goCodeEmitter) visitOneOrMoreNode(n *OneOrMoreNode) {
 	g.parser.indent()
 
 	g.parser.writei("return ")
-	g.visit(n.Expr)
+
+	if err := n.Expr.Accept(g); err != nil {
+		return err
+	}
+
 	g.parser.write("\n")
 
 	g.parser.unindent()
@@ -212,9 +195,11 @@ func (g *goCodeEmitter) visitOneOrMoreNode(n *OneOrMoreNode) {
 
 	g.parser.unindent()
 	g.parser.writei("}(p))")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitZeroOrMoreNode(n *ZeroOrMoreNode) {
+func (g *goCodeEmitter) VisitZeroOrMoreNode(n *ZeroOrMoreNode) error {
 	g.parser.writel("(func(p Backtrackable) (Value, error) {")
 	g.parser.indent()
 
@@ -223,7 +208,9 @@ func (g *goCodeEmitter) visitZeroOrMoreNode(n *ZeroOrMoreNode) {
 	g.parser.indent()
 
 	g.parser.writei("return ")
-	g.visit(n.Expr)
+	if err := n.Expr.Accept(g); err != nil {
+		return err
+	}
 	g.parser.write("\n")
 
 	g.parser.unindent()
@@ -233,9 +220,11 @@ func (g *goCodeEmitter) visitZeroOrMoreNode(n *ZeroOrMoreNode) {
 
 	g.parser.unindent()
 	g.parser.writei("}(p))")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitOptionalNode(n *OptionalNode) {
+func (g *goCodeEmitter) VisitOptionalNode(n *OptionalNode) error {
 	g.parser.writel("Choice(p, []ParserFn[Value]{")
 	g.parser.indent()
 
@@ -250,14 +239,18 @@ func (g *goCodeEmitter) visitOptionalNode(n *OptionalNode) {
 
 	g.parser.unindent()
 	g.parser.writei("})")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitChoiceNode(n *ChoiceNode) {
+func (g *goCodeEmitter) VisitChoiceNode(n *ChoiceNode) error {
 	switch len(n.Items) {
 	case 0:
-		return
+		return nil
 	case 1:
-		g.visit(n.Items[0])
+		if err := n.Items[0].Accept(g); err != nil {
+			return err
+		}
 	default:
 		g.parser.writel("Choice(p, []ParserFn[Value]{")
 		g.parser.indent()
@@ -270,9 +263,10 @@ func (g *goCodeEmitter) visitChoiceNode(n *ChoiceNode) {
 		g.parser.unindent()
 		g.parser.writei("})")
 	}
+	return nil
 }
 
-func (g *goCodeEmitter) visitAndNode(n *AndNode) {
+func (g *goCodeEmitter) VisitAndNode(n *AndNode) error {
 	g.parser.writel("And(p, func(p Backtrackable) (Value, error) {")
 	g.parser.indent()
 
@@ -280,14 +274,18 @@ func (g *goCodeEmitter) visitAndNode(n *AndNode) {
 	g.parser.writeil("defer func() { p.LeavePredicate() }()")
 
 	g.parser.writei("return ")
-	g.visit(n.Expr)
+	if err := n.Expr.Accept(g); err != nil {
+		return err
+	}
 	g.parser.write("\n")
 
 	g.parser.unindent()
 	g.parser.writei("})")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitNotNode(n *NotNode) {
+func (g *goCodeEmitter) VisitNotNode(n *NotNode) error {
 	g.parser.writel("Not(p, func(p Backtrackable) (Value, error) {")
 	g.parser.indent()
 
@@ -295,21 +293,28 @@ func (g *goCodeEmitter) visitNotNode(n *NotNode) {
 	g.parser.writeil("defer func() { p.LeavePredicate() }()")
 
 	g.parser.writei("return ")
-	g.visit(n.Expr)
+	if err := n.Expr.Accept(g); err != nil {
+		return err
+	}
 	g.parser.write("\n")
 
 	g.parser.unindent()
 	g.parser.writei("})")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitLexNode(n *LexNode) {
+func (g *goCodeEmitter) VisitLexNode(n *LexNode) error {
 	g.lexLevel++
-	g.visit(n.Expr)
+	if err := n.Expr.Accept(g); err != nil {
+		return err
+	}
 	g.parser.write("\n")
 	g.lexLevel--
+	return nil
 }
 
-func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
+func (g *goCodeEmitter) VisitLabeledNode(n *LabeledNode) error {
 	// keep both the set of labels as well as an ordered list.
 	// The set prevents duplicates in the ordered list.
 	// Duplicates come from using the same label more than once in
@@ -363,59 +368,71 @@ func (g *goCodeEmitter) visitLabeledNode(n *LabeledNode) {
 
 	g.parser.unindent()
 	g.parser.writeil("}(p)")
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitIdentifierNode(n *IdentifierNode) {
+func (g *goCodeEmitter) VisitIdentifierNode(n *IdentifierNode) error {
 	s := "p.(*Parser).Parse%s()"
 	if g.isAtRuleLevel() {
 		s = "p.Parse%s()"
 	}
 	g.parser.write(fmt.Sprintf(s, n.Value))
+	return nil
 }
 
 var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
 
-func (g *goCodeEmitter) visitLiteralNode(n *LiteralNode) {
+func (g *goCodeEmitter) VisitLiteralNode(n *LiteralNode) error {
 	s := `p.(*Parser).parseLiteral("%s")`
 	if g.isAtRuleLevel() {
 		s = "p.Parse%s()"
 	}
 	g.parser.write(fmt.Sprintf(s, quoteSanitizer.Replace(n.Value)))
+
+	return nil
 }
 
-func (g *goCodeEmitter) visitClassNode(n *ClassNode) {
+func (g *goCodeEmitter) VisitClassNode(n *ClassNode) error {
 	switch len(n.Items) {
 	case 0:
 	case 1:
-		g.visit(n.Items[0])
+		if err := n.Items[0].Accept(g); err != nil {
+			return err
+		}
 	default:
 		g.parser.writel("Choice(p, []ParserFn[Value]{")
 		g.parser.indent()
 
 		for _, expr := range n.Items {
-			g.writeExprFn(expr)
+			if err := g.writeExprFn(expr); err != nil {
+				return err
+			}
 			g.parser.writel(",")
 		}
 
 		g.parser.unindent()
 		g.parser.writei("})")
 	}
+	return nil
 }
 
-func (g *goCodeEmitter) visitRangeNode(n *RangeNode) {
+func (g *goCodeEmitter) VisitRangeNode(n *RangeNode) error {
 	s := "p.(*Parser).parseRange('%s', '%s')"
 	if g.isAtRuleLevel() {
 		s = "p.parseRange('%s', '%s')"
 	}
 	g.parser.write(fmt.Sprintf(s, n.Left, n.Right))
+	return nil
 }
 
-func (g *goCodeEmitter) visitAnyNode() {
+func (g *goCodeEmitter) VisitAnyNode(_ *AnyNode) error {
 	s := "p.(*Parser).parseAny()"
 	if g.isAtRuleLevel() {
 		s = "p.parseAny()"
 	}
 	g.parser.write(s)
+	return nil
 }
 
 // Utilities to write data into the output buffer
@@ -509,16 +526,19 @@ func (g *goCodeEmitter) writeSeqOrNode() {
 	g.parser.writeil("return wrapSeq(items, NewSpan(start, p.Location())), nil")
 }
 
-func (g *goCodeEmitter) writeExprFn(expr AstNode) {
+func (g *goCodeEmitter) writeExprFn(expr AstNode) error {
 	g.parser.writeil("func(p Backtrackable) (Value, error) {")
 	g.parser.indent()
 
 	g.parser.writei("return ")
-	g.visit(expr)
+	if err := expr.Accept(g); err != nil {
+		return err
+	}
 	g.parser.write("\n")
 
 	g.parser.unindent()
 	g.parser.writei("}")
+	return nil
 }
 
 func (g *goCodeEmitter) writeIfErr() {
@@ -593,49 +613,4 @@ func (g *goCodeEmitter) output() (string, error) {
 		return "", err
 	}
 	return output.String(), nil
-}
-
-// IO helper
-
-type outputWriter struct {
-	buffer      *strings.Builder
-	indentLevel int
-}
-
-func newOutputWriter() *outputWriter {
-	return &outputWriter{buffer: &strings.Builder{}}
-}
-
-func (o *outputWriter) indent() {
-	o.indentLevel++
-}
-
-func (o *outputWriter) unindent() {
-	o.indentLevel--
-}
-
-func (o *outputWriter) writeIndent() {
-	for i := 0; i < o.indentLevel; i++ {
-		o.buffer.WriteString("	")
-	}
-}
-
-func (o *outputWriter) writei(s string) {
-	o.writeIndent()
-	o.write(s)
-}
-
-func (o *outputWriter) writeil(s string) {
-	o.writeIndent()
-	o.write(s)
-	o.write("\n")
-}
-
-func (o *outputWriter) writel(s string) {
-	o.write(s)
-	o.buffer.WriteString("\n")
-}
-
-func (o *outputWriter) write(s string) {
-	o.buffer.WriteString(s)
 }

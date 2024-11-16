@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
-use crate::consts::{END_OF_FILE_RULE_NAME, WHITE_SPACE_RULE_NAME};
-
 use langlang_syntax::visitor::Visitor;
 use langlang_syntax::{ast, parser};
 
@@ -50,7 +48,12 @@ impl<T: ImportLoader> ImportResolver<T> {
     }
 
     pub fn resolve(&self, source: &Path) -> Result<ast::Grammar, Error> {
-        Ok(self.resolve_import(source, source)?.grammar)
+        let mut r = self.resolve_import(source, source)?;
+        let builtins = parser::parse(include_str!("./builtins.peg"))?;
+        for def in builtins.definitions.values() {
+            r.grammar.add_definition(def);
+        }
+        Ok(r.grammar)
     }
 
     fn resolve_import<'a>(
@@ -87,19 +90,6 @@ impl<T: ImportLoader> ImportResolver<T> {
 
         frame.grammar.imports = vec![];
 
-        let builtins = self.create_builtin_frame()?;
-
-        for name in &[
-            WHITE_SPACE_RULE_NAME.to_string(),
-            END_OF_FILE_RULE_NAME.to_string(),
-        ] {
-            let def = &builtins.grammar.definitions[name];
-            frame.grammar.add_definition(def);
-            for dep in builtins.find_definition_deps(def) {
-                frame.grammar.add_definition(dep);
-            }
-        }
-
         Ok(frame)
     }
 
@@ -114,13 +104,6 @@ impl<T: ImportLoader> ImportResolver<T> {
         Ok(ImporterResolverFrame {
             import_path,
             grammar,
-        })
-    }
-
-    fn create_builtin_frame(&self) -> Result<ImporterResolverFrame, Error> {
-        Ok(ImporterResolverFrame {
-            import_path: PathBuf::new(),
-            grammar: parser::parse(include_str!("./builtins.peg"))?,
         })
     }
 }

@@ -33,7 +33,5 @@ LEFTARROW   <- '<-'
 
 // Override the builtin spacing rule. Notice, it *must* be a lexical
 // rule, otherwise it becomes an unbounded recursion
-Spacing     <- #(Comment / Space / EOL)*
-Comment     <- #('//' (!EOL .)* EOL)
-Space       <- ' ' / '\t'
-EOL         <- '\n' / '\r\n' / '\r'
+Spacing <- #(Comment / Space / EOL)*
+Comment <- #('//' (!EOL .)* EOL)

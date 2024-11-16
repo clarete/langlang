@@ -1,4 +1,5 @@
-WS  <- SPC*
-SPC <- ' ' / '\t' / #EOL
+Spacing <- Space*
+Space   <- ' ' / '\t' / #EOL
+
 EOL <- '\r\n' / '\n' / '\r'
 EOF <- !.

@@ -432,9 +432,9 @@ fn test_manual_recovery() {
 
             iflpar     <- (!(Bool / Identifier / Number) .)*  // first(Expr)
             ifrpar     <- (!LBRK .)* // first(Body)
-            assigneq   <- WS
-            assignexpr <- WS
-            assignsemi <- WS
+            assigneq   <- Spacing
+            assignexpr <- Spacing
+            assignsemi <- Spacing
             ",
         "P",
     );

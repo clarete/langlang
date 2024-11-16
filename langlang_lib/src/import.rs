@@ -151,6 +151,7 @@ impl<'ast> Visitor<'ast> for DepFinder<'ast> {
                 self.visit_definition(def);
             }
         }
+        self.visit_expression(&n.expr);
     }
 }
 

@@ -111,18 +111,18 @@ impl ToString for Definition {
     }
 }
 
-// IsSyntactic determins if expressions or definitions are made of
-// entirely of terminals or terminals and lexified expressions.
+/// IsSyntactic determins if expressions or definitions are made of
+/// entirely of terminals or terminals and lexified expressions.
 pub trait IsSyntactic {
-    // is_syntactic is true if an expression or a definition contains
-    // exclusively terminals.
+    /// is_syntactic is true if an expression or a definition contains
+    /// exclusively terminals.
     fn is_syntactic(&self) -> bool {
         false
     }
 
-    // is_lexical is true if an expression or a definition contains
-    // either terminal expressions, or non-terminals exclusively if
-    // wrapped on a lexification operator.
+    /// is_lexical is true if an expression or a definition contains
+    /// either terminal expressions, or non-terminals exclusively if
+    /// wrapped on a lexification operator.
     fn is_lexical(&self) -> bool {
         false
     }

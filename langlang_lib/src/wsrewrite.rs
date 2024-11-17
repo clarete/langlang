@@ -53,7 +53,7 @@ impl WhiteSpaceHandlerInjector {
                 ast::Lex::new_expr(node.span.clone(), Box::new(expr))
             }
             ast::Expression::Sequence(node) => {
-                let should_consume_spaces = self.lex_level == 0 && !node.is_syntactic();
+                let should_consume_spaces = self.lex_level == 0 && !node.is_lexical();
                 let mut items: Vec<ast::Expression> = vec![];
                 for (i, item) in node.items.iter().enumerate() {
                     let skip_first = !consume_first && i == 0;
@@ -68,7 +68,7 @@ impl WhiteSpaceHandlerInjector {
                 ast::Sequence::new_expr(node.span.clone(), items)
             }
             ast::Expression::Choice(node) => {
-                if expr.is_syntactic() {
+                if expr.is_lexical() {
                     return ast::Choice::new_expr(
                         node.span.clone(),
                         node.items

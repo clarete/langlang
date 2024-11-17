@@ -56,6 +56,7 @@ pub enum Instruction {
     CapPush,
     CapPop,
     CapCommit,
+    CapJoin,
 }
 
 impl std::fmt::Display for Instruction {
@@ -84,6 +85,7 @@ impl std::fmt::Display for Instruction {
             Instruction::CapPush => write!(f, "cappush"),
             Instruction::CapPop => write!(f, "cappop"),
             Instruction::CapCommit => write!(f, "capcommit"),
+            Instruction::CapJoin => write!(f, "capjoin"),
         }
     }
 }
@@ -522,6 +524,22 @@ impl<'a> VM<'a> {
         Ok(())
     }
 
+    fn join_captures(&mut self) -> Result<(), Error> {
+        let top = self.capstktop_mut()?;
+        if top.values.len() > 0 {
+            let (first, last) = (&top.values[0], &top.values[top.values.len() - 1]);
+            let span = Span::new(first.span().start, last.span().end);
+            let joined = top
+                .values
+                .drain(0..)
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>()
+                .join("");
+            top.values = vec![value::String::new_val(span, joined)];
+        }
+        Ok(())
+    }
+
     // evaluation
 
     pub fn run_str(&mut self, input: &str) -> Result<Option<Value>, Error> {
@@ -818,6 +836,11 @@ impl<'a> VM<'a> {
                     if !self.within_predicate {
                         self.commit_captures()?;
                     }
+                }
+                Instruction::CapJoin => {
+                    self.program_counter += 1;
+                    self.join_captures()?;
+                    self.dbg_captures()?;
                 }
             }
         }

@@ -95,14 +95,35 @@ impl Definition {
     }
 }
 
+impl IsSyntactic for Definition {
+    fn is_syntactic(&self) -> bool {
+        self.expr.is_syntactic()
+    }
+
+    fn is_lexical(&self) -> bool {
+        self.expr.is_lexical()
+    }
+}
+
 impl ToString for Definition {
     fn to_string(&self) -> StdString {
         format!("{} <- {}", self.name, self.expr.to_string())
     }
 }
 
+// IsSyntactic determins if expressions or definitions are made of
+// entirely of terminals or terminals and lexified expressions.
 pub trait IsSyntactic {
+    // is_syntactic is true if an expression or a definition contains
+    // exclusively terminals.
     fn is_syntactic(&self) -> bool {
+        false
+    }
+
+    // is_lexical is true if an expression or a definition contains
+    // either terminal expressions, or non-terminals exclusively if
+    // wrapped on a lexification operator.
+    fn is_lexical(&self) -> bool {
         false
     }
 }
@@ -111,6 +132,14 @@ fn is_syntactic_list<T: IsSyntactic>(items: &[T]) -> bool {
     items
         .iter()
         .map(|i| i.is_syntactic())
+        .reduce(|acc, i| acc && i)
+        .unwrap_or(false)
+}
+
+fn is_lexical_list<T: IsSyntactic>(items: &[T]) -> bool {
+    items
+        .iter()
+        .map(|i| i.is_lexical())
         .reduce(|acc, i| acc && i)
         .unwrap_or(false)
 }
@@ -139,7 +168,7 @@ impl IsSyntactic for Expression {
         match self {
             Expression::Choice(v) => is_syntactic_list(&v.items),
             Expression::Sequence(v) => v.is_syntactic(),
-            Expression::Lex(_) => true,
+            Expression::Lex(v) => v.expr.is_syntactic(),
             Expression::And(v) => v.expr.is_syntactic(),
             Expression::Not(v) => v.expr.is_syntactic(),
             Expression::Optional(v) => v.expr.is_syntactic(),
@@ -149,6 +178,26 @@ impl IsSyntactic for Expression {
             Expression::Label(v) => v.expr.is_syntactic(),
             Expression::List(v) => is_syntactic_list(&v.items),
             Expression::Node(v) => v.expr.is_syntactic(),
+            Expression::Identifier(_) => false,
+            Expression::Literal(_) => true,
+            Expression::Empty(_) => true,
+        }
+    }
+
+    fn is_lexical(&self) -> bool {
+        match self {
+            Expression::Choice(v) => is_lexical_list(&v.items),
+            Expression::Sequence(v) => v.is_lexical(),
+            Expression::Lex(_) => true,
+            Expression::And(v) => v.expr.is_lexical(),
+            Expression::Not(v) => v.expr.is_lexical(),
+            Expression::Optional(v) => v.expr.is_lexical(),
+            Expression::ZeroOrMore(v) => v.expr.is_lexical(),
+            Expression::OneOrMore(v) => v.expr.is_lexical(),
+            Expression::Precedence(v) => v.expr.is_lexical(),
+            Expression::Label(v) => v.expr.is_lexical(),
+            Expression::List(v) => is_lexical_list(&v.items),
+            Expression::Node(v) => v.expr.is_lexical(),
             Expression::Identifier(_) => false,
             Expression::Literal(_) => true,
             Expression::Empty(_) => true,
@@ -193,6 +242,10 @@ impl Sequence {
 impl IsSyntactic for Sequence {
     fn is_syntactic(&self) -> bool {
         is_syntactic_list(&self.items)
+    }
+
+    fn is_lexical(&self) -> bool {
+        is_lexical_list(&self.items)
     }
 }
 

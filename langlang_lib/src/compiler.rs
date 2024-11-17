@@ -4,6 +4,7 @@ use crate::vm::{ContainerType, Instruction, Program};
 use crate::wsrewrite::WhiteSpaceHandlerInjector;
 
 use langlang_syntax::ast;
+use langlang_syntax::ast::IsSyntactic;
 use langlang_syntax::visitor::Visitor;
 
 #[derive(Debug)]
@@ -293,6 +294,9 @@ impl<'ast> Visitor<'ast> for Compiler {
         self.identifiers.insert(addr, strid);
         self.identifier_names.push(strid);
         self.visit_expression(&n.expr);
+        if n.is_syntactic() {
+            self.emit(Instruction::CapJoin);
+        }
         self.emit(Instruction::Return);
         self.funcs.insert(strid, addr);
     }

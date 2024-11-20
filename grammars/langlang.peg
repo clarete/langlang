@@ -4,30 +4,31 @@
 // white space handling.
 
 // Hierarchical syntax
-Grammar     <- Import* Definition+ EOF
-Import      <- "@import" Identifier ("," Identifier)* "from" Literal
-Definition  <- Identifier LEFTARROW Expression
+Grammar     <- Import* Definition* EOF
+Import      <- "@import" Identifier^MissingImportName ("," Identifier)* "from"^MissingImportFrom Literal^MissingImportSrc
+Definition  <- Identifier LEFTARROW Expression // this always succeeds, there's no point in labeling
 
 Expression  <- Sequence ("/" Sequence)*
 Sequence    <- Prefix*
 Prefix      <- ("#" / "&" / "!")? Labeled
-Labeled     <- Suffix #(([^⇑] Identifier)?)
+Labeled     <- Suffix #(([^⇑] Identifier^MissingLabel)?)
 Suffix      <- Primary ("?" / "*" / "+" / Superscript)?
 Primary     <- Identifier !LEFTARROW
-             / "(" Expression ")"
-             / List / Literal / Class / "."
-List        <- "{" (!"}" Expression)* "}"
+             / "(" Expression ")"^MissingClosingParen
+             / List / Literal / Class / Any
+List        <- "{" (!"}" Expression)* "}"^MissingClosingCurly
 
 // Lexical syntax
 Identifier  <- [a-zA-Z_][a-zA-Z0-9_]*
-Literal     <- ['] #((!['] Char)* ['])
-             / ["] #((!["] Char)* ["])
-Class       <- '[' #((!']' #Range)* ']')
+Literal     <- ['] #((!['] Char)* [']^MissingClosingSQuote)
+             / ["] #((!["] Char)* ["]^MissingClosingDQuote)
+Class       <- '[' #((!']' #Range)* ']'^MissingClosingBracket)
 Range       <- #(Char '-' Char / Char)
 Char        <- '\\' [nrt'"\[\]\\]
              / '\\' [0-2][0-7][0-7]
              / '\\' [0-7][0-7]?
              / !'\\' .
+Any         <- "."
 Superscript <- [¹²³⁴⁵⁶⁷⁸⁹]
 LEFTARROW   <- '<-'
 
@@ -35,3 +36,16 @@ LEFTARROW   <- '<-'
 // rule, otherwise it becomes an unbounded recursion
 Spacing <- #(Comment / Space / EOL)*
 Comment <- #('//' (!EOL .)* EOL)
+
+// Recovery expressions
+
+MissingClosingParen    <-
+MissingClosingCurly    <-
+MissingClosingBracket  <-
+MissingClosingSQuote   <-
+MissingClosingDQuote   <-
+MissingLabel           <- (!Primary .)*
+
+MissingImportName <- (!("from" / Literal) .)*
+MissingImportFrom <- (!Literal .)*
+MissingImportSrc  <- (!"\n" .)*

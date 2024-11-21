@@ -4,6 +4,9 @@ _/
 
 # go implementation
 go/examples/tiny/tiny.go
+go/examples/tiny/tiny.py
+go/examples/tiny/tiny.ts
+go/examples/tiny/tiny.js
 go/tests/basic/basic.go
 go/tests/recovery/recovery.go
 go/tests/import/import.go

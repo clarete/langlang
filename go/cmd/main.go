@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/clarete/langlang/go"
+	langlang "github.com/clarete/langlang/go"
 )
 
 const defaultWritePermission = 0644 // -rw-r--r--
@@ -55,6 +55,16 @@ func main() {
 
 	case "python":
 		outputData, err = langlang.GenPy(ast, langlang.GenPyOptions{
+			GrammarPath: *grammarPath,
+			RemoveLib:   *removeLib,
+		})
+	case "typescript":
+		outputData, err = langlang.GenTs(ast, langlang.GenTsOptions{
+			GrammarPath: *grammarPath,
+			RemoveLib:   *removeLib,
+		})
+	case "javascript":
+		outputData, err = langlang.GenJs(ast, langlang.GenJsOptions{
 			GrammarPath: *grammarPath,
 			RemoveLib:   *removeLib,
 		})

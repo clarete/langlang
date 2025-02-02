@@ -1,0 +1,23 @@
+#!/bin/bash
+
+SUITE=$1
+
+TEST_PATH=./tests/${SUITE}
+
+BENCH_PATH=benches/$(git rev-parse --short HEAD)/${SUITE}
+
+if [ -d $TEST_PATH ]; then
+
+    echo "Output path: $BENCH_PATH"
+
+    mkdir -p $BENCH_PATH
+
+    go test ${TEST_PATH}/... -v -run=^$ \
+       -bench=BenchmarkParser -benchmem     \
+       -memprofile "${BENCH_PATH}/mem.out"  \
+       -cpuprofile "${BENCH_PATH}/cpu.out"  \
+       -benchtime 2s -count 15 | tee $BENCH_PATH/txt
+
+else
+    echo "Don't have the suite ${SUITE} :("
+fi

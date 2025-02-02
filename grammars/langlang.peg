@@ -36,6 +36,8 @@ LEFTARROW   <- '<-'
 // rule, otherwise it becomes an unbounded recursion
 Spacing <- #(Comment / Space / EOL)*
 Comment <- #('//' (!EOL .)* EOL)
+Space   <- #(' ' / '\t')
+EOL     <- #('\n' / '\r\n' / '\r')
 
 // Recovery expressions
 

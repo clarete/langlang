@@ -281,8 +281,8 @@ func (p *Parser) ExpectRune(v rune) (rune, error) {
 		return p.Any()
 	}
 
-	exp := fmt.Sprintf("`%c`", v)
-	msg := fmt.Sprintf("Expected `%c` but got `%c`", v, c)
+	exp := "`" + string(v) + "`"
+	msg := "Expected " + exp + " but got `" + string(c) + "`"
 	err := p.NewError(exp, msg, NewSpan(start, p.Location()))
 	return 0, err
 }
@@ -298,8 +298,8 @@ func (p *Parser) ExpectRange(l, r rune) (rune, error) {
 		return p.Any()
 	}
 
-	exp := fmt.Sprintf("`%c-%c`", l, r)
-	msg := fmt.Sprintf("Expected `%c-%c` but got `%c`", l, r, c)
+	exp := "`" + string(l) + "-" + string(r) + "`"
+	msg := "Expected " + exp + " but got `" + string(c) + "`"
 	err := p.NewError(exp, msg, NewSpan(start, p.Location()))
 	return 0, err
 }
@@ -314,16 +314,15 @@ func (p *Parser) ExpectLiteral(literal string) (string, error) {
 	for _, v := range literal {
 		c, err := p.Any()
 		if err != nil {
-			p.Backtrack(state)
 			return "", err
 		}
 		if c == v {
 			continue
 		}
 
-		span := NewSpan(state.Location, p.Location())
-		err = p.NewError(fmt.Sprintf("`%s`", literal), fmt.Sprintf("Missing `%s`", literal), span)
-		return "", err
+		exp := "`" + literal + "`"
+		msg := "Missing " + exp
+		return "", p.NewError(exp, msg, NewSpan(state.Location, p.Location()))
 	}
 	return literal, nil
 
@@ -373,14 +372,13 @@ func (p *Parser) ParseEOF() (Value, error) {
 // the parser backtracks the input position
 func (p *Parser) NewError(exp, msg string, span Span) error {
 	n := p.PeekTraceSpan().Name
-	e := &backtrackingError{
+	return backtrackingError{
 		Production: n,
 		Expected:   exp,
 		Message:    msg,
 		// ErrSpan:    errSpan,
 		Span: span,
 	}
-	return e
 }
 
 func (p *Parser) PushTraceSpan(ts TracerSpan) {
@@ -452,13 +450,24 @@ func (p *Parser) parseLiteral(literal string) (Value, error) {
 	return NewString(r, NewSpan(start, p.Location())), nil
 }
 
+var spacingRunes = map[rune]struct{}{
+	' ':  struct{}{},
+	'\t': struct{}{},
+	'\r': struct{}{},
+	'\n': struct{}{},
+}
+
 func (p *Parser) parseSpacingChar() (rune, error) {
-	return ChoiceRune(p, map[rune]struct{}{
-		' ':  struct{}{},
-		'\t': struct{}{},
-		'\r': struct{}{},
-		'\n': struct{}{},
-	})
+	r := p.Peek()
+
+	if _, ok := spacingRunes[r]; ok {
+		return p.Any()
+	}
+
+	exp := "` `, `\t`, `\n`, `\r`"
+	msg := "Expected " + exp + " but got `" + string(r) + "`"
+	state := p.State()
+	return ' ', p.NewError(msg, msg, NewSpan(state.Location, p.Location()))
 }
 
 func (p *Parser) parseSpacing() (Value, error) {
@@ -607,7 +616,7 @@ func Choice[T any](p Backtrackable, fns []ParserFn[T]) (T, error) {
 		}
 	}
 	exp := strings.Join(expected, ", ")
-	msg := fmt.Sprintf("Expected %s but got `%c`", exp, p.Peek())
+	msg := "Expected " + exp + " but got `" + string(p.Peek()) + "`"
 	return zero, p.NewError(exp, msg, NewSpan(state.Location, p.Location()))
 }
 

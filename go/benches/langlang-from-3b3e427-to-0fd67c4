@@ -1,0 +1,27 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/langlang
+cpu: Apple M1 Max
+                           │ benches/3b3e427/langlang/txt │    benches/0fd67c4/langlang/txt     │
+                           │            sec/op            │   sec/op     vs base                │
+Parser/Grammar_csv-10                         297.0µ ± 1%   213.8µ ± 3%  -28.00% (p=0.000 n=15)
+Parser/Grammar_json-10                        2.565m ± 0%   1.797m ± 2%  -29.93% (p=0.000 n=15)
+Parser/Grammar_peg-10                         4.251m ± 1%   3.056m ± 0%  -28.12% (p=0.000 n=15)
+Parser/Grammar_langlang-10                    5.489m ± 1%   3.990m ± 2%  -27.32% (p=0.000 n=15)
+geomean                                       2.053m        1.471m       -28.35%
+
+                           │ benches/3b3e427/langlang/txt │     benches/0fd67c4/langlang/txt     │
+                           │             B/op             │     B/op      vs base                │
+Parser/Grammar_csv-10                        267.1Ki ± 0%   228.8Ki ± 0%  -14.35% (p=0.000 n=15)
+Parser/Grammar_json-10                       2.072Mi ± 0%   1.772Mi ± 0%  -14.47% (p=0.000 n=15)
+Parser/Grammar_peg-10                        3.733Mi ± 0%   3.227Mi ± 0%  -13.57% (p=0.000 n=15)
+Parser/Grammar_langlang-10                   4.443Mi ± 0%   3.772Mi ± 0%  -15.11% (p=0.000 n=15)
+geomean                                      1.730Mi        1.482Mi       -14.38%
+
+                           │ benches/3b3e427/langlang/txt │    benches/0fd67c4/langlang/txt     │
+                           │          allocs/op           │  allocs/op   vs base                │
+Parser/Grammar_csv-10                         3.891k ± 0%   2.441k ± 0%  -37.27% (p=0.000 n=15)
+Parser/Grammar_json-10                        34.06k ± 0%   22.48k ± 0%  -33.99% (p=0.000 n=15)
+Parser/Grammar_peg-10                         58.34k ± 0%   38.98k ± 0%  -33.19% (p=0.000 n=15)
+Parser/Grammar_langlang-10                    77.61k ± 0%   51.34k ± 0%  -33.85% (p=0.000 n=15)
+geomean                                       27.83k        18.20k       -34.59%

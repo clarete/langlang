@@ -317,6 +317,11 @@ command line:
 
 * Changelog
 
+** go/v0.0.6
+
+ * [[https://github.com/clarete/langlang/commit/3b3e427ee91999aa30e56927b4b8994829f6105d][PERF: Memoize production function results]]
+ * [[https://github.com/clarete/langlang/commit/0fd67c472f60e5ce9b1e17c20bab7b443dbf62ad][PERF: Remove fmt.Sprintf from core matching functions]]
+
 ** go/v0.0.5
 
  - [[https://github.com/clarete/langlang/commit/fb6fdc9cf56dae3dcdd48c29ebc0ffae9c14ae9b][BREAKING CHANGE: Remove runtime dependencies from output parser]]

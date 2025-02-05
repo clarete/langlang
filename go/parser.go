@@ -219,6 +219,7 @@ func (p *Parser) SetInput(input string) {
 	p.lastErrFFP = 0
 	p.stacktrace = []TracerSpan{}
 	p.predStkCnt = 0
+	p.mtable = map[string]mentry{}
 }
 
 // SetLabelMessages associates messages to labels, so `Throw` can pick

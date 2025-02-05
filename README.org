@@ -317,6 +317,10 @@ command line:
 
 * Changelog
 
+** go/v0.0.7
+
+ - [[https://github.com/clarete/langlang/commit/e2553fdaf69ab96ecc1a4184f21a0d61e27b069a][BUG FIX: Capturing error messages for CHOICE]]
+
 ** go/v0.0.6
 
  * [[https://github.com/clarete/langlang/commit/3b3e427ee91999aa30e56927b4b8994829f6105d][PERF: Memoize production function results]]

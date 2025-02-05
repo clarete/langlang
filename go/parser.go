@@ -99,6 +99,14 @@ type Parser struct {
 	captureSpaces  bool
 	printTraceback bool
 	recoveryTable  map[string]ParserFn[Value]
+
+	mtable map[string]mentry
+}
+
+type mentry struct {
+	val Value
+	err error
+	end Location
 }
 
 type Backtrackable interface {

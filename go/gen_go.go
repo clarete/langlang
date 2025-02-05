@@ -73,20 +73,31 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.indent()
 
 	g.parser.writeil(fmt.Sprintf(`p.PushTraceSpan(TracerSpan{Name: "%s"})`, n.Name))
+	g.parser.writeil("var (")
+	g.parser.indent()
+	g.parser.writeil("start = p.Location()")
+	g.parser.writeil(fmt.Sprintf(`key   = "%s_" + strconv.Itoa(start.Cursor)`, n.Name))
+	g.parser.writeil("item  Value")
+	g.parser.writeil("err   error")
+	g.parser.unindent()
+	g.parser.writeil(")")
+
+	g.parser.writeil("cached, ok := p.mtable[key]")
+	g.parser.writeil("if ok {")
+	g.parser.indent()
+	g.parser.writeil("p.cursor = cached.end.Cursor")
+	g.parser.writeil("p.line = cached.end.Line")
+	g.parser.writeil("p.column = cached.end.Column")
+	g.parser.writeil("return cached.val, cached.err")
+	g.parser.unindent()
+	g.parser.writeil("}")
+
 	g.parser.writeil("defer p.PopTraceSpan()")
 	g.parser.writeil("if p.printTraceback {")
 	g.parser.indent()
 	g.parser.writeil("fmt.Printf(\"%s; %s\\n\", p.Location(), p.PrintStackTrace())")
 	g.parser.unindent()
 	g.parser.writeil("}")
-
-	g.parser.writeil("var (")
-	g.parser.indent()
-	g.parser.writeil("start = p.Location()")
-	g.parser.writeil("item  Value")
-	g.parser.writeil("err   error")
-	g.parser.unindent()
-	g.parser.writeil(")")
 
 	g.parser.writei("item, err = ")
 
@@ -95,6 +106,7 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	}
 
 	g.parser.write("\n")
+	g.parser.writeil("p.mtable[key] = mentry{end: p.Location(), err: err}")
 	g.writeIfErr()
 	g.parser.writeil("if item == nil {")
 	g.parser.indent()
@@ -102,12 +114,14 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.unindent()
 	g.parser.writeil("}")
 
-	g.parser.writeil("return p.RunAction(")
+	g.parser.writeil("out, err := p.RunAction(")
 	g.parser.indent()
 	g.parser.writeil(fmt.Sprintf(`"%s",`, n.Name))
 	g.parser.writeil(fmt.Sprintf(`NewNode("%s", item, NewSpan(start, p.Location())),`, n.Name))
 	g.parser.unindent()
 	g.parser.writeil(")")
+	g.parser.writeil("p.mtable[key] = mentry{end: p.Location(), val: out}")
+	g.parser.writeil("return out, err")
 
 	g.parser.unindent()
 	g.parser.writel("\n}")
@@ -472,6 +486,7 @@ func (g *goCodeEmitter) writeConstructor() {
 	g.parser.indent()
 	g.parser.writeil("captureSpaces: true,")
 	g.parser.writeil("recoveryTable: map[string]ParserFn[Value]{},")
+	g.parser.writeil("mtable:        map[string]mentry{},")
 	g.parser.unindent()
 	g.parser.writeil("}")
 	for _, label := range g.labels {

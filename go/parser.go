@@ -372,7 +372,7 @@ func (p *Parser) ParseEOF() (Value, error) {
 // the parser backtracks the input position
 func (p *Parser) NewError(exp, msg string, span Span) error {
 	n := p.PeekTraceSpan().Name
-	return backtrackingError{
+	return &backtrackingError{
 		Production: n,
 		Expected:   exp,
 		Message:    msg,

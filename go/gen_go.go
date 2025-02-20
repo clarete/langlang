@@ -73,6 +73,7 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.indent()
 
 	g.parser.writeil(fmt.Sprintf(`p.PushTraceSpan(TracerSpan{Name: "%s"})`, n.Name))
+	g.parser.writeil("defer p.PopTraceSpan()")
 	g.parser.writeil("var (")
 	g.parser.indent()
 	g.parser.writeil("start = p.Location()")
@@ -92,7 +93,6 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.unindent()
 	g.parser.writeil("}")
 
-	g.parser.writeil("defer p.PopTraceSpan()")
 	g.parser.writeil("if p.printTraceback {")
 	g.parser.indent()
 	g.parser.writeil("fmt.Printf(\"%s; %s\\n\", p.Location(), p.PrintStackTrace())")

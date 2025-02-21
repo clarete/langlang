@@ -69,7 +69,7 @@ func (g *goCodeEmitter) VisitGrammarNode(n *GrammarNode) error {
 func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.write("\nfunc (p *Parser) Parse")
 	g.parser.write(n.Name)
-	g.parser.writel("() (Value, error) {")
+	g.parser.writel("() (val Value, err error) {")
 	g.parser.indent()
 
 	g.parser.writeil(fmt.Sprintf(`p.PushTraceSpan(TracerSpan{Name: "%s"})`, n.Name))
@@ -79,7 +79,6 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.writeil("start = p.Location()")
 	g.parser.writeil(fmt.Sprintf(`key   = "%s_" + strconv.Itoa(start.Cursor)`, n.Name))
 	g.parser.writeil("item  Value")
-	g.parser.writeil("err   error")
 	g.parser.unindent()
 	g.parser.writeil(")")
 
@@ -99,6 +98,12 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.unindent()
 	g.parser.writeil("}")
 
+	g.parser.writeil("defer func() {")
+	g.parser.indent()
+	g.parser.writeil("p.mtable[key] = mentry{end: p.Location(), val: val, err: err}")
+	g.parser.unindent()
+	g.parser.writeil("}()")
+
 	g.parser.writei("item, err = ")
 
 	if err := n.Expr.Accept(g); err != nil {
@@ -106,7 +111,6 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	}
 
 	g.parser.write("\n")
-	g.parser.writeil("p.mtable[key] = mentry{end: p.Location(), err: err}")
 	g.writeIfErr()
 	g.parser.writeil("if item == nil {")
 	g.parser.indent()
@@ -114,14 +118,13 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.unindent()
 	g.parser.writeil("}")
 
-	g.parser.writeil("out, err := p.RunAction(")
+	g.parser.writeil("val, err = p.RunAction(")
 	g.parser.indent()
 	g.parser.writeil(fmt.Sprintf(`"%s",`, n.Name))
 	g.parser.writeil(fmt.Sprintf(`NewNode("%s", item, NewSpan(start, p.Location())),`, n.Name))
 	g.parser.unindent()
 	g.parser.writeil(")")
-	g.parser.writeil("p.mtable[key] = mentry{end: p.Location(), val: out}")
-	g.parser.writeil("return out, err")
+	g.parser.writeil("return val, err")
 
 	g.parser.unindent()
 	g.parser.writel("\n}")

@@ -72,8 +72,6 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.writel("() (val Value, err error) {")
 	g.parser.indent()
 
-	g.parser.writeil(fmt.Sprintf(`p.PushTraceSpan(TracerSpan{Name: "%s"})`, n.Name))
-	g.parser.writeil("defer p.PopTraceSpan()")
 	g.parser.writeil("var (")
 	g.parser.indent()
 	g.parser.writeil("start = p.Location()")
@@ -85,16 +83,8 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.writeil("cached, ok := p.mtable[key]")
 	g.parser.writeil("if ok {")
 	g.parser.indent()
-	g.parser.writeil("p.cursor = cached.end.Cursor")
-	g.parser.writeil("p.line = cached.end.Line")
-	g.parser.writeil("p.column = cached.end.Column")
+	g.parser.writeil("p.Backtrack(cached.end)")
 	g.parser.writeil("return cached.val, cached.err")
-	g.parser.unindent()
-	g.parser.writeil("}")
-
-	g.parser.writeil("if p.printTraceback {")
-	g.parser.indent()
-	g.parser.writeil("fmt.Printf(\"%s; %s\\n\", p.Location(), p.PrintStackTrace())")
 	g.parser.unindent()
 	g.parser.writeil("}")
 

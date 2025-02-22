@@ -4,10 +4,9 @@ import "fmt"
 
 // ParsingError is the error thrown when the parser can't finish successfuly
 type ParsingError struct {
-	Message    string
-	Label      string
-	Production string
-	Span       Span
+	Message string
+	Label   string
+	Span    Span
 }
 
 // String returns the human readable representation of a parsing error
@@ -22,10 +21,9 @@ func (e ParsingError) Error() string {
 // backtrackingError is an internal error type that is captured by the
 // Choice operator
 type backtrackingError struct {
-	Message    string
-	Production string
-	Expected   string
-	Span       Span
+	Message  string
+	Expected string
+	Span     Span
 }
 
 // String returns the human readable representation of a parsing error

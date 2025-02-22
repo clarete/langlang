@@ -48,34 +48,6 @@ func (s Span) String() string {
 	return fmt.Sprintf("%s%s..%s", prefix, s.Start, s.End)
 }
 
-type ParserState struct {
-	Location   Location
-	StackTrace []TracerSpan
-}
-
-type Tracer interface {
-	// PushTraceSpan allows parser implementations to keep track
-	// of spans for tracing the execution of the parsing
-	PushTraceSpan(TracerSpan)
-
-	// PopTraceSpan allows parser implementations to keep track
-	// of spans for tracing the execution of the parsing
-	PopTraceSpan() TracerSpan
-
-	// StackTrace returns all the frames in the stack trace.  Used
-	// by debugging facilities to show in which production a given
-	// operation just happened
-	StackTrace() []TracerSpan
-}
-
-type TracerSpan struct {
-	Name string
-}
-
-func (s TracerSpan) String() string {
-	return s.Name
-}
-
 // Parser keeps the state necessary to build parsing expressions on
 // top of the basic parsing expressions available, like Choice,
 // ZeroOrMore, OneOrMore, Options, etc.
@@ -95,10 +67,8 @@ type Parser struct {
 	labelMsgs  map[string]string
 	actionFns  map[string]func(*Node) (Value, error)
 
-	stacktrace     []TracerSpan
-	captureSpaces  bool
-	printTraceback bool
-	recoveryTable  map[string]ParserFn[Value]
+	captureSpaces bool
+	recoveryTable map[string]ParserFn[Value]
 
 	mtable map[string]mentry
 }
@@ -122,11 +92,8 @@ type Backtrackable interface {
 	// length.
 	Any() (rune, error)
 
-	// State something something
-	State() ParserState
-
 	// Backtrack resets the parser's cursor to `location`
-	Backtrack(ParserState)
+	Backtrack(Location)
 
 	// Location returns the full location of the cursor within the
 	// input.
@@ -179,8 +146,6 @@ type Backtrackable interface {
 	// ExpectLiteral returns `l` if it's the same rune that's under
 	// the cursor, or errors otherwise.
 	ExpectLiteral(l string) (string, error)
-
-	Tracer
 }
 
 // Location returns in which line/column/cursor the parser's input is currently in
@@ -217,8 +182,6 @@ func (p *Parser) SetInput(input string) {
 
 	p.lastErr = nil
 	p.lastErrFFP = 0
-	p.stacktrace = []TracerSpan{}
-	p.predStkCnt = 0
 	p.mtable = map[string]mentry{}
 }
 
@@ -231,10 +194,6 @@ func (p *Parser) SetLabelMessages(m map[string]string) {
 
 func (p *Parser) SetCaptureSpaces(v bool) {
 	p.captureSpaces = v
-}
-
-func (p *Parser) SetPrintTraceback(v bool) {
-	p.printTraceback = v
 }
 
 func (p *Parser) SetAction(name string, fn func(*Node) (Value, error)) {
@@ -261,18 +220,10 @@ func (p *Parser) Peek() rune {
 }
 
 // Backtrack resets the internal parser state to the Location l
-func (p *Parser) Backtrack(state ParserState) {
-	p.cursor = state.Location.Cursor
-	p.line = state.Location.Line
-	p.column = state.Location.Column
-	p.stacktrace = state.StackTrace
-}
-
-func (p Parser) State() ParserState {
-	return ParserState{
-		Location:   p.Location(),
-		StackTrace: p.stacktrace,
-	}
+func (p *Parser) Backtrack(l Location) {
+	p.cursor = l.Cursor
+	p.line = l.Line
+	p.column = l.Column
 }
 
 func (p *Parser) ExpectRune(v rune) (rune, error) {
@@ -310,7 +261,7 @@ func (p *Parser) ExpectRangeFn(l, r rune) ParserFn[rune] {
 }
 
 func (p *Parser) ExpectLiteral(literal string) (string, error) {
-	state := p.State()
+	start := p.Location()
 
 	for _, v := range literal {
 		c, err := p.Any()
@@ -323,7 +274,7 @@ func (p *Parser) ExpectLiteral(literal string) (string, error) {
 
 		exp := "`" + literal + "`"
 		msg := "Missing " + exp
-		return "", p.NewError(exp, msg, NewSpan(state.Location, p.Location()))
+		return "", p.NewError(exp, msg, NewSpan(start, p.Location()))
 	}
 	return literal, nil
 
@@ -372,53 +323,11 @@ func (p *Parser) ParseEOF() (Value, error) {
 // NewError creates a type of error that is handled and discarded when
 // the parser backtracks the input position
 func (p *Parser) NewError(exp, msg string, span Span) error {
-	n := p.PeekTraceSpan().Name
 	return &backtrackingError{
-		Production: n,
-		Expected:   exp,
-		Message:    msg,
-		// ErrSpan:    errSpan,
-		Span: span,
+		Expected: exp,
+		Message:  msg,
+		Span:     span,
 	}
-}
-
-func (p *Parser) PushTraceSpan(ts TracerSpan) {
-	p.stacktrace = append(p.stacktrace, ts)
-}
-
-func (p *Parser) PeekTraceSpan() *TracerSpan {
-	idx := len(p.stacktrace) - 1
-	if idx < 0 {
-		return nil
-	}
-	return &p.stacktrace[idx]
-}
-
-func (p *Parser) PopTraceSpan() TracerSpan {
-	idx := len(p.stacktrace) - 1
-	top := p.stacktrace[idx]
-	p.stacktrace = p.stacktrace[:idx]
-	return top
-}
-
-func (p *Parser) StackTrace() []TracerSpan {
-	return p.stacktrace
-}
-
-func (p *Parser) PrintStackTrace() string {
-	var (
-		s     strings.Builder
-		stack = p.StackTrace()
-		ln    = len(stack) - 1
-	)
-	for i, span := range stack {
-		s.WriteString(span.String())
-
-		if i < ln {
-			s.WriteString(" > ")
-		}
-	}
-	return s.String()
 }
 
 func (p *Parser) parseRange(left, right rune) (Value, error) {
@@ -460,6 +369,7 @@ var spacingRunes = map[rune]struct{}{
 
 func (p *Parser) parseSpacingChar() (rune, error) {
 	r := p.Peek()
+	start := p.Location()
 
 	if _, ok := spacingRunes[r]; ok {
 		return p.Any()
@@ -467,8 +377,7 @@ func (p *Parser) parseSpacingChar() (rune, error) {
 
 	exp := "` `, `\t`, `\n`, `\r`"
 	msg := "Expected " + exp + " but got `" + string(r) + "`"
-	state := p.State()
-	return ' ', p.NewError(msg, msg, NewSpan(state.Location, p.Location()))
+	return ' ', p.NewError(msg, msg, NewSpan(start, p.Location()))
 }
 
 func (p *Parser) parseSpacing() (Value, error) {
@@ -496,16 +405,14 @@ func (p *Parser) Throw(label string, span Span) error {
 	if p.WithinPredicate() {
 		return p.NewError(label, label, span)
 	}
-	production := p.PeekTraceSpan().Name
 	message := ""
 	if m, ok := p.labelMsgs[label]; ok {
 		message = m
 	}
 	e := ParsingError{
-		Production: production,
-		Label:      label,
-		Message:    message,
-		Span:       span,
+		Label:   label,
+		Message: message,
+		Span:    span,
 	}
 	p.lastErr = e
 	p.lastErrFFP = p.ffp
@@ -541,7 +448,7 @@ type ParserFn[T any] func(p Backtrackable) (T, error)
 func ZeroOrMore[T any](p Backtrackable, fn ParserFn[T]) ([]T, error) {
 	var output []T
 	for {
-		state := p.State()
+		state := p.Location()
 		item, err := fn(p)
 		if err != nil {
 			p.Backtrack(state)
@@ -574,6 +481,7 @@ func OneOrMore[T any](p Backtrackable, fn ParserFn[T]) ([]T, error) {
 // ChoiceRune is a specialization of `Choice` that's less verbose for
 // picking from a slice of runes
 func ChoiceRune(p Backtrackable, runes map[rune]struct{}) (rune, error) {
+	start := p.Location()
 	r := p.Peek()
 	if _, ok := runes[r]; ok {
 		return p.Any()
@@ -585,8 +493,7 @@ func ChoiceRune(p Backtrackable, runes map[rune]struct{}) (rune, error) {
 	}
 	exp := strings.Join(expected, ", ")
 	msg := fmt.Sprintf("Expected %s but got `%c`", exp, r)
-	state := p.State()
-	return ' ', p.NewError(exp, msg, NewSpan(state.Location, p.Location()))
+	return ' ', p.NewError(exp, msg, NewSpan(start, p.Location()))
 }
 
 // Choice walks through fns and return the first to succeed.  It will
@@ -597,14 +504,14 @@ func Choice[T any](p Backtrackable, fns []ParserFn[T]) (T, error) {
 		zero        T
 		expected    []string
 		expectedMap = map[string]struct{}{}
+		start       = p.Location()
 	)
-	state := p.State()
 	for _, fn := range fns {
 		item, err := fn(p)
 		if err == nil {
 			return item, nil
 		} else {
-			p.Backtrack(state)
+			p.Backtrack(start)
 			if isthrown(err) && !p.WithinPredicate() {
 				return zero, err
 			}
@@ -618,7 +525,7 @@ func Choice[T any](p Backtrackable, fns []ParserFn[T]) (T, error) {
 	}
 	exp := strings.Join(expected, ", ")
 	msg := "Expected " + exp + " but got `" + string(p.Peek()) + "`"
-	return zero, p.NewError(exp, msg, NewSpan(state.Location, p.Location()))
+	return zero, p.NewError(exp, msg, NewSpan(start, p.Location()))
 }
 
 // Optional is a syntax sugar for an ordered choice in which the
@@ -638,15 +545,15 @@ func Optional[T any](p Backtrackable, fn ParserFn[T]) (T, error) {
 func And[T any](p Backtrackable, fn ParserFn[T]) (T, error) {
 	var zero T
 	p.EnterPredicate()
-	state := p.State()
+	start := p.Location()
 	_, err := fn(p)
 
 	// unconditionally backtrack as the predicate never consumes any input
-	p.Backtrack(state)
+	p.Backtrack(start)
 	p.LeavePredicate()
 
 	if err != nil {
-		return zero, p.NewError("&", "And Error", NewSpan(state.Location, p.Location()))
+		return zero, p.NewError("&", "And Error", NewSpan(start, p.Location()))
 	}
 	return zero, nil
 }
@@ -655,15 +562,15 @@ func And[T any](p Backtrackable, fn ParserFn[T]) (T, error) {
 func Not[T any](p Backtrackable, fn ParserFn[T]) (T, error) {
 	var zero T
 	p.EnterPredicate()
-	state := p.State()
+	start := p.Location()
 	_, err := fn(p)
 
 	// unconditionally backtrack as the predicate never consumes any input
-	p.Backtrack(state)
+	p.Backtrack(start)
 	p.LeavePredicate()
 
 	if err == nil {
-		return zero, p.NewError("!", "Not Error", NewSpan(state.Location, p.Location()))
+		return zero, p.NewError("!", "Not Error", NewSpan(start, p.Location()))
 	}
 	return zero, nil
 }

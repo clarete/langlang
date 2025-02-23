@@ -2,9 +2,15 @@
 target/
 _/
 
-# go implementation
+# generated parsers that serve the go implementation
 go/examples/tiny/tiny.go
+go/examples/tiny/tiny.ts
 go/tests/basic/basic.go
+go/tests/basic/basic.ts
 go/tests/recovery/recovery.go
+go/tests/recovery/recovery.ts
 go/tests/import/import.go
+go/tests/import/import.ts
 go/tests/langlang/langlang.go
+go/tests/langlang/langlang.ts
+go/node_modules/

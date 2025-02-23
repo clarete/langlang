@@ -1,0 +1,12 @@
+{
+  "name": "langlang_js",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "test": "jest ./tests/**/*.spec.ts"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "ts-jest": "^29.2.6"
+  }
+}

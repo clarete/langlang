@@ -65,7 +65,6 @@ func (g *tsCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 
 	g.parser.writeil("const start = this.location()")
 	g.parser.writeil(fmt.Sprintf("const key = `%s_${start.cursor}`", n.Name))
-	g.parser.writeil("let item")
 	g.parser.writei(fmt.Sprintf(`return this.mknode("%s", start, `, n.Name))
 
 	if err := n.Expr.Accept(g); err != nil {
@@ -82,33 +81,39 @@ func (g *tsCodeEmitter) VisitSequenceNode(n *SequenceNode) error {
 	shouldConsumeSpaces := g.lexLevel == 0 && g.isUnderRuleLevel() && !n.IsSyntactic()
 
 	if len(n.Items) == 1 {
-		n.Items[0].Accept(g)
-		return nil
+		return n.Items[0].Accept(g)
 	}
 
-	g.parser.writel("this.mk(this.location(), narrow(")
+	g.parser.writel("((): Value => {")
 	g.parser.indent()
-	g.parser.writeil("[")
+
+	g.parser.writeil("const start = this.location();")
+	g.parser.writeil("return wrapSeq([")
 	g.parser.indent()
 
 	for i, item := range n.Items {
 		_, isLexNode := item.(*LexNode)
 		if shouldConsumeSpaces && !isLexNode {
-			g.parser.writeil("() => this.parseSpacing(),")
+			g.parser.writeil("this.parseSpacing(),")
 		}
 
 		g.parser.writei("")
-		g.writeExprFn(item)
+		if err := item.Accept(g); err != nil {
+			return err
+		}
 
 		if i < len(n.Items)-1 {
 			g.parser.writel(",")
+		} else {
+			g.parser.writel("")
 		}
 	}
 
 	g.parser.unindent()
-	g.parser.writel("")
-	g.parser.writei("]))")
+	g.parser.writeil("], this.span(start))")
 	g.parser.unindent()
+	g.parser.writei("})()")
+
 	return nil
 }
 
@@ -120,9 +125,14 @@ func (g *tsCodeEmitter) VisitOneOrMoreNode(n *OneOrMoreNode) error {
 }
 
 func (g *tsCodeEmitter) VisitZeroOrMoreNode(n *ZeroOrMoreNode) error {
-	g.parser.write("this.zeroOrMore(")
+	g.parser.writel("(() => {")
+	g.parser.indent()
+	g.parser.writeil("const start = this.location();")
+	g.parser.writei("return wrapSeq(this.zeroOrMore(")
 	g.writeExprFn(n.Expr)
-	g.parser.write(")")
+	g.parser.writel("), new Span(start, this.location()))")
+	g.parser.unindent()
+	g.parser.writei("})()")
 	return nil
 }
 
@@ -181,7 +191,9 @@ func (g *tsCodeEmitter) VisitLexNode(n *LexNode) error {
 func (g *tsCodeEmitter) VisitLabeledNode(n *LabeledNode) error {
 	g.labelsMap[n.Label] = struct{}{}
 
-	panic("visitLabeledNode")
+	if err := n.Expr.Accept(g); err != nil {
+		return err
+	}
 
 	// g.parser.write("func(p langlang.Parser) (langlang.Value, error) {\n")
 	// g.parser.indent()
@@ -344,11 +356,10 @@ func (g *tsCodeEmitter) writeExprFn(expr AstNode) error {
 		return nil
 	}
 
-	g.parser.write("() => (")
+	g.parser.write("() => ")
 	if err := expr.Accept(g); err != nil {
 		return err
 	}
-	g.parser.write(")")
 
 	return nil
 }

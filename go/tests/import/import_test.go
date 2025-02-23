@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd -language go -grammar ./import_gr_expr.peg -output ./import.go
+//go:generate go run ../../cmd/langlang -language go -grammar ./import_gr_expr.peg -output ./import.go
 
 func TestImport(t *testing.T) {
 	for _, test := range []struct {

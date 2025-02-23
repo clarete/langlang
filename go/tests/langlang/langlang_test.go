@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd -language go -grammar ../../../grammars/langlang.peg -output ./langlang.go
+//go:generate go run ../../cmd/langlang -language go -grammar ../../../grammars/langlang.peg -output ./langlang.go
 
 func BenchmarkParser(b *testing.B) {
 

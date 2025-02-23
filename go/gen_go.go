@@ -124,6 +124,15 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 
 func (g *goCodeEmitter) VisitSequenceNode(n *SequenceNode) error {
 	shouldConsumeSpaces := g.lexLevel == 0 && g.isUnderRuleLevel() && !n.IsSyntactic()
+
+	switch len(n.Items) {
+	case 0:
+		g.parser.write("nil, nil")
+		return nil
+	case 1:
+		return n.Items[0].Accept(g)
+	}
+
 	g.parser.writel("(func(p Backtrackable) (Value, error) {")
 	g.parser.indent()
 

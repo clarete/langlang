@@ -43,15 +43,23 @@ func main() {
 	}
 
 	var outputData string
+
 	switch *language {
 	case "go":
 		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
+			GrammarPath: *grammarPath,
 			PackageName: *goOptPackage,
 			RemoveLib:   *goOptRemoveLib,
 		})
 
+	case "typescript":
+		outputData, err = langlang.GenTs(ast, langlang.GenTsOptions{
+			GrammarPath: *grammarPath,
+		})
+
 	// case "python":
 	// 	outputData, err = langlang.GenParserPython(ast)
+
 	default:
 		log.Fatalf("Output language `%s` not supported", *language)
 	}

@@ -30,7 +30,7 @@ func GenTs(node AstNode, opt GenTsOptions) (string, error) {
 	if err := node.Accept(g); err != nil {
 		return "", err
 	}
-	
+
 	g.writeConstructor()
 	g.parser.unindent()
 	g.parser.write("}\n")
@@ -53,11 +53,10 @@ func (g *tsCodeEmitter) VisitImportNode(n *ImportNode) error {
 	return fmt.Errorf("unreachable")
 }
 
-func (g *tsCodeEmitter) VisitGrammarNode(n *GrammarNode) error { 
+func (g *tsCodeEmitter) VisitGrammarNode(n *GrammarNode) error {
 	g.grammarNode = n
 	return WalkGrammarNode(g, n)
 }
-
 
 func (g *tsCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.write("\n")
@@ -65,7 +64,7 @@ func (g *tsCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	g.parser.indent()
 
 	g.parser.writeil("const start = this.location()")
-	g.parser.writeil(fmt.Sprintf("const key = `%s_${start.cursor}`"))
+	g.parser.writeil(fmt.Sprintf("const key = `%s_${start.cursor}`", n.Name))
 	g.parser.writeil("let item")
 	g.parser.writei(fmt.Sprintf(`return this.mknode("%s", start, `, n.Name))
 

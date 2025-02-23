@@ -24,6 +24,7 @@ type goCodeEmitter struct {
 }
 
 type GenGoOptions struct {
+	GrammarPath string
 	PackageName string
 	RemoveLib   bool
 }
@@ -43,6 +44,7 @@ func GenGo(node AstNode, opt GenGoOptions) (string, error) {
 
 type tmplRenderOpts struct {
 	PackageName string
+	GrammarPath string
 }
 
 //go:embed parser.go value.go errors.go
@@ -615,6 +617,7 @@ func (g *goCodeEmitter) output() (string, error) {
 	}
 	var output bytes.Buffer
 	vv := tmplRenderOpts{
+		GrammarPath: g.options.GrammarPath,
 		PackageName: g.options.PackageName,
 	}
 	if err = parserTmpl.Execute(&output, vv); err != nil {

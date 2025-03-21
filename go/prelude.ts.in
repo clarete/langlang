@@ -12,13 +12,20 @@ export class Loc {
   line: number;
   column: number;
   cursor: number;
-  path: string;
+  file: string;
 
-  constructor(line = 0, column = 0, cursor = 0, path = "") {
+  constructor(line = 0, column = 0, cursor = 0, file = "") {
     this.line = line;
     this.column = column;
     this.cursor = cursor;
-    this.path = path;
+    this.file = file;
+  }
+
+  String(): string {
+    if (this.line == 0) {
+      return `${this.column}`;
+    }
+    return `${this.line+1}:${this.column}`;
   }
 }
 
@@ -30,17 +37,30 @@ export class Span {
     this.start = start;
     this.end = end;
   }
+
+  String(): string {
+    let prefix = this.start.file;
+    if (prefix != "") {
+      prefix += ":"
+    }
+
+    if (this.start.line == this.end.line) {
+      if (this.start.column == this.end.column) {
+        return prefix + this.start.column;
+      }
+    }
+
+    return `${prefix}${this.start.String()}..${this.end.String()}`
+  }
 }
 
 export class ParseError extends Error {
   expected: string;
-  message: string;
   span: Span;
 
-  constructor(expected: string, message: string, span: Span) {
-    super(message);
+  constructor(expected: string, span: Span) {
+    super(`Missing \`${expected}\` @ ${span.String()}`);
     this.expected = expected;
-    this.message = message;
     this.span = span;
   }
 }
@@ -53,6 +73,10 @@ export class StringValue {
     this.value = value;
     this.span = span;
   }
+
+  text(): string {
+    return this.value;
+  }
 }
 
 export class SequenceValue {
@@ -62,6 +86,13 @@ export class SequenceValue {
   constructor(items: Value[], span: Span) {
     this.items = items;
     this.span = span;
+  }
+
+  text(): string {
+    let out = "";
+    for (const item of this.items)
+      out += item.text()
+    return out;
   }
 }
 
@@ -75,6 +106,10 @@ export class NodeValue {
     this.expr = expr;
     this.span = span;
   }
+
+  text(): string {
+    return this.expr.text()
+  }
 }
 
 type MEntry = {
@@ -83,7 +118,7 @@ type MEntry = {
   end: Loc;
 }
 
-export type Value = StringValue | SequenceValue | NodeValue | null;
+export type Value = StringValue | SequenceValue | NodeValue;
 
 function isValue(input: unknown): input is Value {
   return (
@@ -97,26 +132,9 @@ export type ParserFn<T> = () => T;
 
 export type ActionFn<T> = (node: NodeValue) => T;
 
-function narrow<T>(items: ParserFn<T | T[]>[]): T | T[] {
-  const output: T[] = [];
-  for (const i of items) {
-    const ii = i();
-    if (ii !== null) {
-      if (Array.isArray(ii)) {
-        output.push(...ii);
-      } else {
-        output.push(ii);
-      }
-    }
-  }
+type ValOrNil = Value | null;
 
-  if (output.length === 1) {
-    return output[0];
-  }
-  return output;
-}
-
-function wrapSeq(items: Value[], span: Span): Value | null {
+function wrapSeq(items: ValOrNil[], span: Span): Value | null {
   switch (items.length) {
     case 0:
       return null;
@@ -147,21 +165,23 @@ export class Parser {
   recoveryTable: Record<string, ParserFn<unknown>> = {};
   mtable: Record<string, MEntry> = {};
 
-  constructor() {}
+  constructor(input: string) {
+    this.input = input;
+  }
 
-  and(fn: ParserFn<unknown>): void {
+  and(fn: ParserFn<unknown>): null {
     const start = this.location();
 
     try {
       fn();
-      return;
+      return null;
     } catch {
       // noop
     } finally {
       this.backtrack(start);
     }
 
-    throw new ParseError("&", "and", this.span(start));
+    throw new ParseError("&", this.span(start));
   }
 
   any(): string {
@@ -194,7 +214,7 @@ export class Parser {
       }
     }
 
-    throw new ParseError("choice", "choice", this.span(start));
+    throw new ParseError("choice", this.span(start));
   }
 
   zeroOrMore<T>(fn: ParserFn<T>): T[] {
@@ -231,14 +251,7 @@ export class Parser {
       if (c === i) {
         continue;
       }
-
-      const expected = `\`${c}\``;
-
-      throw new ParseError(
-        expected,
-        `expected ${expected}, got \`${c}\``,
-        this.span(start)
-      );
+      throw new ParseError(i, this.span(start));
     }
 
     return lit;
@@ -254,11 +267,7 @@ export class Parser {
 
     const expected = `${a}-${b}`;
 
-    throw new ParseError(
-      expected,
-      `expected ${expected}, got ${c}`,
-      this.span(start)
-    );
+    throw new ParseError(expected, this.span(start));
   }
 
   location(): Loc {
@@ -288,24 +297,24 @@ export class Parser {
     return new NodeValue(name, this.mk(start, expr), span);
   }
 
-  not(fn: ParserFn<unknown>): void {
+  not(fn: ParserFn<unknown>): null {
     const start = this.location();
 
     try {
       fn();
     } catch (e) {
-      return;
+      return null;
     } finally {
       this.backtrack(start);
     }
 
-    throw new ParseError("!", "not", this.span(start));
+    throw new ParseError("!", this.span(start));
   }
 
   peek(): string {
     const start = this.location();
     if (this.cursor === this.input.length) {
-      throw new ParseError(".", "EOF", this.span(start));
+      throw new ParseError(".", this.span(start));
     }
     return this.input[this.cursor];
   }
@@ -348,8 +357,9 @@ export class Parser {
     return new StringValue(value, this.span(start));
   }
 
-  parseEOF(): void {
+  parseEOF(): null {
     this.not(() => this.any());
+    return null
   }
 
   span(start: Loc): Span {

@@ -118,9 +118,14 @@ func (g *tsCodeEmitter) VisitSequenceNode(n *SequenceNode) error {
 }
 
 func (g *tsCodeEmitter) VisitOneOrMoreNode(n *OneOrMoreNode) error {
-	g.parser.write("this.oneOrMore(")
+	g.parser.writel("(() => {")
+	g.parser.indent()
+	g.parser.writeil("const start = this.location();")
+	g.parser.writei("return wrapSeq(this.oneOrMore(")
 	g.writeExprFn(n.Expr)
-	g.parser.write(")")
+	g.parser.writel("), new Span(start, this.location()))")
+	g.parser.unindent()
+	g.parser.writei("})()")
 	return nil
 }
 

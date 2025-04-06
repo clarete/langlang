@@ -17,7 +17,7 @@ func NewImportResolver(loader ImportLoader) *ImportResolver {
 func (r *ImportResolver) Resolve(source string) (AstNode, error) {
 	f, err := r.resolve(source, source)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	return f.Grammar, nil
 }

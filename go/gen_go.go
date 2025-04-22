@@ -45,7 +45,7 @@ type tmplRenderOpts struct {
 	PackageName string
 }
 
-//go:embed parser.go value.go errors.go
+//go:embed parser.go tree_printer.go value.go errors.go
 var content embed.FS
 
 func newGoCodeEmitter(opt GenGoOptions) *goCodeEmitter {
@@ -434,9 +434,9 @@ func (g *goCodeEmitter) VisitClassNode(n *ClassNode) error {
 }
 
 func (g *goCodeEmitter) VisitRangeNode(n *RangeNode) error {
-	s := "p.(*Parser).parseRange('%s', '%s')"
+	s := "p.(*Parser).parseRange('%c', '%c')"
 	if g.isAtRuleLevel() {
-		s = "p.parseRange('%s', '%s')"
+		s = "p.parseRange('%c', '%c')"
 	}
 	g.parser.write(fmt.Sprintf(s, n.Left, n.Right))
 	return nil
@@ -525,6 +525,12 @@ func (g *goCodeEmitter) writeEmbeds() {
 	if g.options.RemoveLib {
 		return
 	}
+
+	treePrinter, err := cleanGoModule("tree_printer.go")
+	if err != nil {
+		panic(err.Error())
+	}
+	g.parser.write(treePrinter)
 
 	value, err := cleanGoModule("value.go")
 	if err != nil {

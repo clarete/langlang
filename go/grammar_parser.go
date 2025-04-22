@@ -457,7 +457,13 @@ func (p *GrammarParser) ParseChar() (AstNode, error) {
 	start := p.Location()
 	value, err := Choice(p, []ParserFn[string]{
 		func(p Backtrackable) (string, error) { return p.(*GrammarParser).parseEscapedChar() },
-		func(p Backtrackable) (string, error) { return p.(*GrammarParser).parseChar() },
+		func(p Backtrackable) (string, error) {
+			c, err := p.(*GrammarParser).parseChar()
+			if err != nil {
+				return "", err
+			}
+			return string(c), nil
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -496,15 +502,15 @@ func (p *GrammarParser) parseEscapedChar() (string, error) {
 }
 
 // !'\\' .
-func (p *GrammarParser) parseChar() (string, error) {
+func (p *GrammarParser) parseChar() (rune, error) {
 	if _, err := Not(p, p.ExpectRuneFn('\\')); err != nil {
-		return "", err
+		return 0, err
 	}
 	value, err := p.Any()
 	if err != nil {
-		return "", err
+		return 0, err
 	}
-	return string(value), nil
+	return value, nil
 }
 
 // GR: ParseSpacing <- ' ' / '\t' / '\r' / '\n'

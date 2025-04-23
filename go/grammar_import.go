@@ -38,12 +38,12 @@ func (r *ImportResolver) resolve(importPath, parentPath string) (*importerResolv
 				return nil, fmt.Errorf("Name `%s` isn't declared in %s", name, childFrame.ImportPath)
 			}
 
-			parentFrame.addNewDefinition(importedDefinition)
+			parentFrame.Grammar.AddDefinition(importedDefinition)
 
 			deps := childFrame.findDefinitionDeps(importedDefinition)
 
 			for _, depName := range deps.names {
-				parentFrame.addNewDefinition(deps.nodes[depName])
+				parentFrame.Grammar.AddDefinition(deps.nodes[depName])
 			}
 		}
 	}
@@ -117,13 +117,6 @@ func (ril *RelativeImportLoader) GetContent(path string) (string, error) {
 type importerResolverFrame struct {
 	ImportPath string
 	Grammar    *GrammarNode
-}
-
-func (f *importerResolverFrame) addNewDefinition(n *DefinitionNode) {
-	if _, ok := f.Grammar.DefsByName[n.Name]; !ok {
-		f.Grammar.Definitions = append(f.Grammar.Definitions, n)
-		f.Grammar.DefsByName[n.Name] = n
-	}
 }
 
 type sortedDeps struct {

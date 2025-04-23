@@ -466,6 +466,13 @@ func (n GrammarNode) GetItems() []AstNode {
 	return items
 }
 
+func (n *GrammarNode) AddDefinition(def *DefinitionNode) {
+	if _, ok := n.DefsByName[def.Name]; !ok {
+		n.Definitions = append(n.Definitions, def)
+		n.DefsByName[def.Name] = def
+	}
+}
+
 // Helpers
 
 type asString interface{ String() string }

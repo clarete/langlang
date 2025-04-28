@@ -299,27 +299,6 @@ func (p *Parser) Any() (rune, error) {
 	return c, nil
 }
 
-func (p *Parser) ParseEOF() (Value, error) {
-	return (func(p Backtrackable) (Value, error) {
-		var (
-			start = p.Location()
-			items []Value
-			item  Value
-			err   error
-		)
-		item, err = Not(p, func(p Backtrackable) (Value, error) {
-			return p.(*Parser).parseAny()
-		})
-		if err != nil {
-			return nil, err
-		}
-		if item != nil {
-			items = append(items, item)
-		}
-		return wrapSeq(items, NewSpan(start, p.Location())), nil
-	}(p))
-}
-
 // NewError creates a type of error that is handled and discarded when
 // the parser backtracks the input position
 func (p *Parser) NewError(exp, msg string, span Span) error {

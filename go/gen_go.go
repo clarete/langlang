@@ -123,8 +123,6 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 }
 
 func (g *goCodeEmitter) VisitSequenceNode(n *SequenceNode) error {
-	shouldConsumeSpaces := g.lexLevel == 0 && g.isUnderRuleLevel() && !n.IsSyntactic()
-
 	switch len(n.Items) {
 	case 0:
 		g.parser.write("nil, nil")
@@ -150,20 +148,6 @@ func (g *goCodeEmitter) VisitSequenceNode(n *SequenceNode) error {
 	g.parser.writeil(")")
 
 	for _, item := range n.Items {
-		_, isLexNode := item.(*LexNode)
-		if shouldConsumeSpaces && !isLexNode {
-			if _, ok := g.grammarNode.DefsByName["Spacing"]; ok {
-				g.parser.writeil("item, err = p.(*Parser).ParseSpacing()")
-			} else {
-				g.parser.writeil("item, err = p.(*Parser).parseSpacing()")
-			}
-			g.writeIfErr()
-			g.parser.writeil("if item != nil {")
-			g.parser.indent()
-			g.parser.writeil("items = append(items, item)")
-			g.parser.unindent()
-			g.parser.writeil("}")
-		}
 		g.parser.writei("item, err = ")
 
 		if err := item.Accept(g); err != nil {
@@ -389,6 +373,22 @@ func (g *goCodeEmitter) VisitLabeledNode(n *LabeledNode) error {
 }
 
 func (g *goCodeEmitter) VisitIdentifierNode(n *IdentifierNode) error {
+	// If the user hasn't customized the spacing rule, we're going
+	// to call the hand-crafted version of parseSpacing instead of
+	// the one read from `builtins.peg`.
+	//
+	// This does help with performance, but the main reason this
+	// is here is just so we can continue to support the
+	// `SetCaptureSpaces()` method.  Which should be deprecated.
+	if n.Value == "Spacing" && isBuiltinSpacing(g.grammarNode) {
+		s := "p.(*Parser).parseSpacing()"
+		if g.isAtRuleLevel() {
+			s = "p.parseSpacing()"
+		}
+		g.parser.write(s)
+		return nil
+	}
+
 	s := "p.(*Parser).Parse%s()"
 	if g.isAtRuleLevel() {
 		s = "p.Parse%s()"
@@ -636,4 +636,16 @@ func (g *goCodeEmitter) output() (string, error) {
 		return "", err
 	}
 	return output.String(), nil
+}
+
+// isBuiltinSpacing will return true if the grammar in `g` has the
+// same spacing rules as the builtin grammar.  Notice that this relies
+// on the `builtinsGrammar` global variable.
+func isBuiltinSpacing(g *GrammarNode) bool {
+	var (
+		spacing = g.DefsByName["Spacing"].Equal(builtinsGrammar.DefsByName["Spacing"])
+		space   = g.DefsByName["Space"].Equal(builtinsGrammar.DefsByName["Space"])
+		eol     = g.DefsByName["EOL"].Equal(builtinsGrammar.DefsByName["EOL"])
+	)
+	return spacing && space && eol
 }

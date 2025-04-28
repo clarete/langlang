@@ -38,6 +38,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	ast, err = langlang.InjectWhitespaces(ast)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	ast, err = langlang.AddBuiltins(ast)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if *astOnly {
 		fmt.Println(ast.PrettyPrint())
 		return

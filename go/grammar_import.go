@@ -137,11 +137,6 @@ func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) *sorted
 func (f *importerResolverFrame) doFindDefinitionDeps(node AstNode, deps *sortedDeps) {
 	switch n := node.(type) {
 	case *IdentifierNode:
-		// Built-in rule; has no dependencies
-		if n.Value == "EOF" {
-			return
-		}
-
 		// Let's not recurse if this dep has been seen already
 		if _, ok := deps.nodes[n.Value]; ok {
 			return

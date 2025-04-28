@@ -31,6 +31,10 @@ type AstNode interface {
 
 	// Accept is an entrypoint for each node into the visitor
 	Accept(AstNodeVisitor) error
+
+	// Equal compares two AstNodes and returns true if they're
+	// considered equal
+	Equal(AstNode) bool
 }
 
 // Node Type: Any
@@ -49,6 +53,17 @@ func (n AnyNode) Text() string                  { return "." }
 func (n AnyNode) String() string                { return fmt.Sprintf("Any @ %s", n.Span()) }
 func (n AnyNode) Accept(v AstNodeVisitor) error { return v.VisitAnyNode(&n) }
 func (n AnyNode) PrettyPrint() string           { return ppAstNode(&n) }
+
+func (n AnyNode) Equal(o AstNode) bool {
+	switch o.(type) {
+	case AnyNode:
+		return true
+	case *AnyNode:
+		return true
+	default:
+		return false
+	}
+}
 
 // Node Type: Literal
 
@@ -70,6 +85,17 @@ func (n LiteralNode) String() string                { return fmt.Sprintf("Litera
 func (n LiteralNode) Accept(v AstNodeVisitor) error { return v.VisitLiteralNode(&n) }
 func (n LiteralNode) PrettyPrint() string           { return ppAstNode(&n) }
 
+func (n LiteralNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case LiteralNode:
+		return n.Value == other.Value
+	case *LiteralNode:
+		return n.Value == other.Value
+	default:
+		return false
+	}
+}
+
 // Node Type: Identifier
 
 type IdentifierNode struct {
@@ -90,6 +116,17 @@ func (n IdentifierNode) String() string                { return fmt.Sprintf("Ide
 func (n IdentifierNode) Accept(v AstNodeVisitor) error { return v.VisitIdentifierNode(&n) }
 func (n IdentifierNode) PrettyPrint() string           { return ppAstNode(&n) }
 
+func (n IdentifierNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case IdentifierNode:
+		return n.Value == other.Value
+	case *IdentifierNode:
+		return n.Value == other.Value
+	default:
+		return false
+	}
+}
+
 // Node Type: Range
 
 type RangeNode struct {
@@ -109,6 +146,17 @@ func (n RangeNode) IsSyntactic() bool             { return true }
 func (n RangeNode) Text() string                  { return fmt.Sprintf("%c-%c", n.Left, n.Right) }
 func (n RangeNode) Accept(v AstNodeVisitor) error { return v.VisitRangeNode(&n) }
 func (n RangeNode) PrettyPrint() string           { return ppAstNode(&n) }
+
+func (n RangeNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case RangeNode:
+		return n.Left == other.Left && n.Right == other.Right
+	case *RangeNode:
+		return n.Left == other.Left && n.Right == other.Right
+	default:
+		return false
+	}
+}
 
 func (n RangeNode) String() string {
 	return fmt.Sprintf("Range(%c, %c) @ %s", n.Left, n.Right, n.Span())
@@ -132,6 +180,33 @@ func (n ClassNode) IsSyntactic() bool             { return true }
 func (n ClassNode) Text() string                  { return fmt.Sprintf("[%s]", nodesText(n.Items, "")) }
 func (n ClassNode) Accept(v AstNodeVisitor) error { return v.VisitClassNode(&n) }
 func (n ClassNode) PrettyPrint() string           { return ppAstNode(&n) }
+
+func (n ClassNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case ClassNode:
+		if len(n.Items) != len(other.Items) {
+			return false
+		}
+		for i, item := range n.Items {
+			if !item.Equal(other.Items[i]) {
+				return false
+			}
+		}
+		return true
+	case *ClassNode:
+		if len(n.Items) != len(other.Items) {
+			return false
+		}
+		for i, item := range n.Items {
+			if !item.Equal(other.Items[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
 
 func (n ClassNode) String() string {
 	var (
@@ -175,6 +250,17 @@ func (n OptionalNode) String() string                { return fmt.Sprintf("Optio
 func (n OptionalNode) Accept(v AstNodeVisitor) error { return v.VisitOptionalNode(&n) }
 func (n OptionalNode) PrettyPrint() string           { return ppAstNode(&n) }
 
+func (n OptionalNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case OptionalNode:
+		return n.Expr.Equal(other.Expr)
+	case *OptionalNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
+
 // Node Type: ZeroOrMore
 
 type ZeroOrMoreNode struct {
@@ -194,6 +280,17 @@ func (n ZeroOrMoreNode) Text() string                  { return fmt.Sprintf("%s*
 func (n ZeroOrMoreNode) String() string                { return fmt.Sprintf("ZeroOrMore(%s) @ %s", n.Expr, n.Span()) }
 func (n ZeroOrMoreNode) Accept(v AstNodeVisitor) error { return v.VisitZeroOrMoreNode(&n) }
 func (n ZeroOrMoreNode) PrettyPrint() string           { return ppAstNode(&n) }
+
+func (n ZeroOrMoreNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case ZeroOrMoreNode:
+		return n.Expr.Equal(other.Expr)
+	case *ZeroOrMoreNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
 
 // Node Type: OneOrMore
 
@@ -215,6 +312,17 @@ func (n OneOrMoreNode) String() string                { return fmt.Sprintf("OneO
 func (n OneOrMoreNode) Accept(v AstNodeVisitor) error { return v.VisitOneOrMoreNode(&n) }
 func (n OneOrMoreNode) PrettyPrint() string           { return ppAstNode(&n) }
 
+func (n OneOrMoreNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case OneOrMoreNode:
+		return n.Expr.Equal(other.Expr)
+	case *OneOrMoreNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
+
 // Node Type: And
 
 type AndNode struct {
@@ -235,6 +343,17 @@ func (n AndNode) String() string                { return fmt.Sprintf("And(%s) @ 
 func (n AndNode) Accept(v AstNodeVisitor) error { return v.VisitAndNode(&n) }
 func (n AndNode) PrettyPrint() string           { return ppAstNode(&n) }
 
+func (n AndNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case AndNode:
+		return n.Expr.Equal(other.Expr)
+	case *AndNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
+
 // Node Type: Not
 
 type NotNode struct {
@@ -254,6 +373,17 @@ func (n NotNode) Text() string                  { return fmt.Sprintf("!%s", n.Ex
 func (n NotNode) String() string                { return fmt.Sprintf("Not(%s) @ %s", n.Expr, n.Span()) }
 func (n NotNode) Accept(v AstNodeVisitor) error { return v.VisitNotNode(&n) }
 func (n NotNode) PrettyPrint() string           { return ppAstNode(&n) }
+
+func (n NotNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case NotNode:
+		return n.Expr.Equal(other.Expr)
+	case *NotNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
 
 // Node Type: Lex
 
@@ -281,6 +411,17 @@ func (n LexNode) Text() string {
 	return fmt.Sprintf("#%s", n.Expr)
 }
 
+func (n LexNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case LexNode:
+		return n.Expr.Equal(other.Expr)
+	case *LexNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
+
 // Node Type: Labeled
 
 type LabeledNode struct {
@@ -303,6 +444,17 @@ func (n LabeledNode) PrettyPrint() string           { return ppAstNode(&n) }
 
 func (n LabeledNode) String() string {
 	return fmt.Sprintf("Label%s(%s) @ %s", n.Label, n.Expr, n.Span())
+}
+
+func (n LabeledNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case LabeledNode:
+		return n.Expr.Equal(other.Expr)
+	case *LabeledNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
 }
 
 // Node Type: Sequence
@@ -334,6 +486,33 @@ func (n SequenceNode) String() string                { return nodesString("Seque
 func (n SequenceNode) Accept(v AstNodeVisitor) error { return v.VisitSequenceNode(&n) }
 func (n SequenceNode) PrettyPrint() string           { return ppAstNode(&n) }
 
+func (n SequenceNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case SequenceNode:
+		if len(n.Items) != len(other.Items) {
+			return false
+		}
+		for i, item := range n.Items {
+			if !item.Equal(other.Items[i]) {
+				return false
+			}
+		}
+		return true
+	case *SequenceNode:
+		if len(n.Items) != len(other.Items) {
+			return false
+		}
+		for i, item := range n.Items {
+			if !item.Equal(other.Items[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 // Node Type: Choice
 
 type ChoiceNode struct {
@@ -363,6 +542,33 @@ func (n ChoiceNode) String() string                { return nodesString("Choice"
 func (n ChoiceNode) Accept(v AstNodeVisitor) error { return v.VisitChoiceNode(&n) }
 func (n ChoiceNode) PrettyPrint() string           { return ppAstNode(&n) }
 
+func (n ChoiceNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case ChoiceNode:
+		if len(n.Items) != len(other.Items) {
+			return false
+		}
+		for i, item := range n.Items {
+			if !item.Equal(other.Items[i]) {
+				return false
+			}
+		}
+		return true
+	case *ChoiceNode:
+		if len(n.Items) != len(other.Items) {
+			return false
+		}
+		for i, item := range n.Items {
+			if !item.Equal(other.Items[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 // Node Type: Definition
 
 type DefinitionNode struct {
@@ -382,6 +588,17 @@ func (n DefinitionNode) IsSyntactic() bool             { return n.Expr.IsSyntact
 func (n DefinitionNode) Text() string                  { return fmt.Sprintf("%s <- %s", n.Name, n.Expr.Text()) }
 func (n DefinitionNode) Accept(v AstNodeVisitor) error { return v.VisitDefinitionNode(&n) }
 func (n DefinitionNode) PrettyPrint() string           { return ppAstNode(&n) }
+
+func (n DefinitionNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case DefinitionNode:
+		return n.Expr.Equal(other.Expr)
+	case *DefinitionNode:
+		return n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
 
 func (n DefinitionNode) String() string {
 	return fmt.Sprintf("Definition[%s](%s) @ %s", n.Name, n.Expr, n.Span())
@@ -405,6 +622,33 @@ func (n ImportNode) Span() Span                    { return n.span }
 func (n ImportNode) IsSyntactic() bool             { return false }
 func (n ImportNode) Accept(v AstNodeVisitor) error { return v.VisitImportNode(&n) }
 func (n ImportNode) PrettyPrint() string           { return ppAstNode(&n) }
+
+func (n ImportNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case ImportNode:
+		if len(n.Names) != len(other.Names) {
+			return false
+		}
+		for i, name := range n.Names {
+			if !name.Equal(other.Names[i]) {
+				return false
+			}
+		}
+		return n.Path.Equal(other.Path)
+	case *ImportNode:
+		if len(n.Names) != len(other.Names) {
+			return false
+		}
+		for i, name := range n.Names {
+			if !name.Equal(other.Names[i]) {
+				return false
+			}
+		}
+		return n.Path.Equal(other.Path)
+	default:
+		return false
+	}
+}
 
 func (n ImportNode) Text() string {
 	names := strings.Join(n.GetNames(), ", ")
@@ -464,6 +708,37 @@ func (n GrammarNode) GetItems() []AstNode {
 		items = append(items, def)
 	}
 	return items
+}
+
+func (n GrammarNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case GrammarNode:
+		items := n.GetItems()
+		otherItems := other.GetItems()
+		if len(items) != len(otherItems) {
+			return false
+		}
+		for i, item := range items {
+			if !item.Equal(otherItems[i]) {
+				return false
+			}
+		}
+		return true
+	case *GrammarNode:
+		items := n.GetItems()
+		otherItems := other.GetItems()
+		if len(items) != len(otherItems) {
+			return false
+		}
+		for i, item := range items {
+			if !item.Equal(otherItems[i]) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 func (n *GrammarNode) AddDefinition(def *DefinitionNode) {

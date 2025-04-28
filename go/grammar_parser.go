@@ -481,6 +481,7 @@ func (p *GrammarParser) parseEscapedChar() (string, error) {
 		In  rune
 		Out string
 	}{
+		{In: '-', Out: "-"},
 		{In: 'n', Out: "\\n"},
 		{In: 'r', Out: "\\r"},
 		{In: 't', Out: "\\t"},

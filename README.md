@@ -1,35 +1,35 @@
 
 # Table of Contents
 
-1.  [Introduction](#orgddb7eae)
-    1.  [Project Status](#orgd86fe89)
-    2.  [Currently supported output languages](#org04be466)
-        1.  [Notes](#org94693b5)
-    3.  [Basic Usage](#org2f71efb)
-2.  [Input Language](#orgdcd704f)
-    1.  [Productions and Expressions](#org5c91f9e)
-    2.  [Terminals](#orgc3e624d)
-    3.  [Non-Terminals](#org2207286)
-    4.  [Expression Composition](#orgababc6d)
-        1.  [Ordered Choice](#org60cd073)
-        2.  [Syntactic Predicates](#org0ec5ee2)
-        3.  [Repetitions](#org761381e)
-        4.  [Lexification](#org0c79d2a)
-        5.  [Error reporting with Labels](#org9feb02a)
-        6.  [Import system](#org9b3847a)
-3.  [Generator Options](#orgdc5b206)
-    1.  [Go](#org12d08a8)
-        1.  [Basic command line arguments](#orgde85bc5)
-        2.  [Additional options](#orgf8e60d5)
-4.  [Roadmap](#org666b6a1)
-5.  [Changelog](#org5a0a7eb)
-    1.  [go/v0.0.8](#org1c41c34)
-    2.  [go/v0.0.7](#orgf5e5d04)
-    3.  [go/v0.0.6](#org9cc48fe)
-    4.  [go/v0.0.5](#orgc07f78b)
+1.  [Introduction](#org4c066ff)
+    1.  [Project Status](#orgb0d4960)
+    2.  [Currently supported output languages](#org292e3f8)
+        1.  [Notes](#org1e315a6)
+    3.  [Basic Usage](#org30fb095)
+2.  [Input Language](#orgebbec8d)
+    1.  [Productions and Expressions](#org525b058)
+    2.  [Terminals](#org1a5f3c0)
+    3.  [Non-Terminals](#orgaf74545)
+    4.  [Expression Composition](#orgf8be86c)
+        1.  [Ordered Choice](#org70b11a2)
+        2.  [Syntactic Predicates](#org4e87702)
+        3.  [Repetitions](#orgd4c6b6d)
+        4.  [Lexification](#org36e0505)
+        5.  [Error reporting with Labels](#org8a0fd2f)
+        6.  [Import system](#org49d51fb)
+3.  [Generator Options](#org9e2f248)
+    1.  [Go](#org1b526e5)
+        1.  [Basic command line arguments](#org82a6635)
+        2.  [Additional options](#org49533b9)
+4.  [Roadmap](#orgf34bc21)
+5.  [Changelog](#orgc94d287)
+    1.  [go/v0.0.8](#org0889635)
+    2.  [go/v0.0.7](#org7a87f51)
+    3.  [go/v0.0.6](#org6b37504)
+    4.  [go/v0.0.5](#org82c9545)
 
 
-<a id="orgddb7eae"></a>
+<a id="org4c066ff"></a>
 
 # Introduction
 
@@ -45,7 +45,7 @@ different languages.  The are reasons why you might want to use this:
     parsing errors.
 
 
-<a id="orgd86fe89"></a>
+<a id="orgb0d4960"></a>
 
 ## Project Status
 
@@ -57,7 +57,7 @@ different languages.  The are reasons why you might want to use this:
     first, then being stable, then being featureful.
 
 
-<a id="org04be466"></a>
+<a id="org292e3f8"></a>
 
 ## Currently supported output languages
 
@@ -68,7 +68,7 @@ different languages.  The are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="org94693b5"></a>
+<a id="org1e315a6"></a>
 
 ### Notes
 
@@ -88,7 +88,7 @@ different languages.  The are reasons why you might want to use this:
     languages than Rust and Go.
 
 
-<a id="org2f71efb"></a>
+<a id="org30fb095"></a>
 
 ## Basic Usage
 
@@ -105,12 +105,12 @@ of the repository.  It contains a grammar library for commonly used
 input formats.
 
 
-<a id="orgdcd704f"></a>
+<a id="orgebbec8d"></a>
 
 # Input Language
 
 
-<a id="org5c91f9e"></a>
+<a id="org525b058"></a>
 
 ## Productions and Expressions
 
@@ -127,7 +127,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="orgc3e624d"></a>
+<a id="org1a5f3c0"></a>
 
 ## Terminals
 
@@ -144,7 +144,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="org2207286"></a>
+<a id="orgaf74545"></a>
 
 ## Non-Terminals
 
@@ -160,7 +160,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orgababc6d"></a>
+<a id="orgf8be86c"></a>
 
 ## Expression Composition
 
@@ -244,7 +244,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="org60cd073"></a>
+<a id="org70b11a2"></a>
 
 ### Ordered Choice
 
@@ -257,7 +257,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="org0ec5ee2"></a>
+<a id="org4e87702"></a>
 
 ### Syntactic Predicates
 
@@ -272,7 +272,7 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="org761381e"></a>
+<a id="orgd4c6b6d"></a>
 
 ### Repetitions
 
@@ -286,7 +286,7 @@ The **and** predicate (`&`) is just syntactical sugar for `!!`.
 -   **Optional** will match an expression zero or one time.
 
 
-<a id="org0c79d2a"></a>
+<a id="org36e0505"></a>
 
 ### Lexification
 
@@ -390,12 +390,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="org9feb02a"></a>
+<a id="org8a0fd2f"></a>
 
 ### Error reporting with Labels
 
 
-<a id="org9b3847a"></a>
+<a id="org49d51fb"></a>
 
 ### Import system
 
@@ -426,22 +426,21 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="orgdc5b206"></a>
+<a id="org9e2f248"></a>
 
 # Generator Options
 
 
-<a id="org12d08a8"></a>
+<a id="org1b526e5"></a>
 
 ## Go
 
-For using the [deprecated] go generator, you can run the following
-command:
+For using the go generator, you can run the following command:
 
-    go run ./go/cmd -grammar grammars.json
+    go run ./go/cmd/langlang -grammar grammars/json.peg
 
 
-<a id="orgde85bc5"></a>
+<a id="org82a6635"></a>
 
 ### Basic command line arguments
 
@@ -449,19 +448,32 @@ command:
     grammar FILE as input and if no other command line arguments are
     provided, the output is printed to `stdout`.
 
--   `--output PATH`: this option replaces `stdout` as the output with
-    the PATH value provided to this command.
-
 -   `--ast-only`: this will prevent the generator from outputing the
     final parser, and instead, it output the grammar's AST.
 
--   `--language LANG`: this will cause the generator to output a parser
+-   `--asm-only`: this will prevent the generator from outputing the
+    final parser, and instead, it output the translation of the grammar
+    into Bytecode.
+
+-   `--disable-whitespace-handling`: If this flag is present, the
+    whitespace handling productions won't be inserted into the AST.
+
+-   `--output-path PATH`: this option replaces `stdout` as the output with
+    the PATH value provided to this command.
+
+-   `--output-type TYPE`: decides what type of parser will be
+    generated.  The available options are `code` for generating code in
+    the target language, or `bytecode` for translating the input
+    grammar into bytecode (notice that this option will also generate
+    an evaluator.)
+
+-   `--output-language LANG`: this will cause the generator to output a parser
     in the target language LANG.  As of this writing, the only
     supported value is `go`, but there are plans to extend support to
     both Python and JavaScript/TypeScript.
 
 
-<a id="orgf8e60d5"></a>
+<a id="org49533b9"></a>
 
 ### Additional options
 
@@ -472,7 +484,7 @@ command line:
     directive that starts each Go file.
 
 
-<a id="org666b6a1"></a>
+<a id="orgf34bc21"></a>
 
 # Roadmap
 
@@ -488,26 +500,26 @@ command line:
     take advantage of the features baked into the parser generator
 
 
-<a id="org5a0a7eb"></a>
+<a id="orgc94d287"></a>
 
 # Changelog
 
 
-<a id="org1c41c34"></a>
+<a id="org0889635"></a>
 
 ## go/v0.0.8
 
 -   [BUG FIX: Clear result cache when parser is reset](https://github.com/clarete/langlang/commit/5195eae565fea7c17ebad2d32f9b917908beec02)
 
 
-<a id="orgf5e5d04"></a>
+<a id="org7a87f51"></a>
 
 ## go/v0.0.7
 
 -   [BUG FIX: Capturing error messages for CHOICE](https://github.com/clarete/langlang/commit/e2553fdaf69ab96ecc1a4184f21a0d61e27b069a)
 
 
-<a id="org9cc48fe"></a>
+<a id="org6b37504"></a>
 
 ## go/v0.0.6
 
@@ -515,7 +527,7 @@ command line:
 -   [PERF: Remove fmt.Sprintf from core matching functions](https://github.com/clarete/langlang/commit/0fd67c472f60e5ce9b1e17c20bab7b443dbf62ad)
 
 
-<a id="orgc07f78b"></a>
+<a id="org82c9545"></a>
 
 ## go/v0.0.5
 

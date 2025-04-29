@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -language go -grammar ./recovery.peg -output ./recovery.go
+//go:generate go run ../../cmd/langlang -grammar ./recovery.peg -output-language go -output-path ./recovery.go
 
 func TestRecovery(t *testing.T) {
 	for _, test := range []struct {

@@ -270,11 +270,10 @@ be used in other grammars using imports.  Behind the scenes, the
 * Generator Options
 ** Go
 
-For using the [deprecated] go generator, you can run the following
-command:
+For using the go generator, you can run the following command:
 
 #+begin_src shell
-go run ./go/cmd -grammar grammars.json
+go run ./go/cmd/langlang -grammar grammars/json.peg
 #+end_src
 
 *** Basic command line arguments
@@ -283,13 +282,26 @@ go run ./go/cmd -grammar grammars.json
    grammar FILE as input and if no other command line arguments are
    provided, the output is printed to ~stdout~.
 
- * ~--output PATH~: this option replaces ~stdout~ as the output with
-   the PATH value provided to this command.
-
  * ~--ast-only~: this will prevent the generator from outputing the
    final parser, and instead, it output the grammar's AST.
 
- * ~--language LANG~: this will cause the generator to output a parser
+ * ~--asm-only~: this will prevent the generator from outputing the
+   final parser, and instead, it output the translation of the grammar
+   into Bytecode.
+
+ * ~--disable-whitespace-handling~: If this flag is present, the
+   whitespace handling productions won't be inserted into the AST.
+
+ * ~--output-path PATH~: this option replaces ~stdout~ as the output with
+   the PATH value provided to this command.
+
+ * ~--output-type TYPE~: decides what type of parser will be
+   generated.  The available options are ~code~ for generating code in
+   the target language, or ~bytecode~ for translating the input
+   grammar into bytecode (notice that this option will also generate
+   an evaluator.)
+
+ * ~--output-language LANG~: this will cause the generator to output a parser
    in the target language LANG.  As of this writing, the only
    supported value is ~go~, but there are plans to extend support to
    both Python and JavaScript/TypeScript.

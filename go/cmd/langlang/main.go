@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
@@ -14,12 +15,20 @@ const defaultWritePermission = 0644 // -rw-r--r--
 type args struct {
 	grammarPath *string
 
-	astOnly *bool
+	astOnly     *bool
+	asmOnly     *bool
+	asmOptimize *int
 
+	outputType *string
 	outputLang *string
 	outputPath *string
 
+	disableBuiltins           *bool
 	disableWhitespaceHandling *bool
+	disableCaptureAll         *bool
+
+	inputPath   *string
+	interactive *bool
 
 	goOptPackage   *string
 	goOptRemoveLib *bool
@@ -31,14 +40,25 @@ func readArgs() *args {
 
 		// Debugging Options
 
-		astOnly: flag.Bool("ast-only", false, "Output the AST of the grammar"),
+		astOnly:     flag.Bool("ast-only", false, "Output the AST of the grammar"),
+		asmOnly:     flag.Bool("asm-only", false, "Output the ASM of the grammar"),
+		interactive: flag.Bool("interactive", false, "Drops into a shell"),
 
 		// Output Options
 
 		disableWhitespaceHandling: flag.Bool("disable-whitespace-handling", false, "Inject whitespace handling rules into the grammar"),
+		disableBuiltins:           flag.Bool("disable-builtins", false, "Inject builtin rules into the grammar"),
+		disableCaptureAll:         flag.Bool("disable-capture-all", false, "Inject capture rules into the grammar around every definition"),
+
+		asmOptimize: flag.Int("asm-optimize", 0, "How much to optimize the ASM output [0-1]"),
+
+		// Dynamic parser generation and evaluation
+
+		inputPath: flag.String("input", "", "Path to the input file"),
 
 		// AOT parser generation
 
+		outputType: flag.String("output-type", "code", "What type of parser should we generate. Options: 'code' and 'bytecode'"),
 		outputPath: flag.String("output-path", "/dev/stdout", "Path to the output file"),
 		outputLang: flag.String("output-language", "", "Output language"),
 
@@ -74,13 +94,58 @@ func main() {
 		}
 	}
 
-	ast, err = langlang.AddBuiltins(ast)
-	if err != nil {
-		log.Fatal(err)
+	if !*a.disableBuiltins {
+		ast, err = langlang.AddBuiltins(ast)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if !*a.disableCaptureAll {
+		ast, err = langlang.AddCaptures(ast)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if *a.astOnly {
 		fmt.Println(ast.PrettyPrint())
+		return
+	}
+
+	// Translate the AST into bytecode
+
+	asm, err := langlang.Compile(ast, langlang.CompilerConfig{
+		Optimize: *a.asmOptimize,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if *a.asmOnly {
+		fmt.Println(asm.PrettyPrint())
+		return
+	}
+
+	// If it's interactive, it will open a lil REPL shell
+
+	if *a.interactive {
+		for {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("> ")
+			text, _ := reader.ReadString('\n')
+
+			if text == "" {
+				fmt.Println("")
+				break
+			}
+
+			if text == "\n" {
+				continue
+			}
+
+			fmt.Print(text)
+		}
 		return
 	}
 

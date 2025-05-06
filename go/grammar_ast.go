@@ -681,6 +681,13 @@ func (n GrammarNode) GetItems() []AstNode {
 	return items
 }
 
+func (n GrammarNode) FirstDefinition() *DefinitionNode {
+	if len(n.Definitions) == 0 {
+		return nil
+	}
+	return n.Definitions[0]
+}
+
 func (n GrammarNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
 	case *GrammarNode:

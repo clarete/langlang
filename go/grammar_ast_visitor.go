@@ -29,3 +29,12 @@ func WalkGrammarNode(g AstNodeVisitor, n *GrammarNode) error {
 	}
 	return nil
 }
+
+func WalkSequenceNode(g AstNodeVisitor, n *SequenceNode) error {
+	for _, item := range n.Items {
+		if err := item.Accept(g); err != nil {
+			return err
+		}
+	}
+	return nil
+}

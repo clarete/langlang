@@ -1,0 +1,348 @@
+package langlang
+
+import "fmt"
+
+type CompilerConfig struct {
+	Optimize int
+	EmitWSH  bool
+}
+
+type compiler struct {
+	config CompilerConfig
+
+	// cursor is the index of the last instruction written the
+	// `code` vector
+	cursor int
+
+	// code is a vector where the compiler writes down the
+	// instructions
+	code []Instruction
+
+	// definitionLabels is a map from set of production string ids
+	// to the set of labels
+	definitionLabels map[int]ILabel
+
+	// openAddrs is a map from call site addresses to production
+	// names that keeps calls that need to be patched because they
+	// occurred syntaticaly before the definition of the
+	// production
+	openAddrs map[int]int
+
+	// identifiers is a map from the address of the first
+	// instruction in a production to the id of the name of the
+	// production
+	identifiers map[int]int
+
+	// strings is a table of all the strings in a grammar, both
+	// from literals, as well as from production names
+	strings []string
+
+	// stringsMap keeps a record of what position in the strings
+	// table a string instance points to
+	stringsMap map[string]int
+
+	// lexLevel is the depth of the use of the lex ('#') operator
+	lexLevel int
+
+	// errorLabels is a map from the set of labels to the set of
+	// messages for error reporting
+	errorLabels map[int]int
+
+	// errorLabelIDs is a set of all label IDs
+	errorLabelIDs map[int]struct{}
+
+	grammarNode *GrammarNode
+}
+
+func Compile(expr AstNode, config CompilerConfig) (*Program, error) {
+	var err error
+	c := &compiler{
+		config:           config,
+		identifiers:      map[int]int{},
+		definitionLabels: map[int]ILabel{},
+		openAddrs:        map[int]int{},
+		stringsMap:       map[string]int{},
+		strings:          []string{},
+		errorLabels:      map[int]int{},
+		errorLabelIDs:    map[int]struct{}{},
+	}
+
+	if err = expr.Accept(c); err != nil {
+		return nil, err
+	}
+
+	if err = c.backpatchCallSites(); err != nil {
+		return nil, err
+	}
+
+	return &Program{
+		identifiers: c.identifiers,
+		strings:     c.strings,
+		code:        c.code,
+	}, nil
+}
+
+func (c *compiler) VisitGrammarNode(node *GrammarNode) error {
+	c.emit(ICall{})
+	c.emit(IHalt{})
+	c.grammarNode = node
+	return WalkGrammarNode(c, node)
+}
+
+func (c *compiler) VisitImportNode(node *ImportNode) error {
+	return fmt.Errorf("Import isn't translatable")
+}
+
+func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
+	var (
+		id = c.pushString(node.Name)
+		l0 = NewILabel()
+	)
+
+	c.identifiers[c.cursor] = id
+	c.definitionLabels[id] = l0
+
+	c.emit(l0)
+
+	if err := node.Expr.Accept(c); err != nil {
+		return err
+	}
+
+	c.emit(IReturn{})
+
+	return nil
+}
+
+func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
+	if err := node.Expr.Accept(c); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *compiler) VisitSequenceNode(node *SequenceNode) error {
+	return WalkSequenceNode(c, node)
+}
+
+func (c *compiler) VisitOneOrMoreNode(node *OneOrMoreNode) error {
+	if err := node.Expr.Accept(c); err != nil {
+		return err
+	}
+	return c.VisitZeroOrMoreNode(NewZeroOrMoreNode(node.Expr, node.Span()))
+}
+
+func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
+	l1 := NewILabel()
+	l2 := NewILabel()
+
+	c.emit(IChoice{Label: l2})
+	c.emit(l1)
+
+	if err := node.Expr.Accept(c); err != nil {
+		return err
+	}
+
+	switch c.config.Optimize {
+	case 0:
+		c.emit(ICommit{Label: l1})
+	case 1:
+		c.emit(IPartialCommit{Label: l1})
+	}
+
+	c.emit(l2)
+
+	return nil
+}
+
+func (c *compiler) VisitOptionalNode(node *OptionalNode) error {
+	l1 := NewILabel()
+	l2 := NewILabel()
+
+	c.emit(IChoice{Label: l1})
+
+	if err := node.Expr.Accept(c); err != nil {
+		return err
+	}
+
+	c.emit(l1)
+	c.emit(ICommit{Label: l2})
+	c.emit(l2)
+	return nil
+}
+
+func (c *compiler) VisitChoiceNode(node *ChoiceNode) error {
+	for i, choice := range node.Items {
+		if i == len(node.Items)-1 {
+			if err := choice.Accept(c); err != nil {
+				return err
+			}
+			break
+		}
+
+		l1 := NewILabel()
+		l2 := NewILabel()
+
+		c.emit(IChoice{Label: l1})
+
+		if err := choice.Accept(c); err != nil {
+			return err
+		}
+
+		c.emit(l1)
+		c.emit(ICommit{Label: l2})
+		c.emit(l2)
+
+	}
+	return nil
+}
+
+func (c *compiler) VisitAndNode(node *AndNode) error {
+	switch c.config.Optimize {
+	case 0:
+		return c.VisitNotNode(NewNotNode(NewNotNode(node.Expr, node.Span()), node.Span()))
+
+	case 1:
+		l1 := NewILabel()
+		l2 := NewILabel()
+
+		c.emit(IChoiceP{Label: l1})
+
+		if err := node.Expr.Accept(c); err != nil {
+			return nil
+		}
+
+		c.emit(IBackCommit{Label: l2})
+		c.emit(l1)
+		c.emit(IFail{})
+		c.emit(l2)
+	}
+	return nil
+}
+
+func (c *compiler) VisitNotNode(node *NotNode) error {
+	l1 := NewILabel()
+
+	c.emit(IChoiceP{Label: l1})
+
+	if err := node.Expr.Accept(c); err != nil {
+		return nil
+	}
+
+	switch c.config.Optimize {
+	case 0:
+		c.emit(ICommit{Label: l1})
+		c.emit(IFail{})
+	case 1:
+		c.emit(IFailTwice{})
+	}
+
+	c.emit(l1)
+	return nil
+}
+
+func (c *compiler) VisitLexNode(node *LexNode) error {
+	c.lexLevel++
+	if err := node.Expr.Accept(c); err != nil {
+		return nil
+	}
+	c.lexLevel--
+	return nil
+}
+
+func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
+	l1 := NewILabel()
+	l2 := NewILabel()
+	id := c.pushString(node.Label)
+
+	c.errorLabelIDs[id] = struct{}{}
+	c.emit(IChoice{Label: l1})
+
+	if err := node.Expr.Accept(c); err != nil {
+		return nil
+	}
+
+	c.emit(l1)
+	c.emit(ICommit{Label: l2})
+	c.emit(IThrow{ErrorLabel: id})
+	c.emit(l2)
+	return nil
+}
+
+func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
+	id := c.pushString(node.Value)
+
+	// TODO
+	precedence := 0
+
+	// if the definition indexed by `ID` has already been seen,
+	// we're just going to write its address here.  Otherwise, the
+	// combination (cursor, id) are saved within the `openAddrs`
+	// map so the backpatching can fix this later.
+	if label, ok := c.definitionLabels[id]; ok {
+		c.emit(ICall{Label: label, Precedence: precedence})
+	} else {
+		c.openAddrs[c.cursor] = id
+		c.emit(ICall{Precedence: precedence})
+	}
+
+	return nil
+}
+
+func (c *compiler) VisitClassNode(node *ClassNode) error {
+	return c.VisitChoiceNode(NewChoiceNode(node.Items, node.Span()))
+}
+
+func (c *compiler) VisitRangeNode(node *RangeNode) error {
+	c.emit(ISpan{Hi: node.Left, Lo: node.Right})
+	return nil
+}
+
+func (c *compiler) VisitLiteralNode(node *LiteralNode) error {
+	c.emit(IString{ID: c.pushString(node.Value)})
+	return nil
+}
+
+func (c *compiler) VisitAnyNode(node *AnyNode) error {
+	c.emit(IAny{})
+	return nil
+}
+
+func (c *compiler) backpatchCallSites() error {
+	// addr is where in the bytecode we need to backpatch, and ID
+	// is what function should be called from that backpatch site.
+	for callAddr, id := range c.openAddrs {
+		// we're now looking up the function by its ID, and if
+		// found we're just going to need to adjust for
+		// forward and backward jumping.
+		if label, ok := c.definitionLabels[id]; ok {
+			// TODO: precedence
+			c.code[callAddr] = ICall{Label: label}
+			continue
+		}
+		return fmt.Errorf("Production `%s` does not exist", c.strings[id])
+	}
+
+	// patch up call to main
+	def := c.grammarNode.FirstDefinition()
+	defID := c.pushString(def.Name)
+	label := c.definitionLabels[defID]
+	c.code[0] = ICall{Label: label}
+
+	return nil
+}
+
+func (c *compiler) emit(i Instruction) {
+	c.code = append(c.code, i)
+	c.cursor++
+}
+
+func (c *compiler) pushString(s string) int {
+	strID := len(c.strings)
+	if savedString, ok := c.stringsMap[s]; ok {
+		return savedString
+	}
+
+	c.strings = append(c.strings, s)
+	c.stringsMap[s] = strID
+	return strID
+}

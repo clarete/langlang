@@ -4,6 +4,7 @@ type AstNodeVisitor interface {
 	VisitGrammarNode(*GrammarNode) error
 	VisitImportNode(*ImportNode) error
 	VisitDefinitionNode(*DefinitionNode) error
+	VisitCaptureNode(*CaptureNode) error
 	VisitSequenceNode(*SequenceNode) error
 	VisitOneOrMoreNode(*OneOrMoreNode) error
 	VisitZeroOrMoreNode(*ZeroOrMoreNode) error

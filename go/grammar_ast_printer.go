@@ -75,6 +75,16 @@ func (gp *grammarPrinter) VisitDefinitionNode(n *DefinitionNode) error {
 	return nil
 }
 
+func (gp *grammarPrinter) VisitCaptureNode(n *CaptureNode) error {
+	gp.writeOperatorWithOneRand("Capture", n.Name)
+	gp.writeSpanl(n)
+	gp.pwrite("└── ")
+	gp.indent("    ")
+	n.Expr.Accept(gp)
+	gp.unindent()
+	return nil
+}
+
 func (gp *grammarPrinter) VisitSequenceNode(n *SequenceNode) error {
 	gp.writeOperator("Sequence")
 

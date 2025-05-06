@@ -122,6 +122,10 @@ func (g *goCodeEmitter) VisitDefinitionNode(n *DefinitionNode) error {
 	return nil
 }
 
+func (g *goCodeEmitter) VisitCaptureNode(n *CaptureNode) error {
+	return n.Expr.Accept(g)
+}
+
 func (g *goCodeEmitter) VisitSequenceNode(n *SequenceNode) error {
 	switch len(n.Items) {
 	case 0:

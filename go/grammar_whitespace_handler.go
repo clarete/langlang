@@ -61,32 +61,22 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 		return NewSequenceNode(newItems, node.Span())
 
 	case *ChoiceNode:
-		newItems := make([]AstNode, len(node.Items))
-
 		// No need to inject whitespace handling, we just
 		// return the choice with all its child nodes
 		// expanded, but the choice node itself is untouched.
 		if node.IsSyntactic() {
-			for i, item := range node.Items {
-				newItems[i] = wi.expandExpr(item, true)
-			}
-			return NewChoiceNode(newItems, n.Span())
+			node.Left = wi.expandExpr(node.Left, true)
+			node.Right = wi.expandExpr(node.Right, true)
+			return node
 		}
 
 		// expand expresion for each alternative within the
 		// choice.  Notice that we're disabling the
 		// `consumeFirst` flag here to prevent duplicating the
 		// whitespace handler
-		for i, item := range node.Items {
-			newItems[i] = wi.expandExpr(item, false)
-		}
-
-		// Wrap the choice node in a sequence in which the
-		// first element is the whitespace handling
-		return NewSequenceNode([]AstNode{
-			wsCall(),
-			NewChoiceNode(newItems, n.Span()),
-		}, node.Span())
+		node.Left = wi.expandExpr(node.Left, false)
+		node.Right = wi.expandExpr(node.Right, false)
+		return node
 
 	case *NotNode:
 		return NewNotNode(wi.expandExpr(node.Expr, true), n.Span())

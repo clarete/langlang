@@ -152,9 +152,8 @@ func (f *importerResolverFrame) doFindDefinitionDeps(node AstNode, deps *sortedD
 			f.doFindDefinitionDeps(item, deps)
 		}
 	case *ChoiceNode:
-		for _, item := range n.Items {
-			f.doFindDefinitionDeps(item, deps)
-		}
+		f.doFindDefinitionDeps(n.Left, deps)
+		f.doFindDefinitionDeps(n.Right, deps)
 	case *OptionalNode:
 		f.doFindDefinitionDeps(n.Expr, deps)
 	case *ZeroOrMoreNode:

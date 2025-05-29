@@ -475,43 +475,27 @@ func (n SequenceNode) Equal(o AstNode) bool {
 
 type ChoiceNode struct {
 	span  Span
-	Items []AstNode
+	Left  AstNode
+	Right AstNode
 }
 
-func NewChoiceNode(items []AstNode, s Span) *ChoiceNode {
-	n := &ChoiceNode{Items: items}
+func NewChoiceNode(left, right AstNode, s Span) *ChoiceNode {
+	n := &ChoiceNode{Left: left, Right: right}
 	n.span = s
 	return n
 }
 
-func (n ChoiceNode) Span() Span { return n.span }
-
-func (n ChoiceNode) IsSyntactic() bool {
-	for _, expr := range n.Items {
-		if !expr.IsSyntactic() {
-			return false
-		}
-	}
-	return true
-}
-
-func (n ChoiceNode) Text() string                  { return nodesText(n.Items, " / ") }
-func (n ChoiceNode) String() string                { return nodesString("Choice", n, n.Items) }
+func (n ChoiceNode) Span() Span                    { return n.span }
+func (n ChoiceNode) IsSyntactic() bool             { return n.Left.IsSyntactic() && n.Right.IsSyntactic() }
+func (n ChoiceNode) Text() string                  { return fmt.Sprintf("%s / %s", n.Left.Text(), n.Right.Text()) }
+func (n ChoiceNode) String() string                { return n.Text() }
 func (n ChoiceNode) Accept(v AstNodeVisitor) error { return v.VisitChoiceNode(&n) }
 func (n ChoiceNode) PrettyPrint() string           { return ppAstNode(&n) }
 
 func (n ChoiceNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
 	case *ChoiceNode:
-		if len(n.Items) != len(other.Items) {
-			return false
-		}
-		for i, item := range n.Items {
-			if !item.Equal(other.Items[i]) {
-				return false
-			}
-		}
-		return true
+		return n.Left.Equal(other.Left) && n.Right.Equal(other.Right)
 	default:
 		return false
 	}

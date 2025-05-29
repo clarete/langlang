@@ -146,21 +146,16 @@ func (gp *grammarPrinter) VisitChoiceNode(n *ChoiceNode) error {
 	gp.writeOperator("Choice")
 	gp.writeSpanl(n)
 
-	for i, item := range n.Items {
-		switch {
-		case i == len(n.Items)-1:
-			gp.pwrite("└── ")
-			gp.indent("    ")
-			item.Accept(gp)
-			gp.unindent()
-		default:
-			gp.pwrite("├── ")
-			gp.indent("│   ")
-			item.Accept(gp)
-			gp.unindent()
-			gp.write("\n")
-		}
-	}
+	gp.pwrite("├── ")
+	gp.indent("│   ")
+	n.Left.Accept(gp)
+	gp.unindent()
+	gp.write("\n")
+
+	gp.pwrite("└── ")
+	gp.indent("    ")
+	n.Right.Accept(gp)
+	gp.unindent()
 	return nil
 }
 

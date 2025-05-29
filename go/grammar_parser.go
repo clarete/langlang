@@ -125,7 +125,6 @@ func (p *GrammarParser) ParseDefinition() (*DefinitionNode, error) {
 // GR: Expression <- Sequence (SLASH Sequence)*
 func (p *GrammarParser) ParseExpression() (AstNode, error) {
 	p.ParseSpacing()
-	start := p.Location()
 	head, err := p.ParseSequence()
 	if err != nil {
 		return nil, err
@@ -145,8 +144,17 @@ func (p *GrammarParser) ParseExpression() (AstNode, error) {
 	if len(tail) == 0 {
 		return head, nil
 	}
+
 	items := append([]AstNode{head}, tail...)
-	return NewChoiceNode(items, NewSpan(start, p.Location())), nil
+
+	accum := items[len(items)-1]
+
+	for i := len(items) - 2; i >= 0; i-- {
+		span := NewSpan(items[i].Span().Start, accum.Span().End)
+		accum = NewChoiceNode(items[i], accum, span)
+	}
+
+	return accum, nil
 }
 
 // GR: Sequence <- Prefix*

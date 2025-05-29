@@ -8,15 +8,15 @@ import (
 func Encode(p *Program) *Bytecode {
 	var (
 		code   []byte
-		cursor uint16
-		labels = map[ILabel]uint16{}
+		cursor int
+		labels = map[ILabel]int{}
 	)
 	for _, instruction := range p.code {
 		switch ii := instruction.(type) {
 		case ILabel:
 			labels[ii] = cursor
 		default:
-			cursor += uint16(instruction.SizeInBytes())
+			cursor += instruction.SizeInBytes()
 		}
 	}
 	for _, instruction := range p.code {
@@ -25,33 +25,53 @@ func Encode(p *Program) *Bytecode {
 			// doesn't translate to anything
 		case IHalt:
 			code = append(code, opHalt)
-			fmt.Printf("code: %#v\n", code)
 		case IAny:
 			code = append(code, opAny)
-			fmt.Printf("code: %#v\n", code)
+		case IChar:
+			code = append(code, opChar)
+			code = encodeU16(code, uint16(ii.Char))
+		case ISpan:
+			code = append(code, opSpan)
+			code = encodeU16(code, uint16(ii.Lo))
+			code = encodeU16(code, uint16(ii.Hi))
 		case IChoice:
 			code = encodeJmp(code, opChoice, labels[ii.Label])
-			fmt.Printf("code: %#v\n", code)
+		case IChoicePred:
+			code = encodeJmp(code, opChoicePred, labels[ii.Label])
 		case ICommit:
 			code = encodeJmp(code, opCommit, labels[ii.Label])
-			fmt.Printf("code: %#v\n", code)
+		case IPartialCommit:
+			code = encodeJmp(code, opPartialCommit, labels[ii.Label])
+		case IBackCommit:
+			code = encodeJmp(code, opBackCommit, labels[ii.Label])
 		case ICall:
 			code = encodeJmp(code, opCall, labels[ii.Label])
 			code = append(code, byte(ii.Precedence))
-			fmt.Printf("code: %#v\n", code)
 		case IReturn:
 			code = append(code, opReturn)
-			fmt.Printf("code: %#v\n", code)
+		case IFail:
+			code = append(code, opFail)
+		case IFailTwice:
+			code = append(code, opFailTwice)
+		case ICapBegin:
+			code = append(code, opCapBegin)
+			code = encodeU16(code, uint16(ii.ID))
+		case ICapEnd:
+			code = append(code, opCapEnd)
 		}
 	}
+
+	fmt.Printf("code\n%#v\n", code)
+
 	return &Bytecode{
 		code: code,
+		strs: p.strings,
 	}
 }
 
-func encodeJmp(code []byte, op byte, label uint16) []byte {
+func encodeJmp(code []byte, op byte, label int) []byte {
 	code = append(code, op)
-	code = encodeU16(code, label)
+	code = encodeU16(code, uint16(label))
 	return code
 }
 

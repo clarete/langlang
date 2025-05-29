@@ -114,9 +114,15 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 }
 
 func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
+	id := c.pushString(node.Name)
+
+	c.emit(ICapBegin{ID: id})
+
 	if err := node.Expr.Accept(c); err != nil {
 		return err
 	}
+
+	c.emit(ICapEnd{})
 	return nil
 }
 
@@ -155,44 +161,38 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 }
 
 func (c *compiler) VisitOptionalNode(node *OptionalNode) error {
-	l1 := NewILabel()
-	l2 := NewILabel()
+	lb := NewILabel()
 
-	c.emit(IChoice{Label: l1})
+	c.emit(IChoice{Label: lb})
 
 	if err := node.Expr.Accept(c); err != nil {
 		return err
 	}
 
-	c.emit(l1)
-	c.emit(ICommit{Label: l2})
-	c.emit(l2)
+	c.emit(ICommit{Label: lb})
+	c.emit(lb)
 	return nil
 }
 
 func (c *compiler) VisitChoiceNode(node *ChoiceNode) error {
-	for i, choice := range node.Items {
-		if i == len(node.Items)-1 {
-			if err := choice.Accept(c); err != nil {
-				return err
-			}
-			break
-		}
+	l1 := NewILabel()
+	l2 := NewILabel()
 
-		l1 := NewILabel()
-		l2 := NewILabel()
+	c.emit(IChoice{Label: l1})
 
-		c.emit(IChoice{Label: l1})
-
-		if err := choice.Accept(c); err != nil {
-			return err
-		}
-
-		c.emit(l1)
-		c.emit(ICommit{Label: l2})
-		c.emit(l2)
-
+	if err := node.Left.Accept(c); err != nil {
+		return err
 	}
+
+	c.emit(ICommit{Label: l2})
+	c.emit(l1)
+
+	if err := node.Right.Accept(c); err != nil {
+		return err
+	}
+
+	c.emit(l2)
+
 	return nil
 }
 
@@ -205,7 +205,7 @@ func (c *compiler) VisitAndNode(node *AndNode) error {
 		l1 := NewILabel()
 		l2 := NewILabel()
 
-		c.emit(IChoiceP{Label: l1})
+		c.emit(IChoicePred{Label: l1})
 
 		if err := node.Expr.Accept(c); err != nil {
 			return nil
@@ -222,7 +222,7 @@ func (c *compiler) VisitAndNode(node *AndNode) error {
 func (c *compiler) VisitNotNode(node *NotNode) error {
 	l1 := NewILabel()
 
-	c.emit(IChoiceP{Label: l1})
+	c.emit(IChoicePred{Label: l1})
 
 	if err := node.Expr.Accept(c); err != nil {
 		return nil
@@ -289,16 +289,32 @@ func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
 }
 
 func (c *compiler) VisitClassNode(node *ClassNode) error {
-	return c.VisitChoiceNode(NewChoiceNode(node.Items, node.Span()))
+	switch len(node.Items) {
+	case 0:
+		return nil
+	case 1:
+		return node.Items[0].Accept(c)
+	}
+
+	accum := node.Items[len(node.Items)-1]
+
+	for i := len(node.Items) - 2; i >= 0; i-- {
+		span := NewSpan(node.Items[i].Span().Start, accum.Span().End)
+		accum = NewChoiceNode(node.Items[i], accum, span)
+	}
+
+	return c.VisitChoiceNode(accum.(*ChoiceNode))
 }
 
 func (c *compiler) VisitRangeNode(node *RangeNode) error {
-	c.emit(ISpan{Hi: node.Left, Lo: node.Right})
+	c.emit(ISpan{Lo: node.Left, Hi: node.Right})
 	return nil
 }
 
 func (c *compiler) VisitLiteralNode(node *LiteralNode) error {
-	c.emit(IString{ID: c.pushString(node.Value)})
+	for _, r := range []rune(node.Value) {
+		c.emit(IChar{Char: r})
+	}
 	return nil
 }
 

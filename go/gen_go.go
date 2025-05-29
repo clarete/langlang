@@ -248,25 +248,18 @@ func (g *goCodeEmitter) VisitOptionalNode(n *OptionalNode) error {
 }
 
 func (g *goCodeEmitter) VisitChoiceNode(n *ChoiceNode) error {
-	switch len(n.Items) {
-	case 0:
-		return nil
-	case 1:
-		if err := n.Items[0].Accept(g); err != nil {
-			return err
-		}
-	default:
-		g.parser.writel("Choice(p, []ParserFn[Value]{")
-		g.parser.indent()
+	g.parser.writel("Choice(p, []ParserFn[Value]{")
+	g.parser.indent()
 
-		for _, expr := range n.Items {
-			g.writeExprFn(expr)
-			g.parser.writel(",")
-		}
+	g.writeExprFn(n.Left)
+	g.parser.writel(",")
 
-		g.parser.unindent()
-		g.parser.writei("})")
-	}
+	g.writeExprFn(n.Right)
+	g.parser.writel(",")
+
+	g.parser.unindent()
+	g.parser.writei("})")
+
 	return nil
 }
 

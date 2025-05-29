@@ -6,6 +6,29 @@ import (
 	"strings"
 )
 
+type AsmFormatToken int
+
+const (
+	AsmFormatToken_None AsmFormatToken = iota
+	AsmFormatToken_Comment
+	AsmFormatToken_Label
+	AsmFormatToken_Literal
+	AsmFormatToken_Operator
+	AsmFormatToken_Operand
+)
+
+// asmPrinterTheme is a map from the tokens available for pretty
+// printing the ASM grammar to an ASCII color.  These colors are
+// supposed to fair well on both dark and light terminal settings
+var asmPrinterTheme = map[AsmFormatToken]string{
+	AsmFormatToken_None:     "\033[0m",          // reset
+	AsmFormatToken_Comment:  "\033[1;38;5;245m", // gray
+	AsmFormatToken_Label:    "\033[1;31m",       // red
+	AsmFormatToken_Literal:  "\033[1;34m",       // blue
+	AsmFormatToken_Operator: "\033[1;38;5;99m",  // purple
+	AsmFormatToken_Operand:  "\033[1;38;5;127m", // pink
+}
+
 type recoveryEntry struct {
 	expression int
 	precedence int
@@ -38,44 +61,68 @@ type Program struct {
 
 func (p Program) PrettyPrint() string {
 	var (
-		s strings.Builder
-
+		s                strings.Builder
 		previousWasLabel bool
 	)
 
 	// fmt.Printf("strings: %#v\n", p.strings)
 	// fmt.Printf("identifiers: %#v\n", p.identifiers)
 
+	format := func(input string, token AsmFormatToken) string {
+		return asmPrinterTheme[token] + input + asmPrinterTheme[AsmFormatToken_None]
+	}
+
 	writeName := func(name string) {
 		if !previousWasLabel {
 			s.WriteString("        ")
 		}
 
-		s.WriteString(name)
+		s.WriteString(format(name, AsmFormatToken_Operand))
 
 		previousWasLabel = false
 	}
 
 	writeLabel := func(id int) {
-		s.WriteString(fmt.Sprintf(" l%d", id))
+		s.WriteString(format(fmt.Sprintf(" l%d", id), AsmFormatToken_Label))
+	}
+
+	writeInt := func(id int) {
+		s.WriteString(format(fmt.Sprintf(" %d", id), AsmFormatToken_Literal))
+	}
+
+	writeString := func(id int) {
+		s.WriteString(format(fmt.Sprintf(" '%v'", p.strings[id]), AsmFormatToken_Literal))
+	}
+
+	writeRune := func(r rune) {
+		s.WriteString(format(fmt.Sprintf(" '%c'", r), AsmFormatToken_Literal))
 	}
 
 	for cursor, instruction := range p.code {
 		if idx, ok := p.identifiers[cursor]; ok {
-			s.WriteString("\n;; ")
-			s.WriteString(p.strings[idx])
+			s.WriteString(format("\n;; ", AsmFormatToken_Comment))
+			s.WriteString(format(p.strings[idx], AsmFormatToken_Comment))
 			s.WriteString("\n")
 		}
 
 		switch ii := instruction.(type) {
 		case ILabel:
-			s.WriteString(fmt.Sprintf("l%d:%*s", ii.ID, 6-len(strconv.Itoa(ii.ID)), " "))
+			if previousWasLabel {
+				s.WriteString("\n")
+			}
+			lb := fmt.Sprintf("l%d:%*s", ii.ID, 6-len(strconv.Itoa(ii.ID)), " ")
+			s.WriteString(format(lb, AsmFormatToken_Label))
 			previousWasLabel = true
 
 		case ICall:
 			writeName(instruction.Name())
 			writeLabel(ii.Label.ID)
-			//s.WriteString(fmt.Sprintf(" %s @ %d", p.strings[p.identifiers[ii.Address]], ii.Address))
+			writeInt(ii.Precedence)
+			s.WriteString("\n")
+
+		case IThrow:
+			writeName(instruction.Name())
+			writeString(ii.ErrorLabel)
 			s.WriteString("\n")
 
 		case IChoice:
@@ -83,7 +130,7 @@ func (p Program) PrettyPrint() string {
 			writeLabel(ii.Label.ID)
 			s.WriteString("\n")
 
-		case IChoiceP:
+		case IChoicePred:
 			writeName(instruction.Name())
 			writeLabel(ii.Label.ID)
 			s.WriteString("\n")
@@ -93,14 +140,31 @@ func (p Program) PrettyPrint() string {
 			writeLabel(ii.Label.ID)
 			s.WriteString("\n")
 
+		case IBackCommit:
+			writeName(instruction.Name())
+			writeLabel(ii.Label.ID)
+			s.WriteString("\n")
+
 		case IPartialCommit:
 			writeName(instruction.Name())
 			writeLabel(ii.Label.ID)
 			s.WriteString("\n")
 
-		case IString:
+		case IChar:
 			writeName(instruction.Name())
-			s.WriteString(fmt.Sprintf(" '%v'", p.strings[ii.ID]))
+			writeRune(ii.Char)
+			s.WriteString("\n")
+
+		case ISpan:
+			writeName(instruction.Name())
+			writeRune(ii.Lo)
+			s.WriteString("")
+			writeRune(ii.Hi)
+			s.WriteString("\n")
+
+		case ICapBegin:
+			writeName(instruction.Name())
+			writeString(ii.ID)
 			s.WriteString("\n")
 
 		default:
@@ -108,6 +172,5 @@ func (p Program) PrettyPrint() string {
 			s.WriteString("\n")
 		}
 	}
-
 	return s.String()
 }

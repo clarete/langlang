@@ -30,23 +30,10 @@ func (IChar) Name() string {
 }
 
 func (IChar) SizeInBytes() int {
-	panic("not sure yet")
 	return opCharSizeInBytes
 }
 
-var opStringSizeInBytes = 3
-
-type IString struct{ ID int }
-
-func (IString) Name() string {
-	return "string"
-}
-
-func (IString) SizeInBytes() int {
-	return 4
-}
-
-var opSpanSizeInBytes = 3
+var opSpanSizeInBytes = 5
 
 type ISpan struct{ Hi, Lo rune }
 
@@ -55,7 +42,6 @@ func (ISpan) Name() string {
 }
 
 func (ISpan) SizeInBytes() int {
-	panic("not sure yet")
 	return opSpanSizeInBytes
 }
 
@@ -90,17 +76,16 @@ func (IChoice) Name() string {
 }
 
 func (IChoice) SizeInBytes() int {
-	panic("not sure yet")
 	return opChoiceSizeInBytes
 }
 
-type IChoiceP struct{ Label ILabel }
+type IChoicePred struct{ Label ILabel }
 
-func (IChoiceP) Name() string {
-	return "choicep"
+func (IChoicePred) Name() string {
+	return "choice_pred"
 }
 
-func (IChoiceP) SizeInBytes() int {
+func (IChoicePred) SizeInBytes() int {
 	return opChoiceSizeInBytes
 }
 
@@ -113,14 +98,13 @@ func (ICommit) Name() string {
 }
 
 func (ICommit) SizeInBytes() int {
-	panic("not sure yet")
 	return opCommitSizeInBytes
 }
 
 type IPartialCommit struct{ Label ILabel }
 
 func (IPartialCommit) Name() string {
-	return "partialcommit"
+	return "partial_commit"
 }
 
 func (IPartialCommit) SizeInBytes() int {
@@ -130,7 +114,7 @@ func (IPartialCommit) SizeInBytes() int {
 type IBackCommit struct{ Label ILabel }
 
 func (IBackCommit) Name() string {
-	return "backcommit"
+	return "back_commit"
 }
 
 func (IBackCommit) SizeInBytes() int {
@@ -152,7 +136,7 @@ func (IFail) SizeInBytes() int {
 type IFailTwice struct{}
 
 func (IFailTwice) Name() string {
-	return "failtwice"
+	return "failt_wice"
 }
 
 func (IFailTwice) SizeInBytes() int {
@@ -224,4 +208,28 @@ func (IHalt) Name() string {
 
 func (IHalt) SizeInBytes() int {
 	return opHaltSizeInBytes
+}
+
+var opCapBeginSizeInBytes = 3
+
+type ICapBegin struct{ ID int }
+
+func (ICapBegin) Name() string {
+	return "cap_begin"
+}
+
+func (ICapBegin) SizeInBytes() int {
+	return opCapBeginSizeInBytes
+}
+
+var opCapEndSizeInBytes = 1
+
+type ICapEnd struct{}
+
+func (ICapEnd) Name() string {
+	return "cap_end"
+}
+
+func (ICapEnd) SizeInBytes() int {
+	return opCapEndSizeInBytes
 }

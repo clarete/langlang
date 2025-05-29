@@ -415,7 +415,7 @@ func (p *GrammarParser) parseLiteral() (string, error) {
 				if _, err := Not(p, p.(*GrammarParser).ExpectRuneFn('\'')); err != nil {
 					return 0, err
 				}
-				return p.(*GrammarParser).Any()
+				return p.(*GrammarParser).parseChr()
 			})
 			if err != nil {
 				return "", err
@@ -433,7 +433,7 @@ func (p *GrammarParser) parseLiteral() (string, error) {
 				if _, err := Not(p, p.(*GrammarParser).ExpectRuneFn('"')); err != nil {
 					return 0, err
 				}
-				return p.(*GrammarParser).Any()
+				return p.(*GrammarParser).parseChr()
 			})
 			if err != nil {
 				return "", err
@@ -455,46 +455,43 @@ func (p *GrammarParser) parseLiteral() (string, error) {
 //	/ !'\\' .
 func (p *GrammarParser) ParseChar() (AstNode, error) {
 	start := p.Location()
-	value, err := Choice(p, []ParserFn[string]{
-		func(p Backtrackable) (string, error) { return p.(*GrammarParser).parseEscapedChar() },
-		func(p Backtrackable) (string, error) {
-			c, err := p.(*GrammarParser).parseChar()
-			if err != nil {
-				return "", err
-			}
-			return string(c), nil
-		},
-	})
+	value, err := p.parseChr()
 	if err != nil {
 		return nil, err
 	}
-	return NewLiteralNode(value, NewSpan(start, p.Location())), nil
+	return NewLiteralNode(string(value), NewSpan(start, p.Location())), nil
+}
+
+func (p *GrammarParser) parseChr() (rune, error) {
+	return Choice(p, []ParserFn[rune]{
+		func(p Backtrackable) (rune, error) { return p.(*GrammarParser).parseEscapedChar() },
+		func(p Backtrackable) (rune, error) { return p.(*GrammarParser).parseChar() },
+	})
 }
 
 // '\\' [nrt'"\[\]\\]
-func (p *GrammarParser) parseEscapedChar() (string, error) {
+func (p *GrammarParser) parseEscapedChar() (rune, error) {
 	if _, err := p.ExpectRune('\\'); err != nil {
-		return "", err
+		return 0, err
 	}
-	var choices []ParserFn[string]
+	var choices []ParserFn[rune]
 	for _, choice := range []struct {
-		In  rune
-		Out string
+		In, Out rune
 	}{
-		{In: '-', Out: "-"},
-		{In: 'n', Out: "\\n"},
-		{In: 'r', Out: "\\r"},
-		{In: 't', Out: "\\t"},
-		{In: '\'', Out: "'"},
-		{In: '"', Out: "\""},
-		{In: '[', Out: "["},
-		{In: ']', Out: "]"},
-		{In: '\\', Out: "\\\\"},
+		{In: '-', Out: '-'},
+		{In: 'n', Out: '\n'},
+		{In: 'r', Out: '\r'},
+		{In: 't', Out: '\t'},
+		{In: '\'', Out: '\''},
+		{In: '"', Out: '"'},
+		{In: '[', Out: '['},
+		{In: ']', Out: ']'},
+		{In: '\\', Out: '\\'},
 	} {
 		c := choice
-		choices = append(choices, func(p Backtrackable) (string, error) {
+		choices = append(choices, func(p Backtrackable) (rune, error) {
 			if _, err := p.(*GrammarParser).ExpectRune(c.In); err != nil {
-				return "", err
+				return 0, err
 			}
 			return c.Out, nil
 		})

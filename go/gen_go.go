@@ -397,7 +397,13 @@ func (g *goCodeEmitter) VisitIdentifierNode(n *IdentifierNode) error {
 	return nil
 }
 
-var quoteSanitizer = strings.NewReplacer(`"`, `\"`)
+var quoteSanitizer = strings.NewReplacer(
+	`"`, `\"`,
+	`\`, `\\`,
+	string('\n'), `\n`,
+	string('\r'), `\r`,
+	string('\t'), `\t`,
+)
 
 func (g *goCodeEmitter) VisitLiteralNode(n *LiteralNode) error {
 	s := `p.(*Parser).parseLiteral("%s")`

@@ -8,149 +8,197 @@ import (
 )
 
 func TestParseDefinition(t *testing.T) {
-	t.Run("Simplest", func(t *testing.T) {
-		parser := NewGrammarParser("A <- .")
-		output, err := parser.ParseDefinition()
-		require.NoError(t, err)
-		assert.Equal(t, `Definition[A](Sequence(Any @ 5..6) @ 5..6) @ 0..6`, output.String())
-	})
+	for _, test := range []struct {
+		Name           string
+		Grammar        string
+		ExpectedOutput string
+	}{
+		{
+			Name:    "Any",
+			Grammar: "A <- .",
+			ExpectedOutput: `Definition[A] (0..6)
+└── Sequence (5..6)
+    └── Any (5..6)`,
+		},
 
-	t.Run("Less simple", func(t *testing.T) {
-		parser := NewGrammarParser("A <- 'a' / 'b'")
-		output, err := parser.ParseDefinition()
-		require.NoError(t, err)
-		assert.Equal(t, "Definition[A](Choice(Sequence(Literal(a) @ 5..8) @ 5..9, "+
-			"Sequence(Literal(b) @ 11..14) @ 11..14) @ 5..14) @ 0..14", output.String())
-	})
-
-	t.Run("With comment", func(t *testing.T) {
-		parser := NewGrammarParser("A <- . // something something")
-		output, err := parser.ParseDefinition()
-		require.NoError(t, err)
-		assert.Equal(t, `Definition[A](Sequence(Any @ 5..6) @ 5..29) @ 0..29`, output.String())
-	})
+		{
+			Name:    "Choice",
+			Grammar: "A <- 'a' / 'b'",
+			ExpectedOutput: `Definition[A] (0..14)
+└── Choice (5..14)
+    ├── Sequence (5..9)
+    │   └── Literal[a] (5..8)
+    └── Sequence (11..14)
+        └── Literal[b] (11..14)`,
+		},
+		{
+			Name:    "Comment",
+			Grammar: "A <- . // something something",
+			ExpectedOutput: `Definition[A] (0..29)
+└── Sequence (5..29)
+    └── Any (5..6)`,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			parser := NewGrammarParser(test.Grammar)
+			output, err := parser.ParseDefinition()
+			require.NoError(t, err)
+			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
+		})
+	}
 }
 
 func TestParseExpression(t *testing.T) {
-	t.Run("Single item", func(t *testing.T) {
-		parser := NewGrammarParser(".")
-		output, err := parser.ParseExpression()
-		require.NoError(t, err)
-		assert.Equal(t, `Sequence(Any @ 0..1) @ 0..1`, output.String())
-	})
-
-	t.Run("More items", func(t *testing.T) {
-		parser := NewGrammarParser("'a' / 'b' / 'c'")
-		output, err := parser.ParseExpression()
-		require.NoError(t, err)
-		assert.Equal(t, "Choice(Sequence(Literal(a) @ 0..3) @ 0..4, "+
-			"Sequence(Literal(b) @ 6..9) @ 6..10, "+
-			"Sequence(Literal(c) @ 12..15) @ 12..15) @ 0..15", output.String())
-	})
-}
-
-func TestParseSequence(t *testing.T) {
-	t.Run("Single item", func(t *testing.T) {
-		parser := NewGrammarParser(".")
-		output, err := parser.ParseSequence()
-		require.NoError(t, err)
-		assert.Equal(t, `Sequence(Any @ 0..1) @ 0..1`, output.String())
-	})
-
-	t.Run("More items", func(t *testing.T) {
-		parser := NewGrammarParser("a 'a' .")
-		output, err := parser.ParseSequence()
-		require.NoError(t, err)
-		assert.Equal(t, `Sequence(Identifier(a) @ 0..1, Literal(a) @ 2..5, Any @ 6..7) @ 0..7`, output.String())
-	})
+	for _, test := range []struct {
+		Name           string
+		Grammar        string
+		ExpectedOutput string
+	}{
+		{
+			Name:    "Single Item",
+			Grammar: ".",
+			ExpectedOutput: `Sequence (0..1)
+└── Any (0..1)`,
+		},
+		{
+			Name:    "Single Choice",
+			Grammar: "'a' / 'b' / 'c'",
+			ExpectedOutput: `Choice (0..15)
+├── Sequence (0..4)
+│   └── Literal[a] (0..3)
+└── Choice (6..15)
+    ├── Sequence (6..10)
+    │   └── Literal[b] (6..9)
+    └── Sequence (12..15)
+        └── Literal[c] (12..15)`,
+		},
+		{
+			Name:    "More Items",
+			Grammar: "A B C 'D'",
+			ExpectedOutput: `Sequence (0..9)
+├── Identifier[A] (0..1)
+├── Identifier[B] (2..3)
+├── Identifier[C] (4..5)
+└── Literal[D] (6..9)`,
+		},
+		{
+			Name:    "Sequence with Optional followed by ID",
+			Grammar: ".? x",
+			ExpectedOutput: `Sequence (0..4)
+├── Optional (0..2)
+│   └── Any (0..1)
+└── Identifier[x] (3..4)`,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			parser := NewGrammarParser(test.Grammar)
+			output, err := parser.ParseExpression()
+			require.NoError(t, err)
+			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
+		})
+	}
 }
 
 func TestParsePrefix(t *testing.T) {
-	t.Run("No Prefix", func(t *testing.T) {
-		parser := NewGrammarParser(".")
-		output, err := parser.ParsePrefix()
-		require.NoError(t, err)
-		assert.Equal(t, `Any @ 0..1`, output.String())
-	})
-
-	t.Run("And", func(t *testing.T) {
-		parser := NewGrammarParser("&.")
-		output, err := parser.ParsePrefix()
-		require.NoError(t, err)
-		assert.Equal(t, `And(Any @ 1..2) @ 0..2`, output.String())
-	})
-
-	t.Run("Not", func(t *testing.T) {
-		parser := NewGrammarParser("!.")
-		output, err := parser.ParsePrefix()
-		require.NoError(t, err)
-		assert.Equal(t, `Not(Any @ 1..2) @ 0..2`, output.String())
-	})
+	for _, test := range []struct {
+		Name           string
+		Grammar        string
+		ExpectedOutput string
+	}{
+		{
+			Name:    "And",
+			Grammar: "&.",
+			ExpectedOutput: `And (0..2)
+└── Any (1..2)`,
+		},
+		{
+			Name:    "Not",
+			Grammar: "!.",
+			ExpectedOutput: `Not (0..2)
+└── Any (1..2)`,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			parser := NewGrammarParser(test.Grammar)
+			output, err := parser.ParsePrefix()
+			require.NoError(t, err)
+			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
+		})
+	}
 }
 
 func TestParseSuffix(t *testing.T) {
-	t.Run("No Suffix", func(t *testing.T) {
-		parser := NewGrammarParser(".")
-		output, err := parser.ParseSuffix()
-		require.NoError(t, err)
-		assert.Equal(t, `Any @ 0..1`, output.String())
-	})
-
-	t.Run("Optional", func(t *testing.T) {
-		parser := NewGrammarParser(".?")
-		output, err := parser.ParseSuffix()
-		require.NoError(t, err)
-		assert.Equal(t, `Optional(Any @ 0..1) @ 0..2`, output.String())
-	})
-
-	t.Run("Space after optional", func(t *testing.T) {
-		parser := NewGrammarParser(".? x")
-		output, err := parser.ParseSequence()
-		require.NoError(t, err)
-		assert.Equal(t, `Sequence(Optional(Any @ 0..1) @ 0..2, Identifier(x) @ 3..4) @ 0..4`, output.String())
-	})
-
-	t.Run("Zero Or More", func(t *testing.T) {
-		parser := NewGrammarParser(".*")
-		output, err := parser.ParseSuffix()
-		require.NoError(t, err)
-		assert.Equal(t, `ZeroOrMore(Any @ 0..1) @ 0..2`, output.String())
-	})
-
-	t.Run("One Or More", func(t *testing.T) {
-		parser := NewGrammarParser(".+")
-		output, err := parser.ParseSuffix()
-		require.NoError(t, err)
-		assert.Equal(t, `OneOrMore(Any @ 0..1) @ 0..2`, output.String())
-	})
+	for _, test := range []struct {
+		Name           string
+		Grammar        string
+		ExpectedOutput string
+	}{
+		{
+			Name:    "Optional",
+			Grammar: ".?",
+			ExpectedOutput: `Optional (0..2)
+└── Any (0..1)`,
+		},
+		{
+			Name:    "Zero or More",
+			Grammar: ".*",
+			ExpectedOutput: `ZeroOrMore (0..2)
+└── Any (0..1)`,
+		},
+		{
+			Name:    "One or More",
+			Grammar: ".+",
+			ExpectedOutput: `OneOrMore (0..2)
+└── Any (0..1)`,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			parser := NewGrammarParser(test.Grammar)
+			output, err := parser.ParseSuffix()
+			require.NoError(t, err)
+			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
+		})
+	}
 }
 
 func TestParsePrimary(t *testing.T) {
-	t.Run("Any", func(t *testing.T) {
-		parser := NewGrammarParser(".")
-		output, err := parser.ParsePrimary()
-		require.NoError(t, err)
-		assert.Equal(t, `Any @ 0..1`, output.String())
-	})
-
-	t.Run("Single Quote Literal", func(t *testing.T) {
-		parser := NewGrammarParser("'abcd'")
-		output, err := parser.ParsePrimary()
-		require.NoError(t, err)
-		assert.Equal(t, `Literal(abcd) @ 0..6`, output.String())
-	})
-
-	t.Run("Identifier", func(t *testing.T) {
-		parser := NewGrammarParser("foobarbaz")
-		output, err := parser.ParsePrimary()
-		require.NoError(t, err)
-		assert.Equal(t, `Identifier(foobarbaz) @ 0..9`, output.String())
-	})
-
-	t.Run("Class with single range", func(t *testing.T) {
-		parser := NewGrammarParser("[0-9]")
-		output, err := parser.ParsePrimary()
-		require.NoError(t, err)
-		assert.Equal(t, `Class(Range(0, 9) @ 1..4) @ 0..5`, output.String())
-	})
+	for _, test := range []struct {
+		Name           string
+		Grammar        string
+		ExpectedOutput string
+	}{
+		{
+			Name:           "Any",
+			Grammar:        ".",
+			ExpectedOutput: "Any (0..1)",
+		},
+		{
+			Name:           "Single Quote Literal",
+			Grammar:        "'abcd'",
+			ExpectedOutput: "Literal[abcd] (0..6)",
+		},
+		{
+			Name:           "Double Quote Literal",
+			Grammar:        `"abcd"`,
+			ExpectedOutput: "Literal[abcd] (0..6)",
+		},
+		{
+			Name:           "Identifier",
+			Grammar:        "FooBarBaz",
+			ExpectedOutput: "Identifier[FooBarBaz] (0..9)",
+		},
+		{
+			Name:    "Class with single Range",
+			Grammar: "[0-9]",
+			ExpectedOutput: `Class (0..5)
+└── Range[0, 9] (1..4)`,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			parser := NewGrammarParser(test.Grammar)
+			output, err := parser.ParsePrimary()
+			require.NoError(t, err)
+			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
+		})
+	}
 }

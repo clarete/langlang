@@ -25,10 +25,16 @@ var astPrinterTheme = map[AstFormatToken]string{
 	AstFormatToken_Operand:  "\033[1;38;5;127m", // pink
 }
 
-func ppAstNode(n AstNode) string {
-	pp := newTreePrinter(func(input string, token AstFormatToken) string {
-		return astPrinterTheme[token] + input + astPrinterTheme[AstFormatToken_None]
-	})
+func formatNodeThemed(input string, token AstFormatToken) string {
+	return astPrinterTheme[token] + input + astPrinterTheme[AstFormatToken_None]
+}
+
+func formatNodePlain(input string, _ AstFormatToken) string {
+	return input
+}
+
+func ppAstNode(n AstNode, fn FormatFunc[AstFormatToken]) string {
+	pp := newTreePrinter(fn)
 	gp := &grammarPrinter{pp}
 	n.Accept(gp)
 	return gp.output.String()

@@ -279,7 +279,7 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
 	id := c.pushString(node.Value)
 
-	// TODO
+	// TODO[bounded left recursion]
 	precedence := 0
 
 	// if the definition indexed by `ID` has already been seen,

@@ -19,6 +19,10 @@ type frame struct {
 	// stores the position of the parser cursor
 	cursor int
 
+	line int
+
+	column int
+
 	predicate bool
 
 	// capId is used in `frameType_Capture` and stores the string
@@ -59,28 +63,6 @@ func (s *stack) top() *frame {
 
 func (s *stack) len() int {
 	return len(s.frames)
-}
-
-func (s *stack) pushBacktrack(pc, cursor int) {
-	var predicate bool
-	if s.len() > 0 {
-		predicate = s.top().predicate
-	}
-	s.push(frame{
-		t:         frameType_Backtracking,
-		pc:        pc,
-		cursor:    cursor,
-		predicate: predicate,
-	})
-}
-
-func (s *stack) pushBacktrackPred(pc, cursor int) {
-	s.push(frame{
-		t:         frameType_Backtracking,
-		pc:        pc,
-		cursor:    cursor,
-		predicate: true,
-	})
 }
 
 func (s *stack) pushCall(pc int) {

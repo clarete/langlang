@@ -34,114 +34,140 @@ func TestVM(t *testing.T) {
 		Name           string
 		Grammar        string
 		Input          string
+		ExpectedAST    string
 		ExpectedCursor int
-		ExpectedAST    *Node
 	}{
 		{
 			Name:           "Any",
 			Grammar:        "G <- .",
 			Input:          "foo",
 			ExpectedCursor: 1,
-			ExpectedAST:    NewNode("G", NewString("f", sp(1)), sp(1)),
+			ExpectedAST: `G (0..1)
+└── "f" (0..1)`,
 		},
 		{
 			Name:           "Any Star",
 			Grammar:        "G <- .*",
 			Input:          "foo",
 			ExpectedCursor: 3,
-			ExpectedAST:    NewNode("G", NewString("foo", sp(3)), sp(3)),
+			ExpectedAST: `G (0..3)
+└── "foo" (0..3)`,
 		},
 		{
 			Name:           "Char",
 			Grammar:        "G <- 'f'",
 			Input:          "foo",
 			ExpectedCursor: 1,
-			ExpectedAST:    NewNode("G", NewString("f", sp(1)), sp(1)),
+			ExpectedAST: `G (0..1)
+└── "f" (0..1)`,
 		},
 		{
 			Name:           "Choice",
 			Grammar:        "G <- 'f' / 'g' / 'h'",
 			Input:          "g",
 			ExpectedCursor: 1,
-			ExpectedAST:    NewNode("G", NewString("g", sp(1)), sp(1)),
+			ExpectedAST: `G (0..1)
+└── "g" (0..1)`,
 		},
 		{
 			Name:           "Choice on Words",
 			Grammar:        "G <- 'avocado' / 'avante' / 'aviador'",
 			Input:          "avante",
 			ExpectedCursor: 6,
-			ExpectedAST:    NewNode("G", NewString("avante", sp(6)), sp(6)),
+			ExpectedAST: `G (0..6)
+└── "avante" (0..6)`,
 		},
 		{
 			Name:           "Class with Range",
 			Grammar:        "G <- [0-9]+",
 			Input:          "42",
 			ExpectedCursor: 2,
-			ExpectedAST:    NewNode("G", NewString("42", sp(2)), sp(2)),
+			ExpectedAST: `G (0..2)
+└── "42" (0..2)`,
 		},
 		{
 			Name:           "Class with Range and Literal",
 			Grammar:        "G <- [a-z_]+",
 			Input:          "my_id",
 			ExpectedCursor: 5,
-			ExpectedAST:    NewNode("G", NewString("my_id", sp(5)), sp(5)),
+			ExpectedAST: `G (0..5)
+└── "my_id" (0..5)`,
 		},
 		{
 			Name:           "Optional Matches",
 			Grammar:        "G <- 'f'?",
 			Input:          "foo",
 			ExpectedCursor: 1,
-			ExpectedAST:    NewNode("G", NewString("f", sp(1)), sp(1)),
+			ExpectedAST: `G (0..1)
+└── "f" (0..1)`,
 		},
 		{
 			Name:           "Optional does not match",
 			Grammar:        "G <- 'f'?",
 			Input:          "bar",
 			ExpectedCursor: 0,
-			ExpectedAST:    nil,
+			ExpectedAST:    "",
 		},
 		{
 			Name:           "Optional does not match followed by something else",
 			Grammar:        "G <- 'f'? 'bar'",
 			Input:          "bar",
 			ExpectedCursor: 3,
-			ExpectedAST:    NewNode("G", NewString("bar", sp(3)), sp(3)),
+			ExpectedAST: `G (0..3)
+└── "bar" (0..3)`,
 		},
 		{
 			Name:           "Not predicate",
 			Grammar:        "G <- (!';' .)*",
 			Input:          "foo; bar",
 			ExpectedCursor: 3,
-			ExpectedAST:    NewNode("G", NewString("foo", sp(3)), sp(3)),
+			ExpectedAST: `G (0..3)
+└── "foo" (0..3)`,
 		},
 		{
 			Name:           "Not Any and Star",
 			Grammar:        `G <- "'" (!"'" .)* "'"`,
 			Input:          "'foo'",
 			ExpectedCursor: 5,
-			ExpectedAST:    NewNode("G", NewString("'foo'", sp(5)), sp(5)),
+			ExpectedAST: `G (0..5)
+└── "'foo'" (0..5)`,
 		},
 		{
 			Name:           "And predicate",
 			Grammar:        "G <- &'a' .",
 			Input:          "avocado",
 			ExpectedCursor: 1,
-			ExpectedAST:    NewNode("G", NewString("a", sp(1)), sp(1)),
+			ExpectedAST: `G (0..1)
+└── "a" (0..1)`,
 		},
 		{
 			Name:           "Parse HEX Number",
 			Grammar:        "G <- '0x' [0-9a-fA-F]+ / '0'",
 			Input:          "0xff",
 			ExpectedCursor: 4,
-			ExpectedAST:    NewNode("G", NewString("0xff", sp(4)), sp(4)),
+			ExpectedAST: `G (0..4)
+└── "0xff" (0..4)`,
 		},
 		{
 			Name:           "Unicode",
 			Grammar:        "G <- [♡]",
 			Input:          "♡",
 			ExpectedCursor: 3,
-			ExpectedAST:    NewNode("G", NewString("♡", sp(3)), sp(3)),
+			ExpectedAST: `G (0..1)
+└── "♡" (0..1)`,
 		},
+		// 		{
+		// 			Name: "Var",
+		// 			Grammar: `G <- D '+' D
+		// D <- [0-9]+`,
+		// 			Input:          "1+2",
+		// 			ExpectedCursor: 5,
+		// 			ExpectedAST: NewNode("G", NewSequence([]Value{
+		// 				NewNode("D", NewString("1", sp(0, 1)), sp(0, 1)),
+		// 				NewString("+", sp(1, 2)),
+		// 				NewNode("D", NewString("2", sp(2, 3)), sp(2, 3)),
+		// 			}, esp(5)), esp(5)),
+		// 		},
 	}
 
 	for _, test := range vmTests {
@@ -149,10 +175,12 @@ func TestVM(t *testing.T) {
 			val, cur, err := exec(test.Grammar, test.Input, 0)
 			require.NoError(t, err)
 			assert.Equal(t, test.ExpectedCursor, cur)
-			if test.ExpectedAST == nil {
+			if test.ExpectedAST == "" {
 				assert.Nil(t, val)
 			} else {
-				assert.Equal(t, test.ExpectedAST, val)
+				assert.Equal(t, test.ExpectedAST, val.Format(func(input string, _ FormatToken) string {
+					return input
+				}))
 			}
 		})
 
@@ -160,17 +188,23 @@ func TestVM(t *testing.T) {
 			val, cur, err := exec(test.Grammar, test.Input, 1)
 			require.NoError(t, err)
 			assert.Equal(t, test.ExpectedCursor, cur)
-			if test.ExpectedAST == nil {
+			if test.ExpectedAST == "" {
 				assert.Nil(t, val)
 			} else {
-				assert.Equal(t, test.ExpectedAST, val)
+				assert.Equal(t, test.ExpectedAST, val.Format(func(input string, _ FormatToken) string {
+					return input
+				}))
 			}
 		})
 	}
 }
 
-func sp(ch int) Span {
-	return NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, ch))
+func esp(e int) Span {
+	return sp(0, e)
+}
+
+func sp(s, e int) Span {
+	return NewSpan(NewLocation(0, 0, s), NewLocation(0, 1, e))
 }
 
 func exec(expr, input string, optimize int) (Value, int, error) {
@@ -182,12 +216,12 @@ func exec(expr, input string, optimize int) (Value, int, error) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("ast\n%s\n", ast.PrettyPrint())
+	fmt.Printf("ast\n%s\n", ast.HighlightPrettyString())
 	asm, err := Compile(ast, CompilerConfig{Optimize: optimize})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("asm\n%s\n", asm.PrettyPrint())
+	fmt.Printf("asm\n%s\n", asm.HighlightPrettyString())
 
 	code := Encode(asm)
 

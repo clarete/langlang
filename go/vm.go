@@ -24,6 +24,8 @@ func (b *Bytecode) Match(input Input) (Value, int, error) {
 type VirtualMachine struct {
 	pc        int
 	cursor    int
+	line      int
+	column    int
 	stack     *stack
 	bytecode  *Bytecode
 	predicate bool
@@ -88,14 +90,14 @@ code:
 			return top, vm.cursor, nil
 
 		case opAny:
-			_, s, err := input.ReadRune()
+			c, s, err := input.ReadRune()
 			if err != nil {
 				if err == io.EOF {
 					goto fail
 				}
 				return nil, vm.cursor, err
 			}
-			vm.cursor += s
+			vm.updatePos(c, s)
 			vm.pc += opAnySizeInBytes
 
 		case opChar:
@@ -109,7 +111,7 @@ code:
 			if c != rune(decodeU16(vm.bytecode.code[vm.pc+1:])) {
 				goto fail
 			}
-			vm.cursor += s
+			vm.updatePos(c, s)
 			vm.pc += opCharSizeInBytes
 
 		case opSpan:
@@ -126,7 +128,7 @@ code:
 			if c > rune(decodeU16(vm.bytecode.code[vm.pc+3:])) {
 				goto fail
 			}
-			vm.cursor += s
+			vm.updatePos(c, s)
 			vm.pc += opSpanSizeInBytes
 
 		case opFail:
@@ -138,12 +140,12 @@ code:
 
 		case opChoice:
 			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
-			vm.stack.pushBacktrack(lb, vm.cursor)
+			vm.stack.push(vm.mkBtFrame(lb))
 			vm.pc += opChoiceSizeInBytes
 
 		case opChoicePred:
 			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
-			vm.stack.pushBacktrackPred(lb, vm.cursor)
+			vm.stack.push(vm.mkBtPredFrame(lb))
 			vm.pc += opChoiceSizeInBytes
 			vm.predicate = true
 
@@ -152,11 +154,14 @@ code:
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opPartialCommit:
-			vm.stack.top().cursor = vm.cursor
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			top := vm.stack.top()
+			top.cursor = vm.cursor
+			top.line = vm.line
+			top.column = vm.column
 
 		case opBackCommit:
-			vm.cursor = vm.stack.pop().cursor
+			vm.btFromFrame(vm.stack.pop())
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opCall:
@@ -172,10 +177,7 @@ code:
 			vm.pc += opCapBeginSizeInBytes
 
 		case opCapEnd:
-			frame := vm.stack.pop()
-			capId := vm.bytecode.strs[frame.capId]
-			value := newNode(input, capId, frame.cursor, vm.cursor)
-			vm.stack.capture(value)
+			vm.newNode(input, vm.stack.pop())
 			vm.pc += opCapEndSizeInBytes
 
 		default:
@@ -190,8 +192,8 @@ fail:
 		f := vm.stack.pop()
 		if f.t == frameType_Backtracking {
 			vm.pc = f.pc
-			vm.cursor = f.cursor
 			vm.predicate = f.predicate
+			vm.btFromFrame(f)
 			input.Seek(int64(vm.cursor), io.SeekStart)
 			dbg(fmt.Sprintf(" -> [pc=%d, cursor=%d]\n", vm.pc, vm.cursor))
 			goto code
@@ -200,18 +202,63 @@ fail:
 	return nil, vm.cursor, nil
 }
 
-func newNode(input Input, name string, begin, end int) Value {
-	if begin == end {
-		return nil
+func (vm *VirtualMachine) updatePos(c rune, s int) {
+	vm.cursor += s
+	vm.column++
+	if c == '\n' {
+		vm.column = 0
+		vm.line++
 	}
+}
 
-	span := NewSpan(NewLocation(0, 0, begin), NewLocation(0, 1, end))
-	val, err := readSubstring(input, int64(begin), int64(end))
-	if err != nil {
-		panic(err.Error())
+func (vm *VirtualMachine) btFromFrame(f frame) {
+	vm.cursor = f.cursor
+	vm.line = f.line
+	vm.column = f.column
+}
+
+func (vm *VirtualMachine) mkBtFrame(pc int) frame {
+	return frame{
+		t:      frameType_Backtracking,
+		pc:     pc,
+		cursor: vm.cursor,
+		line:   vm.line,
+		column: vm.column,
 	}
+}
 
-	return NewNode(name, NewString(val, span), span)
+func (vm *VirtualMachine) mkBtPredFrame(pc int) frame {
+	return frame{
+		t:         frameType_Backtracking,
+		pc:        pc,
+		cursor:    vm.cursor,
+		line:      vm.line,
+		column:    vm.column,
+		predicate: true,
+	}
+}
+
+func (vm *VirtualMachine) newNode(input Input, f frame) {
+	capId := vm.bytecode.strs[f.capId]
+
+	if len(f.values) == 0 {
+		if f.cursor == vm.cursor {
+			return
+		}
+
+		val, err := readSubstring(input, int64(f.cursor), int64(vm.cursor))
+		if err != nil {
+			panic(err.Error())
+		}
+
+		begin := NewLocation(f.line, f.column, f.cursor)
+		end := NewLocation(vm.line, vm.column, vm.cursor)
+		span := NewSpan(begin, end)
+		value := NewNode(capId, NewString(val, span), span)
+		vm.stack.capture(value)
+		return
+	}
+	panic("I'll see you later")
 }
 
 func readSubstring(r io.ReaderAt, offset, length int64) (string, error) {

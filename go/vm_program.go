@@ -59,7 +59,19 @@ type Program struct {
 	code []Instruction
 }
 
-func (p Program) PrettyPrint() string {
+func (p Program) PrettyString() string {
+	return p.prettyString(func(input string, _ AsmFormatToken) string {
+		return input
+	})
+}
+
+func (p Program) HighlightPrettyString() string {
+	return p.prettyString(func(input string, token AsmFormatToken) string {
+		return asmPrinterTheme[token] + input + asmPrinterTheme[AsmFormatToken_None]
+	})
+}
+
+func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 	var (
 		s                strings.Builder
 		previousWasLabel bool
@@ -67,10 +79,6 @@ func (p Program) PrettyPrint() string {
 
 	// fmt.Printf("strings: %#v\n", p.strings)
 	// fmt.Printf("identifiers: %#v\n", p.identifiers)
-
-	format := func(input string, token AsmFormatToken) string {
-		return asmPrinterTheme[token] + input + asmPrinterTheme[AsmFormatToken_None]
-	}
 
 	writeName := func(name string) {
 		if !previousWasLabel {

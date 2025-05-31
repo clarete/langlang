@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/clarete/langlang/go"
 )
@@ -109,7 +110,7 @@ func main() {
 	}
 
 	if *a.astOnly {
-		fmt.Println(ast.PrettyPrint())
+		fmt.Println(ast.HighlightPrettyString())
 		return
 	}
 
@@ -123,13 +124,17 @@ func main() {
 	}
 
 	if *a.asmOnly {
-		fmt.Println(asm.PrettyPrint())
+		fmt.Println(asm.HighlightPrettyString())
 		return
 	}
 
 	// If it's interactive, it will open a lil REPL shell
 
 	if *a.interactive {
+		fmt.Println(ast.HighlightPrettyString())
+		fmt.Println(asm.HighlightPrettyString())
+		code := langlang.Encode(asm)
+
 		for {
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Print("> ")
@@ -144,7 +149,13 @@ func main() {
 				continue
 			}
 
-			fmt.Print(text)
+			val, _, err := code.Match(strings.NewReader(text))
+			if err != nil {
+				fmt.Println("ERROR: " + err.Error())
+			} else {
+				fmt.Printf("\n%v\n", val)
+			}
+			// fmt.Print(text)
 		}
 		return
 	}

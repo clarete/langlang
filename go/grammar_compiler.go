@@ -138,8 +138,14 @@ func (c *compiler) VisitOneOrMoreNode(node *OneOrMoreNode) error {
 }
 
 func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
+	l0 := NewILabel()
 	l1 := NewILabel()
 	l2 := NewILabel()
+
+	switch c.config.Optimize {
+	case 0:
+		c.emit(l0)
+	}
 
 	c.emit(IChoice{Label: l2})
 	c.emit(l1)
@@ -150,7 +156,7 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 
 	switch c.config.Optimize {
 	case 0:
-		c.emit(ICommit{Label: l1})
+		c.emit(ICommit{Label: l0})
 	case 1:
 		c.emit(IPartialCommit{Label: l1})
 	}
@@ -230,7 +236,9 @@ func (c *compiler) VisitNotNode(node *NotNode) error {
 
 	switch c.config.Optimize {
 	case 0:
-		c.emit(ICommit{Label: l1})
+		l2 := NewILabel()
+		c.emit(ICommit{Label: l2})
+		c.emit(l2)
 		c.emit(IFail{})
 	case 1:
 		c.emit(IFailTwice{})

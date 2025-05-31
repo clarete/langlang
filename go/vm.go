@@ -16,6 +16,11 @@ type Bytecode struct {
 	strs []string
 }
 
+func (b *Bytecode) Match(input Input) (Value, int, error) {
+	vm := NewVirtualMachine(b)
+	return vm.Match(input)
+}
+
 type VirtualMachine struct {
 	pc        int
 	cursor    int

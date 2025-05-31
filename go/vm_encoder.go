@@ -2,7 +2,6 @@ package langlang
 
 import (
 	"encoding/binary"
-	"fmt"
 )
 
 func Encode(p *Program) *Bytecode {
@@ -60,9 +59,6 @@ func Encode(p *Program) *Bytecode {
 			code = append(code, opCapEnd)
 		}
 	}
-
-	fmt.Printf("code\n%#v\n", code)
-
 	return &Bytecode{
 		code: code,
 		strs: p.strings,

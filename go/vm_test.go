@@ -25,165 +25,173 @@ func TestVM(t *testing.T) {
 	})
 
 	t.Run("did the cursor move", func(t *testing.T) {
-		cur, err := match("G <- .", "foo")
+		_, cur, err := exec("G <- .", "foo", 1)
 		require.NoError(t, err)
 		assert.Equal(t, 1, cur)
 	})
 
-	t.Run("any", func(t *testing.T) {
-		val, cur, err := exec("G <- .", "foo")
-		require.NoError(t, err)
-		assert.Equal(t, 1, cur)
+	vmTests := []struct {
+		Name           string
+		Grammar        string
+		Input          string
+		ExpectedCursor int
+		ExpectedAST    *Node
+	}{
+		{
+			Name:           "Any",
+			Grammar:        "G <- .",
+			Input:          "foo",
+			ExpectedCursor: 1,
+			ExpectedAST:    NewNode("G", NewString("f", sp(1)), sp(1)),
+		},
+		{
+			Name:           "Any Star",
+			Grammar:        "G <- .*",
+			Input:          "foo",
+			ExpectedCursor: 3,
+			ExpectedAST:    NewNode("G", NewString("foo", sp(3)), sp(3)),
+		},
+		{
+			Name:           "Char",
+			Grammar:        "G <- 'f'",
+			Input:          "foo",
+			ExpectedCursor: 1,
+			ExpectedAST:    NewNode("G", NewString("f", sp(1)), sp(1)),
+		},
+		{
+			Name:           "Choice",
+			Grammar:        "G <- 'f' / 'g' / 'h'",
+			Input:          "g",
+			ExpectedCursor: 1,
+			ExpectedAST:    NewNode("G", NewString("g", sp(1)), sp(1)),
+		},
+		{
+			Name:           "Choice on Words",
+			Grammar:        "G <- 'avocado' / 'avante' / 'aviador'",
+			Input:          "avante",
+			ExpectedCursor: 6,
+			ExpectedAST:    NewNode("G", NewString("avante", sp(6)), sp(6)),
+		},
+		{
+			Name:           "Class with Range",
+			Grammar:        "G <- [0-9]+",
+			Input:          "42",
+			ExpectedCursor: 2,
+			ExpectedAST:    NewNode("G", NewString("42", sp(2)), sp(2)),
+		},
+		{
+			Name:           "Class with Range and Literal",
+			Grammar:        "G <- [a-z_]+",
+			Input:          "my_id",
+			ExpectedCursor: 5,
+			ExpectedAST:    NewNode("G", NewString("my_id", sp(5)), sp(5)),
+		},
+		{
+			Name:           "Optional Matches",
+			Grammar:        "G <- 'f'?",
+			Input:          "foo",
+			ExpectedCursor: 1,
+			ExpectedAST:    NewNode("G", NewString("f", sp(1)), sp(1)),
+		},
+		{
+			Name:           "Optional does not match",
+			Grammar:        "G <- 'f'?",
+			Input:          "bar",
+			ExpectedCursor: 0,
+			ExpectedAST:    nil,
+		},
+		{
+			Name:           "Optional does not match followed by something else",
+			Grammar:        "G <- 'f'? 'bar'",
+			Input:          "bar",
+			ExpectedCursor: 3,
+			ExpectedAST:    NewNode("G", NewString("bar", sp(3)), sp(3)),
+		},
+		{
+			Name:           "Not predicate",
+			Grammar:        "G <- (!';' .)*",
+			Input:          "foo; bar",
+			ExpectedCursor: 3,
+			ExpectedAST:    NewNode("G", NewString("foo", sp(3)), sp(3)),
+		},
+		{
+			Name:           "Not Any and Star",
+			Grammar:        `G <- "'" (!"'" .)* "'"`,
+			Input:          "'foo'",
+			ExpectedCursor: 5,
+			ExpectedAST:    NewNode("G", NewString("'foo'", sp(5)), sp(5)),
+		},
+		{
+			Name:           "And predicate",
+			Grammar:        "G <- &'a' .",
+			Input:          "avocado",
+			ExpectedCursor: 1,
+			ExpectedAST:    NewNode("G", NewString("a", sp(1)), sp(1)),
+		},
+		{
+			Name:           "Parse HEX Number",
+			Grammar:        "G <- '0x' [0-9a-fA-F]+ / '0'",
+			Input:          "0xff",
+			ExpectedCursor: 4,
+			ExpectedAST:    NewNode("G", NewString("0xff", sp(4)), sp(4)),
+		},
+		{
+			Name:           "Unicode",
+			Grammar:        "G <- [♡]",
+			Input:          "♡",
+			ExpectedCursor: 3,
+			ExpectedAST:    NewNode("G", NewString("♡", sp(3)), sp(3)),
+		},
+	}
 
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 1))
-		assert.Equal(t, val, NewNode("G", NewString("f", span), span))
-	})
+	for _, test := range vmTests {
+		t.Run("O0 "+test.Name, func(t *testing.T) {
+			val, cur, err := exec(test.Grammar, test.Input, 0)
+			require.NoError(t, err)
+			assert.Equal(t, test.ExpectedCursor, cur)
+			if test.ExpectedAST == nil {
+				assert.Nil(t, val)
+			} else {
+				assert.Equal(t, test.ExpectedAST, val)
+			}
+		})
 
-	t.Run("any star", func(t *testing.T) {
-		val, cur, err := exec("G <- .*", "foo")
-		require.NoError(t, err)
-		assert.Equal(t, 3, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 3))
-		assert.Equal(t, val, NewNode("G", NewString("foo", span), span))
-	})
-
-	t.Run("char", func(t *testing.T) {
-		val, cur, err := exec("G <- 'f'", "foo")
-		require.NoError(t, err)
-		assert.Equal(t, 1, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 1))
-		assert.Equal(t, val, NewNode("G", NewString("f", span), span))
-	})
-
-	t.Run("or", func(t *testing.T) {
-		val, cur, err := exec("G <- 'f' / 'g' / 'h'", "g")
-		require.NoError(t, err)
-		assert.Equal(t, 1, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 1))
-		assert.Equal(t, val, NewNode("G", NewString("g", span), span))
-	})
-
-	t.Run("or on words", func(t *testing.T) {
-		val, cur, err := exec("G <- 'avocado' / 'avante' / 'aviador'", "avante")
-		require.NoError(t, err)
-		assert.Equal(t, 6, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 6))
-		assert.Equal(t, val, NewNode("G", NewString("avante", span), span))
-	})
-
-	t.Run("class with range", func(t *testing.T) {
-		val, cur, err := exec("G <- [0-9]+", "42")
-		require.NoError(t, err)
-		assert.Equal(t, 2, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 2))
-		assert.Equal(t, val, NewNode("G", NewString("42", span), span))
-	})
-
-	t.Run("class with range and literal", func(t *testing.T) {
-		val, cur, err := exec("G <- [a-z_]+", "my_id")
-		require.NoError(t, err)
-		assert.Equal(t, 5, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 5))
-		assert.Equal(t, val, NewNode("G", NewString("my_id", span), span))
-	})
-
-	t.Run("optional matches", func(t *testing.T) {
-		val, cur, err := exec("G <- 'f'?", "foo")
-		require.NoError(t, err)
-		assert.Equal(t, 1, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 1))
-		assert.Equal(t, val, NewNode("G", NewString("f", span), span))
-	})
-
-	t.Run("optional does not match", func(t *testing.T) {
-		val, cur, err := exec("G <- 'f'?", "bar")
-		require.NoError(t, err)
-		assert.Equal(t, 0, cur)
-		assert.Equal(t, val, nil)
-	})
-
-	t.Run("optional does not match followed by something else", func(t *testing.T) {
-		val, cur, err := exec("G <- 'f'? 'bar'", "bar")
-		require.NoError(t, err)
-		assert.Equal(t, 3, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 3))
-		assert.Equal(t, val, NewNode("G", NewString("bar", span), span))
-	})
-
-	t.Run("not predicate", func(t *testing.T) {
-		val, cur, err := exec("G <- (!';' .)*", "foo; bar")
-		require.NoError(t, err)
-		assert.Equal(t, 3, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 3))
-		assert.Equal(t, val, NewNode("G", NewString("foo", span), span))
-	})
-
-	t.Run("not any and star", func(t *testing.T) {
-		val, cur, err := exec(`G <- "'" (!"'" .)* "'"`, "'foo'")
-		require.NoError(t, err)
-		assert.Equal(t, 5, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 5))
-		assert.Equal(t, val, NewNode("G", NewString("'foo'", span), span))
-	})
-
-	t.Run("and predicate", func(t *testing.T) {
-		val, cur, err := exec("G <- &'a' .", "avocado")
-		require.NoError(t, err)
-		assert.Equal(t, 1, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 1))
-		assert.Equal(t, val, NewNode("G", NewString("a", span), span))
-	})
-
-	t.Run("parse hex number", func(t *testing.T) {
-		val, cur, err := exec("G <- '0x' [0-9a-fA-F]+ / '0'", "0xff")
-		require.NoError(t, err)
-		assert.Equal(t, 4, cur)
-
-		span := NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, 4))
-		assert.Equal(t, val, NewNode("G", NewString("0xff", span), span))
-	})
+		t.Run("O1 "+test.Name, func(t *testing.T) {
+			val, cur, err := exec(test.Grammar, test.Input, 1)
+			require.NoError(t, err)
+			assert.Equal(t, test.ExpectedCursor, cur)
+			if test.ExpectedAST == nil {
+				assert.Nil(t, val)
+			} else {
+				assert.Equal(t, test.ExpectedAST, val)
+			}
+		})
+	}
 }
 
-func match(expr, input string) (int, error) {
-	vm := NewVirtualMachine(compile(expr, false))
-	_, cur, err := vm.Match(strings.NewReader(input))
-	return cur, err
+func sp(ch int) Span {
+	return NewSpan(NewLocation(0, 0, 0), NewLocation(0, 1, ch))
 }
 
-func exec(expr, input string) (Value, int, error) {
-	vm := NewVirtualMachine(compile(expr, true))
-	return vm.Match(strings.NewReader(input))
-}
-
-func compile(expr string, addCap bool) *Bytecode {
+func exec(expr, input string, optimize int) (Value, int, error) {
 	ast, err := NewGrammarParser(expr).Parse()
 	if err != nil {
 		panic(err)
 	}
-	if addCap {
-		ast, err = AddCaptures(ast)
-		if err != nil {
-			panic(err)
-		}
-	}
-	fmt.Printf("ast\n%s\n", ast.PrettyPrint())
-
-	asm, err := Compile(ast, CompilerConfig{Optimize: 1})
+	ast, err = AddCaptures(ast)
 	if err != nil {
 		panic(err)
 	}
-
+	fmt.Printf("ast\n%s\n", ast.PrettyPrint())
+	asm, err := Compile(ast, CompilerConfig{Optimize: optimize})
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("asm\n%s\n", asm.PrettyPrint())
-	return Encode(asm)
+
+	code := Encode(asm)
+
+	fmt.Printf("code\n%#v\n", code.code)
+
+	return code.Match(strings.NewReader(input))
 }

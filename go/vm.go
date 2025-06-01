@@ -180,7 +180,9 @@ code:
 				goto fail
 			} else {
 				// TODO: Lookup recovery table
-				return nil, vm.cursor, fmt.Errorf("Labeled Fail")
+				lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+				id := vm.bytecode.strs[lb]
+				return nil, vm.cursor, fmt.Errorf("Labeled Fail: %s", id)
 			}
 
 		case opCapBegin:

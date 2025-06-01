@@ -53,3 +53,15 @@ func (tp *treePrinter[T]) pwrite(s string) {
 	tp.padding()
 	tp.write(s)
 }
+
+var literalSanitizer = strings.NewReplacer(
+	`"`, `\"`,
+	`\`, `\\`,
+	string('\n'), `\n`,
+	string('\r'), `\r`,
+	string('\t'), `\t`,
+)
+
+func escapeLiteral(s string) string {
+	return literalSanitizer.Replace(s)
+}

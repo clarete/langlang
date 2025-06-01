@@ -394,20 +394,12 @@ func (g *goCodeEmitter) VisitIdentifierNode(n *IdentifierNode) error {
 	return nil
 }
 
-var quoteSanitizer = strings.NewReplacer(
-	`"`, `\"`,
-	`\`, `\\`,
-	string('\n'), `\n`,
-	string('\r'), `\r`,
-	string('\t'), `\t`,
-)
-
 func (g *goCodeEmitter) VisitLiteralNode(n *LiteralNode) error {
 	s := `p.(*Parser).parseLiteral("%s")`
 	if g.isAtRuleLevel() {
 		s = `p.parseLiteral("%s")`
 	}
-	g.parser.write(fmt.Sprintf(s, quoteSanitizer.Replace(n.Value)))
+	g.parser.write(fmt.Sprintf(s, escapeLiteral(n.Value)))
 
 	return nil
 }

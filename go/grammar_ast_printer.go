@@ -206,7 +206,7 @@ func (gp *grammarPrinter) VisitLabeledNode(n *LabeledNode) error {
 }
 
 func (gp *grammarPrinter) VisitLiteralNode(n *LiteralNode) error {
-	gp.writeOperatorWithOneRand("Literal", n.Value)
+	gp.writeOperatorWithOneRand("Literal", escapeLiteral(n.Value))
 	gp.writeSpan(n)
 	return nil
 }

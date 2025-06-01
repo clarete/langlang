@@ -103,7 +103,7 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 	}
 
 	writeRune := func(r rune) {
-		s.WriteString(format(fmt.Sprintf(" '%c'", r), AsmFormatToken_Literal))
+		s.WriteString(format(escapeLiteral(fmt.Sprintf(" '%c'", r)), AsmFormatToken_Literal))
 	}
 
 	for cursor, instruction := range p.code {

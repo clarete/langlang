@@ -81,12 +81,15 @@ func main() {
 		log.Fatal("Grammar not informed")
 	}
 
+	// TODO: this should move into the API
+
 	ast, err := importGrammar(*a.grammarPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Post process the AST
+	// TODO: this should move into the API
 
 	if !*a.disableWhitespaceHandling {
 		ast, err = langlang.InjectWhitespaces(ast)
@@ -152,10 +155,29 @@ func main() {
 			val, _, err := code.Match(strings.NewReader(text))
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
-			} else {
-				fmt.Printf("\n%v\n", val)
+			} else if val != nil {
+				fmt.Println(val.HighlightPrettyString())
 			}
-			// fmt.Print(text)
+		}
+		return
+	}
+
+	// if there's an input path, just run the match right away
+
+	if *a.inputPath != "" {
+		fmt.Println(ast.HighlightPrettyString())
+		fmt.Println(asm.HighlightPrettyString())
+
+		text, err := os.ReadFile(*a.inputPath)
+		if err != nil {
+			log.Fatal("Can't open input file: %s", err.Error())
+		}
+		code := langlang.Encode(asm)
+		val, _, err := code.Match(strings.NewReader(string(text)))
+		if err != nil {
+			fmt.Println("ERROR: " + err.Error())
+		} else if val != nil {
+			fmt.Println(val.HighlightPrettyString())
 		}
 		return
 	}

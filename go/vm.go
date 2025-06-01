@@ -45,6 +45,7 @@ const (
 	opBackCommit
 	opCall
 	opReturn
+	opThrow
 	opCapBegin
 	opCapEnd
 )
@@ -63,6 +64,7 @@ var opNames = map[byte]string{
 	opBackCommit:    "back_commit",
 	opCall:          "call",
 	opReturn:        "return",
+	opThrow:         "throw",
 	opCapBegin:      "cap_begin",
 	opCapEnd:        "cap_end",
 }
@@ -170,6 +172,15 @@ code:
 
 		case opReturn:
 			vm.pc = vm.stack.pop().pc
+
+		case opThrow:
+			if vm.predicate {
+				vm.pc += opThrowSizeInBytes
+				goto fail
+			} else {
+				// TODO: Lookup recovery table
+				return nil, vm.cursor, fmt.Errorf("Labeled Fail")
+			}
 
 		case opCapBegin:
 			id := int(decodeU16(vm.bytecode.code[vm.pc+1:]))

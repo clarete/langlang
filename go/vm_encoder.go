@@ -52,6 +52,9 @@ func Encode(p *Program) *Bytecode {
 			code = append(code, opFail)
 		case IFailTwice:
 			code = append(code, opFailTwice)
+		case IThrow:
+			code = append(code, opThrow)
+			code = encodeU16(code, uint16(ii.ErrorLabel))
 		case ICapBegin:
 			code = append(code, opCapBegin)
 			code = encodeU16(code, uint16(ii.ID))

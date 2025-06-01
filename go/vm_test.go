@@ -222,6 +222,20 @@ func TestVM(t *testing.T) {
     │   └── "42" (1..3)
     └── "+" (3..4)`,
 		},
+		{
+			Name: "Lexification", // TODO: Needs test for failure
+			Grammar: `
+                           Ordinal <- Decimal #('st' / 'nd' / 'rd' / 'th')
+                           Decimal <- ([1-9][0-9]*) / '0'
+                        `,
+			Input:          "42nd",
+			ExpectedCursor: 4,
+			ExpectedAST: `Ordinal (0..4)
+└── Sequence<2> (0..4)
+    ├── Decimal (0..2)
+    │   └── "42" (0..2)
+    └── "nd" (2..4)`,
+		},
 	}
 
 	for _, test := range vmTests {

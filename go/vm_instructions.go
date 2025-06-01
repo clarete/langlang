@@ -186,7 +186,7 @@ func (IReturn) SizeInBytes() int {
 	return opReturnSizeInBytes
 }
 
-var opThrowSizeInBytes = 2
+var opThrowSizeInBytes = 3
 
 type IThrow struct{ ErrorLabel int }
 

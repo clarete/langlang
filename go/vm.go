@@ -78,7 +78,7 @@ func (vm *VirtualMachine) Match(input Input) (Value, int, error) {
 code:
 	for {
 		op := vm.bytecode.code[vm.pc]
-		dbg(fmt.Sprintf("in[pc=%02d]: 0x%x=%s\n", vm.pc, op, opNames[op]))
+		dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", vm.cursor, vm.pc, op, opNames[op]))
 
 		switch op {
 		case opHalt:
@@ -140,12 +140,12 @@ code:
 
 		case opChoice:
 			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
-			vm.stack.push(vm.mkBtFrame(lb))
+			vm.stack.push(vm.mkBacktrackFrame(lb))
 			vm.pc += opChoiceSizeInBytes
 
 		case opChoicePred:
 			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
-			vm.stack.push(vm.mkBtPredFrame(lb))
+			vm.stack.push(vm.mkBacktrackPredFrame(lb))
 			vm.pc += opChoiceSizeInBytes
 			vm.predicate = true
 
@@ -161,7 +161,7 @@ code:
 			top.column = vm.column
 
 		case opBackCommit:
-			vm.btFromFrame(vm.stack.pop())
+			vm.backtrackFromFrame(vm.stack.pop())
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opCall:
@@ -173,7 +173,7 @@ code:
 
 		case opCapBegin:
 			id := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
-			vm.stack.push(frame{t: frameType_Capture, capId: id, cursor: vm.cursor})
+			vm.stack.push(vm.mkCaptureFrame(id))
 			vm.pc += opCapBeginSizeInBytes
 
 		case opCapEnd:
@@ -186,20 +186,20 @@ code:
 	}
 
 fail:
-	dbg(fmt.Sprintf("fl[pc=%d, cursor=%d]", vm.pc, vm.cursor))
+	dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", vm.cursor, vm.pc))
 
 	for vm.stack.len() > 0 {
 		f := vm.stack.pop()
 		if f.t == frameType_Backtracking {
 			vm.pc = f.pc
 			vm.predicate = f.predicate
-			vm.btFromFrame(f)
+			vm.backtrackFromFrame(f)
 			input.Seek(int64(vm.cursor), io.SeekStart)
-			dbg(fmt.Sprintf(" -> [pc=%d, cursor=%d]\n", vm.pc, vm.cursor))
+			dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
 			goto code
 		}
 	}
-	return nil, vm.cursor, nil
+	return nil, vm.cursor, fmt.Errorf("Fail")
 }
 
 func (vm *VirtualMachine) updatePos(c rune, s int) {
@@ -211,13 +211,13 @@ func (vm *VirtualMachine) updatePos(c rune, s int) {
 	}
 }
 
-func (vm *VirtualMachine) btFromFrame(f frame) {
+func (vm *VirtualMachine) backtrackFromFrame(f frame) {
 	vm.cursor = f.cursor
 	vm.line = f.line
 	vm.column = f.column
 }
 
-func (vm *VirtualMachine) mkBtFrame(pc int) frame {
+func (vm *VirtualMachine) mkBacktrackFrame(pc int) frame {
 	return frame{
 		t:      frameType_Backtracking,
 		pc:     pc,
@@ -227,7 +227,7 @@ func (vm *VirtualMachine) mkBtFrame(pc int) frame {
 	}
 }
 
-func (vm *VirtualMachine) mkBtPredFrame(pc int) frame {
+func (vm *VirtualMachine) mkBacktrackPredFrame(pc int) frame {
 	return frame{
 		t:         frameType_Backtracking,
 		pc:        pc,
@@ -238,35 +238,41 @@ func (vm *VirtualMachine) mkBtPredFrame(pc int) frame {
 	}
 }
 
-func (vm *VirtualMachine) newNode(input Input, f frame) {
-	capId := vm.bytecode.strs[f.capId]
-
-	if len(f.values) == 0 {
-		if f.cursor == vm.cursor {
-			return
-		}
-
-		val, err := readSubstring(input, int64(f.cursor), int64(vm.cursor))
-		if err != nil {
-			panic(err.Error())
-		}
-
-		begin := NewLocation(f.line, f.column, f.cursor)
-		end := NewLocation(vm.line, vm.column, vm.cursor)
-		span := NewSpan(begin, end)
-		value := NewNode(capId, NewString(val, span), span)
-		vm.stack.capture(value)
-		return
+func (vm *VirtualMachine) mkCaptureFrame(id int) frame {
+	return frame{
+		t:      frameType_Capture,
+		capId:  id,
+		cursor: vm.cursor,
+		line:   vm.line,
+		column: vm.column,
 	}
-	panic("I'll see you later")
 }
 
-func readSubstring(r io.ReaderAt, offset, length int64) (string, error) {
-	sectionReader := io.NewSectionReader(r, offset, length)
-	buffer := make([]byte, length)
-	n, err := sectionReader.Read(buffer)
-	if err != nil {
-		return "", err
+func (vm *VirtualMachine) newNode(input Input, f frame) {
+	var (
+		capId = vm.bytecode.strs[f.capId]
+		begin = NewLocation(f.line, f.column, f.cursor)
+		end   = NewLocation(vm.line, vm.column, vm.cursor)
+		span  = NewSpan(begin, end)
+	)
+	switch len(f.values) {
+	case 0:
+		if vm.cursor-f.cursor > 0 {
+			val := make([]byte, vm.cursor-f.cursor)
+			if _, err := input.ReadAt(val, int64(f.cursor)); err != nil {
+				panic(err.Error())
+			}
+
+			value := NewNode(capId, NewString(string(val), span), span)
+			vm.stack.capture(value)
+		}
+
+	case 1:
+		value := NewNode(capId, f.values[0], span)
+		vm.stack.capture(value)
+
+	default:
+		value := NewNode(capId, NewSequence(f.values, span), span)
+		vm.stack.capture(value)
 	}
-	return string(buffer[:n]), nil
 }

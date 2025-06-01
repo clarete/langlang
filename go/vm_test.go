@@ -156,18 +156,30 @@ func TestVM(t *testing.T) {
 			ExpectedAST: `G (0..1)
 └── "♡" (0..1)`,
 		},
-		// 		{
-		// 			Name: "Var",
-		// 			Grammar: `G <- D '+' D
-		// D <- [0-9]+`,
-		// 			Input:          "1+2",
-		// 			ExpectedCursor: 5,
-		// 			ExpectedAST: NewNode("G", NewSequence([]Value{
-		// 				NewNode("D", NewString("1", sp(0, 1)), sp(0, 1)),
-		// 				NewString("+", sp(1, 2)),
-		// 				NewNode("D", NewString("2", sp(2, 3)), sp(2, 3)),
-		// 			}, esp(5)), esp(5)),
-		// 		},
+		{
+			Name: "Var",
+			Grammar: `G <- D
+		D <- [0-9]+`,
+			Input:          "1",
+			ExpectedCursor: 1,
+			ExpectedAST: `G (0..1)
+└── D (0..1)
+    └── "1" (0..1)`,
+		},
+		{
+			Name: "Var and Var",
+			Grammar: `G <- D P
+				  D <- [0-9]+
+				  P <- '!'`,
+			Input:          "42!",
+			ExpectedCursor: 3,
+			ExpectedAST: `G (0..3)
+└── Sequence<2> (0..3)
+    ├── D (0..2)
+    │   └── "42" (0..2)
+    └── P (2..3)
+        └── "!" (2..3)`,
+		},
 	}
 
 	for _, test := range vmTests {
@@ -178,9 +190,8 @@ func TestVM(t *testing.T) {
 			if test.ExpectedAST == "" {
 				assert.Nil(t, val)
 			} else {
-				assert.Equal(t, test.ExpectedAST, val.Format(func(input string, _ FormatToken) string {
-					return input
-				}))
+				require.NotNil(t, val)
+				assert.Equal(t, test.ExpectedAST, val.PrettyString())
 			}
 		})
 
@@ -191,20 +202,11 @@ func TestVM(t *testing.T) {
 			if test.ExpectedAST == "" {
 				assert.Nil(t, val)
 			} else {
-				assert.Equal(t, test.ExpectedAST, val.Format(func(input string, _ FormatToken) string {
-					return input
-				}))
+				require.NotNil(t, val)
+				assert.Equal(t, test.ExpectedAST, val.PrettyString())
 			}
 		})
 	}
-}
-
-func esp(e int) Span {
-	return sp(0, e)
-}
-
-func sp(s, e int) Span {
-	return NewSpan(NewLocation(0, 0, s), NewLocation(0, 1, e))
 }
 
 func exec(expr, input string, optimize int) (Value, int, error) {
@@ -212,6 +214,14 @@ func exec(expr, input string, optimize int) (Value, int, error) {
 	if err != nil {
 		panic(err)
 	}
+	// ast, err = InjectWhitespaces(ast)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// ast, err = AddBuiltins(ast)
+	// if err != nil {
+	// 	panic(err)
+	// }
 	ast, err = AddCaptures(ast)
 	if err != nil {
 		panic(err)

@@ -41,10 +41,6 @@ type Program struct {
 	// the production can be found.
 	identifiers map[int]int
 
-	// labels is a map with IDs of labels as keys and the ID of
-	// the messages associated with the labels as values
-	labels map[int]int
-
 	// recovery is a map from label IDs to tuples with two things:
 	// address of the recovery expression and its precedence level
 	recovery map[int]recoveryEntry
@@ -75,13 +71,19 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 	var (
 		s                strings.Builder
 		previousWasLabel bool
+		index            = 0
 	)
 
 	// fmt.Printf("strings: %#v\n", p.strings)
 	// fmt.Printf("identifiers: %#v\n", p.identifiers)
 
+	writeComment := func(i string) {
+		s.WriteString(format(i, AsmFormatToken_Comment))
+	}
+
 	writeName := func(name string) {
 		if !previousWasLabel {
+			writeComment(fmt.Sprintf("%06d  ", index))
 			s.WriteString("        ")
 		}
 
@@ -108,9 +110,7 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 
 	for cursor, instruction := range p.code {
 		if idx, ok := p.identifiers[cursor]; ok {
-			s.WriteString(format("\n;; ", AsmFormatToken_Comment))
-			s.WriteString(format(p.strings[idx], AsmFormatToken_Comment))
-			s.WriteString("\n")
+			writeComment(fmt.Sprintf("\n;; %s\n", p.strings[idx]))
 		}
 
 		switch ii := instruction.(type) {
@@ -118,6 +118,7 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			if previousWasLabel {
 				s.WriteString("\n")
 			}
+			writeComment(fmt.Sprintf("%06d  ", index))
 			lb := fmt.Sprintf("l%d:%*s", ii.ID, 6-len(strconv.Itoa(ii.ID)), " ")
 			s.WriteString(format(lb, AsmFormatToken_Label))
 			previousWasLabel = true
@@ -179,6 +180,7 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeName(instruction.Name())
 			s.WriteString("\n")
 		}
+		index += instruction.SizeInBytes()
 	}
 	return s.String()
 }

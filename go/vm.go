@@ -161,7 +161,7 @@ code:
 			top.column = vm.column
 
 		case opBackCommit:
-			vm.backtrackFromFrame(vm.stack.pop())
+			vm.backtrackToFrame(vm.stack.pop())
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opCall:
@@ -193,7 +193,7 @@ fail:
 		if f.t == frameType_Backtracking {
 			vm.pc = f.pc
 			vm.predicate = f.predicate
-			vm.backtrackFromFrame(f)
+			vm.backtrackToFrame(f)
 			input.Seek(int64(vm.cursor), io.SeekStart)
 			dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
 			goto code
@@ -211,7 +211,7 @@ func (vm *VirtualMachine) updatePos(c rune, s int) {
 	}
 }
 
-func (vm *VirtualMachine) backtrackFromFrame(f frame) {
+func (vm *VirtualMachine) backtrackToFrame(f frame) {
 	vm.cursor = f.cursor
 	vm.line = f.line
 	vm.column = f.column

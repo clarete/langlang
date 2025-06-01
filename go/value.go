@@ -113,6 +113,7 @@ func NewNode(name string, expr Value, span Span) *Node {
 func (n Node) Type() string                             { return "node" }
 func (n Node) Span() Span                               { return n.span }
 func (n Node) Accept(v ValueVisitor) error              { return v.VisitNode(&n) }
+func (n Node) String() string                           { return fmt.Sprintf("%s(%s) @ %s", n.Name, n.Expr, n.Span()) }
 func (n Node) PrettyString() string                     { return n.Format(formatValuePlain) }
 func (n Node) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
 func (n Node) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
@@ -122,10 +123,6 @@ func (n Node) Text() string {
 		return "???"
 	}
 	return n.Expr.Text()
-}
-
-func (n Node) String() string {
-	return fmt.Sprintf("%s(%s) @ %s", n.Name, n.Expr, n.Span())
 }
 
 // Node Error

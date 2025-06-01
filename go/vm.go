@@ -254,25 +254,47 @@ func (vm *VirtualMachine) newNode(input Input, f frame) {
 		begin = NewLocation(f.line, f.column, f.cursor)
 		end   = NewLocation(vm.line, vm.column, vm.cursor)
 		span  = NewSpan(begin, end)
-	)
-	switch len(f.values) {
-	case 0:
-		if vm.cursor-f.cursor > 0 {
-			val := make([]byte, vm.cursor-f.cursor)
-			if _, err := input.ReadAt(val, int64(f.cursor)); err != nil {
+		read  = func(size, start int) string {
+			val := make([]byte, size)
+			if _, err := input.ReadAt(val, int64(start)); err != nil {
 				panic(err.Error())
 			}
-
-			value := NewNode(capId, NewString(string(val), span), span)
-			vm.stack.capture(value)
+			return string(val)
 		}
+	)
 
+	if len(f.values) == 0 {
+		if vm.cursor-f.cursor > 0 {
+			text := read(vm.cursor-f.cursor, f.cursor)
+			node := NewNode(capId, NewString(text, span), span)
+			vm.stack.capture(node)
+		}
+		return
+	}
+
+	// TODO: this should be moved to the compiler and made optional (within AddCaptures maybe?)
+	out := make([]Value, 0, len(f.values))
+	prev := NewLocation(f.line, f.column, f.cursor)
+	for _, value := range f.values {
+		loc := value.Span().Start
+		if prev.Cursor < loc.Cursor {
+			text := read(loc.Cursor-prev.Cursor, prev.Cursor)
+			out = append(out, NewString(text, NewSpan(prev, loc)))
+		}
+		out = append(out, value)
+		prev = value.Span().End
+	}
+	loc := NewLocation(vm.line, vm.column, vm.cursor)
+	if prev.Cursor < loc.Cursor {
+		text := read(loc.Cursor-prev.Cursor, prev.Cursor)
+		out = append(out, NewString(text, NewSpan(prev, loc)))
+	}
+
+	switch len(out) {
+	case 0:
 	case 1:
-		value := NewNode(capId, f.values[0], span)
-		vm.stack.capture(value)
-
+		vm.stack.capture(NewNode(capId, f.values[0], span))
 	default:
-		value := NewNode(capId, NewSequence(f.values, span), span)
-		vm.stack.capture(value)
+		vm.stack.capture(NewNode(capId, NewSequence(out, span), span))
 	}
 }

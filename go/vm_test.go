@@ -180,6 +180,48 @@ func TestVM(t *testing.T) {
     └── P (2..3)
         └── "!" (2..3)`,
 		},
+		{
+			Name: "Var Char Var",
+			Grammar: `G <- D '+' D
+				  D <- [0-9]+`,
+			Input:          "40+2",
+			ExpectedCursor: 4,
+			ExpectedAST: `G (0..4)
+└── Sequence<3> (0..4)
+    ├── D (0..2)
+    │   └── "40" (0..2)
+    ├── "+" (2..3)
+    └── D (3..4)
+        └── "2" (3..4)`,
+		},
+		{
+			Name: "Var Char Var Char",
+			Grammar: `G <- D '+' D '!'
+				  D <- [0-9]+`,
+			Input:          "40+2!",
+			ExpectedCursor: 5,
+			ExpectedAST: `G (0..5)
+└── Sequence<4> (0..5)
+    ├── D (0..2)
+    │   └── "40" (0..2)
+    ├── "+" (2..3)
+    ├── D (3..4)
+    │   └── "2" (3..4)
+    └── "!" (4..5)`,
+		},
+		{
+			Name: "Char Var Char",
+			Grammar: `G <- '+' D '+'
+				  D <- [0-9]+`,
+			Input:          "+42+",
+			ExpectedCursor: 4,
+			ExpectedAST: `G (0..4)
+└── Sequence<3> (0..4)
+    ├── "+" (0..1)
+    ├── D (1..3)
+    │   └── "42" (1..3)
+    └── "+" (3..4)`,
+		},
 	}
 
 	for _, test := range vmTests {

@@ -15,12 +15,21 @@ const (
 	FormatToken_Error
 )
 
+var valuePrinterTheme = map[FormatToken]string{
+	FormatToken_None:    "\033[0m",          // reset
+	FormatToken_Span:    "\033[1;31;5;228m", // orange
+	FormatToken_Literal: "\033[1;38;5;245m", // gray
+	FormatToken_Error:   "\033[1;38;5;127m", // pink
+}
+
 type Value interface {
 	Span() Span
 	String() string
 	Text() string
 	Type() string
 	Accept(ValueVisitor) error
+	PrettyString() string
+	HighlightPrettyString() string
 	Format(FormatFunc[FormatToken]) string
 }
 
@@ -47,7 +56,9 @@ func (n String) Span() Span                               { return n.span }
 func (n String) String() string                           { return fmt.Sprintf(`"%s" @ %s`, n.Value, n.Span()) }
 func (n String) Text() string                             { return n.Value }
 func (n String) Accept(v ValueVisitor) error              { return v.VisitString(&n) }
-func (n String) Format(fn FormatFunc[FormatToken]) string { return formatNode(n, fn) }
+func (n String) PrettyString() string                     { return n.Format(formatValuePlain) }
+func (n String) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
+func (n String) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
 
 // Sequence Value
 
@@ -63,7 +74,9 @@ func NewSequence(items []Value, span Span) *Sequence {
 func (n Sequence) Type() string                             { return "sequence" }
 func (n Sequence) Span() Span                               { return n.span }
 func (n Sequence) Accept(v ValueVisitor) error              { return v.VisitSequence(&n) }
-func (n Sequence) Format(fn FormatFunc[FormatToken]) string { return formatNode(n, fn) }
+func (n Sequence) PrettyString() string                     { return n.Format(formatValuePlain) }
+func (n Sequence) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
+func (n Sequence) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
 func (n Sequence) String() string {
 	var s strings.Builder
 	s.WriteString("Sequence(")
@@ -100,7 +113,9 @@ func NewNode(name string, expr Value, span Span) *Node {
 func (n Node) Type() string                             { return "node" }
 func (n Node) Span() Span                               { return n.span }
 func (n Node) Accept(v ValueVisitor) error              { return v.VisitNode(&n) }
-func (n Node) Format(fn FormatFunc[FormatToken]) string { return formatNode(n, fn) }
+func (n Node) PrettyString() string                     { return n.Format(formatValuePlain) }
+func (n Node) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
+func (n Node) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
 
 func (n Node) Text() string {
 	if n.Expr == nil {
@@ -129,7 +144,9 @@ func NewError(label, message string, expr Value, span Span) *Error {
 func (n Error) Type() string                             { return "error" }
 func (n Error) Span() Span                               { return n.span }
 func (n Error) Accept(v ValueVisitor) error              { return v.VisitError(&n) }
-func (n Error) Format(fn FormatFunc[FormatToken]) string { return formatNode(n, fn) }
+func (n Error) PrettyString() string                     { return n.Format(formatValuePlain) }
+func (n Error) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
+func (n Error) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
 
 func (n Error) Text() string {
 	if n.Expr == nil {
@@ -161,7 +178,15 @@ func NewValuePrinter(format FormatFunc[FormatToken]) *ValuePrinter {
 	return &ValuePrinter{newTreePrinter(format)}
 }
 
-func formatNode(node Value, fmtFn FormatFunc[FormatToken]) string {
+func formatValuePlain(input string, _ FormatToken) string {
+	return input
+}
+
+func formatValueHighlight(input string, token FormatToken) string {
+	return valuePrinterTheme[token] + input + valuePrinterTheme[FormatToken_None]
+}
+
+func formatValue(node Value, fmtFn FormatFunc[FormatToken]) string {
 	p := NewValuePrinter(fmtFn)
 	node.Accept(p)
 	return p.output.String()

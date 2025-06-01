@@ -29,6 +29,7 @@ type VirtualMachine struct {
 	stack     *stack
 	bytecode  *Bytecode
 	predicate bool
+	values    []Value
 }
 
 const (
@@ -84,10 +85,10 @@ code:
 
 		switch op {
 		case opHalt:
-			dbg(fmt.Sprintf("vals: %#v\n", vm.stack.values))
+			dbg(fmt.Sprintf("vals: %#v\n", vm.values))
 			var top Value
-			if len(vm.stack.values) > 0 {
-				top = vm.stack.values[len(vm.stack.values)-1]
+			if len(vm.values) > 0 {
+				top = vm.values[len(vm.values)-1]
 			}
 			return top, vm.cursor, nil
 
@@ -167,7 +168,7 @@ code:
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opCall:
-			vm.stack.pushCall(vm.pc + opCallSizeInBytes)
+			vm.stack.push(frame{t: frameType_Call, pc: vm.pc + opCallSizeInBytes})
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opReturn:
@@ -239,14 +240,9 @@ func (vm *VirtualMachine) mkBacktrackFrame(pc int) frame {
 }
 
 func (vm *VirtualMachine) mkBacktrackPredFrame(pc int) frame {
-	return frame{
-		t:         frameType_Backtracking,
-		pc:        pc,
-		cursor:    vm.cursor,
-		line:      vm.line,
-		column:    vm.column,
-		predicate: true,
-	}
+	f := vm.mkBacktrackFrame(pc)
+	f.predicate = true
+	return f
 }
 
 func (vm *VirtualMachine) mkCaptureFrame(id int) frame {
@@ -278,7 +274,7 @@ func (vm *VirtualMachine) newNode(input Input, f frame) {
 		if vm.cursor-f.cursor > 0 {
 			text := read(vm.cursor-f.cursor, f.cursor)
 			node := NewNode(capId, NewString(text, span), span)
-			vm.stack.capture(node)
+			vm.capture(node)
 		}
 		return
 	}
@@ -304,8 +300,20 @@ func (vm *VirtualMachine) newNode(input Input, f frame) {
 	switch len(out) {
 	case 0:
 	case 1:
-		vm.stack.capture(NewNode(capId, f.values[0], span))
+		vm.capture(NewNode(capId, out[0], span))
 	default:
-		vm.stack.capture(NewNode(capId, NewSequence(out, span), span))
+		vm.capture(NewNode(capId, NewSequence(out, span), span))
+	}
+}
+
+func (vm *VirtualMachine) capture(values ...Value) {
+	if capFrame, ok := vm.stack.findCaptureFrame(); ok {
+		capFrame.values = append(capFrame.values, values...)
+		return
+	}
+	if len(vm.values) == 0 {
+		vm.values = values
+	} else {
+		vm.values = append(vm.values, values...)
 	}
 }

@@ -34,50 +34,31 @@ type frame struct {
 	values []Value
 }
 
-type stack struct {
-	frames []frame
-	values []Value
-}
+type stack []frame
 
 func (s *stack) push(f frame) {
-	s.frames = append(s.frames, f)
+	*s = append(*s, f)
 }
 
 func (s *stack) pop() frame {
-	f := s.frames[len(s.frames)-1]
-	s.frames = s.frames[:len(s.frames)-1]
+	f := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
 	return f
 }
 
 func (s *stack) top() *frame {
-	return &s.frames[len(s.frames)-1]
+	return &(*s)[len(*s)-1]
 }
 
 func (s *stack) len() int {
-	return len(s.frames)
-}
-
-func (s *stack) capture(values ...Value) {
-	if capFrame, ok := s.findCaptureFrame(); ok {
-		capFrame.values = append(capFrame.values, values...)
-		return
-	}
-	if len(s.values) == 0 {
-		s.values = values
-	} else {
-		s.values = append(s.values, values...)
-	}
+	return len(*s)
 }
 
 func (s *stack) findCaptureFrame() (*frame, bool) {
 	for i := s.len() - 1; i >= 0; i-- {
-		if s.frames[i].t == frameType_Capture {
-			return &s.frames[i], true
+		if (*s)[i].t == frameType_Capture {
+			return &(*s)[i], true
 		}
 	}
 	return nil, false
-}
-
-func (s *stack) pushCall(pc int) {
-	s.push(frame{t: frameType_Call, pc: pc})
 }

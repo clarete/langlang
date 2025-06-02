@@ -4,7 +4,7 @@ JSON    <- Value^jsonValue EOF^eof
 Value   <- Object / Array / String / Number / 'true' / 'false' / 'null'
 Array   <- '[' (Value (',' Value^itemAfterComma)*)? ']'^arrayClose
 Object  <- '{' (Member (',' Member^memberAfterComma)*)? '}'^objectClose
-Member  <- String ':' Value^memberValue
+Member  <- String ':'^memberColon Value^memberValue
 
 // Whitespaces are not allowed after the MINUS sign
 Number  <- '-'? #(Int Frac? Exp?)

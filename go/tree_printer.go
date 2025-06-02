@@ -56,6 +56,7 @@ func (tp *treePrinter[T]) pwrite(s string) {
 
 var literalSanitizer = strings.NewReplacer(
 	`"`, `\"`,
+	`'`, `\'`,
 	`\`, `\\`,
 	string('\n'), `\n`,
 	string('\r'), `\r`,

@@ -229,15 +229,21 @@ func (vm *VirtualMachine) backtrackToFrame(f frame) {
 	vm.cursor = f.cursor
 	vm.line = f.line
 	vm.column = f.column
+	vm.stack.dropUncommittedValues(f.captured)
 }
 
 func (vm *VirtualMachine) mkBacktrackFrame(pc int) frame {
+	captured := 0
+	if f, ok := vm.stack.findCaptureFrame(); ok {
+		captured = len(f.values)
+	}
 	return frame{
-		t:      frameType_Backtracking,
-		pc:     pc,
-		cursor: vm.cursor,
-		line:   vm.line,
-		column: vm.column,
+		t:        frameType_Backtracking,
+		pc:       pc,
+		cursor:   vm.cursor,
+		line:     vm.line,
+		column:   vm.column,
+		captured: captured,
 	}
 }
 

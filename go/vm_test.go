@@ -236,6 +236,18 @@ func TestVM(t *testing.T) {
     │   └── "42" (0..2)
     └── "nd" (2..4)`,
 		},
+		{
+			Name: "Capture and backtrack",
+			Grammar: `
+                           G <- D '!' / D
+                           D <- [0-9]+
+                        `,
+			Input:          "42",
+			ExpectedCursor: 2,
+			ExpectedAST: `G (0..2)
+└── D (0..2)
+    └── "42" (0..2)`,
+		},
 	}
 
 	for _, test := range vmTests {

@@ -32,6 +32,9 @@ type frame struct {
 	// values keeps a slice of the values currently captured under
 	// a capId
 	values []Value
+
+	// captured contains how many values have been captured
+	captured int
 }
 
 type stack []frame
@@ -52,6 +55,12 @@ func (s *stack) top() *frame {
 
 func (s *stack) len() int {
 	return len(*s)
+}
+
+func (s *stack) dropUncommittedValues(captured int) {
+	if top, ok := s.findCaptureFrame(); ok {
+		top.values = top.values[:captured]
+	}
 }
 
 func (s *stack) findCaptureFrame() (*frame, bool) {

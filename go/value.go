@@ -22,6 +22,49 @@ var valuePrinterTheme = map[FormatToken]string{
 	FormatToken_Error:   "\033[1;38;5;127m", // pink
 }
 
+const eof = -1
+
+type Location struct {
+	Line   int
+	Column int
+	Cursor int
+	File   string
+}
+
+func NewLocation(line, column, cursor int) Location {
+	return Location{Line: line, Column: column, Cursor: cursor}
+}
+
+func (l Location) String() string {
+	if l.Line == 0 {
+		return fmt.Sprintf("%d", l.Column)
+	}
+	return fmt.Sprintf("%d:%d", l.Line+1, l.Column)
+}
+
+type Span struct {
+	Start Location
+	End   Location
+}
+
+func NewSpan(s, e Location) Span {
+	return Span{s, e}
+}
+
+func (s Span) String() string {
+	var prefix string
+	if s.Start.File != "" {
+		prefix = s.Start.File + ":"
+	}
+	if s.Start.Line == s.End.Line && s.Start.Line == 0 {
+		if s.Start.Column == s.End.Column {
+			return fmt.Sprintf("%s%d", prefix, s.Start.Column)
+		}
+		return fmt.Sprintf("%s%d..%d", prefix, s.Start.Column, s.End.Column)
+	}
+	return fmt.Sprintf("%s%s..%s", prefix, s.Start, s.End)
+}
+
 type Value interface {
 	Span() Span
 	String() string

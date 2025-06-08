@@ -170,7 +170,7 @@ func main() {
 
 		text, err := os.ReadFile(*a.inputPath)
 		if err != nil {
-			log.Fatal("Can't open input file: %s", err.Error())
+			log.Fatalf("Can't open input file: %s", err.Error())
 		}
 		code := langlang.Encode(asm)
 		val, _, err := code.Match(strings.NewReader(string(text)))

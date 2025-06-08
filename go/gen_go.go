@@ -469,7 +469,7 @@ func (g *goCodeEmitter) writePrelude() {
 		return
 	}
 
-	s, err := cleanGoModule("parser.go")
+	s, err := cleanGoModule(content, "parser.go")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -521,19 +521,19 @@ func (g *goCodeEmitter) writeEmbeds() {
 		return
 	}
 
-	treePrinter, err := cleanGoModule("tree_printer.go")
+	treePrinter, err := cleanGoModule(content, "tree_printer.go")
 	if err != nil {
 		panic(err.Error())
 	}
 	g.parser.write(treePrinter)
 
-	value, err := cleanGoModule("value.go")
+	value, err := cleanGoModule(content, "value.go")
 	if err != nil {
 		panic(err.Error())
 	}
 	g.parser.write(value)
 
-	errors, err := cleanGoModule("errors.go")
+	errors, err := cleanGoModule(content, "errors.go")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -569,13 +569,13 @@ func (g *goCodeEmitter) writeIfErr() {
 
 // transform
 
-func cleanGoModule(fileName string) (string, error) {
+func cleanGoModule(fs embed.FS, fileName string) (string, error) {
 	var (
 		out  = &strings.Builder{}
 		fset = token.NewFileSet()
 	)
 
-	data, err := content.ReadFile(fileName)
+	data, err := fs.ReadFile(fileName)
 	if err != nil {
 		return "", err
 	}
@@ -592,6 +592,7 @@ func cleanGoModule(fileName string) (string, error) {
 				continue
 			}
 		}
+
 		if err := printer.Fprint(out, fset, decl); err != nil {
 			return "", err
 		}

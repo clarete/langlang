@@ -1,6 +1,7 @@
 package langlang
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 )
@@ -46,6 +47,7 @@ const (
 	opBackCommit
 	opCall
 	opReturn
+	opJump
 	opThrow
 	opCapBegin
 	opCapEnd
@@ -65,10 +67,41 @@ var opNames = map[byte]string{
 	opBackCommit:    "back_commit",
 	opCall:          "call",
 	opReturn:        "return",
+	opJump:          "jump",
 	opThrow:         "throw",
 	opCapBegin:      "cap_begin",
 	opCapEnd:        "cap_end",
 }
+
+var (
+	// opAnySizeInBytes: 1 because `Any` has no params
+	opAnySizeInBytes = 1
+	// opCharSizeInBytes: 3, 1 for the opcode and 2 for the
+	// literal char.  TODO: This is too small for certain chars.
+	opCharSizeInBytes = 3
+	// opSpanSizeInBytes: 1 for the opcode followed by two runes,
+	// each one 2 bytes long.  TODO: This is too small for certain
+	// chars.
+	opSpanSizeInBytes = 5
+	// opChoiceSizeInBytes is 3, 1 for the opcode, and 2 for the
+	// label that the VM should go when it backtracks
+	opChoiceSizeInBytes = 3
+	opCommitSizeInBytes = 3
+	opFailSizeInBytes   = 1
+	// opCallSizeInBytes contains the following bytes
+	//  1. operator
+	//  2. low nib of 16bit uint label address
+	//  3. high nib of 16bit uint label address
+	//  4. uint8 precedence level
+	opCallSizeInBytes = 4
+	// opReturnSizeInBytes contains just one byte for the operator
+	opReturnSizeInBytes   = 1
+	opJumpSizeInBytes     = 3
+	opThrowSizeInBytes    = 3
+	opHaltSizeInBytes     = 1
+	opCapBeginSizeInBytes = 3
+	opCapEndSizeInBytes   = 1
+)
 
 func NewVirtualMachine(bytecode *Bytecode) *VirtualMachine {
 	return &VirtualMachine{stack: &stack{}, bytecode: bytecode}
@@ -76,7 +109,7 @@ func NewVirtualMachine(bytecode *Bytecode) *VirtualMachine {
 
 func (vm *VirtualMachine) Match(input Input) (Value, int, error) {
 	dbg := func(m string) {}
-	dbg = func(m string) { fmt.Print(m) }
+	// dbg = func(m string) { fmt.Print(m) }
 
 code:
 	for {
@@ -325,3 +358,6 @@ func (vm *VirtualMachine) capture(values ...Value) {
 		vm.values = append(vm.values, values...)
 	}
 }
+
+var decodeU16 = binary.LittleEndian.Uint16
+var writeU16 = binary.LittleEndian.PutUint16

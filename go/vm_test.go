@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type vmTest struct {
+	Name           string
+	Grammar        string
+	Input          string
+	ExpectedAST    string
+	ExpectedError  string
+	ExpectedCursor int
+}
+
 func TestVM(t *testing.T) {
 	t.Run("I guess I will just die", func(t *testing.T) {
 		bytecode := Encode(&Program{code: []Instruction{
@@ -30,13 +39,7 @@ func TestVM(t *testing.T) {
 		assert.Equal(t, 1, cur)
 	})
 
-	vmTests := []struct {
-		Name           string
-		Grammar        string
-		Input          string
-		ExpectedAST    string
-		ExpectedCursor int
-	}{
+	vmTests := []vmTest{
 		{
 			Name:           "Any",
 			Grammar:        "G <- .",
@@ -251,29 +254,36 @@ func TestVM(t *testing.T) {
 	}
 
 	for _, test := range vmTests {
-		t.Run("O0 "+test.Name, func(t *testing.T) {
-			val, cur, err := exec(test.Grammar, test.Input, 0)
-			require.NoError(t, err)
-			assert.Equal(t, test.ExpectedCursor, cur)
-			if test.ExpectedAST == "" {
-				assert.Nil(t, val)
-			} else {
-				require.NotNil(t, val)
-				assert.Equal(t, test.ExpectedAST, val.PrettyString())
-			}
-		})
+		t.Run("O0 "+test.Name, mkVmTestFn(test, 0))
+		t.Run("O1 "+test.Name, mkVmTestFn(test, 1))
+	}
+}
 
-		t.Run("O1 "+test.Name, func(t *testing.T) {
-			val, cur, err := exec(test.Grammar, test.Input, 1)
-			require.NoError(t, err)
-			assert.Equal(t, test.ExpectedCursor, cur)
-			if test.ExpectedAST == "" {
-				assert.Nil(t, val)
-			} else {
-				require.NotNil(t, val)
-				assert.Equal(t, test.ExpectedAST, val.PrettyString())
-			}
-		})
+func mkVmTestFn(test vmTest, opt int) func(t *testing.T) {
+	return func(t *testing.T) {
+		val, cur, err := exec(test.Grammar, test.Input, 0)
+
+		// The cursor should be right for both error and
+		// success states
+		assert.Equal(t, test.ExpectedCursor, cur)
+
+		// If the test contains an expected error, it will
+		// take priority over asserting a success operation
+		if test.ExpectedError != "" {
+			require.Error(t, err)
+			assert.Equal(t, test.ExpectedError, err.Error())
+			return
+		}
+
+		// Finally testing the success state against the
+		// output value, if there's any
+		require.NoError(t, err)
+		if test.ExpectedAST == "" {
+			assert.Nil(t, val)
+		} else {
+			require.NotNil(t, val)
+			assert.Equal(t, test.ExpectedAST, val.PrettyString())
+		}
 	}
 }
 

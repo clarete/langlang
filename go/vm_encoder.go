@@ -1,8 +1,6 @@
 package langlang
 
-import (
-	"encoding/binary"
-)
+import "encoding/binary"
 
 func Encode(p *Program) *Bytecode {
 	var (
@@ -75,4 +73,3 @@ func encodeJmp(code []byte, op byte, label int) []byte {
 }
 
 var encodeU16 = binary.LittleEndian.AppendUint16
-var decodeU16 = binary.LittleEndian.Uint16

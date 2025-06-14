@@ -41,13 +41,6 @@ type compiler struct {
 	// table a string instance points to
 	stringsMap map[string]int
 
-	// lexLevel is the depth of the use of the lex ('#') operator
-	lexLevel int
-
-	// errorLabels is a map from the set of labels to the set of
-	// messages for error reporting
-	errorLabels map[int]int
-
 	// errorLabelIDs is a set of all label IDs
 	errorLabelIDs map[int]struct{}
 
@@ -249,12 +242,7 @@ func (c *compiler) VisitNotNode(node *NotNode) error {
 }
 
 func (c *compiler) VisitLexNode(node *LexNode) error {
-	c.lexLevel++
-	if err := node.Expr.Accept(c); err != nil {
-		return nil
-	}
-	c.lexLevel--
-	return nil
+	return node.Expr.Accept(c)
 }
 
 func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
@@ -269,8 +257,8 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 		return nil
 	}
 
-	c.emit(l1)
 	c.emit(ICommit{Label: l2})
+	c.emit(l1)
 	c.emit(IThrow{ErrorLabel: id})
 	c.emit(l2)
 	return nil

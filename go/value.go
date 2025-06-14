@@ -37,9 +37,9 @@ func NewLocation(line, column, cursor int) Location {
 
 func (l Location) String() string {
 	if l.Line == 0 {
-		return fmt.Sprintf("%d", l.Column)
+		return fmt.Sprintf("%d", l.Column+1)
 	}
-	return fmt.Sprintf("%d:%d", l.Line+1, l.Column)
+	return fmt.Sprintf("%d:%d", l.Line+1, l.Column+1)
 }
 
 type Span struct {
@@ -56,7 +56,10 @@ func (s Span) String() string {
 	if s.Start.File != "" {
 		prefix = s.Start.File + ":"
 	}
-	if s.Start.Line == s.End.Line && s.Start.Line == 0 {
+	if s.Start.Line == s.End.Line && s.Start.Column == s.End.Column {
+		return s.Start.String()
+	}
+	if s.Start.Line == s.End.Line && s.Start.Line == 1 {
 		if s.Start.Column == s.End.Column {
 			return fmt.Sprintf("%s%d", prefix, s.Start.Column)
 		}

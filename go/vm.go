@@ -18,12 +18,17 @@ type Bytecode struct {
 }
 
 func (b *Bytecode) Match(input Input) (Value, int, error) {
-	vm := NewVirtualMachine(b)
+	return b.MatchE(input, map[string]string{})
+}
+
+func (b *Bytecode) MatchE(input Input, errLabels map[string]string) (Value, int, error) {
+	vm := newVirtualMachine(b, errLabels)
 	return vm.Match(input)
 }
 
-type VirtualMachine struct {
+type virtualMachine struct {
 	pc        int
+	ffp       int
 	cursor    int
 	line      int
 	column    int
@@ -31,6 +36,9 @@ type VirtualMachine struct {
 	bytecode  *Bytecode
 	predicate bool
 	values    []Value
+	errLabels map[string]string
+	expected  map[string]struct{}
+	expecteds string
 }
 
 const (
@@ -103,11 +111,17 @@ var (
 	opCapEndSizeInBytes   = 1
 )
 
-func NewVirtualMachine(bytecode *Bytecode) *VirtualMachine {
-	return &VirtualMachine{stack: &stack{}, bytecode: bytecode}
+func newVirtualMachine(bytecode *Bytecode, errLabels map[string]string) *virtualMachine {
+	return &virtualMachine{
+		stack:     &stack{},
+		bytecode:  bytecode,
+		errLabels: errLabels,
+		expected:  map[string]struct{}{},
+		ffp:       -1,
+	}
 }
 
-func (vm *VirtualMachine) Match(input Input) (Value, int, error) {
+func (vm *virtualMachine) Match(input Input) (Value, int, error) {
 	dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
@@ -129,6 +143,7 @@ code:
 			c, s, err := input.ReadRune()
 			if err != nil {
 				if err == io.EOF {
+					vm.updateFFP("")
 					goto fail
 				}
 				return nil, vm.cursor, err
@@ -137,6 +152,7 @@ code:
 			vm.pc += opAnySizeInBytes
 
 		case opChar:
+			e := rune(decodeU16(vm.bytecode.code[vm.pc+1:]))
 			c, s, err := input.ReadRune()
 			if err != nil {
 				if err == io.EOF {
@@ -144,7 +160,8 @@ code:
 				}
 				return nil, vm.cursor, err
 			}
-			if c != rune(decodeU16(vm.bytecode.code[vm.pc+1:])) {
+			if c != e {
+				vm.updateFFP(string(e))
 				goto fail
 			}
 			vm.updatePos(c, s)
@@ -158,10 +175,10 @@ code:
 				}
 				return nil, vm.cursor, err
 			}
-			if c < rune(decodeU16(vm.bytecode.code[vm.pc+1:])) {
-				goto fail
-			}
-			if c > rune(decodeU16(vm.bytecode.code[vm.pc+3:])) {
+			a := rune(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			b := rune(decodeU16(vm.bytecode.code[vm.pc+3:]))
+			if c < a || c > b {
+				vm.updateFFP(fmt.Sprintf("%c-%c", a, b))
 				goto fail
 			}
 			vm.updatePos(c, s)
@@ -212,10 +229,10 @@ code:
 				vm.pc += opThrowSizeInBytes
 				goto fail
 			} else {
-				// TODO: Lookup recovery table
 				lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 				id := vm.bytecode.strs[lb]
-				return nil, vm.cursor, fmt.Errorf("Labeled Fail: %s", id)
+				// TODO: Lookup recovery table
+				return nil, vm.cursor, vm.mkErr(input, id)
 			}
 
 		case opCapBegin:
@@ -246,10 +263,14 @@ fail:
 			goto code
 		}
 	}
-	return nil, vm.cursor, fmt.Errorf("Fail")
+	dbg(fmt.Sprintf(" -> boom: %d, %d\n", vm.cursor, vm.ffp))
+
+	return nil, vm.cursor, vm.mkErr(input, "")
 }
 
-func (vm *VirtualMachine) updatePos(c rune, s int) {
+// Cursor/Line/Column Helpers
+
+func (vm *virtualMachine) updatePos(c rune, s int) {
 	vm.cursor += s
 	vm.column++
 	if c == '\n' {
@@ -258,14 +279,16 @@ func (vm *VirtualMachine) updatePos(c rune, s int) {
 	}
 }
 
-func (vm *VirtualMachine) backtrackToFrame(f frame) {
+// Stack Management Helpers
+
+func (vm *virtualMachine) backtrackToFrame(f frame) {
 	vm.cursor = f.cursor
 	vm.line = f.line
 	vm.column = f.column
 	vm.stack.dropUncommittedValues(f.captured)
 }
 
-func (vm *VirtualMachine) mkBacktrackFrame(pc int) frame {
+func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {
 	captured := 0
 	if f, ok := vm.stack.findCaptureFrame(); ok {
 		captured = len(f.values)
@@ -280,13 +303,13 @@ func (vm *VirtualMachine) mkBacktrackFrame(pc int) frame {
 	}
 }
 
-func (vm *VirtualMachine) mkBacktrackPredFrame(pc int) frame {
+func (vm *virtualMachine) mkBacktrackPredFrame(pc int) frame {
 	f := vm.mkBacktrackFrame(pc)
 	f.predicate = true
 	return f
 }
 
-func (vm *VirtualMachine) mkCaptureFrame(id int) frame {
+func (vm *virtualMachine) mkCaptureFrame(id int) frame {
 	return frame{
 		t:      frameType_Capture,
 		capId:  id,
@@ -296,7 +319,9 @@ func (vm *VirtualMachine) mkCaptureFrame(id int) frame {
 	}
 }
 
-func (vm *VirtualMachine) newNode(input Input, f frame) {
+// Node Capture Helpers
+
+func (vm *virtualMachine) newNode(input Input, f frame) {
 	var (
 		capId = vm.bytecode.strs[f.capId]
 		begin = NewLocation(f.line, f.column, f.cursor)
@@ -347,7 +372,7 @@ func (vm *VirtualMachine) newNode(input Input, f frame) {
 	}
 }
 
-func (vm *VirtualMachine) capture(values ...Value) {
+func (vm *virtualMachine) capture(values ...Value) {
 	if capFrame, ok := vm.stack.findCaptureFrame(); ok {
 		capFrame.values = append(capFrame.values, values...)
 		return
@@ -357,6 +382,108 @@ func (vm *VirtualMachine) capture(values ...Value) {
 	} else {
 		vm.values = append(vm.values, values...)
 	}
+}
+
+// Error Handling Helpers
+
+func (vm *virtualMachine) updateFFP(s string) {
+	if vm.cursor > vm.ffp {
+		vm.ffp = vm.cursor
+		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
+			vm.expected = map[string]struct{}{}
+			vm.expecteds = ""
+			return
+		}
+		vm.expected = map[string]struct{}{s: struct{}{}}
+		vm.expecteds = fmt.Sprintf(`'%s'`, s)
+	} else if vm.cursor == vm.ffp {
+		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
+			return
+		}
+		if _, ok := vm.expected[s]; ok {
+			return
+		}
+		if vm.expecteds == "" {
+			vm.expecteds = "'" + s + "'"
+		} else {
+			vm.expecteds = vm.expecteds + ", '" + s + "'"
+		}
+		vm.expected[s] = struct{}{}
+	}
+}
+
+var skipFromFFPUpdate = map[string]struct{}{
+	"":   struct{}{},
+	" ":  struct{}{},
+	"\n": struct{}{},
+	"\r": struct{}{},
+	"\t": struct{}{},
+}
+
+func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
+	// First we seek back to where the cursor backtracked to, and
+	// increment the information about line and column.
+	input.Seek(int64(vm.cursor), io.SeekStart)
+	line, column, cursor := vm.line, vm.column, vm.cursor
+
+	for cursor < vm.ffp {
+		c, s, err := input.ReadRune()
+		if err != nil {
+			break
+		}
+
+		cursor += s
+		column++
+		if c == '\n' {
+			column = 0
+			line++
+		}
+	}
+
+	// as of this point, the input cursor should be at vm.ffp, so
+	// we try to read what value we encountered that isn't the
+	// expected one.  Right now, we're just reading a single char
+	// from ffp's location, but it could be nice to maybe read a
+	// full "word" at some point.
+	var (
+		isEof   bool
+		message string
+		pos     = NewLocation(line, column, vm.ffp)
+		span    = NewSpan(pos, pos)
+	)
+	c, _, err := input.ReadRune()
+	if err != nil {
+		if err == io.EOF {
+			isEof = true
+		} else {
+			return err
+		}
+	}
+
+	if m, ok := vm.errLabels[errLabel]; ok {
+		// If an error message has been associated with the
+		// error label, we just use the message.
+		message = m
+	} else {
+		// Prefix message with the error label if available
+		if errLabel != "" {
+			message = "[" + errLabel + "] "
+		}
+		// Use information automatically collected by
+		// `opChar`, `opSpan`, and `opAny` fail and they're
+		// not within predicates.
+		if vm.expecteds != "" {
+			message += "Expected " + vm.expecteds + " but got "
+		} else {
+			message += "Unexpected "
+		}
+		if isEof {
+			message += "EOF"
+		} else {
+			message += "'" + string(c) + "'"
+		}
+	}
+	return ParsingError{Message: message, Label: errLabel, Span: span}
 }
 
 var decodeU16 = binary.LittleEndian.Uint16

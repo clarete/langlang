@@ -25,7 +25,7 @@ func TestVM(t *testing.T) {
 		}})
 		assert.Equal(t, uint8(0), bytecode.code[0])
 
-		vm := NewVirtualMachine(bytecode)
+		vm := newVirtualMachine(bytecode, map[string]string{})
 
 		_, cur, err := vm.Match(strings.NewReader(""))
 
@@ -45,64 +45,64 @@ func TestVM(t *testing.T) {
 			Grammar:        "G <- .",
 			Input:          "foo",
 			ExpectedCursor: 1,
-			ExpectedAST: `G (0..1)
-└── "f" (0..1)`,
+			ExpectedAST: `G (1..2)
+└── "f" (1..2)`,
 		},
 		{
 			Name:           "Any Star",
 			Grammar:        "G <- .*",
 			Input:          "foo",
 			ExpectedCursor: 3,
-			ExpectedAST: `G (0..3)
-└── "foo" (0..3)`,
+			ExpectedAST: `G (1..4)
+└── "foo" (1..4)`,
 		},
 		{
 			Name:           "Char",
 			Grammar:        "G <- 'f'",
 			Input:          "foo",
 			ExpectedCursor: 1,
-			ExpectedAST: `G (0..1)
-└── "f" (0..1)`,
+			ExpectedAST: `G (1..2)
+└── "f" (1..2)`,
 		},
 		{
 			Name:           "Choice",
 			Grammar:        "G <- 'f' / 'g' / 'h'",
 			Input:          "g",
 			ExpectedCursor: 1,
-			ExpectedAST: `G (0..1)
-└── "g" (0..1)`,
+			ExpectedAST: `G (1..2)
+└── "g" (1..2)`,
 		},
 		{
 			Name:           "Choice on Words",
 			Grammar:        "G <- 'avocado' / 'avante' / 'aviador'",
 			Input:          "avante",
 			ExpectedCursor: 6,
-			ExpectedAST: `G (0..6)
-└── "avante" (0..6)`,
+			ExpectedAST: `G (1..7)
+└── "avante" (1..7)`,
 		},
 		{
 			Name:           "Class with Range",
 			Grammar:        "G <- [0-9]+",
 			Input:          "42",
 			ExpectedCursor: 2,
-			ExpectedAST: `G (0..2)
-└── "42" (0..2)`,
+			ExpectedAST: `G (1..3)
+└── "42" (1..3)`,
 		},
 		{
 			Name:           "Class with Range and Literal",
 			Grammar:        "G <- [a-z_]+",
 			Input:          "my_id",
 			ExpectedCursor: 5,
-			ExpectedAST: `G (0..5)
-└── "my_id" (0..5)`,
+			ExpectedAST: `G (1..6)
+└── "my_id" (1..6)`,
 		},
 		{
 			Name:           "Optional Matches",
 			Grammar:        "G <- 'f'?",
 			Input:          "foo",
 			ExpectedCursor: 1,
-			ExpectedAST: `G (0..1)
-└── "f" (0..1)`,
+			ExpectedAST: `G (1..2)
+└── "f" (1..2)`,
 		},
 		{
 			Name:           "Optional does not match",
@@ -116,48 +116,48 @@ func TestVM(t *testing.T) {
 			Grammar:        "G <- 'f'? 'bar'",
 			Input:          "bar",
 			ExpectedCursor: 3,
-			ExpectedAST: `G (0..3)
-└── "bar" (0..3)`,
+			ExpectedAST: `G (1..4)
+└── "bar" (1..4)`,
 		},
 		{
 			Name:           "Not predicate",
 			Grammar:        "G <- (!';' .)*",
 			Input:          "foo; bar",
 			ExpectedCursor: 3,
-			ExpectedAST: `G (0..3)
-└── "foo" (0..3)`,
+			ExpectedAST: `G (1..4)
+└── "foo" (1..4)`,
 		},
 		{
 			Name:           "Not Any and Star",
 			Grammar:        `G <- "'" (!"'" .)* "'"`,
 			Input:          "'foo'",
 			ExpectedCursor: 5,
-			ExpectedAST: `G (0..5)
-└── "'foo'" (0..5)`,
+			ExpectedAST: `G (1..6)
+└── "'foo'" (1..6)`,
 		},
 		{
 			Name:           "And predicate",
 			Grammar:        "G <- &'a' .",
 			Input:          "avocado",
 			ExpectedCursor: 1,
-			ExpectedAST: `G (0..1)
-└── "a" (0..1)`,
+			ExpectedAST: `G (1..2)
+└── "a" (1..2)`,
 		},
 		{
 			Name:           "Parse HEX Number",
 			Grammar:        "G <- '0x' [0-9a-fA-F]+ / '0'",
 			Input:          "0xff",
 			ExpectedCursor: 4,
-			ExpectedAST: `G (0..4)
-└── "0xff" (0..4)`,
+			ExpectedAST: `G (1..5)
+└── "0xff" (1..5)`,
 		},
 		{
 			Name:           "Unicode",
 			Grammar:        "G <- [♡]",
 			Input:          "♡",
 			ExpectedCursor: 3,
-			ExpectedAST: `G (0..1)
-└── "♡" (0..1)`,
+			ExpectedAST: `G (1..2)
+└── "♡" (1..2)`,
 		},
 		{
 			Name: "Var",
@@ -165,9 +165,9 @@ func TestVM(t *testing.T) {
 		D <- [0-9]+`,
 			Input:          "1",
 			ExpectedCursor: 1,
-			ExpectedAST: `G (0..1)
-└── D (0..1)
-    └── "1" (0..1)`,
+			ExpectedAST: `G (1..2)
+└── D (1..2)
+    └── "1" (1..2)`,
 		},
 		{
 			Name: "Var and Var",
@@ -176,12 +176,12 @@ func TestVM(t *testing.T) {
 				  P <- '!'`,
 			Input:          "42!",
 			ExpectedCursor: 3,
-			ExpectedAST: `G (0..3)
-└── Sequence<2> (0..3)
-    ├── D (0..2)
-    │   └── "42" (0..2)
-    └── P (2..3)
-        └── "!" (2..3)`,
+			ExpectedAST: `G (1..4)
+└── Sequence<2> (1..4)
+    ├── D (1..3)
+    │   └── "42" (1..3)
+    └── P (3..4)
+        └── "!" (3..4)`,
 		},
 		{
 			Name: "Var Char Var",
@@ -189,13 +189,13 @@ func TestVM(t *testing.T) {
 				  D <- [0-9]+`,
 			Input:          "40+2",
 			ExpectedCursor: 4,
-			ExpectedAST: `G (0..4)
-└── Sequence<3> (0..4)
-    ├── D (0..2)
-    │   └── "40" (0..2)
-    ├── "+" (2..3)
-    └── D (3..4)
-        └── "2" (3..4)`,
+			ExpectedAST: `G (1..5)
+└── Sequence<3> (1..5)
+    ├── D (1..3)
+    │   └── "40" (1..3)
+    ├── "+" (3..4)
+    └── D (4..5)
+        └── "2" (4..5)`,
 		},
 		{
 			Name: "Var Char Var Char",
@@ -203,14 +203,14 @@ func TestVM(t *testing.T) {
 				  D <- [0-9]+`,
 			Input:          "40+2!",
 			ExpectedCursor: 5,
-			ExpectedAST: `G (0..5)
-└── Sequence<4> (0..5)
-    ├── D (0..2)
-    │   └── "40" (0..2)
-    ├── "+" (2..3)
-    ├── D (3..4)
-    │   └── "2" (3..4)
-    └── "!" (4..5)`,
+			ExpectedAST: `G (1..6)
+└── Sequence<4> (1..6)
+    ├── D (1..3)
+    │   └── "40" (1..3)
+    ├── "+" (3..4)
+    ├── D (4..5)
+    │   └── "2" (4..5)
+    └── "!" (5..6)`,
 		},
 		{
 			Name: "Char Var Char",
@@ -218,12 +218,12 @@ func TestVM(t *testing.T) {
 				  D <- [0-9]+`,
 			Input:          "+42+",
 			ExpectedCursor: 4,
-			ExpectedAST: `G (0..4)
-└── Sequence<3> (0..4)
-    ├── "+" (0..1)
-    ├── D (1..3)
-    │   └── "42" (1..3)
-    └── "+" (3..4)`,
+			ExpectedAST: `G (1..5)
+└── Sequence<3> (1..5)
+    ├── "+" (1..2)
+    ├── D (2..4)
+    │   └── "42" (2..4)
+    └── "+" (4..5)`,
 		},
 		{
 			Name: "Lexification", // TODO: Needs test for failure
@@ -233,11 +233,11 @@ func TestVM(t *testing.T) {
                         `,
 			Input:          "42nd",
 			ExpectedCursor: 4,
-			ExpectedAST: `Ordinal (0..4)
-└── Sequence<2> (0..4)
-    ├── Decimal (0..2)
-    │   └── "42" (0..2)
-    └── "nd" (2..4)`,
+			ExpectedAST: `Ordinal (1..5)
+└── Sequence<2> (1..5)
+    ├── Decimal (1..3)
+    │   └── "42" (1..3)
+    └── "nd" (3..5)`,
 		},
 		{
 			Name: "Capture and backtrack",
@@ -247,9 +247,29 @@ func TestVM(t *testing.T) {
                         `,
 			Input:          "42",
 			ExpectedCursor: 2,
-			ExpectedAST: `G (0..2)
-└── D (0..2)
-    └── "42" (0..2)`,
+			ExpectedAST: `G (1..3)
+└── D (1..3)
+    └── "42" (1..3)`,
+		},
+		{
+			Name:           "Error on Char",
+			Grammar:        `G <- 'a'`,
+			Input:          "1",
+			ExpectedCursor: 0,
+			ExpectedError:  "Expected 'a' but got '1' @ 1",
+		},
+		{
+			Name: "Lexification in sequence within sequence",
+			Grammar: `
+SPC0   <- #(Letter Alnum+) ":" #(Digit+)
+SPC1   <- #Letter Alnum+ #":" Digit+
+Alnum  <- [a-zA-Z0-9]
+Letter <- [a-zA-Z]
+Digit  <- [0-9]
+`,
+			Input:          "a 999:99",
+			ExpectedCursor: 1,
+			ExpectedError:  "Expected 'a-z', 'A-Z', '0-9' but got ' ' @ 2",
 		},
 	}
 

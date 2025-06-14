@@ -49,8 +49,9 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 			isSpacingNode := isIdNode && idNode.Value == spacingIdentifier
 
 			_, isLexNode := item.(*LexNode)
+			_, isSeqNode := item.(*SequenceNode)
 
-			skip := !consumeFirst && i == 0 || isLexNode || isSpacingNode
+			skip := !consumeFirst && i == 0 || isLexNode || isSeqNode || isSpacingNode
 
 			if shouldConsumeSpaces && !skip {
 				newItems = append(newItems, wsCall())

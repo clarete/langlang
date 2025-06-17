@@ -15,6 +15,7 @@ type Input interface {
 type Bytecode struct {
 	code []byte
 	strs []string
+	rxps map[int]int
 }
 
 func (b *Bytecode) Match(input Input) (Value, int, error) {
@@ -218,7 +219,7 @@ code:
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opCall:
-			vm.stack.push(frame{t: frameType_Call, pc: vm.pc + opCallSizeInBytes})
+			vm.stack.push(vm.mkCallFrame(vm.pc + opCallSizeInBytes))
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opReturn:
@@ -228,12 +229,15 @@ code:
 			if vm.predicate {
 				vm.pc += opThrowSizeInBytes
 				goto fail
-			} else {
-				lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
-				id := vm.bytecode.strs[lb]
-				// TODO: Lookup recovery table
-				return nil, vm.cursor, vm.mkErr(input, id)
 			}
+			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			id := vm.bytecode.strs[lb]
+			if addr, ok := vm.bytecode.rxps[lb]; ok {
+				vm.stack.push(vm.mkCallFrame(vm.pc + opThrowSizeInBytes))
+				vm.pc = addr
+				continue
+			}
+			return nil, vm.cursor, vm.mkErr(input, id)
 
 		case opCapBegin:
 			id := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
@@ -319,15 +323,21 @@ func (vm *virtualMachine) mkCaptureFrame(id int) frame {
 	}
 }
 
+func (vm *virtualMachine) mkCallFrame(pc int) frame {
+	return frame{t: frameType_Call, pc: pc}
+}
+
 // Node Capture Helpers
 
 func (vm *virtualMachine) newNode(input Input, f frame) {
 	var (
-		capId = vm.bytecode.strs[f.capId]
-		begin = NewLocation(f.line, f.column, f.cursor)
-		end   = NewLocation(vm.line, vm.column, vm.cursor)
-		span  = NewSpan(begin, end)
-		read  = func(size, start int) string {
+		node     Value
+		_, isrxp = vm.bytecode.rxps[f.capId]
+		capId    = vm.bytecode.strs[f.capId]
+		begin    = NewLocation(f.line, f.column, f.cursor)
+		end      = NewLocation(vm.line, vm.column, vm.cursor)
+		span     = NewSpan(begin, end)
+		read     = func(size, start int) string {
 			val := make([]byte, size)
 			if _, err := input.ReadAt(val, int64(start)); err != nil {
 				panic(err.Error())
@@ -395,7 +405,7 @@ func (vm *virtualMachine) updateFFP(s string) {
 			return
 		}
 		vm.expected = map[string]struct{}{s: struct{}{}}
-		vm.expecteds = fmt.Sprintf(`'%s'`, s)
+		vm.expecteds = "'" + s + "'"
 	} else if vm.cursor == vm.ffp {
 		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
 			return
@@ -406,7 +416,7 @@ func (vm *virtualMachine) updateFFP(s string) {
 		if vm.expecteds == "" {
 			vm.expecteds = "'" + s + "'"
 		} else {
-			vm.expecteds = vm.expecteds + ", '" + s + "'"
+			vm.expecteds += ", '" + s + "'"
 		}
 		vm.expected[s] = struct{}{}
 	}

@@ -7,6 +7,7 @@ func Encode(p *Program) *Bytecode {
 		code   []byte
 		cursor int
 		labels = map[ILabel]int{}
+		rxps   = map[int]int{}
 	)
 	for _, instruction := range p.code {
 		switch ii := instruction.(type) {
@@ -60,9 +61,13 @@ func Encode(p *Program) *Bytecode {
 			code = append(code, opCapEnd)
 		}
 	}
+	for id, entry := range p.recovery {
+		rxps[id] = labels[entry.label]
+	}
 	return &Bytecode{
 		code: code,
 		strs: p.strings,
+		rxps: rxps,
 	}
 }
 

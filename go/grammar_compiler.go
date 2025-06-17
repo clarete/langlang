@@ -44,6 +44,8 @@ type compiler struct {
 	// errorLabelIDs is a set of all label IDs
 	errorLabelIDs map[int]struct{}
 
+	recovery map[int]recoveryEntry
+
 	grammarNode *GrammarNode
 }
 
@@ -56,20 +58,21 @@ func Compile(expr AstNode, config CompilerConfig) (*Program, error) {
 		openAddrs:        map[int]int{},
 		stringsMap:       map[string]int{},
 		strings:          []string{},
-		errorLabels:      map[int]int{},
 		errorLabelIDs:    map[int]struct{}{},
+		recovery:         map[int]recoveryEntry{},
 	}
-
 	if err = expr.Accept(c); err != nil {
 		return nil, err
 	}
-
 	if err = c.backpatchCallSites(); err != nil {
 		return nil, err
 	}
-
+	if err = c.mapRecoveryExprs(); err != nil {
+		return nil, err
+	}
 	return &Program{
 		identifiers: c.identifiers,
+		recovery:    c.recovery,
 		strings:     c.strings,
 		code:        c.code,
 	}, nil
@@ -340,6 +343,16 @@ func (c *compiler) backpatchCallSites() error {
 	label := c.definitionLabels[defID]
 	c.code[0] = ICall{Label: label}
 
+	return nil
+}
+
+func (c *compiler) mapRecoveryExprs() error {
+	for id := range c.errorLabelIDs {
+		if label, ok := c.definitionLabels[id]; ok {
+			// TODO[bounded left recursion]: precedence
+			c.recovery[id] = recoveryEntry{label: label}
+		}
+	}
 	return nil
 }
 

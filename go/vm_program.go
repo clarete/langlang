@@ -30,7 +30,7 @@ var asmPrinterTheme = map[AsmFormatToken]string{
 }
 
 type recoveryEntry struct {
-	expression int
+	label      ILabel
 	precedence int
 }
 

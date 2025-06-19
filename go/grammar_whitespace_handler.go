@@ -97,6 +97,9 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 	case *LabeledNode:
 		return NewLabeledNode(node.Label, wi.expandExpr(node.Expr, true), n.Span())
 
+	case *CaptureNode:
+		return NewCaptureNode(node.Name, wi.expandExpr(node.Expr, true), n.Span())
+
 	default:
 		return node
 	}

@@ -134,8 +134,6 @@ func main() {
 	// If it's interactive, it will open a lil REPL shell
 
 	if *a.interactive {
-		fmt.Println(ast.HighlightPrettyString())
-		fmt.Println(asm.HighlightPrettyString())
 		code := langlang.Encode(asm)
 
 		for {
@@ -165,9 +163,6 @@ func main() {
 	// if there's an input path, just run the match right away
 
 	if *a.inputPath != "" {
-		fmt.Println(ast.HighlightPrettyString())
-		fmt.Println(asm.HighlightPrettyString())
-
 		text, err := os.ReadFile(*a.inputPath)
 		if err != nil {
 			log.Fatalf("Can't open input file: %s", err.Error())
@@ -195,7 +190,11 @@ func main() {
 			PackageName: *a.goOptPackage,
 			RemoveLib:   *a.goOptRemoveLib,
 		})
-
+	case "goeval":
+		outputData, err = langlang.GenGoEval(asm, langlang.GenGoOptions{
+			PackageName: *a.goOptPackage,
+			RemoveLib:   *a.goOptRemoveLib,
+		})
 	// case "python":
 	// 	outputData, err = langlang.GenParserPython(ast)
 	default:

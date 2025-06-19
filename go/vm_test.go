@@ -1,7 +1,7 @@
 package langlang
 
 import (
-	"fmt"
+	// "fmt"
 	"strings"
 	"testing"
 
@@ -312,28 +312,28 @@ func exec(expr, input string, optimize int) (Value, int, error) {
 	if err != nil {
 		panic(err)
 	}
-	// ast, err = InjectWhitespaces(ast)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// ast, err = AddBuiltins(ast)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	ast, err = InjectWhitespaces(ast)
+	if err != nil {
+		panic(err)
+	}
+	ast, err = AddBuiltins(ast)
+	if err != nil {
+		panic(err)
+	}
 	ast, err = AddCaptures(ast)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("ast\n%s\n", ast.HighlightPrettyString())
+	// fmt.Printf("ast\n%s\n", ast.HighlightPrettyString())
 	asm, err := Compile(ast, CompilerConfig{Optimize: optimize})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("asm\n%s\n", asm.HighlightPrettyString())
+	// fmt.Printf("asm\n%s\n", asm.HighlightPrettyString())
 
 	code := Encode(asm)
 
-	fmt.Printf("code\n%#v\n", code.code)
+	// fmt.Printf("code\n%#v\n", code.code)
 
 	return code.Match(strings.NewReader(input))
 }

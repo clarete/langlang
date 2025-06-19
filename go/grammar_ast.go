@@ -385,7 +385,7 @@ func NewLabeledNode(label string, expr AstNode, s Span) *LabeledNode {
 }
 
 func (n LabeledNode) Span() Span                    { return n.span }
-func (n LabeledNode) IsSyntactic() bool             { return n.Expr.IsSyntactic() }
+func (n LabeledNode) IsSyntactic() bool             { return false }
 func (n LabeledNode) String() string                { return fmt.Sprintf("%s^%s", n.Expr.String(), n.Label) }
 func (n LabeledNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n LabeledNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }

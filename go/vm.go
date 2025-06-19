@@ -337,49 +337,53 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 		begin    = NewLocation(f.line, f.column, f.cursor)
 		end      = NewLocation(vm.line, vm.column, vm.cursor)
 		span     = NewSpan(begin, end)
-		read     = func(size, start int) string {
-			val := make([]byte, size)
-			if _, err := input.ReadAt(val, int64(start)); err != nil {
+	)
+	switch len(f.values) {
+	case 0:
+		if vm.cursor-f.cursor > 0 {
+			buff := make([]byte, vm.cursor-f.cursor)
+			if _, err := input.ReadAt(buff, int64(f.cursor)); err != nil {
 				panic(err.Error())
 			}
-			return string(val)
+			text := string(buff)
+			node = NewString(text, span)
 		}
-	)
+	case 1:
+		node = f.values[0]
+	default:
+		node = NewSequence(f.values, span)
+	}
 
-	if len(f.values) == 0 {
-		if vm.cursor-f.cursor > 0 {
-			text := read(vm.cursor-f.cursor, f.cursor)
-			node := NewNode(capId, NewString(text, span), span)
-			vm.capture(node)
+	// This is a capture of an error recovery expression, so we
+	// need to wrap the captured node (even if it is nil) around
+	// an Error.
+	if isrxp {
+		msg, ok := vm.errLabels[capId]
+		if !ok {
+			msg = capId
 		}
+		vm.capture(NewError(capId, msg, node, span))
 		return
 	}
 
-	// TODO: this should be moved to the compiler and made optional (within AddCaptures maybe?)
-	out := make([]Value, 0, len(f.values))
-	prev := NewLocation(f.line, f.column, f.cursor)
-	for _, value := range f.values {
-		loc := value.Span().Start
-		if prev.Cursor < loc.Cursor {
-			text := read(loc.Cursor-prev.Cursor, prev.Cursor)
-			out = append(out, NewString(text, NewSpan(prev, loc)))
-		}
-		out = append(out, value)
-		prev = value.Span().End
-	}
-	loc := NewLocation(vm.line, vm.column, vm.cursor)
-	if prev.Cursor < loc.Cursor {
-		text := read(loc.Cursor-prev.Cursor, prev.Cursor)
-		out = append(out, NewString(text, NewSpan(prev, loc)))
+	// If nothing has been captured up until now, it means that
+	// it's a leaf node in the syntax tree, and the cursor didn't
+	// move, so we can bail earlier.
+	if node == nil {
+		return
 	}
 
-	switch len(out) {
-	case 0:
-	case 1:
-		vm.capture(NewNode(capId, out[0], span))
-	default:
-		vm.capture(NewNode(capId, NewSequence(out, span), span))
+	// if the capture ID is empty, it means that it is an inner
+	// expression capture.
+	if capId == "" {
+		vm.capture(node)
+		return
 	}
+
+	// This is a named capture.  The `AddCaptures` step of the
+	// Grammar Compiler wraps the expression within `Definition`
+	// nodes with `Capture` nodes named after the definition.
+	vm.capture(NewNode(capId, node, span))
 }
 
 func (vm *virtualMachine) capture(values ...Value) {
@@ -450,11 +454,11 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 		}
 	}
 
-	// as of this point, the input cursor should be at vm.ffp, so
-	// we try to read what value we encountered that isn't the
-	// expected one.  Right now, we're just reading a single char
-	// from ffp's location, but it could be nice to maybe read a
-	// full "word" at some point.
+	// at this point, the input cursor should be at vm.ffp, so we
+	// try to read the unexpected value to add it to the err
+	// message.  Right now, we read just a single char from ffp's
+	// location but it would be nice to read a full "word" at some
+	// point.
 	var (
 		isEof   bool
 		message string
@@ -469,7 +473,6 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 			return err
 		}
 	}
-
 	if m, ok := vm.errLabels[errLabel]; ok {
 		// If an error message has been associated with the
 		// error label, we just use the message.

@@ -82,7 +82,11 @@ func (gp *grammarPrinter) VisitDefinitionNode(n *DefinitionNode) error {
 }
 
 func (gp *grammarPrinter) VisitCaptureNode(n *CaptureNode) error {
-	gp.writeOperatorWithOneRand("Capture", n.Name)
+	if n.Name == "" {
+		gp.writeOperator("Capture")
+	} else {
+		gp.writeOperatorWithOneRand("Capture", n.Name)
+	}
 	gp.writeSpanl(n)
 	gp.pwrite("└── ")
 	gp.indent("    ")

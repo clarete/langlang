@@ -56,20 +56,47 @@ type expected struct {
 	a, b rune
 }
 
+const expectedLimit = 20
+
+type expectedInfo struct {
+	cur int
+	arr [expectedLimit]expected
+	set map[expected]struct{}
+}
+
+func newExpectedInfo() expectedInfo {
+	return expectedInfo{
+		set: make(map[expected]struct{}, expectedLimit),
+	}
+}
+
+func (e *expectedInfo) add(s expected) {
+	if e.cur == expectedLimit {
+		return
+	}
+	e.set[s] = struct{}{}
+	e.arr[e.cur] = s
+	e.cur++
+}
+
+func (e *expectedInfo) clear() {
+	e.cur = 0
+	clear(e.set)
+}
+
 type virtualMachine struct {
-	pc            int
-	ffp           int
-	cursor        int
-	line          int
-	column        int
-	stack         *stack
-	bytecode      *Bytecode
-	predicate     bool
-	values        []Value
-	errLabels     map[string]string
-	expectedSet   map[expected]struct{}
-	expectedSlice []expected
-	suppress      map[int]struct{}
+	pc        int
+	ffp       int
+	cursor    int
+	line      int
+	column    int
+	stack     *stack
+	bytecode  *Bytecode
+	predicate bool
+	values    []Value
+	expected  expectedInfo
+	errLabels map[string]string
+	suppress  map[int]struct{}
 }
 
 const (
@@ -148,13 +175,12 @@ func newVirtualMachine(
 	suppress map[int]struct{},
 ) *virtualMachine {
 	return &virtualMachine{
-		stack:         &stack{},
-		bytecode:      bytecode,
-		errLabels:     errLabels,
-		expectedSet:   map[expected]struct{}{},
-		expectedSlice: nil,
-		suppress:      suppress,
-		ffp:           -1,
+		stack:     &stack{},
+		bytecode:  bytecode,
+		errLabels: errLabels,
+		expected:  newExpectedInfo(),
+		suppress:  suppress,
+		ffp:       -1,
 	}
 }
 
@@ -449,22 +475,19 @@ func (vm *virtualMachine) capture(values ...Value) {
 func (vm *virtualMachine) updateFFP(s expected) {
 	if vm.cursor > vm.ffp {
 		vm.ffp = vm.cursor
-		clear(vm.expectedSet)
-		vm.expectedSlice = nil
+		vm.expected.clear()
 		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
 			return
 		}
-		vm.expectedSet[s] = struct{}{}
-		vm.expectedSlice = []expected{s}
+		vm.expected.add(s)
 	} else if vm.cursor == vm.ffp {
 		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
 			return
 		}
-		if _, ok := vm.expectedSet[s]; ok {
+		if _, ok := vm.expected.set[s]; ok {
 			return
 		}
-		vm.expectedSlice = append(vm.expectedSlice, s)
-		vm.expectedSet[s] = struct{}{}
+		vm.expected.add(s)
 	}
 }
 
@@ -503,7 +526,7 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 	// point.
 	var (
 		isEof   bool
-		message string
+		message strings.Builder
 		pos     = NewLocation(line, column, vm.ffp)
 		span    = NewSpan(pos, pos)
 	)
@@ -518,42 +541,46 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 	if m, ok := vm.errLabels[errLabel]; ok {
 		// If an error message has been associated with the
 		// error label, we just use the message.
-		message = m
+		message.WriteString(m)
 	} else {
 		// Prefix message with the error label if available
 		if errLabel != "" {
-			message = "[" + errLabel + "] "
+			message.WriteRune('[')
+			message.WriteString(errLabel)
+			message.WriteRune(']')
+			message.WriteRune(' ')
 		}
 		// Use information automatically collected by
 		// `opChar`, `opSpan`, and `opAny` fail and they're
 		// not within predicates.
-		if len(vm.expectedSlice) > 0 {
-			var s strings.Builder
-			s.WriteString("Expected ")
-			for i, e := range vm.expectedSlice {
-				s.WriteRune('\'')
-				s.WriteRune(e.a)
+		if len(vm.expected.set) > 0 {
+			message.WriteString("Expected ")
+			for i := 0; i < vm.expected.cur; i++ {
+				e := vm.expected.arr[i]
+				message.WriteRune('\'')
+				message.WriteRune(e.a)
 				if e.b != 0 {
-					s.WriteRune('-')
-					s.WriteRune(e.b)
+					message.WriteRune('-')
+					message.WriteRune(e.b)
 				}
-				s.WriteRune('\'')
-				if i < len(vm.expectedSlice)-1 {
-					s.WriteString(", ")
+				message.WriteRune('\'')
+				if i < vm.expected.cur-1 {
+					message.WriteString(", ")
 				}
 			}
-			s.WriteString(" but got ")
-			message += s.String()
+			message.WriteString(" but got ")
 		} else {
-			message += "Unexpected "
+			message.WriteString("Unexpected ")
 		}
 		if isEof {
-			message += "EOF"
+			message.WriteString("EOF")
 		} else {
-			message += "'" + string(c) + "'"
+			message.WriteRune('\'')
+			message.WriteRune(c)
+			message.WriteRune('\'')
 		}
 	}
-	return ParsingError{Message: message, Label: errLabel, Span: span}
+	return ParsingError{Message: message.String(), Label: errLabel, Span: span}
 }
 
 var decodeU16 = binary.LittleEndian.Uint16

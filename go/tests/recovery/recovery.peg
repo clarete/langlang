@@ -1,14 +1,16 @@
 P          <- Stm+ EOF
-Stm        <- IfStm / WhileStm / AssignStm
+Stm        <- IfStm / WhileStm / AssignStm / SynOnlyStm
 IfStm      <- 'if' '('^iflpar Expr^ifexpr ')'^ifrpar Body^ifbody
 WhileStm   <- 'while' '('^wlpar Expr^wexpr ')'^wrpar Body^wbody
 AssignStm  <- Identifier '='^assigneq Expr^assignexpr ';'^assignsemi
+SynOnlyStm <- #("%" "a"^mustbeana)
 
-Body       <- '{' Stm* '}' / Stm
+Body       <- ('{' Stm* '}'^bccurl) / Stm
 Expr       <- Bool / Identifier / Number
 Bool       <- 'true' / 'false'
-Identifier <- [a-zA-Z_][a-zA-Z0-9_]*
+Identifier <- !Keywords [a-zA-Z_][a-zA-Z0-9_]*
 Number     <- [1-9][0-9]*
+Keywords   <- 'if' / 'while'
 
 // recovery expressions for the labels declared above
 
@@ -18,3 +20,8 @@ ifrpar     <- (!Body .)*
 assigneq   <- (!Expr .)*
 assignexpr <- (!';' .)*
 assignsemi <-
+bccurl     <-
+mustbeana  <- .
+
+// if (a > 1) { a = 2; }
+// if (a) { a = 2; }

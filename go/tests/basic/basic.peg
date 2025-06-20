@@ -30,6 +30,9 @@ Digit  <- [0-9]
 // Small test for the & syntactic sugar
 HashWithAnAnd <- (&'#' .)^missingdot (&'*' .)* EOF^eof
 
+// Small test for the ! not predicate
+HashWithNot   <- (!'#' .)^missingdotnot (!'*' .)* EOF^eofn
+
 // A simple match that uses an expression that may end up succeeding
 // without consuming any input
 MaybeNull <- "a"? / "b"*

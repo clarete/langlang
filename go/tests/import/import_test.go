@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language go -output-path ./import.go
+//go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language goeval -output-path ./import.go
 
 func TestImport(t *testing.T) {
 	for _, test := range []struct {
@@ -52,7 +52,7 @@ func TestImport(t *testing.T) {
 		{
 			Name:  "Dont accept overriden",
 			Input: "3+#xC0FFEE",
-			Error: "TermRightOperand @ 2",
+			Error: `[TermRightOperand] Expected ''', '"', '0', '1-9', 't', 'f', '(' but got '#' @ 3`,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -80,6 +80,7 @@ func TestImport(t *testing.T) {
 			p.SetInput(test.Input)
 			v, err := p.ParseExpr()
 			require.NoError(t, err)
+			require.NotNil(t, v)
 			assert.Equal(t, test.Expected, v.Text())
 		})
 	}

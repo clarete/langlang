@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ./basic.peg -output-language go -output-path ./basic.go
+//go:generate go run ../../cmd/langlang -grammar ./basic.peg -output-language goeval -output-path ./basic.go
 
 func TestIsSyntactic(t *testing.T) {
 	t.Run("sequence with literal terminals is always syntactic", func(t *testing.T) {
@@ -21,7 +21,7 @@ func TestIsSyntactic(t *testing.T) {
 		p = newBasicParser("a b c")
 		_, err = p.ParseSyntactic0()
 		require.Error(t, err)
-		assert.Equal(t, "Missing `b` @ 1..2", err.Error())
+		assert.Equal(t, "Expected 'b' but got ' ' @ 2", err.Error())
 	})
 
 	t.Run("sequence with grammar nodes that are not terminals are not syntactic", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestIsSyntactic(t *testing.T) {
 		p = newBasicParser("1 st")
 		_, err = p.ParseOrdinal()
 		require.Error(t, err)
-		assert.Equal(t, "ord @ 1", err.Error())
+		assert.Equal(t, "[ord] Expected '0-9', 's', 'n', 'r', 't' but got ' ' @ 2", err.Error())
 	})
 
 	t.Run("Lexification operator on a sequence within a sequence", func(t *testing.T) {
@@ -64,9 +64,9 @@ func TestIsSyntactic(t *testing.T) {
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":   "Expected `a-z`, `A-Z` but got ` ` @ 0",
-			"a 999:99": "Expected `a-z`, `A-Z`, `0-9` but got ` ` @ 1",
-			"a9: 30":   "Expected `0-9` but got ` ` @ 3",
+			" a9:30":   "Expected 'a-z', 'A-Z' but got ' ' @ 1",
+			"a 999:99": "Expected 'a-z', 'A-Z', '0-9' but got ' ' @ 2",
+			"a9: 30":   "Expected '0-9' but got ' ' @ 4",
 		} {
 			p := newBasicParser(test)
 			_, err := p.ParseSPC0()
@@ -88,8 +88,8 @@ func TestIsSyntactic(t *testing.T) {
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":    "Expected `a-z`, `A-Z` but got ` ` @ 0",
-			"a 999 :99": "Missing `:` @ 5..6",
+			" a9:30":    "Expected 'a-z', 'A-Z' but got ' ' @ 1",
+			"a 999 :99": "Expected 'a-z', 'A-Z', '0-9', ':' but got ' ' @ 6",
 		} {
 			p := newBasicParser(test)
 			_, err := p.ParseSPC1()
@@ -100,7 +100,7 @@ func TestIsSyntactic(t *testing.T) {
 }
 
 func TestAnd(t *testing.T) {
-	t.Run("all and uses match", func(t *testing.T) {
+	t.Run("Succeeds", func(t *testing.T) {
 		for _, test := range []string{
 			"#",
 			"#*",
@@ -113,15 +113,44 @@ func TestAnd(t *testing.T) {
 		}
 	})
 
-	t.Run("all and uses do not match", func(t *testing.T) {
+	t.Run("Fails", func(t *testing.T) {
 		for test, errMsg := range map[string]string{
-			"x":    "missingdot @ 0",
-			"##":   "Expected EOF @ 1",
-			"#**!": "Expected EOF @ 3",
+			"x":    "[missingdot] Unexpected 'x' @ 1",
+			"##":   "Expected EOF @ 2",
+			"#**!": "Expected EOF @ 4",
 		} {
 			p := newBasicParser(test)
 			p.SetLabelMessages(map[string]string{"eof": "Expected EOF"})
 			_, err := p.ParseHashWithAnAnd()
+			require.Error(t, err)
+			assert.Equal(t, errMsg, err.Error())
+		}
+	})
+}
+
+func TestNot(t *testing.T) {
+	t.Run("Succeeds", func(t *testing.T) {
+		for _, test := range []string{
+			"*",
+			"*#",
+			"*###",
+		} {
+			p := newBasicParser(test)
+			v, err := p.ParseHashWithNot()
+			require.NoError(t, err)
+			assert.Equal(t, test, v.Text())
+		}
+	})
+
+	t.Run("Fails", func(t *testing.T) {
+		for test, errMsg := range map[string]string{
+			"#":    "[missingdotnot] Unexpected '#' @ 1",
+			"**":   "Expected EOF @ 2",
+			"*##*": "Expected EOF @ 4",
+		} {
+			p := newBasicParser(test)
+			p.SetLabelMessages(map[string]string{"eofn": "Expected EOF"})
+			_, err := p.ParseHashWithNot()
 			require.Error(t, err)
 			assert.Equal(t, errMsg, err.Error())
 		}

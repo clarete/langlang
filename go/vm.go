@@ -154,17 +154,17 @@ func newVirtualMachine(
 }
 
 func (vm *virtualMachine) Match(input Input) (Value, int, error) {
-	dbg := func(m string) {}
+	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
 code:
 	for {
 		op := vm.bytecode.code[vm.pc]
-		dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", vm.cursor, vm.pc, op, opNames[op]))
+		// dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", vm.cursor, vm.pc, op, opNames[op]))
 
 		switch op {
 		case opHalt:
-			dbg(fmt.Sprintf("vals: %#v\n", vm.values))
+			// dbg(fmt.Sprintf("vals: %#v\n", vm.values))
 			var top Value
 			if len(vm.values) > 0 {
 				top = vm.values[len(vm.values)-1]
@@ -285,7 +285,7 @@ code:
 	}
 
 fail:
-	dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", vm.cursor, vm.pc))
+	// dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", vm.cursor, vm.pc))
 
 	for vm.stack.len() > 0 {
 		f := vm.stack.pop()
@@ -294,11 +294,11 @@ fail:
 			vm.predicate = f.predicate
 			vm.backtrackToFrame(f)
 			input.Seek(int64(vm.cursor), io.SeekStart)
-			dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
+			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
 			goto code
 		}
 	}
-	dbg(fmt.Sprintf(" -> boom: %d, %d\n", vm.cursor, vm.ffp))
+	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", vm.cursor, vm.ffp))
 
 	return nil, vm.cursor, vm.mkErr(input, "")
 }

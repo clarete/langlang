@@ -2,8 +2,8 @@ package langlang
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
+	"strings"
 )
 
 type Input interface {
@@ -40,9 +40,9 @@ func (b *Bytecode) MatchE(
 // executed just once, and just against a small set (likely just one)
 // of productions.
 func (b *Bytecode) findStrIDs(input []string) map[int]struct{} {
-	out := map[int]struct{}{}
-	for _, is := range input {
-		for i, s := range b.strs {
+	out := make(map[int]struct{}, len(input))
+	for i, s := range b.strs {
+		for _, is := range input {
 			if is == s {
 				out[i] = struct{}{}
 				break
@@ -52,20 +52,24 @@ func (b *Bytecode) findStrIDs(input []string) map[int]struct{} {
 	return out
 }
 
+type expected struct {
+	a, b rune
+}
+
 type virtualMachine struct {
-	pc        int
-	ffp       int
-	cursor    int
-	line      int
-	column    int
-	stack     *stack
-	bytecode  *Bytecode
-	predicate bool
-	values    []Value
-	errLabels map[string]string
-	expected  map[string]struct{}
-	expecteds string
-	suppress  map[int]struct{}
+	pc            int
+	ffp           int
+	cursor        int
+	line          int
+	column        int
+	stack         *stack
+	bytecode      *Bytecode
+	predicate     bool
+	values        []Value
+	errLabels     map[string]string
+	expectedSet   map[expected]struct{}
+	expectedSlice []expected
+	suppress      map[int]struct{}
 }
 
 const (
@@ -144,12 +148,13 @@ func newVirtualMachine(
 	suppress map[int]struct{},
 ) *virtualMachine {
 	return &virtualMachine{
-		stack:     &stack{},
-		bytecode:  bytecode,
-		errLabels: errLabels,
-		expected:  map[string]struct{}{},
-		suppress:  suppress,
-		ffp:       -1,
+		stack:         &stack{},
+		bytecode:      bytecode,
+		errLabels:     errLabels,
+		expectedSet:   map[expected]struct{}{},
+		expectedSlice: nil,
+		suppress:      suppress,
+		ffp:           -1,
 	}
 }
 
@@ -175,7 +180,7 @@ code:
 			c, s, err := input.ReadRune()
 			if err != nil {
 				if err == io.EOF {
-					vm.updateFFP("")
+					vm.updateFFP(expected{})
 					goto fail
 				}
 				return nil, vm.cursor, err
@@ -193,7 +198,7 @@ code:
 				return nil, vm.cursor, err
 			}
 			if c != e {
-				vm.updateFFP(string(e))
+				vm.updateFFP(expected{a: e})
 				goto fail
 			}
 			vm.updatePos(c, s)
@@ -210,7 +215,7 @@ code:
 			a := rune(decodeU16(vm.bytecode.code[vm.pc+1:]))
 			b := rune(decodeU16(vm.bytecode.code[vm.pc+3:]))
 			if c < a || c > b {
-				vm.updateFFP(fmt.Sprintf("%c-%c", a, b))
+				vm.updateFFP(expected{a: a, b: b})
 				goto fail
 			}
 			vm.updatePos(c, s)
@@ -441,38 +446,34 @@ func (vm *virtualMachine) capture(values ...Value) {
 
 // Error Handling Helpers
 
-func (vm *virtualMachine) updateFFP(s string) {
+func (vm *virtualMachine) updateFFP(s expected) {
 	if vm.cursor > vm.ffp {
 		vm.ffp = vm.cursor
+		clear(vm.expectedSet)
+		vm.expectedSlice = nil
 		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
-			vm.expected = map[string]struct{}{}
-			vm.expecteds = ""
 			return
 		}
-		vm.expected = map[string]struct{}{s: struct{}{}}
-		vm.expecteds = "'" + s + "'"
+		vm.expectedSet[s] = struct{}{}
+		vm.expectedSlice = []expected{s}
 	} else if vm.cursor == vm.ffp {
 		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
 			return
 		}
-		if _, ok := vm.expected[s]; ok {
+		if _, ok := vm.expectedSet[s]; ok {
 			return
 		}
-		if vm.expecteds == "" {
-			vm.expecteds = "'" + s + "'"
-		} else {
-			vm.expecteds += ", '" + s + "'"
-		}
-		vm.expected[s] = struct{}{}
+		vm.expectedSlice = append(vm.expectedSlice, s)
+		vm.expectedSet[s] = struct{}{}
 	}
 }
 
-var skipFromFFPUpdate = map[string]struct{}{
-	"":   struct{}{},
-	" ":  struct{}{},
-	"\n": struct{}{},
-	"\r": struct{}{},
-	"\t": struct{}{},
+var skipFromFFPUpdate = map[expected]struct{}{
+	expected{}:        struct{}{},
+	expected{a: ' '}:  struct{}{},
+	expected{a: '\n'}: struct{}{},
+	expected{a: '\r'}: struct{}{},
+	expected{a: '\t'}: struct{}{},
 }
 
 func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
@@ -526,8 +527,23 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 		// Use information automatically collected by
 		// `opChar`, `opSpan`, and `opAny` fail and they're
 		// not within predicates.
-		if vm.expecteds != "" {
-			message += "Expected " + vm.expecteds + " but got "
+		if len(vm.expectedSlice) > 0 {
+			var s strings.Builder
+			s.WriteString("Expected ")
+			for i, e := range vm.expectedSlice {
+				s.WriteRune('\'')
+				s.WriteRune(e.a)
+				if e.b != 0 {
+					s.WriteRune('-')
+					s.WriteRune(e.b)
+				}
+				s.WriteRune('\'')
+				if i < len(vm.expectedSlice)-1 {
+					s.WriteString(", ")
+				}
+			}
+			s.WriteString(" but got ")
+			message += s.String()
 		} else {
 			message += "Unexpected "
 		}

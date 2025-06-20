@@ -92,14 +92,21 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 func (g *goEvalEmitter) writeParserStruct() {
 	g.parser.writel("type Parser struct{")
 	g.parser.indent()
-	g.parser.writeil("input     string")
-	g.parser.writeil("errLabels map[string]string")
+	g.parser.writeil("input         string")
+	g.parser.writeil("captureSpaces bool")
+	g.parser.writeil("suppress      map[int]struct{}")
+	g.parser.writeil("errLabels     map[string]string")
 	g.parser.unindent()
 	g.parser.writel("}")
 }
 
 func (g *goEvalEmitter) writeParserConstructor() {
-	g.parser.writel("func NewParser() *Parser { return &Parser{} }")
+	g.parser.writel("func NewParser() *Parser {")
+	g.parser.indent()
+	g.parser.writeil(`s := parserProgram.findStrIDs([]string{"Spacing"})`)
+	g.parser.writeil("return &Parser{captureSpaces: true, suppress: s}")
+	g.parser.indent()
+	g.parser.writel("}")
 }
 
 func (g *goEvalEmitter) writeParserMethods(asm *Program) {
@@ -124,10 +131,17 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel("func (p *Parser) Parser() (Value, error) { return p.parseFn(5) }")
 	g.parser.writel("func (p *Parser) SetInput(input string) { p.input = input }")
 	g.parser.writel("func (p *Parser) SetLabelMessages(el map[string]string) { p.errLabels = el }")
+	g.parser.writel("func (p *Parser) SetCaptureSpaces(v bool) { p.captureSpaces = v }")
 	g.parser.writel("func (p *Parser) parseFn(addr uint16) (Value, error) {")
 	g.parser.indent()
 	g.parser.writeil("writeU16(parserProgram.code[1:], addr)")
-	g.parser.writeil("vm := newVirtualMachine(parserProgram, p.errLabels)")
+	g.parser.writeil("suppress := map[int]struct{}{}")
+	g.parser.writeil("if !p.captureSpaces {")
+	g.parser.indent()
+	g.parser.writeil("suppress = p.suppress")
+	g.parser.unindent()
+	g.parser.writeil("}")
+	g.parser.writeil("vm := newVirtualMachine(parserProgram, p.errLabels, suppress)")
 	g.parser.writeil("val, _, err := vm.Match(strings.NewReader(p.input))")
 	g.parser.writeil("return val, err")
 	g.parser.unindent()

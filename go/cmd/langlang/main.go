@@ -27,6 +27,7 @@ type args struct {
 	disableBuiltins           *bool
 	disableWhitespaceHandling *bool
 	disableCaptureAll         *bool
+	disableCaptureSpacing     *bool
 
 	inputPath   *string
 	interactive *bool
@@ -50,6 +51,7 @@ func readArgs() *args {
 		disableWhitespaceHandling: flag.Bool("disable-whitespace-handling", false, "Inject whitespace handling rules into the grammar"),
 		disableBuiltins:           flag.Bool("disable-builtins", false, "Inject builtin rules into the grammar"),
 		disableCaptureAll:         flag.Bool("disable-capture-all", false, "Inject capture rules into the grammar around every definition"),
+		disableCaptureSpacing:     flag.Bool("disable-capture-spacing", false, ""),
 
 		asmOptimize: flag.Int("asm-optimize", 0, "How much to optimize the ASM output [0-1]"),
 
@@ -75,7 +77,11 @@ func readArgs() *args {
 }
 
 func main() {
-	a := readArgs()
+	var (
+		a         = readArgs()
+		suppress  []string
+		errLabels map[string]string
+	)
 
 	if *a.grammarPath == "" {
 		log.Fatal("Grammar not informed")
@@ -117,6 +123,10 @@ func main() {
 		return
 	}
 
+	if *a.disableCaptureSpacing {
+		suppress = []string{"Spacing"}
+	}
+
 	// Translate the AST into bytecode
 
 	asm, err := langlang.Compile(ast, langlang.CompilerConfig{
@@ -150,7 +160,7 @@ func main() {
 				continue
 			}
 
-			val, _, err := code.Match(strings.NewReader(text))
+			val, _, err := code.MatchE(strings.NewReader(text), errLabels, suppress)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
 			} else if val != nil {

@@ -42,6 +42,10 @@ type frame struct {
 
 	// captured contains how many values have been captured
 	captured int
+
+	// suppress is true if we should *not* keep any captures under
+	// this frame (nor any frame nested underneath it)
+	suppress bool
 }
 
 type stack []frame

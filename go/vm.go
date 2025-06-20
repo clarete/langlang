@@ -19,12 +19,37 @@ type Bytecode struct {
 }
 
 func (b *Bytecode) Match(input Input) (Value, int, error) {
-	return b.MatchE(input, map[string]string{})
+	return b.MatchE(input, map[string]string{}, nil)
 }
 
-func (b *Bytecode) MatchE(input Input, errLabels map[string]string) (Value, int, error) {
-	vm := newVirtualMachine(b, errLabels)
+func (b *Bytecode) MatchE(
+	input Input,
+	errLabels map[string]string,
+	suppress []string,
+) (Value, int, error) {
+	ids := b.findStrIDs(suppress)
+	vm := newVirtualMachine(b, errLabels, ids)
 	return vm.Match(input)
+}
+
+// findStrIDs exists because by the time we're executing the bytecode,
+// we don't have a map of strings to their IDs (that's the whole point
+// of having a table.)  The reason why we need to find these IDs is
+// because of the capture suppression feature, that's a runtime
+// feature but we only need to map this table once, so it should be
+// executed just once, and just against a small set (likely just one)
+// of productions.
+func (b *Bytecode) findStrIDs(input []string) map[int]struct{} {
+	out := map[int]struct{}{}
+	for _, is := range input {
+		for i, s := range b.strs {
+			if is == s {
+				out[i] = struct{}{}
+				break
+			}
+		}
+	}
+	return out
 }
 
 type virtualMachine struct {
@@ -40,6 +65,7 @@ type virtualMachine struct {
 	errLabels map[string]string
 	expected  map[string]struct{}
 	expecteds string
+	suppress  map[int]struct{}
 }
 
 const (
@@ -112,12 +138,17 @@ var (
 	opCapEndSizeInBytes   = 1
 )
 
-func newVirtualMachine(bytecode *Bytecode, errLabels map[string]string) *virtualMachine {
+func newVirtualMachine(
+	bytecode *Bytecode,
+	errLabels map[string]string,
+	suppress map[int]struct{},
+) *virtualMachine {
 	return &virtualMachine{
 		stack:     &stack{},
 		bytecode:  bytecode,
 		errLabels: errLabels,
 		expected:  map[string]struct{}{},
+		suppress:  suppress,
 		ffp:       -1,
 	}
 }
@@ -314,12 +345,19 @@ func (vm *virtualMachine) mkBacktrackPredFrame(pc int) frame {
 }
 
 func (vm *virtualMachine) mkCaptureFrame(id int) frame {
+	// if either the capture ID has been disabled, or a capture ID
+	// wrapping it is suppressed, so we put this flag here for
+	// `opCapEnd` to pick it up and skip capturing the node.
+	_, suppress := vm.suppress[id]
+	top, hasTop := vm.stack.findCaptureFrame()
+	suppress = suppress || (hasTop && top.suppress)
 	return frame{
-		t:      frameType_Capture,
-		capId:  id,
-		cursor: vm.cursor,
-		line:   vm.line,
-		column: vm.column,
+		t:        frameType_Capture,
+		capId:    id,
+		cursor:   vm.cursor,
+		line:     vm.line,
+		column:   vm.column,
+		suppress: suppress,
 	}
 }
 
@@ -330,6 +368,9 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 // Node Capture Helpers
 
 func (vm *virtualMachine) newNode(input Input, f frame) {
+	if f.suppress {
+		return
+	}
 	var (
 		node     Value
 		_, isrxp = vm.bytecode.rxps[f.capId]

@@ -1,6 +1,23 @@
 // This grammar is a direct extract from "Parsing Expression Grammars:
 // A Recognition-Based Syntactic Foundation" by Brian Ford,
 // 2004. Chapter 2.
+//
+// Notes: For this file to be able to parse itself, we first had to
+// add the rule `Comment` to we could have this comment :)
+//
+// Also, since by default it has manual space handling rules spread
+// out throughout the whole grammar, the automatic space handling has
+// to be disabled for this file to parse itself.  e.g.:
+//
+//   go run ./cmd/langlang/ \
+//      -grammar ../grammars/peg.peg \
+//      -input ../grammars/peg.peg \
+//      --disable-whitespace-handling
+//
+// Notice the flag `--disable-capture-spacing` could *optionally* be
+// added to tell the VM to skip the capturing of any nodes called
+// `Spacing` *and* any nodes captured underneath a subtree of the
+// `Spacing` rule.
 
 // Hierarchical syntax
 Grammar    <- Spacing Definition+ EndOfFile

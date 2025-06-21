@@ -97,15 +97,15 @@ func main() {
 	// Post process the AST
 	// TODO: this should move into the API
 
-	if !*a.disableWhitespaceHandling {
-		ast, err = langlang.InjectWhitespaces(ast)
+	if !*a.disableBuiltins {
+		ast, err = langlang.AddBuiltins(ast)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	if !*a.disableBuiltins {
-		ast, err = langlang.AddBuiltins(ast)
+	if !*a.disableWhitespaceHandling {
+		ast, err = langlang.InjectWhitespaces(ast)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -178,7 +178,7 @@ func main() {
 			log.Fatalf("Can't open input file: %s", err.Error())
 		}
 		code := langlang.Encode(asm)
-		val, _, err := code.Match(strings.NewReader(string(text)))
+		val, _, err := code.MatchE(strings.NewReader(string(text)), errLabels, suppress)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())
 		} else if val != nil {

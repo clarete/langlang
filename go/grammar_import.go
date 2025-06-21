@@ -124,18 +124,24 @@ type sortedDeps struct {
 	nodes map[string]*DefinitionNode
 }
 
+func newSortedDeps() *sortedDeps {
+	return &sortedDeps{names: []string{}, nodes: map[string]*DefinitionNode{}}
+}
+
 // findDefinitionDeps traverses the definition `node` and finds all
 // identifiers within it.  If the identifier hasn't been seen yet, it
 // will add it to the dependency list, and traverse into the
 // definition that points into that identifier.
 func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) *sortedDeps {
-	deps := &sortedDeps{names: []string{}, nodes: map[string]*DefinitionNode{}}
-	f.doFindDefinitionDeps(node.Expr, deps)
+	deps := newSortedDeps()
+	findDefinitionDeps(f.Grammar, node.Expr, deps)
 	return deps
 }
 
-func (f *importerResolverFrame) doFindDefinitionDeps(node AstNode, deps *sortedDeps) {
+func findDefinitionDeps(g *GrammarNode, node AstNode, deps *sortedDeps) {
 	switch n := node.(type) {
+	case *DefinitionNode:
+		findDefinitionDeps(g, n.Expr, deps)
 	case *IdentifierNode:
 		// Let's not recurse if this dep has been seen already
 		if _, ok := deps.nodes[n.Value]; ok {
@@ -143,36 +149,36 @@ func (f *importerResolverFrame) doFindDefinitionDeps(node AstNode, deps *sortedD
 		}
 
 		// save definition as a dependency and recurse into it
-		def := f.Grammar.DefsByName[n.Value]
+		def := g.DefsByName[n.Value]
 		deps.nodes[n.Value] = def
 		deps.names = append(deps.names, n.Value)
-		f.doFindDefinitionDeps(def.Expr, deps)
+		findDefinitionDeps(g, def.Expr, deps)
 	case *SequenceNode:
 		for _, item := range n.Items {
-			f.doFindDefinitionDeps(item, deps)
+			findDefinitionDeps(g, item, deps)
 		}
 	case *ChoiceNode:
-		f.doFindDefinitionDeps(n.Left, deps)
-		f.doFindDefinitionDeps(n.Right, deps)
+		findDefinitionDeps(g, n.Left, deps)
+		findDefinitionDeps(g, n.Right, deps)
 	case *OptionalNode:
-		f.doFindDefinitionDeps(n.Expr, deps)
+		findDefinitionDeps(g, n.Expr, deps)
 	case *ZeroOrMoreNode:
-		f.doFindDefinitionDeps(n.Expr, deps)
+		findDefinitionDeps(g, n.Expr, deps)
 	case *OneOrMoreNode:
-		f.doFindDefinitionDeps(n.Expr, deps)
+		findDefinitionDeps(g, n.Expr, deps)
 	case *AndNode:
-		f.doFindDefinitionDeps(n.Expr, deps)
+		findDefinitionDeps(g, n.Expr, deps)
 	case *NotNode:
-		f.doFindDefinitionDeps(n.Expr, deps)
+		findDefinitionDeps(g, n.Expr, deps)
 	case *LexNode:
-		f.doFindDefinitionDeps(n.Expr, deps)
+		findDefinitionDeps(g, n.Expr, deps)
 	case *LabeledNode:
 		// save definition as a dependency and recurse into it
-		if def, ok := f.Grammar.DefsByName[n.Label]; ok {
+		if def, ok := g.DefsByName[n.Label]; ok {
 			deps.nodes[n.Label] = def
 			deps.names = append(deps.names, n.Label)
-			f.doFindDefinitionDeps(def.Expr, deps)
+			findDefinitionDeps(g, def.Expr, deps)
 		}
-		f.doFindDefinitionDeps(n.Expr, deps)
+		findDefinitionDeps(g, n.Expr, deps)
 	}
 }

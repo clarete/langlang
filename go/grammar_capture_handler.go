@@ -45,6 +45,12 @@ func addUnamedCaptures(expr AstNode) AstNode {
 	case *LabeledNode:
 		e.Expr = addUnamedCaptures(e.Expr)
 
+	case *NotNode:
+		e.Expr = addUnamedCaptures(e.Expr)
+
+	case *AndNode:
+		e.Expr = addUnamedCaptures(e.Expr)
+
 	default:
 		if expr.IsSyntactic() {
 			return NewCaptureNode("", e, e.Span())

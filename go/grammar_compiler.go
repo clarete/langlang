@@ -4,7 +4,6 @@ import "fmt"
 
 type CompilerConfig struct {
 	Optimize int
-	EmitWSH  bool
 }
 
 type compiler struct {

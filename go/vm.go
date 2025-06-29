@@ -99,6 +99,7 @@ type virtualMachine struct {
 	suppress  map[int]struct{}
 }
 
+// NOTE: changing the order of these variants will break Bytecode ABI
 const (
 	opHalt byte = iota
 	opAny

@@ -27,8 +27,22 @@ func addUnamedCaptures(expr AstNode) AstNode {
 		}
 
 	case *ChoiceNode:
-		e.Left = addUnamedCaptures(e.Left)
-		e.Right = addUnamedCaptures(e.Right)
+		l := addUnamedCaptures(e.Left)
+		r := addUnamedCaptures(e.Right)
+
+		cl, clOk := l.(*CaptureNode)
+		cr, crOk := r.(*CaptureNode)
+
+		// if both sides of the are wrapped with an unamed
+		// capture, we wrap the original choice node in a
+		// capture node instead of adding one capture per
+		// choice branch.
+		if clOk && cl.Name == "" && crOk && cr.Name == "" {
+			expr = NewCaptureNode("", e, e.Span())
+		} else {
+			e.Left = l
+			e.Right = r
+		}
 
 	case *OptionalNode:
 		e.Expr = addUnamedCaptures(e.Expr)

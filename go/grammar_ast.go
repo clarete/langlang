@@ -145,12 +145,37 @@ func (n RangeNode) HighlightPrettyString() string { return ppAstNode(&n, formatN
 func (n RangeNode) Accept(v AstNodeVisitor) error { return v.VisitRangeNode(&n) }
 
 func (n RangeNode) Equal(o AstNode) bool {
-	switch other := o.(type) {
-	case *RangeNode:
+	if other, ok := o.(*RangeNode); ok {
 		return n.Left == other.Left && n.Right == other.Right
-	default:
-		return false
 	}
+	return false
+}
+
+// Node Type: Charset
+
+type CharsetNode struct {
+	span Span
+	cs   *charset
+}
+
+func NewCharsetNode(cs *charset, s Span) *CharsetNode {
+	n := &CharsetNode{cs: cs}
+	n.span = s
+	return n
+}
+
+func (n CharsetNode) Span() Span                    { return n.span }
+func (n CharsetNode) IsSyntactic() bool             { return true }
+func (n CharsetNode) String() string                { return n.cs.String() }
+func (n CharsetNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
+func (n CharsetNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
+func (n CharsetNode) Accept(v AstNodeVisitor) error { return v.VisitCharsetNode(&n) }
+
+func (n CharsetNode) Equal(o AstNode) bool {
+	if other, ok := o.(*CharsetNode); ok {
+		return n.span == other.span && n.cs.eq(other.cs)
+	}
+	return false
 }
 
 // Node Type: Class

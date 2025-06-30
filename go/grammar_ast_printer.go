@@ -246,6 +246,14 @@ func (gp *grammarPrinter) VisitRangeNode(n *RangeNode) error {
 	return nil
 }
 
+func (gp *grammarPrinter) VisitCharsetNode(n *CharsetNode) error {
+	gp.writeOperator("Charset[")
+	gp.writeOperand(n.cs.String())
+	gp.writeOperator("]")
+	gp.writeSpan(n)
+	return nil
+}
+
 func (gp *grammarPrinter) VisitAnyNode(n *AnyNode) error {
 	gp.writeOperator("Any")
 	gp.writeSpan(n)

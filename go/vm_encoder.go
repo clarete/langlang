@@ -4,10 +4,22 @@ import "encoding/binary"
 
 func Encode(p *Program) *Bytecode {
 	var (
-		code   []byte
-		cursor int
-		labels = map[ILabel]int{}
-		rxps   = map[int]int{}
+		code    []byte
+		cursor  int
+		labels  = map[ILabel]int{}
+		rxps    = map[int]int{}
+		setsMap = map[string]int{}
+		sets    []charset
+		addSet  = func(cs *charset) uint16 {
+			s := cs.String()
+			if pos, ok := setsMap[s]; ok {
+				return uint16(pos)
+			}
+			idx := len(sets)
+			setsMap[s] = idx
+			sets = append(sets, *cs)
+			return uint16(idx)
+		}
 	)
 	for _, instruction := range p.code {
 		switch ii := instruction.(type) {
@@ -28,10 +40,16 @@ func Encode(p *Program) *Bytecode {
 		case IChar:
 			code = append(code, opChar)
 			code = encodeU16(code, uint16(ii.Char))
-		case ISpan:
-			code = append(code, opSpan)
+		case IRange:
+			code = append(code, opRange)
 			code = encodeU16(code, uint16(ii.Lo))
 			code = encodeU16(code, uint16(ii.Hi))
+		case ISet:
+			code = append(code, opSet)
+			code = encodeU16(code, addSet(ii.cs))
+		case ISpan:
+			code = append(code, opSpan)
+			code = encodeU16(code, addSet(ii.cs))
 		case IChoice:
 			code = encodeJmp(code, opChoice, labels[ii.Label])
 		case IChoicePred:
@@ -69,6 +87,7 @@ func Encode(p *Program) *Bytecode {
 		strs: p.strings,
 		smap: p.stringsMap,
 		rxps: rxps,
+		sets: sets,
 	}
 }
 

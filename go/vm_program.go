@@ -171,11 +171,23 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeRune(ii.Char)
 			s.WriteString("\n")
 
-		case ISpan:
+		case IRange:
 			writeName(instruction.Name())
 			writeRune(ii.Lo)
 			s.WriteString("")
 			writeRune(ii.Hi)
+			s.WriteString("\n")
+
+		case ISet:
+			writeName(instruction.Name())
+			s.WriteString(" ")
+			s.WriteString(format(escapeLiteral(ii.cs.String()), AsmFormatToken_Literal))
+			s.WriteString("\n")
+
+		case ISpan:
+			writeName(instruction.Name())
+			s.WriteString(" ")
+			s.WriteString(format(escapeLiteral(ii.cs.String()), AsmFormatToken_Literal))
 			s.WriteString("\n")
 
 		case ICapBegin:

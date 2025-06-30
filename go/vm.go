@@ -9,12 +9,14 @@ import (
 type Input interface {
 	io.Seeker
 	io.RuneReader
+	io.RuneScanner
 	io.ReaderAt
 }
 
 type Bytecode struct {
 	code []byte
 	strs []string
+	sets []charset
 	smap map[string]int
 	rxps map[int]int
 }
@@ -54,9 +56,20 @@ func (e *expectedInfo) add(s expected) {
 	if e.cur == expectedLimit {
 		return
 	}
+	if _, skip := skipFromFFPUpdate[s]; skip {
+		return
+	}
 	e.set[s] = struct{}{}
 	e.arr[e.cur] = s
 	e.cur++
+}
+
+var skipFromFFPUpdate = map[expected]struct{}{
+	expected{}:        struct{}{},
+	expected{a: ' '}:  struct{}{},
+	expected{a: '\n'}: struct{}{},
+	expected{a: '\r'}: struct{}{},
+	expected{a: '\t'}: struct{}{},
 }
 
 func (e *expectedInfo) clear() {
@@ -84,7 +97,7 @@ const (
 	opHalt byte = iota
 	opAny
 	opChar
-	opSpan
+	opRange
 	opFail
 	opFailTwice
 	opChoice
@@ -98,12 +111,16 @@ const (
 	opThrow
 	opCapBegin
 	opCapEnd
+	opSet
+	opSpan
 )
 
 var opNames = map[byte]string{
 	opHalt:          "halt",
 	opAny:           "any",
 	opChar:          "char",
+	opRange:         "range",
+	opSet:           "set",
 	opSpan:          "span",
 	opFail:          "fail",
 	opFailTwice:     "fail_twice",
@@ -126,10 +143,14 @@ var (
 	// opCharSizeInBytes: 3, 1 for the opcode and 2 for the
 	// literal char.  TODO: This is too small for certain chars.
 	opCharSizeInBytes = 3
-	// opSpanSizeInBytes: 1 for the opcode followed by two runes,
-	// each one 2 bytes long.  TODO: This is too small for certain
+	// opRangeSizeInBytes: 1 for the opcode followed by two runes,
+	// each one 2 bytes long. Note: this is too small for certain
 	// chars.
-	opSpanSizeInBytes = 5
+	opRangeSizeInBytes = 5
+	// opSetSizeInBytes: 1 for the opcode, followed by the 16bit
+	// set address
+	opSetSizeInBytes  = 3
+	opSpanSizeInBytes = 3
 	// opChoiceSizeInBytes is 3, 1 for the opcode, and 2 for the
 	// label that the VM should go when it backtracks
 	opChoiceSizeInBytes = 3
@@ -211,7 +232,7 @@ code:
 			vm.updatePos(c, s)
 			vm.pc += opCharSizeInBytes
 
-		case opSpan:
+		case opRange:
 			c, s, err := input.ReadRune()
 			if err != nil {
 				if err == io.EOF {
@@ -226,7 +247,44 @@ code:
 				goto fail
 			}
 			vm.updatePos(c, s)
-			vm.pc += opSpanSizeInBytes
+			vm.pc += opRangeSizeInBytes
+
+		case opSet:
+			c, s, err := input.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					goto fail
+				}
+				return nil, vm.cursor, err
+			}
+			i := decodeU16(vm.bytecode.code[vm.pc+1:])
+			if !vm.bytecode.sets[i].has(c) {
+				vm.updateSetFFP(i)
+				goto fail
+			}
+			vm.updatePos(c, s)
+			vm.pc += opSetSizeInBytes
+
+		case opSpan:
+			sid := decodeU16(vm.bytecode.code[vm.pc+1:])
+			set := vm.bytecode.sets[sid]
+			for {
+				c, s, err := input.ReadRune()
+				if err != nil {
+					if err == io.EOF {
+						input.UnreadRune()
+						break
+					}
+					return nil, vm.cursor, err
+				}
+				if set.has(c) {
+					vm.updatePos(c, s)
+					continue
+				}
+				input.UnreadRune()
+				break
+			}
+			vm.pc += opSetSizeInBytes
 
 		case opFail:
 			goto fail
@@ -454,27 +512,44 @@ func (vm *virtualMachine) updateFFP(s expected) {
 	if vm.cursor > vm.ffp {
 		vm.ffp = vm.cursor
 		vm.expected.clear()
-		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
-			return
+		if !vm.predicate {
+			vm.expected.add(s)
 		}
-		vm.expected.add(s)
 	} else if vm.cursor == vm.ffp {
-		if _, ok := skipFromFFPUpdate[s]; ok || vm.predicate {
-			return
-		}
-		if _, ok := vm.expected.set[s]; ok {
+		if _, ok := vm.expected.set[s]; ok || vm.predicate {
 			return
 		}
 		vm.expected.add(s)
 	}
 }
 
-var skipFromFFPUpdate = map[expected]struct{}{
-	expected{}:        struct{}{},
-	expected{a: ' '}:  struct{}{},
-	expected{a: '\n'}: struct{}{},
-	expected{a: '\r'}: struct{}{},
-	expected{a: '\t'}: struct{}{},
+func (vm *virtualMachine) updateSetFFP(set uint16) {
+	vm.updateFFP(expected{})
+	var (
+		ph bool
+		pi int
+		st rune
+		s  expected
+		cs = vm.bytecode.sets[set]
+	)
+	for i := 0; i < cs.end(); i++ {
+		r := rune(i)
+		has := cs.has(r)
+		switch {
+		case has && !ph:
+			st = r
+			pi = i
+			ph = true
+		case !has && ph:
+			if i-1 > pi {
+				s = expected{a: st, b: rune(i - 1)}
+			} else {
+				s = expected{a: st}
+			}
+			vm.expected.add(s)
+			ph = false
+		}
+	}
 }
 
 func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
@@ -529,8 +604,8 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 			message.WriteRune(' ')
 		}
 		// Use information automatically collected by
-		// `opChar`, `opSpan`, and `opAny` fail and they're
-		// not within predicates.
+		// `opChar`, `opRange`, and `opAny` fail and they're not
+		// within predicates.
 		if len(vm.expected.set) > 0 {
 			message.WriteString("Expected ")
 			for i := 0; i < vm.expected.cur; i++ {

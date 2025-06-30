@@ -48,7 +48,7 @@ func TestIsSyntactic(t *testing.T) {
 		p = newBasicParser("1 st")
 		_, err = p.ParseOrdinal()
 		require.Error(t, err)
-		assert.Equal(t, "[ord] Expected '0-9', 's', 'n', 'r', 't' but got ' ' @ 2", err.Error())
+		assert.Equal(t, "[ord] Expected 's', 'n', 'r', 't' but got ' ' @ 2", err.Error())
 	})
 
 	t.Run("Lexification operator on a sequence within a sequence", func(t *testing.T) {

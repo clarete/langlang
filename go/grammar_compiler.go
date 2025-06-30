@@ -134,6 +134,11 @@ func (c *compiler) VisitOneOrMoreNode(node *OneOrMoreNode) error {
 }
 
 func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
+	if csn, ok := node.Expr.(*CharsetNode); ok {
+		c.emit(ISpan{cs: csn.cs})
+		return nil
+	}
+
 	l0 := NewILabel()
 	l1 := NewILabel()
 	l2 := NewILabel()
@@ -306,7 +311,12 @@ func (c *compiler) VisitClassNode(node *ClassNode) error {
 }
 
 func (c *compiler) VisitRangeNode(node *RangeNode) error {
-	c.emit(ISpan{Lo: node.Left, Hi: node.Right})
+	c.emit(IRange{Lo: node.Left, Hi: node.Right})
+	return nil
+}
+
+func (c *compiler) VisitCharsetNode(n *CharsetNode) error {
+	c.emit(ISet{cs: n.cs})
 	return nil
 }
 

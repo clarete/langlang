@@ -18,7 +18,17 @@ type IChar struct{ Char rune }
 func (IChar) Name() string     { return "char" }
 func (IChar) SizeInBytes() int { return opCharSizeInBytes }
 
-type ISpan struct{ Hi, Lo rune }
+type IRange struct{ Hi, Lo rune }
+
+func (IRange) Name() string     { return "range" }
+func (IRange) SizeInBytes() int { return opRangeSizeInBytes }
+
+type ISet struct{ cs *charset }
+
+func (ISet) Name() string     { return "set" }
+func (ISet) SizeInBytes() int { return opSetSizeInBytes }
+
+type ISpan struct{ cs *charset }
 
 func (ISpan) Name() string     { return "span" }
 func (ISpan) SizeInBytes() int { return opSpanSizeInBytes }

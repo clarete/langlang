@@ -8,7 +8,7 @@ import (
 	"text/template"
 )
 
-//go:embed vm.go vm_stack.go tree_printer.go errors.go value.go
+//go:embed vm.go vm_charset.go vm_stack.go tree_printer.go errors.go value.go
 var goEvalContent embed.FS
 
 func GenGoEval(asm *Program, opt GenGoOptions) (string, error) {
@@ -41,6 +41,7 @@ func (g *goEvalEmitter) writePrelude() {
 
 	g.parser.write("import (\n")
 	g.parser.indent()
+	g.parser.writeil(`"bytes"`)
 	g.parser.writeil(`"strings"`)
 
 	if !g.options.RemoveLib {
@@ -120,6 +121,21 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.unindent()
 	g.parser.writeil("},")
 
+	g.parser.writeil("sets: []charset{")
+	g.parser.indent()
+	for _, b := range bt.sets {
+		g.parser.writei(fmt.Sprintf("{mcp: %d, ", b.mcp))
+		g.parser.write("bits: []byte{")
+
+		for i := 0; i < len(b.bits); i++ {
+			g.parser.write(fmt.Sprintf("%d,", b.bits[i]))
+		}
+
+		g.parser.writel("}},")
+	}
+	g.parser.unindent()
+	g.parser.writeil("},")
+
 	g.parser.unindent()
 	g.parser.writel("}")
 }
@@ -194,7 +210,7 @@ func (g *goEvalEmitter) writeDeps() {
 		return
 	}
 	for _, file := range []string{
-		"value.go", "tree_printer.go", "errors.go", "vm_stack.go", "vm.go",
+		"value.go", "tree_printer.go", "errors.go", "vm_stack.go", "vm_charset.go", "vm.go",
 	} {
 		s, err := cleanGoModule(goEvalContent, file)
 		if err != nil {

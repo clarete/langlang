@@ -22,6 +22,7 @@ type args struct {
 
 	disableBuiltins           *bool
 	disableWhitespaceHandling *bool
+	disableCharsetHandling    *bool
 	disableCaptures           *bool
 	enableCaptureSpacing      *bool
 
@@ -44,8 +45,9 @@ func readArgs() *args {
 
 		// Output Options
 
-		disableWhitespaceHandling: flag.Bool("disable-whitespace-handling", false, "Tells the compiler not to inject automatic white space char handling into the grammar"),
 		disableBuiltins:           flag.Bool("disable-builtins", false, "Tells the compiler not to inject builtin rules into the grammar"),
+		disableWhitespaceHandling: flag.Bool("disable-whitespace-handling", false, "Tells the compiler not to inject automatic white space char handling into the grammar"),
+		disableCharsetHandling:    flag.Bool("disable-charset-handling", false, "Inject whitespace handling rules into the grammar"),
 		disableCaptures:           flag.Bool("disable-captures", false, "Tells the compiler not to inject capture rules into the grammar"),
 		enableCaptureSpacing:      flag.Bool("enable-capture-spacing", false, "If enabled, the runtime will capture the output of the Spacing production"),
 
@@ -93,6 +95,13 @@ func main() {
 
 	if !*a.disableBuiltins {
 		ast, err = langlang.AddBuiltins(ast)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if !*a.disableCharsetHandling {
+		ast, err = langlang.AddCharsets(ast)
 		if err != nil {
 			log.Fatal(err)
 		}

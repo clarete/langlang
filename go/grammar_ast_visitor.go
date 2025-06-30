@@ -17,6 +17,7 @@ type AstNodeVisitor interface {
 	VisitLiteralNode(*LiteralNode) error
 	VisitClassNode(*ClassNode) error
 	VisitRangeNode(*RangeNode) error
+	VisitCharsetNode(*CharsetNode) error
 	VisitAnyNode(*AnyNode) error
 	VisitIdentifierNode(*IdentifierNode) error
 }

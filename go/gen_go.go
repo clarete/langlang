@@ -438,6 +438,10 @@ func (g *goCodeEmitter) VisitRangeNode(n *RangeNode) error {
 	return nil
 }
 
+func (g *goCodeEmitter) VisitCharsetNode(*CharsetNode) error {
+	return fmt.Errorf("Not Implemented")
+}
+
 func (g *goCodeEmitter) VisitAnyNode(_ *AnyNode) error {
 	s := "p.(*Parser).parseAny()"
 	if g.isAtRuleLevel() {

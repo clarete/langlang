@@ -8,7 +8,7 @@ Grammar     <- Import* Definition* EOF^eof
 Import      <- "@import" Identifier^MissingImportName ("," Identifier)* "from"^MissingImportFrom Literal^MissingImportSrc
 Definition  <- Identifier LEFTARROW Expression // this always succeeds, there's no point in labeling
 
-Expression  <- Sequence ("/" Sequence)*
+Expression  <- Sequence (SLASH Sequence)*
 Sequence    <- Prefix*
 Prefix      <- ("#" / "&" / "!")? Labeled
 Labeled     <- Suffix #(([^⇑] Identifier^MissingLabel)?)
@@ -22,22 +22,23 @@ List        <- "{" (!"}" Expression)* "}"^MissingClosingCurly
 Identifier  <- [a-zA-Z_][a-zA-Z0-9_]*
 Literal     <- ['] #((!['] Char)* [']^MissingClosingSQuote)
              / ["] #((!["] Char)* ["]^MissingClosingDQuote)
-Class       <- '[' #((!']' #Range)* ']'^MissingClosingBracket)
-Range       <- #(Char '-' Char^MissingRightRange / Char)
-Char        <- '\\' [nrt\-'"\[\]\\]
-             / '\\' [0-2][0-7][0-7]
-             / '\\' [0-7][0-7]?
-             / !'\\' .
+Class       <- '[' #((!']' Range)* ']'^MissingClosingBracket)
+Range       <- (Char '-' Char^MissingRightRange) / Char
+Char        <- Escape / Unicode / !'\\' .
+Escape      <- '\\' [nrt'"\-\[\]\\]
+Unicode     <- '\\' 'u' Hex^chrH1 Hex^chrH2 Hex^chrH3 Hex^chrH4
+Hex         <- [0-9A-Fa-f]
 Any         <- "."
 Superscript <- [¹²³⁴⁵⁶⁷⁸⁹]
 LEFTARROW   <- '<-'
+SLASH       <- '/' !'/'   // negation prevents collision with comments
 
 // Override the builtin spacing rule. Notice, it *must* be a lexical
 // rule, otherwise it becomes an unbounded recursion
 Spacing <- #(Comment / Space / EOL)*
-Comment <- #('//' (!EOL .)* EOL)
-Space   <- #(' ' / '\t')
-EOL     <- #('\n' / '\r\n' / '\r')
+Comment <- #('//' (!EOL .)* EOL?)
+Space   <- [\t\u000C ]
+EOL     <- [\n\r]
 EOF     <- !.
 
 // Recovery expressions

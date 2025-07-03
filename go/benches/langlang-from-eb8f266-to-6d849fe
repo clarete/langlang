@@ -1,0 +1,27 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/langlang
+cpu: Apple M1 Max
+                           │ benches/eb8f266/langlang/txt │    benches/6d849fe/langlang/txt    │
+                           │            sec/op            │   sec/op     vs base               │
+Parser/Grammar_csv-10                         88.45µ ± 1%   85.65µ ± 0%  -3.17% (p=0.000 n=15)
+Parser/Grammar_json-10                        831.1µ ± 1%   780.9µ ± 0%  -6.04% (p=0.000 n=15)
+Parser/Grammar_peg-10                         1.274m ± 1%   1.178m ± 0%  -7.54% (p=0.000 n=15)
+Parser/Grammar_langlang-10                    1.449m ± 1%   1.390m ± 0%  -4.03% (p=0.000 n=15)
+geomean                                       607.0µ        575.3µ       -5.21%
+
+                           │ benches/eb8f266/langlang/txt │     benches/6d849fe/langlang/txt     │
+                           │             B/op             │     B/op      vs base                │
+Parser/Grammar_csv-10                        41.48Ki ± 0%   41.15Ki ± 0%   -0.80% (p=0.000 n=15)
+Parser/Grammar_json-10                       314.2Ki ± 0%   273.2Ki ± 0%  -13.06% (p=0.000 n=15)
+Parser/Grammar_peg-10                        518.0Ki ± 0%   396.8Ki ± 0%  -23.40% (p=0.000 n=15)
+Parser/Grammar_langlang-10                   530.3Ki ± 0%   460.8Ki ± 0%  -13.10% (p=0.000 n=15)
+geomean                                      244.6Ki        212.9Ki       -12.96%
+
+                           │ benches/eb8f266/langlang/txt │    benches/6d849fe/langlang/txt     │
+                           │          allocs/op           │  allocs/op   vs base                │
+Parser/Grammar_csv-10                          526.0 ± 0%    517.0 ± 0%   -1.71% (p=0.000 n=15)
+Parser/Grammar_json-10                        5.843k ± 0%   4.992k ± 0%  -14.56% (p=0.000 n=15)
+Parser/Grammar_peg-10                         9.880k ± 0%   7.324k ± 0%  -25.87% (p=0.000 n=15)
+Parser/Grammar_langlang-10                   10.040k ± 0%   8.547k ± 0%  -14.87% (p=0.000 n=15)
+geomean                                       4.179k        3.565k       -14.68%

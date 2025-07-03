@@ -1,0 +1,26 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/import
+cpu: Apple M1 Max
+                       │ benches/eb8f266/import/txt │     benches/6d849fe/import/txt     │
+                       │           sec/op           │   sec/op     vs base               │
+Parser/Single_Digit-10                  6.331µ ± 2%   6.327µ ± 1%       ~ (p=0.560 n=15)
+Parser/Term-10                          11.28µ ± 1%   11.30µ ± 0%       ~ (p=0.879 n=15)
+Parser/Multi-10                         10.26µ ± 2%   10.22µ ± 0%       ~ (p=0.229 n=15)
+geomean                                 9.017µ        9.007µ       -0.11%
+
+                       │ benches/eb8f266/import/txt │      benches/6d849fe/import/txt       │
+                       │            B/op            │     B/op      vs base                 │
+Parser/Single_Digit-10                 9.361Ki ± 0%   9.361Ki ± 0%       ~ (p=1.000 n=15) ¹
+Parser/Term-10                         11.63Ki ± 0%   11.63Ki ± 0%       ~ (p=1.000 n=15) ¹
+Parser/Multi-10                        11.47Ki ± 0%   11.47Ki ± 0%       ~ (p=1.000 n=15) ¹
+geomean                                10.77Ki        10.77Ki       +0.00%
+¹ all samples are equal
+
+                       │ benches/eb8f266/import/txt │     benches/6d849fe/import/txt      │
+                       │         allocs/op          │ allocs/op   vs base                 │
+Parser/Single_Digit-10                   42.00 ± 0%   42.00 ± 0%       ~ (p=1.000 n=15) ¹
+Parser/Term-10                           93.00 ± 0%   93.00 ± 0%       ~ (p=1.000 n=15) ¹
+Parser/Multi-10                          89.00 ± 0%   89.00 ± 0%       ~ (p=1.000 n=15) ¹
+geomean                                  70.31        70.31       +0.00%
+¹ all samples are equal

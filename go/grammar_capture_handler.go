@@ -97,7 +97,7 @@ func addUnamedCaptures(expr AstNode) AstNode {
 
 	default:
 		_, isCap := expr.(*CaptureNode)
-		if expr.IsSyntactic() != isCap {
+		if expr.IsSyntactic() && !isCap {
 			return NewCaptureNode("", e, e.Span())
 		}
 	}

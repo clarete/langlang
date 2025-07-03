@@ -2,7 +2,6 @@ package langlang
 
 import (
 	// "fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +26,7 @@ func TestVM(t *testing.T) {
 
 		vm := newVirtualMachine(bytecode, nil, nil)
 
-		_, cur, err := vm.Match(strings.NewReader(""))
+		_, cur, err := vm.Match(NewMemInput(""))
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, cur)
@@ -350,5 +349,5 @@ func exec(expr, input string, optimize int) (Value, int, error) {
 
 	// fmt.Printf("code\n%#v\n", code.code)
 
-	return code.Match(strings.NewReader(input))
+	return code.Match(NewMemInput(input))
 }

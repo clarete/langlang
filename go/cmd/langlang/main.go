@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/clarete/langlang/go"
 )
@@ -161,7 +160,8 @@ func main() {
 				continue
 			}
 
-			val, _, err := code.MatchE(strings.NewReader(text), errLabels, suppress)
+			input := langlang.NewMemInput(text)
+			val, _, err := code.MatchE(input, errLabels, suppress)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
 			} else if val != nil {
@@ -180,7 +180,8 @@ func main() {
 			log.Fatalf("Can't open input file: %s", err.Error())
 		}
 		code := langlang.Encode(asm)
-		val, _, err := code.MatchE(strings.NewReader(string(text)), errLabels, suppress)
+		input := langlang.NewMemInput(string(text))
+		val, _, err := code.MatchE(input, errLabels, suppress)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())
 		} else if val != nil {

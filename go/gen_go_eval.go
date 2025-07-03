@@ -8,7 +8,7 @@ import (
 	"text/template"
 )
 
-//go:embed vm.go vm_charset.go vm_stack.go tree_printer.go errors.go value.go
+//go:embed vm.go vm_stack.go vm_input.go vm_charset.go tree_printer.go errors.go value.go
 var goEvalContent embed.FS
 
 func GenGoEval(asm *Program, opt GenGoOptions) (string, error) {
@@ -49,6 +49,7 @@ func (g *goEvalEmitter) writePrelude() {
 		g.parser.writeil(`"fmt"`)
 		g.parser.writeil(`"strconv"`)
 		g.parser.writeil(`"io"`)
+		g.parser.writeil(`"unicode/utf8"`)
 	}
 
 	g.parser.unindent()
@@ -199,7 +200,7 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.unindent()
 	g.parser.writeil("}")
 	g.parser.writeil(fmt.Sprintf("vm := newVirtualMachine(bytecodeFor%s, p.errLabels, suppress)", g.options.ParserName))
-	g.parser.writeil("val, _, err := vm.Match(strings.NewReader(p.input))")
+	g.parser.writeil("val, _, err := vm.Match(NewMemInput(p.input))")
 	g.parser.writeil("return val, err")
 	g.parser.unindent()
 	g.parser.writel("}")
@@ -210,7 +211,9 @@ func (g *goEvalEmitter) writeDeps() {
 		return
 	}
 	for _, file := range []string{
-		"value.go", "tree_printer.go", "errors.go", "vm_stack.go", "vm_charset.go", "vm.go",
+		"value.go", "tree_printer.go", "errors.go",
+		"vm_stack.go", "vm_charset.go", "vm_input.go",
+		"vm.go",
 	} {
 		s, err := cleanGoModule(goEvalContent, file)
 		if err != nil {

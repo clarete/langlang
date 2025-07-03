@@ -7,10 +7,11 @@ import (
 )
 
 type Input interface {
-	io.Seeker
-	io.RuneReader
-	io.RuneScanner
-	io.ReaderAt
+	PeekRune() (r rune, size int, err error)
+	ReadRune() (r rune, size int, err error)
+	Advance(n int)
+	Seek(offset int64, whence int) error
+	ReadString(start, end int) (string, error)
 }
 
 type Bytecode struct {
@@ -269,19 +270,18 @@ code:
 			sid := decodeU16(vm.bytecode.code[vm.pc+1:])
 			set := vm.bytecode.sets[sid]
 			for {
-				c, s, err := input.ReadRune()
+				c, s, err := input.PeekRune()
 				if err != nil {
 					if err == io.EOF {
-						input.UnreadRune()
 						break
 					}
 					return nil, vm.cursor, err
 				}
 				if set.has(c) {
+					input.Advance(s)
 					vm.updatePos(c, s)
 					continue
 				}
-				input.UnreadRune()
 				break
 			}
 			vm.pc += opSetSizeInBytes
@@ -461,11 +461,10 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 	switch len(f.values) {
 	case 0:
 		if vm.cursor-f.cursor > 0 {
-			buff := make([]byte, vm.cursor-f.cursor)
-			if _, err := input.ReadAt(buff, int64(f.cursor)); err != nil {
-				panic(err.Error())
+			text, err := input.ReadString(f.cursor, vm.cursor)
+			if err != nil {
+				panic(err)
 			}
-			text := string(buff)
 			node = NewString(text, span)
 		}
 	case 1:

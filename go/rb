@@ -2,9 +2,14 @@
 
 VERSION=$(git describe --tags --always --dirty)
 
-declare -a suites=("charsets" "import" "json" "langlang")
+declare -a suites=(
+    "charsets"
+    "import"
+    "json"
+    "langlang"
+)
 
-echo -n "Regenerate parsers"
+echo -n "Regenerate parsers "
 go generate ./...
 if [ $? -eq 0 ]; then
     echo OK

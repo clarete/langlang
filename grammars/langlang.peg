@@ -24,9 +24,9 @@ Literal     <- ['] #((!['] Char)* [']^MissingClosingSQuote)
              / ["] #((!["] Char)* ["]^MissingClosingDQuote)
 Class       <- '[' #((!']' Range)* ']'^MissingClosingBracket)
 Range       <- #(Char '-' Char^MissingRightRange) / Char
-Char        <- #(Escape / Unicode / !'\\' .)
+Char        <- #(Escape / Unicode / .)
 Escape      <- '\\' [nrt'"\-\[\]\\]
-Unicode     <- '\\' 'u' Hex^chrH1 Hex^chrH2 Hex^chrH3 Hex^chrH4
+Unicode     <- #('\\' 'u' Hex^chrH1 Hex^chrH2 Hex^chrH3 Hex^chrH4)
 Hex         <- [0-9A-Fa-f]
 Any         <- "."
 Superscript <- [¹²³⁴⁵⁶⁷⁸⁹]

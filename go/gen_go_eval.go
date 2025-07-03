@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"sort"
+	"strconv"
 	"text/template"
 )
 
@@ -39,21 +40,20 @@ func (g *goEvalEmitter) writePrelude() {
 	g.parser.write(g.options.PackageName)
 	g.parser.writel("\n")
 
-	g.parser.write("import (\n")
-	g.parser.indent()
-	g.parser.writeil(`"bytes"`)
-	g.parser.writeil(`"strings"`)
-
 	if !g.options.RemoveLib {
+		g.parser.write("import (\n")
+		g.parser.indent()
 		g.parser.writeil(`"encoding/binary"`)
+		g.parser.writeil(`"encoding/hex"`)
 		g.parser.writeil(`"fmt"`)
-		g.parser.writeil(`"strconv"`)
 		g.parser.writeil(`"io"`)
+		g.parser.writeil(`"math/bits"`)
+		g.parser.writeil(`"strconv"`)
+		g.parser.writeil(`"strings"`)
 		g.parser.writeil(`"unicode/utf8"`)
+		g.parser.unindent()
+		g.parser.writel(")\n")
 	}
-
-	g.parser.unindent()
-	g.parser.writel(")\n")
 }
 
 func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
@@ -124,15 +124,30 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 
 	g.parser.writeil("sets: []charset{")
 	g.parser.indent()
-	for _, b := range bt.sets {
-		g.parser.writei(fmt.Sprintf("{mcp: %d, ", b.mcp))
-		g.parser.write("bits: []byte{")
+	for _, set := range bt.sets {
+		g.parser.writei("{bits: [32]byte{")
 
-		for i := 0; i < len(b.bits); i++ {
-			g.parser.write(fmt.Sprintf("%d,", b.bits[i]))
+		for i := 0; i < len(set.bits); i++ {
+			g.parser.write(fmt.Sprintf("%d,", set.bits[i]))
 		}
 
 		g.parser.writel("}},")
+	}
+	g.parser.unindent()
+	g.parser.writeil("},")
+
+	g.parser.writeil("sexp: [][]expected{")
+	g.parser.indent()
+	for _, item := range bt.sexp {
+		g.parser.writei("{")
+		for _, sub := range item {
+			if sub.b == 0 {
+				g.parser.write(fmt.Sprintf("expected{a: %s},", strconv.QuoteRune(sub.a)))
+			} else {
+				g.parser.write(fmt.Sprintf("expected{a: %s, b: %s},", strconv.QuoteRune(sub.a), strconv.QuoteRune(sub.b)))
+			}
+		}
+		g.parser.writel("},")
 	}
 	g.parser.unindent()
 	g.parser.writeil("},")
@@ -146,6 +161,7 @@ func (g *goEvalEmitter) writeParserStruct() {
 	g.parser.indent()
 	g.parser.writeil("input         string")
 	g.parser.writeil("captureSpaces bool")
+	g.parser.writeil("showFails     bool")
 	g.parser.writeil("suppress      map[int]struct{}")
 	g.parser.writeil("errLabels     map[string]string")
 	g.parser.unindent()
@@ -186,11 +202,12 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 		g.parser.write(fmt.Sprintf("return p.parseFn(%d)", addrmap[addr]))
 		g.parser.writel(" }")
 	}
-	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Value, error) { return p.parseFn(5) }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input string) { p.input = input }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Value, error)                 { return p.parseFn(5) }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input string)                 { p.input = input }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.errLabels = el }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool) { p.captureSpaces = v }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr uint16) (Value, error) {", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool)               { p.captureSpaces = v }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.showFails = v }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr uint16) (Value, error)    {", g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil(fmt.Sprintf("writeU16(bytecodeFor%s.code[1:], addr)", g.options.ParserName))
 	g.parser.writeil("var suppress map[int]struct{}")
@@ -199,8 +216,9 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writeil("suppress = p.suppress")
 	g.parser.unindent()
 	g.parser.writeil("}")
-	g.parser.writeil(fmt.Sprintf("vm := newVirtualMachine(bytecodeFor%s, p.errLabels, suppress)", g.options.ParserName))
-	g.parser.writeil("val, _, err := vm.Match(NewMemInput(p.input))")
+	g.parser.writeil(fmt.Sprintf("vm := newVirtualMachine(bytecodeFor%s, p.errLabels, suppress, p.showFails)", g.options.ParserName))
+	g.parser.writeil("input := NewMemInput(p.input)")
+	g.parser.writeil("val, _, err := vm.Match(&input)")
 	g.parser.writeil("return val, err")
 	g.parser.unindent()
 	g.parser.writel("}")

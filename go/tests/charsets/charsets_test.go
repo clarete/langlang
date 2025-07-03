@@ -92,6 +92,7 @@ func BenchmarkParser(b *testing.B) {
 	b.ResetTimer()
 
 	p := NewNoCapParser()
+	p.SetShowFails(false)
 
 	for _, test := range tests {
 		b.Run(test.Name, func(b *testing.B) {
@@ -109,6 +110,7 @@ func BenchmarkNoCapParser(b *testing.B) {
 	b.ResetTimer()
 
 	p := NewNoCapParser()
+	p.SetShowFails(false)
 
 	for _, test := range tests {
 		b.Run(test.Name, func(b *testing.B) {

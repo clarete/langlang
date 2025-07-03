@@ -11,8 +11,24 @@ type MemInput struct {
 	pos  int
 }
 
-func NewMemInput(data string) *MemInput {
-	return &MemInput{data: data}
+func NewMemInput(data string) MemInput {
+	return MemInput{data: data}
+}
+
+func (in *MemInput) PeekByte() (rune, error) {
+	if in.pos >= len(in.data) {
+		return 0, io.EOF
+	}
+	return rune(in.data[in.pos]), nil
+}
+
+func (in *MemInput) ReadByte() (rune, error) {
+	r, err := in.PeekByte()
+	if err != nil {
+		return 0, err
+	}
+	in.pos++
+	return r, nil
 }
 
 func (in *MemInput) PeekRune() (rune, int, error) {

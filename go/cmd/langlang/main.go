@@ -19,11 +19,12 @@ type args struct {
 	outputLang *string
 	outputPath *string
 
-	disableBuiltins           *bool
-	disableWhitespaceHandling *bool
-	disableCharsetHandling    *bool
-	disableCaptures           *bool
-	enableCaptureSpacing      *bool
+	disableBuiltins     *bool
+	disableWhitespaces  *bool
+	disableCharsets     *bool
+	disableCaptures     *bool
+	enableCaptureSpaces *bool
+	showFails           *bool
 
 	inputPath   *string
 	interactive *bool
@@ -44,11 +45,12 @@ func readArgs() *args {
 
 		// Output Options
 
-		disableBuiltins:           flag.Bool("disable-builtins", false, "Tells the compiler not to inject builtin rules into the grammar"),
-		disableWhitespaceHandling: flag.Bool("disable-whitespace-handling", false, "Tells the compiler not to inject automatic white space char handling into the grammar"),
-		disableCharsetHandling:    flag.Bool("disable-charset-handling", false, "Inject whitespace handling rules into the grammar"),
-		disableCaptures:           flag.Bool("disable-captures", false, "Tells the compiler not to inject capture rules into the grammar"),
-		enableCaptureSpacing:      flag.Bool("enable-capture-spacing", false, "If enabled, the runtime will capture the output of the Spacing production"),
+		disableBuiltins:     flag.Bool("disable-builtins", false, "Tells the compiler not to inject builtin rules into the grammar"),
+		disableWhitespaces:  flag.Bool("disable-whitespaces", false, "Tells the compiler not to inject automatic white space char handling into the grammar"),
+		disableCharsets:     flag.Bool("disable-charsets", false, "Inject whitespace handling rules into the grammar"),
+		disableCaptures:     flag.Bool("disable-captures", false, "Tells the compiler not to inject capture rules into the grammar"),
+		enableCaptureSpaces: flag.Bool("enable-capture-spaces", false, "If enabled, the runtime will capture the output of the Spacing production"),
+		showFails:           flag.Bool("show-fails", true, "If enabled, shows what the parser attempted to match (there is a perf penalty cost for this)"),
 
 		// Dynamic parser generation and evaluation
 
@@ -99,14 +101,14 @@ func main() {
 		}
 	}
 
-	if !*a.disableCharsetHandling {
+	if !*a.disableCharsets {
 		ast, err = langlang.AddCharsets(ast)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	if !*a.disableWhitespaceHandling {
+	if !*a.disableWhitespaces {
 		ast, err = langlang.InjectWhitespaces(ast)
 		if err != nil {
 			log.Fatal(err)
@@ -137,7 +139,7 @@ func main() {
 		return
 	}
 
-	if !*a.enableCaptureSpacing {
+	if !*a.enableCaptureSpaces {
 		suppress = map[int]struct{}{asm.StringID("Spacing"): struct{}{}}
 	}
 
@@ -161,7 +163,7 @@ func main() {
 			}
 
 			input := langlang.NewMemInput(text)
-			val, _, err := code.MatchE(input, errLabels, suppress)
+			val, _, err := code.MatchE(&input, errLabels, suppress, *a.showFails)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
 			} else if val != nil {
@@ -181,7 +183,7 @@ func main() {
 		}
 		code := langlang.Encode(asm)
 		input := langlang.NewMemInput(string(text))
-		val, _, err := code.MatchE(input, errLabels, suppress)
+		val, _, err := code.MatchE(&input, errLabels, suppress, *a.showFails)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())
 		} else if val != nil {

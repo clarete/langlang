@@ -53,7 +53,7 @@ func TestImport(t *testing.T) {
 		{
 			Name:  "Dont accept overriden",
 			Input: "3+#xC0FFEE",
-			Error: `[TermRightOperand] Expected ''', '"', '0', '1-9', 't', 'f', '(' but got '#' @ 3`,
+			Error: `[TermRightOperand] Unexpected '#' @ 3`,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -111,6 +111,7 @@ func BenchmarkParser(b *testing.B) {
 
 	b.ResetTimer()
 	p := NewParser()
+	p.SetShowFails(false)
 
 	for _, scenario := range tests {
 		b.Run(scenario.Name, func(b *testing.B) {
@@ -127,6 +128,7 @@ func BenchmarkNoCapParser(b *testing.B) {
 
 	b.ResetTimer()
 	p := NewNoCapParser()
+	p.SetShowFails(false)
 
 	for _, scenario := range tests {
 		b.Run(scenario.Name, func(b *testing.B) {

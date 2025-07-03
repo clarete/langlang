@@ -49,62 +49,67 @@ func addCharset(expr AstNode) AstNode {
 			e.Items[i] = addCharset(item)
 		}
 
+		// Seq(Not(Lit(l0) Any)); this replaces ll that with
+		// the complement of the charset `[l0]`.  Which also
+		// means anything, but `l0`.
+		if len(e.Items) == 2 {
+			fst, snd := e.Items[0], e.Items[1]
+			not, fstIsNot := fst.(*NotNode)
+			_, sndIsAny := snd.(*AnyNode)
+			if fstIsNot && sndIsAny {
+				switch ee := not.Expr.(type) {
+				case *CharsetNode:
+					return NewCharsetNode(ee.cs.complement(), e.Span())
+				case *LiteralNode:
+					if len(ee.Value) == 1 && fitcs(r(ee.Value)) {
+						cs := newCharsetForRune(r(ee.Value))
+						return NewCharsetNode(cs.complement(), e.Span())
+					}
+				}
+			}
+		}
+
 	case *ClassNode:
 		var classCharset *charset = nil
 		for _, item := range e.Items {
-			var cs *charset
+			var cs *charset = nil
 			switch it := item.(type) {
 			case *RangeNode:
+				if !fitcs(it.Left) || !fitcs(it.Right) {
+					return e
+				}
 				cs = newCharsetForRange(it.Left, it.Right)
 			case *LiteralNode:
-				cs = newCharsetFromString(it.Value)
+				if !fitcs(r(it.Value)) {
+					return e
+				}
+				cs = newCharsetForRune(r(it.Value))
 			}
 			if classCharset == nil {
 				classCharset = cs
-			} else {
-				classCharset = charsetMerge(classCharset, cs)
+				continue
 			}
+			classCharset = charsetMerge(classCharset, cs)
 		}
-		expr = NewCharsetNode(classCharset, e.Span())
+		return NewCharsetNode(classCharset, e.Span())
 
 	case *ChoiceNode:
-		l := addCharset(e.Left)
-		r := addCharset(e.Right)
-
-		sl, slOk := l.(*CharsetNode)
-		sr, srOk := r.(*CharsetNode)
-
-		ll, llOk := l.(*LiteralNode)
-		lr, lrOk := r.(*LiteralNode)
-
-		switch {
-		case slOk && srOk:
-			// two charsets
+		lh := addCharset(e.Left)
+		rh := addCharset(e.Right)
+		sl, slOk := lh.(*CharsetNode)
+		sr, srOk := rh.(*CharsetNode)
+		if slOk && srOk {
 			cs := charsetMerge(sl.cs, sr.cs)
-			expr = NewCharsetNode(cs, e.Span())
+			return NewCharsetNode(cs, e.Span())
+		}
 
-		case llOk && lrOk && len(ll.Value) == 1 && len(lr.Value) == 1:
-			// two literals
-			csl := newCharsetFromString(ll.Value)
-			csr := newCharsetFromString(lr.Value)
-			cs := charsetMerge(csl, csr)
-			expr = NewCharsetNode(cs, e.Span())
+		e.Left = lh
+		e.Right = rh
 
-		case slOk && lrOk && len(lr.Value) == 1:
-			// charset / literal
-			csr := newCharsetFromString(lr.Value)
-			cs := charsetMerge(sl.cs, csr)
-			expr = NewCharsetNode(cs, e.Span())
-
-		case srOk && llOk && len(ll.Value) == 1:
-			// literal / charset
-			csl := newCharsetFromString(ll.Value)
-			cs := charsetMerge(sr.cs, csl)
-			expr = NewCharsetNode(cs, e.Span())
-
-		default:
-			e.Left = l
-			e.Right = r
+	case *LiteralNode:
+		if len(e.Value) == 1 && fitcs(r(e.Value)) {
+			cs := newCharsetForRune(r(e.Value))
+			return NewCharsetNode(cs, e.Span())
 		}
 
 	case *OptionalNode:
@@ -128,6 +133,8 @@ func addCharset(expr AstNode) AstNode {
 	case *AndNode:
 		e.Expr = addCharset(e.Expr)
 
+	case *CaptureNode:
+		e.Expr = addCharset(e.Expr)
 	}
 	return expr
 }

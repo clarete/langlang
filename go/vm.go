@@ -7,8 +7,10 @@ import (
 )
 
 type Input interface {
-	PeekRune() (r rune, size int, err error)
+	PeekByte() (r rune, err error)
+	ReadByte() (r rune, err error)
 	ReadRune() (r rune, size int, err error)
+	PeekRune() (r rune, size int, err error)
 	Advance(n int)
 	Seek(offset int64, whence int) error
 	ReadString(start, end int) (string, error)
@@ -18,20 +20,22 @@ type Bytecode struct {
 	code []byte
 	strs []string
 	sets []charset
+	sexp [][]expected
 	smap map[string]int
 	rxps map[int]int
 }
 
 func (b *Bytecode) Match(input Input) (Value, int, error) {
-	return b.MatchE(input, nil, nil)
+	return b.MatchE(input, nil, nil, false)
 }
 
 func (b *Bytecode) MatchE(
 	input Input,
 	errLabels map[string]string,
 	suppress map[int]struct{},
+	showFails bool,
 ) (Value, int, error) {
-	vm := newVirtualMachine(b, errLabels, suppress)
+	vm := newVirtualMachine(b, errLabels, suppress, showFails)
 	return vm.Match(input)
 }
 
@@ -58,6 +62,9 @@ func (e *expectedInfo) add(s expected) {
 		return
 	}
 	if _, skip := skipFromFFPUpdate[s]; skip {
+		return
+	}
+	if _, skip := e.set[s]; skip {
 		return
 	}
 	e.set[s] = struct{}{}
@@ -87,7 +94,8 @@ type virtualMachine struct {
 	stack     *stack
 	bytecode  *Bytecode
 	predicate bool
-	expected  expectedInfo
+	expected  *expectedInfo
+	showFails bool
 	errLabels map[string]string
 	supprset  map[int]struct{}
 	suppress  int
@@ -176,12 +184,19 @@ func newVirtualMachine(
 	bytecode *Bytecode,
 	errLabels map[string]string,
 	suppressSet map[int]struct{},
+	showFails bool,
 ) *virtualMachine {
+	var ex *expectedInfo
+	if showFails {
+		ei := newExpectedInfo()
+		ex = &ei
+	}
 	return &virtualMachine{
 		stack:     &stack{},
 		bytecode:  bytecode,
 		errLabels: errLabels,
-		expected:  newExpectedInfo(),
+		showFails: showFails,
+		expected:  ex,
 		supprset:  suppressSet,
 		ffp:       -1,
 	}
@@ -251,7 +266,7 @@ code:
 			vm.pc += opRangeSizeInBytes
 
 		case opSet:
-			c, s, err := input.ReadRune()
+			c, err := input.ReadByte()
 			if err != nil {
 				if err == io.EOF {
 					goto fail
@@ -263,14 +278,14 @@ code:
 				vm.updateSetFFP(i)
 				goto fail
 			}
-			vm.updatePos(c, s)
+			vm.updatePos(c, 1)
 			vm.pc += opSetSizeInBytes
 
 		case opSpan:
 			sid := decodeU16(vm.bytecode.code[vm.pc+1:])
 			set := vm.bytecode.sets[sid]
 			for {
-				c, s, err := input.PeekRune()
+				c, err := input.PeekByte()
 				if err != nil {
 					if err == io.EOF {
 						break
@@ -278,8 +293,8 @@ code:
 					return nil, vm.cursor, err
 				}
 				if set.has(c) {
-					input.Advance(s)
-					vm.updatePos(c, s)
+					input.Advance(1)
+					vm.updatePos(c, 1)
 					continue
 				}
 				break
@@ -510,43 +525,28 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 func (vm *virtualMachine) updateFFP(s expected) {
 	if vm.cursor > vm.ffp {
 		vm.ffp = vm.cursor
-		vm.expected.clear()
-		if !vm.predicate {
-			vm.expected.add(s)
+		if vm.showFails {
+			vm.expected.clear()
+			if !vm.predicate {
+				vm.expected.add(s)
+			}
 		}
 	} else if vm.cursor == vm.ffp {
-		if _, ok := vm.expected.set[s]; ok || vm.predicate {
-			return
+		if !vm.predicate && vm.showFails {
+			vm.expected.add(s)
 		}
-		vm.expected.add(s)
 	}
 }
 
-func (vm *virtualMachine) updateSetFFP(set uint16) {
+func (vm *virtualMachine) updateSetFFP(sid uint16) {
 	vm.updateFFP(expected{})
-	var (
-		ph bool
-		pi int
-		st rune
-		s  expected
-		cs = vm.bytecode.sets[set]
-	)
-	for i := 0; i < cs.end(); i++ {
-		r := rune(i)
-		has := cs.has(r)
-		switch {
-		case has && !ph:
-			st = r
-			pi = i
-			ph = true
-		case !has && ph:
-			if i-1 > pi {
-				s = expected{a: st, b: rune(i - 1)}
-			} else {
-				s = expected{a: st}
-			}
-			vm.expected.add(s)
-			ph = false
+	if !vm.showFails {
+		return
+	}
+	for i, item := range vm.bytecode.sexp[sid] {
+		vm.expected.add(item)
+		if i > expectedLimit-1 {
+			break
 		}
 	}
 }
@@ -605,7 +605,7 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 		// Use information automatically collected by
 		// `opChar`, `opRange`, and `opAny` fail and they're not
 		// within predicates.
-		if len(vm.expected.set) > 0 {
+		if vm.showFails && len(vm.expected.set) > 0 {
 			message.WriteString("Expected ")
 			for i := 0; i < vm.expected.cur; i++ {
 				e := vm.expected.arr[i]

@@ -1,5 +1,4 @@
-Spacing <- Space*
-Space   <- ' ' / '\t' / #EOL
-
-EOL <- '\r\n' / '\n' / '\r'
-EOF <- !.
+Spacing <- [ \t\r\n]*
+Space   <- [ \t\r\n]
+EOL     <- [\r\n]
+EOF     <- !.

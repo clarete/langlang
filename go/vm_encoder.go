@@ -10,14 +10,16 @@ func Encode(p *Program) *Bytecode {
 		rxps    = map[int]int{}
 		setsMap = map[string]int{}
 		sets    []charset
+		sexp    [][]expected
 		addSet  = func(cs *charset) uint16 {
-			s := cs.String()
+			s := cs.encoded()
 			if pos, ok := setsMap[s]; ok {
 				return uint16(pos)
 			}
 			idx := len(sets)
 			setsMap[s] = idx
 			sets = append(sets, *cs)
+			sexp = append(sexp, cs.precomputeExpectedSet())
 			return uint16(idx)
 		}
 	)
@@ -88,6 +90,7 @@ func Encode(p *Program) *Bytecode {
 		smap: p.stringsMap,
 		rxps: rxps,
 		sets: sets,
+		sexp: sexp,
 	}
 }
 

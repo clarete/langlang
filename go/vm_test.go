@@ -24,9 +24,11 @@ func TestVM(t *testing.T) {
 		}})
 		assert.Equal(t, uint8(0), bytecode.code[0])
 
-		vm := newVirtualMachine(bytecode, nil, nil)
+		vm := newVirtualMachine(bytecode, nil, nil, true)
 
-		_, cur, err := vm.Match(NewMemInput(""))
+		input := NewMemInput("")
+
+		_, cur, err := vm.Match(&input)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, cur)
@@ -349,5 +351,6 @@ func exec(expr, input string, optimize int) (Value, int, error) {
 
 	// fmt.Printf("code\n%#v\n", code.code)
 
-	return code.Match(NewMemInput(input))
+	memInput := NewMemInput(input)
+	return code.MatchE(&memInput, nil, nil, true)
 }

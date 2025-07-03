@@ -33,6 +33,7 @@ func BenchmarkParser(b *testing.B) {
 
 	b.ResetTimer()
 	p := NewParser()
+	p.SetShowFails(false)
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
@@ -50,6 +51,7 @@ func BenchmarkNoCapParser(b *testing.B) {
 
 	b.ResetTimer()
 	p := NewNoCapParser()
+	p.SetShowFails(false)
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {

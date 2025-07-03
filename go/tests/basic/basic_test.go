@@ -64,8 +64,8 @@ func TestIsSyntactic(t *testing.T) {
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":   "Expected 'a-z', 'A-Z' but got ' ' @ 1",
-			"a 999:99": "Expected 'a-z', 'A-Z', '0-9' but got ' ' @ 2",
+			" a9:30":   "Expected 'A-Z', 'a-z' but got ' ' @ 1",
+			"a 999:99": "Expected '0-9', 'A-Z', 'a-z' but got ' ' @ 2",
 			"a9: 30":   "Expected '0-9' but got ' ' @ 4",
 		} {
 			p := newBasicParser(test)
@@ -88,8 +88,8 @@ func TestIsSyntactic(t *testing.T) {
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":    "Expected 'a-z', 'A-Z' but got ' ' @ 1",
-			"a 999 :99": "Expected 'a-z', 'A-Z', '0-9', ':' but got ' ' @ 6",
+			" a9:30":    "Expected 'A-Z', 'a-z' but got ' ' @ 1",
+			"a 999 :99": "Expected '0-9', 'A-Z', 'a-z', ':' but got ' ' @ 6",
 		} {
 			p := newBasicParser(test)
 			_, err := p.ParseSPC1()
@@ -115,7 +115,7 @@ func TestAnd(t *testing.T) {
 
 	t.Run("Fails", func(t *testing.T) {
 		for test, errMsg := range map[string]string{
-			"x":    "[missingdot] Unexpected 'x' @ 1",
+			"x":    "[missingdot] Expected '#' but got 'x' @ 1",
 			"##":   "Expected EOF @ 2",
 			"#**!": "Expected EOF @ 4",
 		} {
@@ -169,5 +169,6 @@ func TestNullable(t *testing.T) {
 func newBasicParser(input string) *Parser {
 	p := NewParser()
 	p.SetInput(input)
+	p.SetShowFails(true)
 	return p
 }

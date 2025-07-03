@@ -461,7 +461,11 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 
 func (vm *virtualMachine) capture(values ...Value) {
 	if capFrame, ok := vm.stack.findCaptureFrame(); ok {
-		capFrame.values = append(capFrame.values, values...)
+		if len(capFrame.values) == 0 {
+			capFrame.values = values
+		} else {
+			capFrame.values = append(capFrame.values, values...)
+		}
 		return
 	}
 	if len(vm.values) == 0 {

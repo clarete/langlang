@@ -1,6 +1,4 @@
 
-* NOTICE: THIS GO IMPLEMENTATION IS DEPRECATED DON'T USE IT
-
 * Development
 
 ** Running the test suite

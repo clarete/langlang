@@ -1,15 +1,15 @@
 * Introduction
 
 Bring your own grammar and get a feature rich parser generated for
-different languages.  The are reasons why you might want to use this:
+different languages.  Some are reasons why you might want to use this:
 
  - Concise input grammar format and intuitive algorithm: generates
    recursive top-down parsers based on Parsing Expression Grammars
  - Automatic handling of whitespaces, making grammars less cluttered
  - Error reporting with custom messages via failure ~labels~
- - Partial support for declaring error recovery rules, which allow
-   incremental parsing that returns an output tree even upon multiple
-   parsing errors.
+ - Good error recovery support through recovery rules, which allow the
+   parser to recover from known failures and produce an output tree
+   even upon multiple parsing errors.
 
 ** Project Status
 
@@ -20,30 +20,26 @@ different languages.  The are reasons why you might want to use this:
    your idea.  We will take the slow approach aiming at great design
    first, then being stable, then being featureful.
 
-** Currently supported output languages
+** Supported targets
 
- * [X] Rust¹
- * [X] Go Lang²
+ * [X] Go Lang¹
  * [ ] Python
  * [ ] Java Script
+ * [ ] Rust²
  * [ ] Write your own code generator
 
 *** Notes
 
- 1. Rust support is based on a virtual machine as its runtime, and not
-    on a generated parser.  That is unlikely to change because our
-    tooling will be built in Rust, so we need more flexibility on the
-    "host implementation".  We may give an option to also generate a
-    parser in Rust code that doesn't depend on any libraries, if it
-    provides any value.  But such work isn't planned as of right now.
+ 1. Go is the host and also a target language.  Although we're not 1.0
+    yet, this implementation has served some real world use cases.
+    The previous direction was to drop the Go implementation and
+    invest on the Rust one, and this may eventually actually happen,
+    but for now, the focus has changed back to using Go as the host
+    language.
 
- 2. We're in the middle of dropping the Go implementation in favor of
-    a generating a Go parser from the code written in Rust.
-    Prototyping a few features, like the import system and automatic
-    space handling, was very useful, but once the refactoring of the
-    Rust implementation is in a good place, the Rust version will be
-    better as it will make it easier to generate parsers for other
-    languages than Rust and Go.
+ 2. Rust support will be re-introduced by making Rust a target
+    language only, instead of having it to be both the host and one of
+    the target languages.
 
 ** Basic Usage
 
@@ -51,15 +47,60 @@ If you just want to test the waters, point the command line utility at
 a grammar and pick a starting rule:
 
 #+begin_src bash
-cargo run --bin langlang run --grammar-file grammars/json.peg --start-rule JSON
+  cd go
+  go run ./cmd/langlang/ -grammar ../grammars/json.peg
 #+end_src
 
 That will drop you into an initeractive shell that allows you to try
-out different input expressions.
+out different input expressions. e.g.:
+
+#+begin_src text
+  > [42]
+  JSON (1..2:1)
+  └── Value (1..5)
+      └── Array (1..5)
+          └── Sequence<3> (1..5)
+              ├── "[" (1..2)
+              ├── Value (2..4)
+              │   └── Number (2..4)
+              │       └── Int (2..4)
+              │           └── "42" (2..4)
+              └── "]" (4..5)
+#+end_src
 
 Take a look at other examples at the directory ~grammars~ in the root
 of the repository.  It contains a grammar library for commonly used
 input formats.
+
+*** Command line arguments
+
+ * ~-grammar FILE~: is the only required parameter.  It takes the
+   grammar FILE as input and if no output path is provided, an
+   interactive shell presented.
+
+ * ~-grammar-ast~: Shows the AST of the input grammar.
+
+ * ~-grammar-asm~: Shows the ASM code generated from the input
+   grammar.
+
+ * ~--disable-whitespace-handling~: If this flag is present, the
+   whitespace handling productions won't be inserted into the AST.
+
+ * ~--output-path PATH~: this option replaces ~stdout~ as the output with
+   the PATH value provided to this command.
+
+ * ~--output-language LANG~: this will cause the generator to output a
+   parser in the target language LANG.  As of this writing, the only
+   supported value is ~go~, but there are plans to extend support to
+   both Python, JavaScript/TypeScript, Rust and other languages.
+
+*** Additional options
+
+When generating Go code, the following additional knobs are provided
+in the command line:
+
+ * ~--go-package~: allows customizing what goes in the ~package~
+   directive that starts each Go file.
 
 * Input Language
 ** Productions and Expressions
@@ -267,67 +308,39 @@ be used in other grammars using imports.  Behind the scenes, the
 ~AddrSpec~ rule and all its dependencies have been merged into the
 ~player.peg~ grammar.
 
-* Generator Options
-** Go
-
-For using the go generator, you can run the following command:
-
-#+begin_src shell
-go run ./go/cmd/langlang -grammar grammars/json.peg
-#+end_src
-
-*** Basic command line arguments
-
- * ~--grammar FILE~: is the only required parameter.  It takes the
-   grammar FILE as input and if no other command line arguments are
-   provided, the output is printed to ~stdout~.
-
- * ~--ast-only~: this will prevent the generator from outputing the
-   final parser, and instead, it output the grammar's AST.
-
- * ~--asm-only~: this will prevent the generator from outputing the
-   final parser, and instead, it output the translation of the grammar
-   into Bytecode.
-
- * ~--disable-whitespace-handling~: If this flag is present, the
-   whitespace handling productions won't be inserted into the AST.
-
- * ~--output-path PATH~: this option replaces ~stdout~ as the output with
-   the PATH value provided to this command.
-
- * ~--output-type TYPE~: decides what type of parser will be
-   generated.  The available options are ~code~ for generating code in
-   the target language, or ~bytecode~ for translating the input
-   grammar into bytecode (notice that this option will also generate
-   an evaluator.)
-
- * ~--output-language LANG~: this will cause the generator to output a parser
-   in the target language LANG.  As of this writing, the only
-   supported value is ~go~, but there are plans to extend support to
-   both Python and JavaScript/TypeScript.
-
-*** Additional options
-
-The Go code generator provides the following additional knobs to the
-command line:
-
- * ~--go-package~: allows customizing what goes in the ~package~
-   directive that starts each Go file.
-
 * Roadmap
 
- * [ ] MID: [gen_go] rewrite Go generator in Rust
+** 0.0.9 (planned work):
+
+ * [-] SML: [compvm] bootstrap parser
+ * [-] SML: [compvm] known optimizations: set, span (charsets branch)
+ * [ ] SML: [compvm] known optimizations: head-fail
+ * [ ] SML: [compvm] known optimizations: inlining, tco
+ * [ ] SML: [compvm] more profiling
+
+** 0.0.10 and onwards:
+
+ * [ ] SML: [compvm] allocate output nodes in an arena
  * [ ] MID: [genall] generator interface to be shared by all targets
  * [ ] SML: [gen_go] memoize results to guarantee O(1) parsing time
- * [ ] SML: [gen_go] allocate output nodes in an arena
- * [ ] MID: [gen_py] Python Code Generator: Start from scratch
+ * [ ] MID: [gen_py] Python Code Generator
  * [ ] MID: [gen_js] Java Script Code Generator
- * [ ] MID: [gen_go] explore generating Go ASM code instead of text
+ * [ ] MID: [gen_rs] Rust Code Generator
  * [ ] MID: Display Call Graph for debugging purposes
- * [ ] BIG: Bootstrap off hand written parser, so grammar writters can
-   take advantage of the features baked into the parser generator
 
 * Changelog
+
+** go/v0.0.9 (unreleased)
+
+ * [[https://github.com/clarete/langlang/commit/e1276b6071ec41b747fdb5d0c1d38a6dc58e4798][FEAT/PERF: New Compiler and Virtual Machine based design]]
+ * [[https://github.com/clarete/langlang/commit/ab3f63af92a052f0d5b7f4547c9f7e38f0d30171][FEAT: New Codegen based on the Compiler and VM]]
+ * [[https://github.com/clarete/langlang/commit/111206f683534608545830890033daa9d20cbe68][PERF: VisitSequenceNode: shorten path with no or single item]]
+ * [[https://github.com/clarete/langlang/commit/c918152380151bcbfcf0550bd73b404081c9fcd6][BUG FIX: escape dash so we can parse dashes within classes]]
+ * [[https://github.com/clarete/langlang/commit/0071f39de6f77eced59968cf2165fd8e1f4c5e52][BUG FIX: 'file not found' errors swallowed by the ImportResolver]]
+ * [[https://github.com/clarete/langlang/commit/b6fd2ba806333b11dc8fb93fd5b66cebc62aeea4][BREAKING CHANGE: Revamp string representation of the AstNode API]]
+ * [[https://github.com/clarete/langlang/commit/afd1b9eedbc9fc9ad1cd57654418ab7f78199cb1][BREAKING CHANGE: Revamp command line arguments]]
+ * [[https://github.com/clarete/langlang/commit/e4b716459bb9b39f0ced95ca99e2088f60892f84][BREAKING CHANGE: New Error Reporting]]
+ * [[https://github.com/clarete/langlang/commit/b360504659703df19121965865e788bfe858e7f3][BREAKING CHANGE: Move cmd to a directory with a better name]]
 
 ** go/v0.0.8
 

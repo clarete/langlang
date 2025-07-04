@@ -122,6 +122,7 @@ const (
 	opCapEnd
 	opSet
 	opSpan
+	opCapOnce
 )
 
 var opNames = map[byte]string{
@@ -144,6 +145,7 @@ var opNames = map[byte]string{
 	opThrow:         "throw",
 	opCapBegin:      "cap_begin",
 	opCapEnd:        "cap_end",
+	opCapOnce:       "cap_once",
 }
 
 var (
@@ -178,6 +180,7 @@ var (
 	opHaltSizeInBytes     = 1
 	opCapBeginSizeInBytes = 3
 	opCapEndSizeInBytes   = 1
+	opCapOnceSizeInBytes  = 3
 )
 
 func newVirtualMachine(
@@ -371,6 +374,10 @@ code:
 			vm.newNode(input, vm.stack.pop())
 			vm.pc += opCapEndSizeInBytes
 
+		case opCapOnce:
+			vm.newTermNode(input, int(decodeU16(vm.bytecode.code[vm.pc+1:])))
+			vm.pc += opCapOnceSizeInBytes
+
 		default:
 			panic("NO ENTIENDO SENOR")
 		}
@@ -459,6 +466,21 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 }
 
 // Node Capture Helpers
+
+func (vm *virtualMachine) newTermNode(input Input, offset int) {
+	var (
+		begin = NewLocation(vm.line, vm.column-offset, vm.cursor-offset)
+		end   = NewLocation(vm.line, vm.column, vm.cursor)
+		span  = NewSpan(begin, end)
+	)
+	if offset > 0 {
+		text, err := input.ReadString(vm.cursor-offset, vm.cursor)
+		if err != nil {
+			panic(err.Error())
+		}
+		vm.stack.capture(NewString(text, span))
+	}
+}
 
 func (vm *virtualMachine) newNode(input Input, f frame) {
 	if f.suppress {

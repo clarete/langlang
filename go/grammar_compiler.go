@@ -110,6 +110,14 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 }
 
 func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
+	if sz, ok := c.exprSize(node.Expr); ok && node.Name == "" {
+		if err := node.Expr.Accept(c); err != nil {
+			return err
+		}
+		c.emit(ICapOnce{Offset: sz})
+		return nil
+	}
+
 	id := c.pushString(node.Name)
 
 	c.emit(ICapBegin{ID: id})
@@ -120,6 +128,16 @@ func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
 
 	c.emit(ICapEnd{})
 	return nil
+}
+
+func (c *compiler) exprSize(node AstNode) (int, bool) {
+	switch n := node.(type) {
+	case *LiteralNode:
+		return len(n.Value), true
+	case *CharsetNode:
+		return 1, true
+	}
+	return 0, false
 }
 
 func (c *compiler) VisitSequenceNode(node *SequenceNode) error {

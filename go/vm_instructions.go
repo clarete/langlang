@@ -122,3 +122,8 @@ type ICapEnd struct{}
 
 func (ICapEnd) Name() string     { return "cap_end" }
 func (ICapEnd) SizeInBytes() int { return opCapEndSizeInBytes }
+
+type ICapOnce struct{ Offset int }
+
+func (ICapOnce) Name() string     { return "cap_once" }
+func (ICapOnce) SizeInBytes() int { return opCapOnceSizeInBytes }

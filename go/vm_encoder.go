@@ -79,6 +79,9 @@ func Encode(p *Program) *Bytecode {
 			code = encodeU16(code, uint16(ii.ID))
 		case ICapEnd:
 			code = append(code, opCapEnd)
+		case ICapOnce:
+			code = append(code, opCapOnce)
+			code = encodeU16(code, uint16(ii.Offset))
 		}
 	}
 	for id, entry := range p.recovery {

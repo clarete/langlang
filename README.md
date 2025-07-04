@@ -1,51 +1,52 @@
 
 # Table of Contents
 
-1.  [Introduction](#org4c066ff)
-    1.  [Project Status](#orgb0d4960)
-    2.  [Currently supported output languages](#org292e3f8)
-        1.  [Notes](#org1e315a6)
-    3.  [Basic Usage](#org30fb095)
-2.  [Input Language](#orgebbec8d)
-    1.  [Productions and Expressions](#org525b058)
-    2.  [Terminals](#org1a5f3c0)
-    3.  [Non-Terminals](#orgaf74545)
-    4.  [Expression Composition](#orgf8be86c)
-        1.  [Ordered Choice](#org70b11a2)
-        2.  [Syntactic Predicates](#org4e87702)
-        3.  [Repetitions](#orgd4c6b6d)
-        4.  [Lexification](#org36e0505)
-        5.  [Error reporting with Labels](#org8a0fd2f)
-        6.  [Import system](#org49d51fb)
-3.  [Generator Options](#org9e2f248)
-    1.  [Go](#org1b526e5)
-        1.  [Basic command line arguments](#org82a6635)
-        2.  [Additional options](#org49533b9)
-4.  [Roadmap](#orgf34bc21)
-5.  [Changelog](#orgc94d287)
-    1.  [go/v0.0.8](#org0889635)
-    2.  [go/v0.0.7](#org7a87f51)
-    3.  [go/v0.0.6](#org6b37504)
-    4.  [go/v0.0.5](#org82c9545)
+1.  [Introduction](#org1bc5eae)
+    1.  [Project Status](#org84cb25f)
+    2.  [Supported targets](#orga3ac210)
+        1.  [Notes](#orge811356)
+    3.  [Basic Usage](#org79f8850)
+        1.  [Command line arguments](#org2b43eb2)
+        2.  [Additional options](#org69af27d)
+2.  [Input Language](#orgaa0713b)
+    1.  [Productions and Expressions](#org41871d7)
+    2.  [Terminals](#org8322381)
+    3.  [Non-Terminals](#org5a65dbe)
+    4.  [Expression Composition](#orgae6acb4)
+        1.  [Ordered Choice](#orgce8a2ef)
+        2.  [Syntactic Predicates](#orgb5c429f)
+        3.  [Repetitions](#org7f1918c)
+        4.  [Lexification](#org646c873)
+        5.  [Error reporting with Labels](#orgdc9de8b)
+        6.  [Import system](#org226b12e)
+3.  [Roadmap](#org7adb58d)
+    1.  [0.0.9 (planned work):](#org1dda794)
+    2.  [0.0.10 and onwards:](#orgaf10eb2)
+4.  [Changelog](#orge7603aa)
+    1.  [go/v0.0.9 (unreleased)](#orgf5e6bd5)
+    2.  [go/v0.0.8](#org306c1ab)
+    3.  [go/v0.0.7](#org43e2383)
+    4.  [go/v0.0.6](#org03210f5)
+    5.  [go/v0.0.5](#orge02a78c)
 
 
-<a id="org4c066ff"></a>
+<a id="org1bc5eae"></a>
 
 # Introduction
 
 Bring your own grammar and get a feature rich parser generated for
-different languages.  The are reasons why you might want to use this:
+different languages.  Some are reasons why you might want to use this:
 
 -   Concise input grammar format and intuitive algorithm: generates
     recursive top-down parsers based on Parsing Expression Grammars
 -   Automatic handling of whitespaces, making grammars less cluttered
 -   Error reporting with custom messages via failure `labels`
--   Partial support for declaring error recovery rules, which allow
-    incremental parsing that returns an output tree even upon multiple
-    parsing errors.
+-   Good error recovery support through recovery rules, which allow the
+    parser to recover from known failures and produce an output tree
+    even upon multiple parsing errors.
 
 
-<a id="orgb0d4960"></a>
+<a id="org84cb25f"></a>
 
 ## Project Status
 
@@ -57,60 +58,105 @@ different languages.  The are reasons why you might want to use this:
     first, then being stable, then being featureful.
 
 
-<a id="org292e3f8"></a>
+<a id="orga3ac210"></a>
 
-## Currently supported output languages
+## Supported targets
 
--   [X] Rust¹
--   [X] Go Lang²
+-   [X] Go Lang¹
 -   [ ] Python
 -   [ ] Java Script
+-   [ ] Rust²
 -   [ ] Write your own code generator
 
 
-<a id="org1e315a6"></a>
+<a id="orge811356"></a>
 
 ### Notes
 
-1.  Rust support is based on a virtual machine as its runtime, and not
-    on a generated parser.  That is unlikely to change because our
-    tooling will be built in Rust, so we need more flexibility on the
-    "host implementation".  We may give an option to also generate a
-    parser in Rust code that doesn't depend on any libraries, if it
-    provides any value.  But such work isn't planned as of right now.
+1.  Go is the host and also a target language.  Although we're not 1.0
+    yet, this implementation has served some real world use cases.
+    The previous direction was to drop the Go implementation and
+    invest on the Rust one, and this may eventually actually happen,
+    but for now, the focus has changed back to using Go as the host
+    language.
 
-2.  We're in the middle of dropping the Go implementation in favor of
-    a generating a Go parser from the code written in Rust.
-    Prototyping a few features, like the import system and automatic
-    space handling, was very useful, but once the refactoring of the
-    Rust implementation is in a good place, the Rust version will be
-    better as it will make it easier to generate parsers for other
-    languages than Rust and Go.
+2.  Rust support will be re-introduced by making Rust a target
+    language only, instead of having it to be both the host and one of
+    the target languages.
 
 
-<a id="org30fb095"></a>
+<a id="org79f8850"></a>
 
 ## Basic Usage
 
 If you just want to test the waters, point the command line utility at
 a grammar and pick a starting rule:
 
-    cargo run --bin langlang run --grammar-file grammars/json.peg --start-rule JSON
+    cd go
+    go run ./cmd/langlang/ -grammar ../grammars/json.peg
 
 That will drop you into an initeractive shell that allows you to try
-out different input expressions.
+out different input expressions. e.g.:
+
+    > [42]
+    JSON (1..2:1)
+    └── Value (1..5)
+        └── Array (1..5)
+            └── Sequence<3> (1..5)
+                ├── "[" (1..2)
+                ├── Value (2..4)
+                │   └── Number (2..4)
+                │       └── Int (2..4)
+                │           └── "42" (2..4)
+                └── "]" (4..5)
 
 Take a look at other examples at the directory `grammars` in the root
 of the repository.  It contains a grammar library for commonly used
 input formats.
 
 
-<a id="orgebbec8d"></a>
+<a id="org2b43eb2"></a>
+
+### Command line arguments
+
+-   `-grammar FILE`: is the only required parameter.  It takes the
+    grammar FILE as input and if no output path is provided, an
+    interactive shell presented.
+
+-   `-grammar-ast`: Shows the AST of the input grammar.
+
+-   `-grammar-asm`: Shows the ASM code generated from the input
+    grammar.
+
+-   `--disable-whitespace-handling`: If this flag is present, the
+    whitespace handling productions won't be inserted into the AST.
+
+-   `--output-path PATH`: this option replaces `stdout` as the output with
+    the PATH value provided to this command.
+
+-   `--output-language LANG`: this will cause the generator to output a
+    parser in the target language LANG.  As of this writing, the only
+    supported value is `go`, but there are plans to extend support to
+    both Python, JavaScript/TypeScript, Rust and other languages.
+
+
+<a id="org69af27d"></a>
+
+### Additional options
+
+When generating Go code, the following additional knobs are provided
+in the command line:
+
+-   `--go-package`: allows customizing what goes in the `package`
+    directive that starts each Go file.
+
+
+<a id="orgaa0713b"></a>
 
 # Input Language
 
 
-<a id="org525b058"></a>
+<a id="org41871d7"></a>
 
 ## Productions and Expressions
 
@@ -127,7 +173,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="org1a5f3c0"></a>
+<a id="org8322381"></a>
 
 ## Terminals
 
@@ -144,7 +190,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="orgaf74545"></a>
+<a id="org5a65dbe"></a>
 
 ## Non-Terminals
 
@@ -160,7 +206,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orgf8be86c"></a>
+<a id="orgae6acb4"></a>
 
 ## Expression Composition
 
@@ -244,7 +290,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="org70b11a2"></a>
+<a id="orgce8a2ef"></a>
 
 ### Ordered Choice
 
@@ -257,7 +303,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="org4e87702"></a>
+<a id="orgb5c429f"></a>
 
 ### Syntactic Predicates
 
@@ -272,7 +318,7 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="orgd4c6b6d"></a>
+<a id="org7f1918c"></a>
 
 ### Repetitions
 
@@ -286,7 +332,7 @@ The **and** predicate (`&`) is just syntactical sugar for `!!`.
 -   **Optional** will match an expression zero or one time.
 
 
-<a id="org36e0505"></a>
+<a id="org646c873"></a>
 
 ### Lexification
 
@@ -390,12 +436,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="org8a0fd2f"></a>
+<a id="orgdc9de8b"></a>
 
 ### Error reporting with Labels
 
 
-<a id="org49d51fb"></a>
+<a id="org226b12e"></a>
 
 ### Import system
 
@@ -426,100 +472,70 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="org9e2f248"></a>
-
-# Generator Options
-
-
-<a id="org1b526e5"></a>
-
-## Go
-
-For using the go generator, you can run the following command:
-
-    go run ./go/cmd/langlang -grammar grammars/json.peg
-
-
-<a id="org82a6635"></a>
-
-### Basic command line arguments
-
--   `--grammar FILE`: is the only required parameter.  It takes the
-    grammar FILE as input and if no other command line arguments are
-    provided, the output is printed to `stdout`.
-
--   `--ast-only`: this will prevent the generator from outputing the
-    final parser, and instead, it output the grammar's AST.
-
--   `--asm-only`: this will prevent the generator from outputing the
-    final parser, and instead, it output the translation of the grammar
-    into Bytecode.
-
--   `--disable-whitespace-handling`: If this flag is present, the
-    whitespace handling productions won't be inserted into the AST.
-
--   `--output-path PATH`: this option replaces `stdout` as the output with
-    the PATH value provided to this command.
-
--   `--output-type TYPE`: decides what type of parser will be
-    generated.  The available options are `code` for generating code in
-    the target language, or `bytecode` for translating the input
-    grammar into bytecode (notice that this option will also generate
-    an evaluator.)
-
--   `--output-language LANG`: this will cause the generator to output a parser
-    in the target language LANG.  As of this writing, the only
-    supported value is `go`, but there are plans to extend support to
-    both Python and JavaScript/TypeScript.
-
-
-<a id="org49533b9"></a>
-
-### Additional options
-
-The Go code generator provides the following additional knobs to the
-command line:
-
--   `--go-package`: allows customizing what goes in the `package`
-    directive that starts each Go file.
-
-
-<a id="orgf34bc21"></a>
+<a id="org7adb58d"></a>
 
 # Roadmap
 
--   [ ] MID: [gen<sub>go</sub>] rewrite Go generator in Rust
+
+<a id="org1dda794"></a>
+
+## 0.0.9 (planned work):
+
+-   [-] SML: [compvm] bootstrap parser
+-   [-] SML: [compvm] known optimizations: set, span (charsets branch)
+-   [ ] SML: [compvm] known optimizations: head-fail
+-   [ ] SML: [compvm] known optimizations: inlining, tco
+-   [ ] SML: [compvm] more profiling
+
+
+<a id="orgaf10eb2"></a>
+
+## 0.0.10 and onwards:
+
+-   [ ] SML: [compvm] allocate output nodes in an arena
 -   [ ] MID: [genall] generator interface to be shared by all targets
 -   [ ] SML: [gen<sub>go</sub>] memoize results to guarantee O(1) parsing time
--   [ ] SML: [gen<sub>go</sub>] allocate output nodes in an arena
--   [ ] MID: [gen<sub>py</sub>] Python Code Generator: Start from scratch
+-   [ ] MID: [gen<sub>py</sub>] Python Code Generator
 -   [ ] MID: [gen<sub>js</sub>] Java Script Code Generator
--   [ ] MID: [gen<sub>go</sub>] explore generating Go ASM code instead of text
+-   [ ] MID: [gen<sub>rs</sub>] Rust Code Generator
 -   [ ] MID: Display Call Graph for debugging purposes
--   [ ] BIG: Bootstrap off hand written parser, so grammar writters can
-    take advantage of the features baked into the parser generator
 
 
-<a id="orgc94d287"></a>
+<a id="orge7603aa"></a>
 
 # Changelog
 
 
-<a id="org0889635"></a>
+<a id="orgf5e6bd5"></a>
+
+## go/v0.0.9 (unreleased)
+
+-   [FEAT/PERF: New Compiler and Virtual Machine based design](https://github.com/clarete/langlang/commit/e1276b6071ec41b747fdb5d0c1d38a6dc58e4798)
+-   [FEAT: New Codegen based on the Compiler and VM](https://github.com/clarete/langlang/commit/ab3f63af92a052f0d5b7f4547c9f7e38f0d30171)
+-   [PERF: VisitSequenceNode: shorten path with no or single item](https://github.com/clarete/langlang/commit/111206f683534608545830890033daa9d20cbe68)
+-   [BUG FIX: escape dash so we can parse dashes within classes](https://github.com/clarete/langlang/commit/c918152380151bcbfcf0550bd73b404081c9fcd6)
+-   [BUG FIX: 'file not found' errors swallowed by the ImportResolver](https://github.com/clarete/langlang/commit/0071f39de6f77eced59968cf2165fd8e1f4c5e52)
+-   [BREAKING CHANGE: Revamp string representation of the AstNode API](https://github.com/clarete/langlang/commit/b6fd2ba806333b11dc8fb93fd5b66cebc62aeea4)
+-   [BREAKING CHANGE: Revamp command line arguments](https://github.com/clarete/langlang/commit/afd1b9eedbc9fc9ad1cd57654418ab7f78199cb1)
+-   [BREAKING CHANGE: New Error Reporting](https://github.com/clarete/langlang/commit/e4b716459bb9b39f0ced95ca99e2088f60892f84)
+-   [BREAKING CHANGE: Move cmd to a directory with a better name](https://github.com/clarete/langlang/commit/b360504659703df19121965865e788bfe858e7f3)
+
+
+<a id="org306c1ab"></a>
 
 ## go/v0.0.8
 
 -   [BUG FIX: Clear result cache when parser is reset](https://github.com/clarete/langlang/commit/5195eae565fea7c17ebad2d32f9b917908beec02)
 
 
-<a id="org7a87f51"></a>
+<a id="org43e2383"></a>
 
 ## go/v0.0.7
 
 -   [BUG FIX: Capturing error messages for CHOICE](https://github.com/clarete/langlang/commit/e2553fdaf69ab96ecc1a4184f21a0d61e27b069a)
 
 
-<a id="org6b37504"></a>
+<a id="org03210f5"></a>
 
 ## go/v0.0.6
 
@@ -527,7 +543,7 @@ command line:
 -   [PERF: Remove fmt.Sprintf from core matching functions](https://github.com/clarete/langlang/commit/0fd67c472f60e5ce9b1e17c20bab7b443dbf62ad)
 
 
-<a id="org82c9545"></a>
+<a id="orge02a78c"></a>
 
 ## go/v0.0.5
 

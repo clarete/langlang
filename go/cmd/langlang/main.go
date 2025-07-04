@@ -16,18 +16,16 @@ const defaultWritePermission = 0644 // -rw-r--r--
 type args struct {
 	grammarPath *string
 
-	astOnly     *bool
-	asmOnly     *bool
-	asmOptimize *int
+	grammarAST *bool
+	grammarASM *bool
 
-	outputType *string
 	outputLang *string
 	outputPath *string
 
 	disableBuiltins           *bool
 	disableWhitespaceHandling *bool
-	disableCaptureAll         *bool
-	disableCaptureSpacing     *bool
+	disableCaptures           *bool
+	enableCaptureSpacing      *bool
 
 	inputPath   *string
 	interactive *bool
@@ -42,18 +40,15 @@ func readArgs() *args {
 
 		// Debugging Options
 
-		astOnly:     flag.Bool("ast-only", false, "Output the AST of the grammar"),
-		asmOnly:     flag.Bool("asm-only", false, "Output the ASM of the grammar"),
-		interactive: flag.Bool("interactive", false, "Drops into a shell"),
+		grammarAST: flag.Bool("grammar-ast", false, "Output the AST of the grammar"),
+		grammarASM: flag.Bool("grammar-asm", false, "Output the ASM of the grammar"),
 
 		// Output Options
 
-		disableWhitespaceHandling: flag.Bool("disable-whitespace-handling", false, "Inject whitespace handling rules into the grammar"),
-		disableBuiltins:           flag.Bool("disable-builtins", false, "Inject builtin rules into the grammar"),
-		disableCaptureAll:         flag.Bool("disable-capture-all", false, "Inject capture rules into the grammar around every definition"),
-		disableCaptureSpacing:     flag.Bool("disable-capture-spacing", false, ""),
-
-		asmOptimize: flag.Int("asm-optimize", 0, "How much to optimize the ASM output [0-1]"),
+		disableWhitespaceHandling: flag.Bool("disable-whitespace-handling", false, "Tells the compiler not to inject automatic white space char handling into the grammar"),
+		disableBuiltins:           flag.Bool("disable-builtins", false, "Tells the compiler not to inject builtin rules into the grammar"),
+		disableCaptures:           flag.Bool("disable-captures", false, "Tells the compiler not to inject capture rules into the grammar"),
+		enableCaptureSpacing:      flag.Bool("enable-capture-spacing", false, "If enabled, the runtime will capture the output of the Spacing production"),
 
 		// Dynamic parser generation and evaluation
 
@@ -61,8 +56,7 @@ func readArgs() *args {
 
 		// AOT parser generation
 
-		outputType: flag.String("output-type", "code", "What type of parser should we generate. Options: 'code' and 'bytecode'"),
-		outputPath: flag.String("output-path", "/dev/stdout", "Path to the output file"),
+		outputPath: flag.String("output-path", "", "Path to the output file"),
 		outputLang: flag.String("output-language", "", "Output language"),
 
 		// options specific to the go generator
@@ -111,39 +105,37 @@ func main() {
 		}
 	}
 
-	if !*a.disableCaptureAll {
+	if !*a.disableCaptures {
 		ast, err = langlang.AddCaptures(ast)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	if *a.astOnly {
+	if *a.grammarAST {
 		fmt.Println(ast.HighlightPrettyString())
 		return
 	}
 
-	if *a.disableCaptureSpacing {
+	if !*a.enableCaptureSpacing {
 		suppress = []string{"Spacing"}
 	}
 
 	// Translate the AST into bytecode
 
-	asm, err := langlang.Compile(ast, langlang.CompilerConfig{
-		Optimize: *a.asmOptimize,
-	})
+	asm, err := langlang.Compile(ast, langlang.CompilerConfig{Optimize: 1})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if *a.asmOnly {
+	if *a.grammarASM {
 		fmt.Println(asm.HighlightPrettyString())
 		return
 	}
 
 	// If it's interactive, it will open a lil REPL shell
 
-	if *a.interactive {
+	if *a.inputPath == "" {
 		code := langlang.Encode(asm)
 
 		for {
@@ -190,7 +182,7 @@ func main() {
 	// Configure output options
 
 	if *a.outputLang == "" {
-		*a.outputLang = "go"
+		log.Fatalf("Expected `-output-language`")
 	}
 
 	var outputData string

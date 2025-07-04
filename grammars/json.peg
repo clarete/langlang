@@ -14,7 +14,7 @@ Exp     <- [eE][-+]?[0-9]+^expDigits
 
 // Whitespaces are part of the string within quotes
 String  <- '"' #(Char* ('"'^strClose))
-Char    <- Escape / Unicode / (!'"' .)
+Char    <- #(Escape / Unicode / (!'"' .))
 Escape  <- '\\' ["\\/bfnrt]
 Unicode <- #('\\' 'u' Hex^chrH1 Hex^chrH2 Hex^chrH3 Hex^chrH4)
 Hex     <- [0-9A-Fa-f]

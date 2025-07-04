@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ./tiny.peg -output-language go -output-path ./tiny.go
+//go:generate go run ../../cmd/langlang -grammar ./tiny.peg -output-language goeval -output-path ./tiny.go
 
 func TestTiny(t *testing.T) {
 	t.Run("Expr", func(t *testing.T) {

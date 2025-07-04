@@ -135,7 +135,7 @@ func main() {
 
 	// If it's interactive, it will open a lil REPL shell
 
-	if *a.inputPath == "" {
+	if *a.inputPath == "" && *a.outputPath == "" {
 		code := langlang.Encode(asm)
 
 		for {

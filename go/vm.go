@@ -279,7 +279,7 @@ code:
 			top.captured = vm.numCapturedValues()
 
 		case opBackCommit:
-			vm.backtrackToFrame(vm.stack.pop())
+			vm.backtrackToFrame(input, vm.stack.pop())
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opCall:
@@ -325,8 +325,7 @@ fail:
 		if f.t == frameType_Backtracking {
 			vm.pc = f.pc
 			vm.predicate = f.predicate
-			vm.backtrackToFrame(f)
-			input.Seek(int64(vm.cursor), io.SeekStart)
+			vm.backtrackToFrame(input, f)
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
 			goto code
 		}
@@ -349,11 +348,12 @@ func (vm *virtualMachine) updatePos(c rune, s int) {
 
 // Stack Management Helpers
 
-func (vm *virtualMachine) backtrackToFrame(f frame) {
+func (vm *virtualMachine) backtrackToFrame(input Input, f frame) {
 	vm.cursor = f.cursor
 	vm.line = f.line
 	vm.column = f.column
 	vm.stack.dropUncommittedValues(f.captured)
+	input.Seek(int64(vm.cursor), io.SeekStart)
 }
 
 func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {

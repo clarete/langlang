@@ -123,7 +123,7 @@ func main() {
 
 	// Translate the AST into bytecode
 
-	asm, err := langlang.Compile(ast, langlang.CompilerConfig{Optimize: 1})
+	asm, err := langlang.Compile(ast, langlang.CompilerConfig{Optimize: 0})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -162,9 +162,10 @@ func main() {
 		return
 	}
 
-	// if there's an input path, just run the match right away
+	// if there's an input path but no output path, run the match
+	// and output the results to the standard output
 
-	if *a.inputPath != "" {
+	if *a.inputPath != "" && *a.outputPath == "" {
 		text, err := os.ReadFile(*a.inputPath)
 		if err != nil {
 			log.Fatalf("Can't open input file: %s", err.Error())

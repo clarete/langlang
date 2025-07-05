@@ -123,7 +123,7 @@ func main() {
 
 	// Translate the AST into bytecode
 
-	asm, err := langlang.Compile(ast, langlang.CompilerConfig{Optimize: 0})
+	asm, err := langlang.Compile(ast, langlang.CompilerConfig{Optimize: 1})
 	if err != nil {
 		log.Fatal(err)
 	}

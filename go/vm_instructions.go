@@ -72,7 +72,7 @@ func (IFail) SizeInBytes() int { return opFailSizeInBytes }
 
 type IFailTwice struct{}
 
-func (IFailTwice) Name() string     { return "failt_wice" }
+func (IFailTwice) Name() string     { return "fail_twice" }
 func (IFailTwice) SizeInBytes() int { return opFailSizeInBytes }
 
 type IJump struct{ Label ILabel }

@@ -271,6 +271,21 @@ Digit  <- [0-9]
 			ExpectedCursor: 1,
 			ExpectedError:  "Expected 'a-z', 'A-Z', '0-9' but got ' ' @ 2",
 		},
+		{
+			Name: "Regression with JSON.String",
+			Grammar: `
+			   String <- '"' #(Char* '"')
+			   Char   <- (!'"' .)
+			`,
+			Input:          `"f"`,
+			ExpectedCursor: 3,
+			ExpectedAST: `String (1..4)
+└── Sequence<3> (1..4)
+    ├── "\"" (1..2)
+    ├── Char (2..3)
+    │   └── "f" (2..3)
+    └── "\"" (3..4)`,
+		},
 	}
 
 	for _, test := range vmTests {
@@ -281,7 +296,7 @@ Digit  <- [0-9]
 
 func mkVmTestFn(test vmTest, opt int) func(t *testing.T) {
 	return func(t *testing.T) {
-		val, cur, err := exec(test.Grammar, test.Input, 0)
+		val, cur, err := exec(test.Grammar, test.Input, opt)
 
 		// The cursor should be right for both error and
 		// success states

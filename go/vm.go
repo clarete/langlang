@@ -276,6 +276,7 @@ code:
 			top.cursor = vm.cursor
 			top.line = vm.line
 			top.column = vm.column
+			top.captured = vm.numCapturedValues()
 
 		case opBackCommit:
 			vm.backtrackToFrame(vm.stack.pop())
@@ -356,18 +357,22 @@ func (vm *virtualMachine) backtrackToFrame(f frame) {
 }
 
 func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {
-	captured := 0
-	if f, ok := vm.stack.findCaptureFrame(); ok {
-		captured = len(f.values)
-	}
 	return frame{
 		t:        frameType_Backtracking,
 		pc:       pc,
 		cursor:   vm.cursor,
 		line:     vm.line,
 		column:   vm.column,
-		captured: captured,
+		captured: vm.numCapturedValues(),
 	}
+}
+
+func (vm *virtualMachine) numCapturedValues() int {
+	captured := 0
+	if f, ok := vm.stack.findCaptureFrame(); ok {
+		captured = len(f.values)
+	}
+	return captured
 }
 
 func (vm *virtualMachine) mkBacktrackPredFrame(pc int) frame {

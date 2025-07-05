@@ -8,3 +8,4 @@ go/tests/basic/basic.go
 go/tests/recovery/recovery.go
 go/tests/import/import.go
 go/tests/langlang/langlang.go
+go/tests/json/json.go

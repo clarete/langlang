@@ -54,7 +54,7 @@ func (g *goEvalEmitter) writePrelude() {
 }
 
 func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
-	g.parser.writel("var parserProgram = &Bytecode{")
+	g.parser.writel(fmt.Sprintf("var bytecodeFor%s = &Bytecode{", g.options.ParserName))
 	g.parser.indent()
 
 	g.parser.writeil("code: []byte{")
@@ -105,7 +105,7 @@ func (g *goEvalEmitter) writeParserStruct() {
 func (g *goEvalEmitter) writeParserConstructor() {
 	g.parser.writel(fmt.Sprintf("func New%s() *%s {", g.options.ParserName, g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil(`s := parserProgram.findStrIDs([]string{"Spacing"})`)
+	g.parser.writeil(fmt.Sprintf(`s := bytecodeFor%s.findStrIDs([]string{"Spacing"})`, g.options.ParserName))
 	g.parser.writeil(fmt.Sprintf("return &%s{captureSpaces: true, suppress: s}", g.options.ParserName))
 	g.parser.unindent()
 	g.parser.writel("}")
@@ -136,14 +136,14 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool) { p.captureSpaces = v }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr uint16) (Value, error) {", g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil("writeU16(parserProgram.code[1:], addr)")
+	g.parser.writeil(fmt.Sprintf("writeU16(bytecodeFor%s.code[1:], addr)", g.options.ParserName))
 	g.parser.writeil("suppress := map[int]struct{}{}")
 	g.parser.writeil("if !p.captureSpaces {")
 	g.parser.indent()
 	g.parser.writeil("suppress = p.suppress")
 	g.parser.unindent()
 	g.parser.writeil("}")
-	g.parser.writeil("vm := newVirtualMachine(parserProgram, p.errLabels, suppress)")
+	g.parser.writeil(fmt.Sprintf("vm := newVirtualMachine(bytecodeFor%s, p.errLabels, suppress)", g.options.ParserName))
 	g.parser.writeil("val, _, err := vm.Match(strings.NewReader(p.input))")
 	g.parser.writeil("return val, err")
 	g.parser.unindent()

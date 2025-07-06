@@ -31,6 +31,7 @@ type args struct {
 	interactive *bool
 
 	goOptPackage   *string
+	goOptParser    *string
 	goOptRemoveLib *bool
 }
 
@@ -62,6 +63,7 @@ func readArgs() *args {
 		// options specific to the go generator
 
 		goOptPackage:   flag.String("go-package", "parser", "Name of the go package in the generated parser"),
+		goOptParser:    flag.String("go-parser", "Parser", "Name of the go struct of the generated parser"),
 		goOptRemoveLib: flag.Bool("go-remove-lib", false, "Include lib in the output parser"),
 	}
 
@@ -191,11 +193,13 @@ func main() {
 	case "go":
 		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
 			PackageName: *a.goOptPackage,
+			ParserName:  *a.goOptParser,
 			RemoveLib:   *a.goOptRemoveLib,
 		})
 	case "goeval":
 		outputData, err = langlang.GenGoEval(asm, langlang.GenGoOptions{
 			PackageName: *a.goOptPackage,
+			ParserName:  *a.goOptParser,
 			RemoveLib:   *a.goOptRemoveLib,
 		})
 	// case "python":

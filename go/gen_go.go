@@ -25,6 +25,7 @@ type goCodeEmitter struct {
 
 type GenGoOptions struct {
 	PackageName string
+	ParserName  string
 	RemoveLib   bool
 }
 

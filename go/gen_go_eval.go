@@ -40,12 +40,12 @@ func (g *goEvalEmitter) writePrelude() {
 
 	g.parser.write("import (\n")
 	g.parser.indent()
-	g.parser.writeil(`"encoding/binary"`)
-	g.parser.writeil(`"fmt"`)
-	g.parser.writeil(`"strconv"`)
 	g.parser.writeil(`"strings"`)
 
 	if !g.options.RemoveLib {
+		g.parser.writeil(`"encoding/binary"`)
+		g.parser.writeil(`"fmt"`)
+		g.parser.writeil(`"strconv"`)
 		g.parser.writeil(`"io"`)
 	}
 
@@ -79,9 +79,11 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 
 	g.parser.writeil("rxps: map[int]int{")
 	g.parser.indent()
+	g.parser.writei("")
 	for k, v := range bt.rxps {
-		g.parser.write(fmt.Sprintf("%d: %d,", k, v))
+		g.parser.write(fmt.Sprintf("%d: %d, ", k, v))
 	}
+	g.parser.writel("")
 	g.parser.unindent()
 	g.parser.writeil("},")
 
@@ -90,7 +92,7 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 }
 
 func (g *goEvalEmitter) writeParserStruct() {
-	g.parser.writel("type Parser struct{")
+	g.parser.writel(fmt.Sprintf("type %s struct{", g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil("input         string")
 	g.parser.writeil("captureSpaces bool")
@@ -101,11 +103,11 @@ func (g *goEvalEmitter) writeParserStruct() {
 }
 
 func (g *goEvalEmitter) writeParserConstructor() {
-	g.parser.writel("func NewParser() *Parser {")
+	g.parser.writel(fmt.Sprintf("func New%s() *%s {", g.options.ParserName, g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil(`s := parserProgram.findStrIDs([]string{"Spacing"})`)
-	g.parser.writeil("return &Parser{captureSpaces: true, suppress: s}")
-	g.parser.indent()
+	g.parser.writeil(fmt.Sprintf("return &%s{captureSpaces: true, suppress: s}", g.options.ParserName))
+	g.parser.unindent()
 	g.parser.writel("}")
 }
 
@@ -124,15 +126,15 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	}
 	for addr, strID := range asm.identifiers {
 		name := asm.strings[strID]
-		g.parser.write(fmt.Sprintf("func (p *Parser) Parse%s() (Value, error) { ", name))
+		g.parser.write(fmt.Sprintf("func (p *%s) Parse%s() (Value, error) { ", g.options.ParserName, name))
 		g.parser.write(fmt.Sprintf("return p.parseFn(%d)", addrmap[addr]))
 		g.parser.writel(" }")
 	}
-	g.parser.writel("func (p *Parser) Parser() (Value, error) { return p.parseFn(5) }")
-	g.parser.writel("func (p *Parser) SetInput(input string) { p.input = input }")
-	g.parser.writel("func (p *Parser) SetLabelMessages(el map[string]string) { p.errLabels = el }")
-	g.parser.writel("func (p *Parser) SetCaptureSpaces(v bool) { p.captureSpaces = v }")
-	g.parser.writel("func (p *Parser) parseFn(addr uint16) (Value, error) {")
+	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Value, error) { return p.parseFn(5) }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input string) { p.input = input }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.errLabels = el }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool) { p.captureSpaces = v }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr uint16) (Value, error) {", g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil("writeU16(parserProgram.code[1:], addr)")
 	g.parser.writeil("suppress := map[int]struct{}{}")

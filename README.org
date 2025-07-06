@@ -312,7 +312,6 @@ be used in other grammars using imports.  Behind the scenes, the
 
 ** 0.0.9 (planned work):
 
- * [-] SML: [compvm] bootstrap parser
  * [-] SML: [compvm] known optimizations: set, span (charsets branch)
  * [ ] SML: [compvm] known optimizations: head-fail
  * [ ] SML: [compvm] known optimizations: inlining, tco
@@ -337,6 +336,7 @@ be used in other grammars using imports.  Behind the scenes, the
  * [[https://github.com/clarete/langlang/commit/111206f683534608545830890033daa9d20cbe68][PERF: VisitSequenceNode: shorten path with no or single item]]
  * [[https://github.com/clarete/langlang/commit/c918152380151bcbfcf0550bd73b404081c9fcd6][BUG FIX: escape dash so we can parse dashes within classes]]
  * [[https://github.com/clarete/langlang/commit/0071f39de6f77eced59968cf2165fd8e1f4c5e52][BUG FIX: 'file not found' errors swallowed by the ImportResolver]]
+ * [[https://github.com/clarete/langlang/commit/5bb30992bbedde7043dd2189a9a273b0f7e19687][FEAT: Bootstrap Parser off of Grammar Definition]]
  * [[https://github.com/clarete/langlang/commit/b6fd2ba806333b11dc8fb93fd5b66cebc62aeea4][BREAKING CHANGE: Revamp string representation of the AstNode API]]
  * [[https://github.com/clarete/langlang/commit/afd1b9eedbc9fc9ad1cd57654418ab7f78199cb1][BREAKING CHANGE: Revamp command line arguments]]
  * [[https://github.com/clarete/langlang/commit/e4b716459bb9b39f0ced95ca99e2088f60892f84][BREAKING CHANGE: New Error Reporting]]

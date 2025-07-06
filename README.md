@@ -1,36 +1,36 @@
 
 # Table of Contents
 
-1.  [Introduction](#org1bc5eae)
-    1.  [Project Status](#org84cb25f)
-    2.  [Supported targets](#orga3ac210)
-        1.  [Notes](#orge811356)
-    3.  [Basic Usage](#org79f8850)
-        1.  [Command line arguments](#org2b43eb2)
-        2.  [Additional options](#org69af27d)
-2.  [Input Language](#orgaa0713b)
-    1.  [Productions and Expressions](#org41871d7)
-    2.  [Terminals](#org8322381)
-    3.  [Non-Terminals](#org5a65dbe)
-    4.  [Expression Composition](#orgae6acb4)
-        1.  [Ordered Choice](#orgce8a2ef)
-        2.  [Syntactic Predicates](#orgb5c429f)
-        3.  [Repetitions](#org7f1918c)
-        4.  [Lexification](#org646c873)
-        5.  [Error reporting with Labels](#orgdc9de8b)
-        6.  [Import system](#org226b12e)
-3.  [Roadmap](#org7adb58d)
-    1.  [0.0.9 (planned work):](#org1dda794)
-    2.  [0.0.10 and onwards:](#orgaf10eb2)
-4.  [Changelog](#orge7603aa)
-    1.  [go/v0.0.9 (unreleased)](#orgf5e6bd5)
-    2.  [go/v0.0.8](#org306c1ab)
-    3.  [go/v0.0.7](#org43e2383)
-    4.  [go/v0.0.6](#org03210f5)
-    5.  [go/v0.0.5](#orge02a78c)
+1.  [Introduction](#orgf3e17bd)
+    1.  [Project Status](#org9bb4882)
+    2.  [Supported targets](#org00e778b)
+        1.  [Notes](#org80ed811)
+    3.  [Basic Usage](#orge5e57bc)
+        1.  [Command line arguments](#orgceb43ea)
+        2.  [Additional options](#org4cab9d3)
+2.  [Input Language](#orgd46cf66)
+    1.  [Productions and Expressions](#org9f83811)
+    2.  [Terminals](#orgf449d4d)
+    3.  [Non-Terminals](#org92360da)
+    4.  [Expression Composition](#org670daff)
+        1.  [Ordered Choice](#orgd1929f7)
+        2.  [Syntactic Predicates](#org57c427e)
+        3.  [Repetitions](#org5146f17)
+        4.  [Lexification](#orge302647)
+        5.  [Error reporting with Labels](#orgca170e5)
+        6.  [Import system](#orgcb94878)
+3.  [Roadmap](#orgbec1042)
+    1.  [0.0.9 (planned work):](#org38169f7)
+    2.  [0.0.10 and onwards:](#org9eb8f1c)
+4.  [Changelog](#orga7f01c7)
+    1.  [go/v0.0.9 (unreleased)](#org634e472)
+    2.  [go/v0.0.8](#org1b0b66b)
+    3.  [go/v0.0.7](#org99caadb)
+    4.  [go/v0.0.6](#orgeb76a9e)
+    5.  [go/v0.0.5](#org1fcc0e2)
 
 
-<a id="org1bc5eae"></a>
+<a id="orgf3e17bd"></a>
 
 # Introduction
 
@@ -46,7 +46,7 @@ different languages.  Some are reasons why you might want to use this:
     even upon multiple parsing errors.
 
 
-<a id="org84cb25f"></a>
+<a id="org9bb4882"></a>
 
 ## Project Status
 
@@ -58,7 +58,7 @@ different languages.  Some are reasons why you might want to use this:
     first, then being stable, then being featureful.
 
 
-<a id="orga3ac210"></a>
+<a id="org00e778b"></a>
 
 ## Supported targets
 
@@ -69,7 +69,7 @@ different languages.  Some are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="orge811356"></a>
+<a id="org80ed811"></a>
 
 ### Notes
 
@@ -85,7 +85,7 @@ different languages.  Some are reasons why you might want to use this:
     the target languages.
 
 
-<a id="org79f8850"></a>
+<a id="orge5e57bc"></a>
 
 ## Basic Usage
 
@@ -115,7 +115,7 @@ of the repository.  It contains a grammar library for commonly used
 input formats.
 
 
-<a id="org2b43eb2"></a>
+<a id="orgceb43ea"></a>
 
 ### Command line arguments
 
@@ -140,7 +140,7 @@ input formats.
     both Python, JavaScript/TypeScript, Rust and other languages.
 
 
-<a id="org69af27d"></a>
+<a id="org4cab9d3"></a>
 
 ### Additional options
 
@@ -151,12 +151,12 @@ in the command line:
     directive that starts each Go file.
 
 
-<a id="orgaa0713b"></a>
+<a id="orgd46cf66"></a>
 
 # Input Language
 
 
-<a id="org41871d7"></a>
+<a id="org9f83811"></a>
 
 ## Productions and Expressions
 
@@ -173,7 +173,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="org8322381"></a>
+<a id="orgf449d4d"></a>
 
 ## Terminals
 
@@ -190,7 +190,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="org5a65dbe"></a>
+<a id="org92360da"></a>
 
 ## Non-Terminals
 
@@ -206,7 +206,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orgae6acb4"></a>
+<a id="org670daff"></a>
 
 ## Expression Composition
 
@@ -290,7 +290,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="orgce8a2ef"></a>
+<a id="orgd1929f7"></a>
 
 ### Ordered Choice
 
@@ -303,7 +303,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="orgb5c429f"></a>
+<a id="org57c427e"></a>
 
 ### Syntactic Predicates
 
@@ -318,7 +318,7 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="org7f1918c"></a>
+<a id="org5146f17"></a>
 
 ### Repetitions
 
@@ -332,7 +332,7 @@ The **and** predicate (`&`) is just syntactical sugar for `!!`.
 -   **Optional** will match an expression zero or one time.
 
 
-<a id="org646c873"></a>
+<a id="orge302647"></a>
 
 ### Lexification
 
@@ -436,12 +436,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="orgdc9de8b"></a>
+<a id="orgca170e5"></a>
 
 ### Error reporting with Labels
 
 
-<a id="org226b12e"></a>
+<a id="orgcb94878"></a>
 
 ### Import system
 
@@ -472,23 +472,22 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="org7adb58d"></a>
+<a id="orgbec1042"></a>
 
 # Roadmap
 
 
-<a id="org1dda794"></a>
+<a id="org38169f7"></a>
 
 ## 0.0.9 (planned work):
 
--   [-] SML: [compvm] bootstrap parser
 -   [-] SML: [compvm] known optimizations: set, span (charsets branch)
 -   [ ] SML: [compvm] known optimizations: head-fail
 -   [ ] SML: [compvm] known optimizations: inlining, tco
 -   [ ] SML: [compvm] more profiling
 
 
-<a id="orgaf10eb2"></a>
+<a id="org9eb8f1c"></a>
 
 ## 0.0.10 and onwards:
 
@@ -501,12 +500,12 @@ be used in other grammars using imports.  Behind the scenes, the
 -   [ ] MID: Display Call Graph for debugging purposes
 
 
-<a id="orge7603aa"></a>
+<a id="orga7f01c7"></a>
 
 # Changelog
 
 
-<a id="orgf5e6bd5"></a>
+<a id="org634e472"></a>
 
 ## go/v0.0.9 (unreleased)
 
@@ -515,27 +514,28 @@ be used in other grammars using imports.  Behind the scenes, the
 -   [PERF: VisitSequenceNode: shorten path with no or single item](https://github.com/clarete/langlang/commit/111206f683534608545830890033daa9d20cbe68)
 -   [BUG FIX: escape dash so we can parse dashes within classes](https://github.com/clarete/langlang/commit/c918152380151bcbfcf0550bd73b404081c9fcd6)
 -   [BUG FIX: 'file not found' errors swallowed by the ImportResolver](https://github.com/clarete/langlang/commit/0071f39de6f77eced59968cf2165fd8e1f4c5e52)
+-   [FEAT: Bootstrap Parser off of Grammar Definition](https://github.com/clarete/langlang/commit/5bb30992bbedde7043dd2189a9a273b0f7e19687)
 -   [BREAKING CHANGE: Revamp string representation of the AstNode API](https://github.com/clarete/langlang/commit/b6fd2ba806333b11dc8fb93fd5b66cebc62aeea4)
 -   [BREAKING CHANGE: Revamp command line arguments](https://github.com/clarete/langlang/commit/afd1b9eedbc9fc9ad1cd57654418ab7f78199cb1)
 -   [BREAKING CHANGE: New Error Reporting](https://github.com/clarete/langlang/commit/e4b716459bb9b39f0ced95ca99e2088f60892f84)
 -   [BREAKING CHANGE: Move cmd to a directory with a better name](https://github.com/clarete/langlang/commit/b360504659703df19121965865e788bfe858e7f3)
 
 
-<a id="org306c1ab"></a>
+<a id="org1b0b66b"></a>
 
 ## go/v0.0.8
 
 -   [BUG FIX: Clear result cache when parser is reset](https://github.com/clarete/langlang/commit/5195eae565fea7c17ebad2d32f9b917908beec02)
 
 
-<a id="org43e2383"></a>
+<a id="org99caadb"></a>
 
 ## go/v0.0.7
 
 -   [BUG FIX: Capturing error messages for CHOICE](https://github.com/clarete/langlang/commit/e2553fdaf69ab96ecc1a4184f21a0d61e27b069a)
 
 
-<a id="org03210f5"></a>
+<a id="orgeb76a9e"></a>
 
 ## go/v0.0.6
 
@@ -543,7 +543,7 @@ be used in other grammars using imports.  Behind the scenes, the
 -   [PERF: Remove fmt.Sprintf from core matching functions](https://github.com/clarete/langlang/commit/0fd67c472f60e5ce9b1e17c20bab7b443dbf62ad)
 
 
-<a id="orge02a78c"></a>
+<a id="org1fcc0e2"></a>
 
 ## go/v0.0.5
 

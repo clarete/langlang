@@ -312,20 +312,20 @@ be used in other grammars using imports.  Behind the scenes, the
 
 ** 0.0.9 (planned work):
 
- * [-] SML: [compvm] known optimizations: set, span (charsets branch)
- * [ ] SML: [compvm] known optimizations: head-fail
- * [ ] SML: [compvm] known optimizations: inlining, tco
- * [ ] SML: [compvm] more profiling
+ * SML: [compvm] known optimizations: set, span (charsets branch)
+ * SML: [compvm] known optimizations: head-fail
+ * SML: [compvm] known optimizations: inlining, tco
+ * SML: [compvm] more profiling
 
 ** 0.0.10 and onwards:
 
- * [ ] SML: [compvm] allocate output nodes in an arena
- * [ ] MID: [genall] generator interface to be shared by all targets
- * [ ] SML: [gen_go] memoize results to guarantee O(1) parsing time
- * [ ] MID: [gen_py] Python Code Generator
- * [ ] MID: [gen_js] Java Script Code Generator
- * [ ] MID: [gen_rs] Rust Code Generator
- * [ ] MID: Display Call Graph for debugging purposes
+ * SML: [compvm] allocate output nodes in an arena
+ * MID: [genall] generator interface to be shared by all targets
+ * SML: [gen-go] memoize results to guarantee O(1) parsing time
+ * MID: [gen-py] Python Code Generator
+ * MID: [gen-js] Java Script Code Generator
+ * MID: [gen-rs] Rust Code Generator
+ * MID: [devexp] Display Call Graph for debugging purposes
 
 * Changelog
 

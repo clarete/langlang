@@ -4,9 +4,15 @@ type GrammarParser struct {
 	Parser
 }
 
-func NewGrammarParser(grammar string) *GrammarParser {
-	return &GrammarParser{Parser{input: []rune(grammar)}}
+func NewGrammarParser(grammar string) *GrammarParserV2 {
+	return NewGrammarParserV2(grammar)
 }
+
+// NOTICE: The function `NewGrammarParser` currently returns a
+// `GrammarParserV2`, and not a `GrammarParser`.  So all the code from
+// this point onwards is currently not being used.  Once we get a grip
+// of how stable the bootstrapped parser is, we'll just ditch all this
+// stuff.
 
 // Parse kicks off parsing the input string and generates an AST
 // describing a grammar

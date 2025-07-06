@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"sort"
 	"text/template"
 )
 
@@ -80,7 +81,14 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.writeil("rxps: map[int]int{")
 	g.parser.indent()
 	g.parser.writei("")
-	for k, v := range bt.rxps {
+
+	xps := make([]int, 0, len(bt.rxps))
+	for xp := range bt.rxps {
+		xps = append(xps, xp)
+	}
+	sort.Ints(xps)
+	for _, k := range xps {
+		v := bt.rxps[k]
 		g.parser.write(fmt.Sprintf("%d: %d, ", k, v))
 	}
 	g.parser.writel("")
@@ -124,7 +132,13 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 			cursor += instruction.SizeInBytes()
 		}
 	}
-	for addr, strID := range asm.identifiers {
+	addrs := make([]int, 0, len(asm.identifiers))
+	for addr := range asm.identifiers {
+		addrs = append(addrs, addr)
+	}
+	sort.Ints(addrs)
+	for _, addr := range addrs {
+		strID := asm.identifiers[addr]
 		name := asm.strings[strID]
 		g.parser.write(fmt.Sprintf("func (p *%s) Parse%s() (Value, error) { ", g.options.ParserName, name))
 		g.parser.write(fmt.Sprintf("return p.parseFn(%d)", addrmap[addr]))

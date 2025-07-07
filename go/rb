@@ -4,7 +4,9 @@ SUITE=$1
 
 TEST_PATH=./tests/${SUITE}
 
-BENCH_PATH=benches/$(git rev-parse --short HEAD)/${SUITE}
+VERSION=$(git describe --tags --always --dirty)
+
+BENCH_PATH=benches/${VERSION}/${SUITE}
 
 if [ -d $TEST_PATH ]; then
 

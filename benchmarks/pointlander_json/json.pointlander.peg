@@ -1,0 +1,25 @@
+package pointlander_json
+
+type PointlanderJSON Peg {
+}
+
+JSON    <- _ Value _ EOF
+Value   <- Object / Array / String / Number / 'true' / 'false' / 'null'
+Array   <- '[' _ (Value _ (',' _ Value _)*)? ']'
+Object  <- '{' _ (Member _ (',' _ Member _)*)? '}'
+Member  <- String _ ':' _ Value
+
+Number  <- '-'? Int Frac? Exp?
+Int     <- '0' / ([1-9][0-9]*)
+Frac    <- '.' [0-9]+
+Exp     <- [eE][-+]?[0-9]+
+
+String  <- '"' Char* '"'
+Char    <- Escape / Unicode / (!'"' .)
+Escape  <- '\\' ["\\/bfnrt]
+Unicode <- '\\' 'u' Hex Hex Hex Hex
+Hex     <- [0-9A-Fa-f]
+
+_       <- [ \t\r\n]*
+EOF     <- !.
+

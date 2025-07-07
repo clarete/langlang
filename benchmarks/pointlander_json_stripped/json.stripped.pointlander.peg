@@ -1,0 +1,15 @@
+package pointlander_json_stripped
+
+type PointlanderStrippedJSON Peg {
+}
+
+JSON    <- _ Value _ EOF
+Value   <- Object / Array / String / Number / 'true' / 'false' / 'null'
+Array   <- '[' _ (Value _ (',' _ Value _)*)? ']'
+Object  <- '{' _ (Member _ (',' _ Member _)*)? '}'
+Member  <- String _ ':' _ Value
+Number  <- '-'? ('0' / ([1-9][0-9]*)) ('.' [0-9]+)? ([eE][-+]?[0-9]+)?
+String  <- '"' (!'"' .)* '"'
+_       <- [ \t\r\n]*
+EOF     <- !.
+

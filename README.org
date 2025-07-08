@@ -43,12 +43,14 @@ different languages.  Some are reasons why you might want to use this:
 
 ** Basic Usage
 
+*** Interactive
+
 If you just want to test the waters, point the command line utility at
 a grammar and pick a starting rule:
 
 #+begin_src bash
   cd go
-  go run ./cmd/langlang/ -grammar ../grammars/json.peg
+  go run ./cmd/langlang -grammar ../grammars/json.peg
 #+end_src
 
 That will drop you into an initeractive shell that allows you to try
@@ -66,6 +68,12 @@ out different input expressions. e.g.:
               │       └── Int (2..4)
               │           └── "42" (2..4)
               └── "]" (4..5)
+#+end_src
+
+*** Point it at a file
+
+#+begin_src bash
+  go run ./cmd/langlang -grammar ../grammars/json.peg -input /tmp/foo.json
 #+end_src
 
 Take a look at other examples at the directory ~grammars~ in the root
@@ -94,13 +102,19 @@ input formats.
    supported value is ~go~, but there are plans to extend support to
    both Python, JavaScript/TypeScript, Rust and other languages.
 
-*** Additional options
+*** Go specific options
 
 When generating Go code, the following additional knobs are provided
 in the command line:
 
- * ~--go-package~: allows customizing what goes in the ~package~
+ * ~-go-package~: allows customizing what goes in the ~package~
    directive that starts each Go file.
+ * ~-go-parser~: overrides the default name (~Parser~) of the
+   generated parser struct.  This is useful to put more than one
+   parser in the same package.
+ * ~-go-remove-lib~: add just the parsing program (~Parser~ struct) to
+   the generated parser, not the evaluator.  This is also useful to
+   put more than one parser in the same package.
 
 * Input Language
 ** Productions and Expressions
@@ -310,22 +324,21 @@ be used in other grammars using imports.  Behind the scenes, the
 
 * Roadmap
 
-** 0.0.9 (planned work):
-
- * SML: [compvm] known optimizations: set, span (charsets branch)
- * SML: [compvm] known optimizations: head-fail
- * SML: [compvm] known optimizations: inlining, tco
- * SML: [compvm] more profiling
-
-** 0.0.10 and onwards:
-
- * SML: [compvm] allocate output nodes in an arena
+ * SIM: [compvm] known optimizations: set, span (charsets branch)
+ * SIM: [compvm] known optimizations: head-fail
+ * SIM: [compvm] known optimizations: inlining, tco
+ * SIM: [compvm] precompile `expected` tuples from `charsets`
+ * SIM: [compvm] more profiling
+ * SIM: [compvm] memoize results to guarantee O(1) parsing time
+ * SIM: [compvm] allocates memory through an allocator interface
  * MID: [genall] generator interface to be shared by all targets
- * SML: [gen-go] memoize results to guarantee O(1) parsing time
- * MID: [gen-py] Python Code Generator
- * MID: [gen-js] Java Script Code Generator
- * MID: [gen-rs] Rust Code Generator
+ * MID: [gencpy] Python Code Generator
+ * MID: [gencjs] Java Script Code Generator
+ * MID: [gencrs] Rust Code Generator
+ * MID: [featxp] Built-in Indent rule (for Python-like grammars)
  * MID: [devexp] Display Call Graph for debugging purposes
+ * BIG: [featxp] Semantic Actions
+ * BIG: [featxp] Integration with serde of target language (go, rust)
 
 * Changelog
 

@@ -25,7 +25,7 @@ func TestVM(t *testing.T) {
 		}})
 		assert.Equal(t, uint8(0), bytecode.code[0])
 
-		vm := newVirtualMachine(bytecode, map[string]string{}, map[int]struct{}{})
+		vm := newVirtualMachine(bytecode, map[string]string{}, map[string]struct{}{})
 
 		_, cur, err := vm.Match(strings.NewReader(""))
 

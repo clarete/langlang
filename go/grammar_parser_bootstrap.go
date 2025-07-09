@@ -18,12 +18,12 @@ var bytecodeForGrammarParserBootstrap = &Bytecode{
 type GrammarParserBootstrap struct{
 	input         string
 	captureSpaces bool
-	suppress      map[int]struct{}
+	suppress      map[string]struct{}
 	errLabels     map[string]string
 }
 func NewGrammarParserBootstrap() *GrammarParserBootstrap {
-	s := bytecodeForGrammarParserBootstrap.findStrIDs([]string{"Spacing"})
-	return &GrammarParserBootstrap{captureSpaces: true, suppress: s}
+	suppress := map[string]struct{}{"Spacing": struct{}{}}
+	return &GrammarParserBootstrap{captureSpaces: true, suppress: suppress}
 }
 func (p *GrammarParserBootstrap) ParseGrammar() (Value, error) { return p.parseFn(5) }
 func (p *GrammarParserBootstrap) ParseImport() (Value, error) { return p.parseFn(55) }
@@ -67,7 +67,7 @@ func (p *GrammarParserBootstrap) SetLabelMessages(el map[string]string) { p.errL
 func (p *GrammarParserBootstrap) SetCaptureSpaces(v bool) { p.captureSpaces = v }
 func (p *GrammarParserBootstrap) parseFn(addr uint16) (Value, error) {
 	writeU16(bytecodeForGrammarParserBootstrap.code[1:], addr)
-	suppress := map[int]struct{}{}
+	suppress := map[string]struct{}{}
 	if !p.captureSpaces {
 		suppress = p.suppress
 	}

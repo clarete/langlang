@@ -25,31 +25,10 @@ func (b *Bytecode) Match(input Input) (Value, int, error) {
 func (b *Bytecode) MatchE(
 	input Input,
 	errLabels map[string]string,
-	suppress []string,
+	suppress map[string]struct{},
 ) (Value, int, error) {
-	ids := b.findStrIDs(suppress)
-	vm := newVirtualMachine(b, errLabels, ids)
+	vm := newVirtualMachine(b, errLabels, suppress)
 	return vm.Match(input)
-}
-
-// findStrIDs exists because by the time we're executing the bytecode,
-// we don't have a map of strings to their IDs (that's the whole point
-// of having a table.)  The reason why we need to find these IDs is
-// because of the capture suppression feature, that's a runtime
-// feature but we only need to map this table once, so it should be
-// executed just once, and just against a small set (likely just one)
-// of productions.
-func (b *Bytecode) findStrIDs(input []string) map[int]struct{} {
-	out := make(map[int]struct{}, len(input))
-	for i, s := range b.strs {
-		for _, is := range input {
-			if is == s {
-				out[i] = struct{}{}
-				break
-			}
-		}
-	}
-	return out
 }
 
 type expected struct {
@@ -96,7 +75,7 @@ type virtualMachine struct {
 	values    []Value
 	expected  expectedInfo
 	errLabels map[string]string
-	suppress  map[int]struct{}
+	suppress  map[string]struct{}
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -173,7 +152,7 @@ var (
 func newVirtualMachine(
 	bytecode *Bytecode,
 	errLabels map[string]string,
-	suppress map[int]struct{},
+	suppress map[string]struct{},
 ) *virtualMachine {
 	return &virtualMachine{
 		stack:     &stack{},
@@ -385,7 +364,7 @@ func (vm *virtualMachine) mkCaptureFrame(id int) frame {
 	// if either the capture ID has been disabled, or a capture ID
 	// wrapping it is suppressed, so we put this flag here for
 	// `opCapEnd` to pick it up and skip capturing the node.
-	_, suppress := vm.suppress[id]
+	_, suppress := vm.suppress[vm.bytecode.strs[id]]
 	top, hasTop := vm.stack.findCaptureFrame()
 	suppress = suppress || (hasTop && top.suppress)
 	return frame{

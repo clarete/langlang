@@ -104,7 +104,7 @@ func (g *goEvalEmitter) writeParserStruct() {
 	g.parser.indent()
 	g.parser.writeil("input         string")
 	g.parser.writeil("captureSpaces bool")
-	g.parser.writeil("suppress      map[int]struct{}")
+	g.parser.writeil("suppress      map[string]struct{}")
 	g.parser.writeil("errLabels     map[string]string")
 	g.parser.unindent()
 	g.parser.writel("}")
@@ -113,8 +113,8 @@ func (g *goEvalEmitter) writeParserStruct() {
 func (g *goEvalEmitter) writeParserConstructor() {
 	g.parser.writel(fmt.Sprintf("func New%s() *%s {", g.options.ParserName, g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil(fmt.Sprintf(`s := bytecodeFor%s.findStrIDs([]string{"Spacing"})`, g.options.ParserName))
-	g.parser.writeil(fmt.Sprintf("return &%s{captureSpaces: true, suppress: s}", g.options.ParserName))
+	g.parser.writeil(`suppress := map[string]struct{}{"Spacing": struct{}{}}`)
+	g.parser.writeil(fmt.Sprintf("return &%s{captureSpaces: true, suppress: suppress}", g.options.ParserName))
 	g.parser.unindent()
 	g.parser.writel("}")
 }
@@ -151,7 +151,7 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr uint16) (Value, error) {", g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil(fmt.Sprintf("writeU16(bytecodeFor%s.code[1:], addr)", g.options.ParserName))
-	g.parser.writeil("suppress := map[int]struct{}{}")
+	g.parser.writeil("suppress := map[string]struct{}{}")
 	g.parser.writeil("if !p.captureSpaces {")
 	g.parser.indent()
 	g.parser.writeil("suppress = p.suppress")

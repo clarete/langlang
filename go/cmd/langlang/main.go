@@ -75,7 +75,7 @@ func readArgs() *args {
 func main() {
 	var (
 		a         = readArgs()
-		suppress  []string
+		suppress  map[string]struct{}
 		errLabels map[string]string
 	)
 
@@ -120,7 +120,7 @@ func main() {
 	}
 
 	if !*a.enableCaptureSpacing {
-		suppress = []string{"Spacing"}
+		suppress = map[string]struct{}{"Spacing": struct{}{}}
 	}
 
 	// Translate the AST into bytecode

@@ -9,27 +9,50 @@ import (
 )
 
 //go:generate go run ../../cmd/langlang -grammar ../../../grammars/langlang.peg -output-language goeval -output-path ./langlang.go
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/langlang.peg -output-language goeval -output-path ./langlang.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
 
-func BenchmarkParser(b *testing.B) {
+var grammarNames = []string{"csv", "json", "peg", "langlang"}
 
-	grammarNames := []string{"csv", "json", "peg", "langlang"}
+func getGrammars(tb testing.TB) map[string]string {
+	tb.Helper()
 
 	grammars := make(map[string]string, len(grammarNames))
-
 	read := func(n string) string {
 		text, err := os.ReadFile(fmt.Sprintf("../../../grammars/%s.peg", n))
-		require.NoError(b, err)
+		require.NoError(tb, err)
 		return string(text)
 	}
-
 	for _, name := range grammarNames {
 		grammars[name] = read(name)
 	}
+	return grammars
+}
+
+func BenchmarkParser(b *testing.B) {
+	grammars := getGrammars(b)
+
+	b.ResetTimer()
 
 	for _, name := range grammarNames {
 		b.Run(fmt.Sprintf("Grammar %s", name), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				p := NewParser()
+				p.SetInput(grammars[name])
+				p.ParseGrammar()
+			}
+		})
+	}
+}
+
+func BenchmarkNoCapParser(b *testing.B) {
+	grammars := getGrammars(b)
+
+	b.ResetTimer()
+
+	for _, name := range grammarNames {
+		b.Run(fmt.Sprintf("Grammar %s", name), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				p := NewNoCapParser()
 				p.SetInput(grammars[name])
 				p.ParseGrammar()
 			}

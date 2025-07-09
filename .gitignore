@@ -6,7 +6,11 @@ _/
 go/examples/tiny/tiny.go
 go/tests/basic/basic.go
 go/tests/charsets/charsets.go
+go/tests/charsets/charsets.nocap.go
 go/tests/import/import.go
+go/tests/import/import.nocap.go
 go/tests/json/json.go
+go/tests/json/json.nocap.go
 go/tests/langlang/langlang.go
+go/tests/langlang/langlang.nocap.go
 go/tests/recovery/recovery.go

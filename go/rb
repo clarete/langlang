@@ -1,25 +1,37 @@
 #!/bin/bash
 
-SUITE=$1
-
-TEST_PATH=./tests/${SUITE}
-
 VERSION=$(git describe --tags --always --dirty)
 
-BENCH_PATH=benches/${VERSION}/${SUITE}
+declare -a suites=("charsets" "import" "json" "langlang")
 
-if [ -d $TEST_PATH ]; then
+for suite in "${suites[@]}"; do
+  echo "Benchmark $suite"
 
-    echo "Output path: $BENCH_PATH"
+  TEST_PATH=./tests/${suite}
 
-    mkdir -p $BENCH_PATH
+  if [ -d $TEST_PATH ]; then
 
-    go test ${TEST_PATH}/... -v -run=^$ \
-       -bench=BenchmarkParser -benchmem     \
-       -memprofile "${BENCH_PATH}/mem.out"  \
-       -cpuprofile "${BENCH_PATH}/cpu.out"  \
-       -benchtime 2s -count 15 | tee $BENCH_PATH/txt
+      BENCH_PATH=benches/${VERSION}/${suite}
+      mkdir -p $BENCH_PATH
+      echo "Output path: $BENCH_PATH"
 
-else
-    echo "Don't have the suite ${SUITE} :("
-fi
+      go test ${TEST_PATH}/... -v -run=^$ \
+         -bench=BenchmarkParser\/ -benchmem    \
+         -memprofile "${BENCH_PATH}/mem.out"  \
+         -cpuprofile "${BENCH_PATH}/cpu.out"  \
+         -benchtime 2s -count 15 | tee $BENCH_PATH/txt
+
+      BENCH_PATH_NOCAP=benches/${VERSION}/${suite}_nocap
+      mkdir -p $BENCH_PATH_NOCAP
+      echo "Output path: $BENCH_PATH_NOCAP"
+
+      go test ${TEST_PATH}/... -v -run=^$ \
+         -bench=BenchmarkNoCapParser/ -benchmem     \
+         -memprofile "${BENCH_PATH_NOCAP}/mem.out"  \
+         -cpuprofile "${BENCH_PATH_NOCAP}/cpu.out"  \
+         -benchtime 2s -count 15 | tee $BENCH_PATH_NOCAP/txt
+
+  else
+      echo "Don't have the suite ${suite} :("
+  fi
+done

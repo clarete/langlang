@@ -8,6 +8,7 @@ import (
 )
 
 //go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language goeval -output-path ./import.go
+//go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language goeval -output-path ./import.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
 
 func TestImport(t *testing.T) {
 	for _, test := range []struct {
@@ -86,28 +87,49 @@ func TestImport(t *testing.T) {
 	}
 }
 
+type scenario struct {
+	Name  string
+	Query string
+}
+
+var tests = []scenario{
+	{
+		Name:  "Single Digit",
+		Query: "1",
+	},
+	{
+		Name:  "Term",
+		Query: "41 + 22",
+	},
+	{
+		Name:  "Multi",
+		Query: "33 * 44",
+	},
+}
+
 func BenchmarkParser(b *testing.B) {
-	type scenario struct {
-		Name  string
-		Query string
-	}
-	for _, scenario := range []scenario{
-		{
-			Name:  "Single Digit",
-			Query: "1",
-		},
-		{
-			Name:  "Term",
-			Query: "41 + 22",
-		},
-		{
-			Name:  "Multi",
-			Query: "33 * 44",
-		},
-	} {
+
+	b.ResetTimer()
+
+	for _, scenario := range tests {
 		b.Run(scenario.Name, func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				p := NewParser()
+				p.SetInput(scenario.Query)
+				p.ParseExpr()
+			}
+		})
+	}
+}
+
+func BenchmarkNoCapParser(b *testing.B) {
+
+	b.ResetTimer()
+
+	for _, scenario := range tests {
+		b.Run(scenario.Name, func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				p := NewNoCapParser()
 				p.SetInput(scenario.Query)
 				p.ParseExpr()
 			}

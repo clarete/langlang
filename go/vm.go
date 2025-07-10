@@ -75,7 +75,8 @@ type virtualMachine struct {
 	values    []Value
 	expected  expectedInfo
 	errLabels map[string]string
-	suppress  map[string]struct{}
+	supprset  map[string]struct{}
+	suppress  int
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -152,14 +153,14 @@ var (
 func newVirtualMachine(
 	bytecode *Bytecode,
 	errLabels map[string]string,
-	suppress map[string]struct{},
+	suppressSet map[string]struct{},
 ) *virtualMachine {
 	return &virtualMachine{
 		stack:     &stack{},
 		bytecode:  bytecode,
 		errLabels: errLabels,
 		expected:  newExpectedInfo(),
-		suppress:  suppress,
+		supprset:  suppressSet,
 		ffp:       -1,
 	}
 }
@@ -364,16 +365,16 @@ func (vm *virtualMachine) mkCaptureFrame(id int) frame {
 	// if either the capture ID has been disabled, or a capture ID
 	// wrapping it is suppressed, so we put this flag here for
 	// `opCapEnd` to pick it up and skip capturing the node.
-	_, suppress := vm.suppress[vm.bytecode.strs[id]]
-	top, hasTop := vm.stack.findCaptureFrame()
-	suppress = suppress || (hasTop && top.suppress)
+	if _, shouldSuppress := vm.supprset[vm.bytecode.strs[id]]; shouldSuppress {
+		vm.suppress++
+	}
+
 	return frame{
-		t:        frameType_Capture,
-		capId:    id,
-		cursor:   vm.cursor,
-		line:     vm.line,
-		column:   vm.column,
-		suppress: suppress,
+		t:      frameType_Capture,
+		capId:  id,
+		cursor: vm.cursor,
+		line:   vm.line,
+		column: vm.column,
 	}
 }
 
@@ -384,13 +385,16 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 // Node Capture Helpers
 
 func (vm *virtualMachine) newNode(input Input, f frame) {
-	if f.suppress {
+	capId := vm.bytecode.strs[f.capId]
+	if vm.suppress > 0 {
+		if _, shouldSuppress := vm.supprset[capId]; shouldSuppress {
+			vm.suppress--
+		}
 		return
 	}
 	var (
 		node     Value
 		_, isrxp = vm.bytecode.rxps[f.capId]
-		capId    = vm.bytecode.strs[f.capId]
 		begin    = NewLocation(f.line, f.column, f.cursor)
 		end      = NewLocation(vm.line, vm.column, vm.cursor)
 		span     = NewSpan(begin, end)

@@ -58,6 +58,8 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.writel(fmt.Sprintf("var bytecodeFor%s = &Bytecode{", g.options.ParserName))
 	g.parser.indent()
 
+	// The Bytecode
+
 	g.parser.writeil("code: []byte{")
 	g.parser.indent()
 	g.parser.writei("")
@@ -68,6 +70,8 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.unindent()
 	g.parser.writeil("},")
 
+	// Strings Table
+
 	g.parser.writeil("strs: []string{")
 	g.parser.indent()
 	g.parser.writei("")
@@ -77,6 +81,8 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.writel("")
 	g.parser.unindent()
 	g.parser.writeil("},")
+
+	// Recovery Expressions Map
 
 	g.parser.writeil("rxps: map[int]int{")
 	g.parser.indent()
@@ -95,6 +101,25 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.unindent()
 	g.parser.writeil("},")
 
+	// strings map
+
+	g.parser.writeil("smap: map[string]int{")
+	g.parser.indent()
+	g.parser.writei("")
+
+	smap := make([]string, 0, len(bt.smap))
+	for xp := range bt.smap {
+		smap = append(smap, xp)
+	}
+	sort.Strings(smap)
+	for _, k := range smap {
+		v := bt.smap[k]
+		g.parser.write(fmt.Sprintf(`"%s": %d, `, k, v))
+	}
+	g.parser.writel("")
+	g.parser.unindent()
+	g.parser.writeil("},")
+
 	g.parser.unindent()
 	g.parser.writel("}")
 }
@@ -104,7 +129,7 @@ func (g *goEvalEmitter) writeParserStruct() {
 	g.parser.indent()
 	g.parser.writeil("input         string")
 	g.parser.writeil("captureSpaces bool")
-	g.parser.writeil("suppress      map[string]struct{}")
+	g.parser.writeil("suppress      map[int]struct{}")
 	g.parser.writeil("errLabels     map[string]string")
 	g.parser.unindent()
 	g.parser.writel("}")
@@ -113,7 +138,7 @@ func (g *goEvalEmitter) writeParserStruct() {
 func (g *goEvalEmitter) writeParserConstructor() {
 	g.parser.writel(fmt.Sprintf("func New%s() *%s {", g.options.ParserName, g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil(`suppress := map[string]struct{}{"Spacing": struct{}{}}`)
+	g.parser.writeil(fmt.Sprintf(`suppress := map[int]struct{}{bytecodeFor%s.smap["Spacing"]: struct{}{}}`, g.options.ParserName))
 	g.parser.writeil(fmt.Sprintf("return &%s{captureSpaces: true, suppress: suppress}", g.options.ParserName))
 	g.parser.unindent()
 	g.parser.writel("}")
@@ -151,7 +176,7 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr uint16) (Value, error) {", g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil(fmt.Sprintf("writeU16(bytecodeFor%s.code[1:], addr)", g.options.ParserName))
-	g.parser.writeil("suppress := map[string]struct{}{}")
+	g.parser.writeil("var suppress map[int]struct{}")
 	g.parser.writeil("if !p.captureSpaces {")
 	g.parser.indent()
 	g.parser.writeil("suppress = p.suppress")

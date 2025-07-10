@@ -67,6 +67,7 @@ func Encode(p *Program) *Bytecode {
 	return &Bytecode{
 		code: code,
 		strs: p.strings,
+		smap: p.stringsMap,
 		rxps: rxps,
 	}
 }

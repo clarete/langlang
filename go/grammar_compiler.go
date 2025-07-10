@@ -73,6 +73,7 @@ func Compile(expr AstNode, config CompilerConfig) (*Program, error) {
 		identifiers: c.identifiers,
 		recovery:    c.recovery,
 		strings:     c.strings,
+		stringsMap:  c.stringsMap,
 		code:        c.code,
 	}, nil
 }

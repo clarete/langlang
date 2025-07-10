@@ -11,8 +11,6 @@ import (
 	"github.com/clarete/langlang/go"
 )
 
-const defaultWritePermission = 0644 // -rw-r--r--
-
 type args struct {
 	grammarPath *string
 
@@ -75,7 +73,7 @@ func readArgs() *args {
 func main() {
 	var (
 		a         = readArgs()
-		suppress  map[string]struct{}
+		suppress  map[int]struct{}
 		errLabels map[string]string
 	)
 
@@ -119,10 +117,6 @@ func main() {
 		return
 	}
 
-	if !*a.enableCaptureSpacing {
-		suppress = map[string]struct{}{"Spacing": struct{}{}}
-	}
-
 	// Translate the AST into bytecode
 
 	asm, err := langlang.Compile(ast, langlang.CompilerConfig{Optimize: 1})
@@ -133,6 +127,10 @@ func main() {
 	if *a.grammarASM {
 		fmt.Println(asm.HighlightPrettyString())
 		return
+	}
+
+	if !*a.enableCaptureSpacing {
+		suppress = map[int]struct{}{asm.StringID("Spacing"): struct{}{}}
 	}
 
 	// If it's interactive, it will open a lil REPL shell

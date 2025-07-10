@@ -50,9 +50,15 @@ type Program struct {
 	// order they are requested.
 	strings []string
 
+	stringsMap map[string]int
+
 	// code is an array of instructions that get executed by the
 	// virtual machine
 	code []Instruction
+}
+
+func (p Program) StringID(n string) int {
+	return p.stringsMap[n]
 }
 
 func (p Program) PrettyString() string {

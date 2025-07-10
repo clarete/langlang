@@ -14,15 +14,18 @@ var bytecodeForGrammarParserBootstrap = &Bytecode{
 	rxps: map[int]int{
 		7: 1394, 9: 1432, 10: 1452, 19: 1374, 22: 1349, 26: 1354, 28: 1364, 29: 1369, 31: 1359, 
 	},
+	smap: map[string]int{
+		"": 6, "Any": 25, "Char": 27, "Class": 24, "Comment": 40, "Definition": 3, "EOF": 5, "EOL": 42, "Escape": 33, "Expression": 13, "Grammar": 0, "Hex": 36, "Identifier": 8, "Import": 2, "LEFTARROW": 12, "Labeled": 17, "List": 23, "Literal": 11, "MissingClosingBracket": 31, "MissingClosingCurly": 26, "MissingClosingDQuote": 29, "MissingClosingParen": 22, "MissingClosingSQuote": 28, "MissingImportFrom": 9, "MissingImportName": 7, "MissingImportSrc": 10, "MissingLabel": 19, "MissingRightRange": 32, "Prefix": 16, "Primary": 20, "Range": 30, "SLASH": 15, "Sequence": 14, "Space": 41, "Spacing": 1, "Suffix": 18, "Superscript": 21, "Unicode": 34, "chrH1": 35, "chrH2": 37, "chrH3": 38, "chrH4": 39, "eof": 4, 
+	},
 }
 type GrammarParserBootstrap struct{
 	input         string
 	captureSpaces bool
-	suppress      map[string]struct{}
+	suppress      map[int]struct{}
 	errLabels     map[string]string
 }
 func NewGrammarParserBootstrap() *GrammarParserBootstrap {
-	suppress := map[string]struct{}{"Spacing": struct{}{}}
+	suppress := map[int]struct{}{bytecodeForGrammarParserBootstrap.smap["Spacing"]: struct{}{}}
 	return &GrammarParserBootstrap{captureSpaces: true, suppress: suppress}
 }
 func (p *GrammarParserBootstrap) ParseGrammar() (Value, error) { return p.parseFn(5) }
@@ -67,7 +70,7 @@ func (p *GrammarParserBootstrap) SetLabelMessages(el map[string]string) { p.errL
 func (p *GrammarParserBootstrap) SetCaptureSpaces(v bool) { p.captureSpaces = v }
 func (p *GrammarParserBootstrap) parseFn(addr uint16) (Value, error) {
 	writeU16(bytecodeForGrammarParserBootstrap.code[1:], addr)
-	suppress := map[string]struct{}{}
+	var suppress map[int]struct{}
 	if !p.captureSpaces {
 		suppress = p.suppress
 	}

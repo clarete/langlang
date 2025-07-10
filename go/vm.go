@@ -15,17 +15,18 @@ type Input interface {
 type Bytecode struct {
 	code []byte
 	strs []string
+	smap map[string]int
 	rxps map[int]int
 }
 
 func (b *Bytecode) Match(input Input) (Value, int, error) {
-	return b.MatchE(input, map[string]string{}, nil)
+	return b.MatchE(input, nil, nil)
 }
 
 func (b *Bytecode) MatchE(
 	input Input,
 	errLabels map[string]string,
-	suppress map[string]struct{},
+	suppress map[int]struct{},
 ) (Value, int, error) {
 	vm := newVirtualMachine(b, errLabels, suppress)
 	return vm.Match(input)
@@ -75,7 +76,7 @@ type virtualMachine struct {
 	values    []Value
 	expected  expectedInfo
 	errLabels map[string]string
-	supprset  map[string]struct{}
+	supprset  map[int]struct{}
 	suppress  int
 }
 
@@ -153,7 +154,7 @@ var (
 func newVirtualMachine(
 	bytecode *Bytecode,
 	errLabels map[string]string,
-	suppressSet map[string]struct{},
+	suppressSet map[int]struct{},
 ) *virtualMachine {
 	return &virtualMachine{
 		stack:     &stack{},
@@ -365,16 +366,17 @@ func (vm *virtualMachine) mkCaptureFrame(id int) frame {
 	// if either the capture ID has been disabled, or a capture ID
 	// wrapping it is suppressed, so we put this flag here for
 	// `opCapEnd` to pick it up and skip capturing the node.
-	if _, shouldSuppress := vm.supprset[vm.bytecode.strs[id]]; shouldSuppress {
+	_, shouldSuppress := vm.supprset[id]
+	if shouldSuppress {
 		vm.suppress++
 	}
-
 	return frame{
-		t:      frameType_Capture,
-		capId:  id,
-		cursor: vm.cursor,
-		line:   vm.line,
-		column: vm.column,
+		t:        frameType_Capture,
+		capId:    id,
+		cursor:   vm.cursor,
+		line:     vm.line,
+		column:   vm.column,
+		suppress: shouldSuppress,
 	}
 }
 
@@ -385,16 +387,14 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 // Node Capture Helpers
 
 func (vm *virtualMachine) newNode(input Input, f frame) {
-	capId := vm.bytecode.strs[f.capId]
-	if vm.suppress > 0 {
-		if _, shouldSuppress := vm.supprset[capId]; shouldSuppress {
-			vm.suppress--
-		}
+	if f.suppress {
+		vm.suppress--
 		return
 	}
 	var (
 		node     Value
 		_, isrxp = vm.bytecode.rxps[f.capId]
+		capId    = vm.bytecode.strs[f.capId]
 		begin    = NewLocation(f.line, f.column, f.cursor)
 		end      = NewLocation(vm.line, vm.column, vm.cursor)
 		span     = NewSpan(begin, end)

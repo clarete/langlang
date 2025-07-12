@@ -32,12 +32,13 @@ func BenchmarkParser(b *testing.B) {
 	inputs := getInputs(b)
 
 	b.ResetTimer()
+	p := NewParser()
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
+			p.SetInput(inputs[name])
+
 			for n := 0; n < b.N; n++ {
-				p := NewParser()
-				p.SetInput(inputs[name])
 				p.ParseJSON()
 			}
 		})
@@ -48,12 +49,13 @@ func BenchmarkNoCapParser(b *testing.B) {
 	inputs := getInputs(b)
 
 	b.ResetTimer()
+	p := NewNoCapParser()
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
+			p.SetInput(inputs[name])
+
 			for n := 0; n < b.N; n++ {
-				p := NewNoCapParser()
-				p.SetInput(inputs[name])
 				p.ParseJSON()
 			}
 		})

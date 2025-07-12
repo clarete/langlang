@@ -110,12 +110,13 @@ var tests = []scenario{
 func BenchmarkParser(b *testing.B) {
 
 	b.ResetTimer()
+	p := NewParser()
 
 	for _, scenario := range tests {
 		b.Run(scenario.Name, func(b *testing.B) {
+			p.SetInput(scenario.Query)
+
 			for n := 0; n < b.N; n++ {
-				p := NewParser()
-				p.SetInput(scenario.Query)
 				p.ParseExpr()
 			}
 		})
@@ -125,12 +126,13 @@ func BenchmarkParser(b *testing.B) {
 func BenchmarkNoCapParser(b *testing.B) {
 
 	b.ResetTimer()
+	p := NewNoCapParser()
 
 	for _, scenario := range tests {
 		b.Run(scenario.Name, func(b *testing.B) {
+			p.SetInput(scenario.Query)
+
 			for n := 0; n < b.N; n++ {
-				p := NewNoCapParser()
-				p.SetInput(scenario.Query)
 				p.ParseExpr()
 			}
 		})

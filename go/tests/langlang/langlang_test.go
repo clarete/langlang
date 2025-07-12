@@ -32,12 +32,13 @@ func BenchmarkParser(b *testing.B) {
 	grammars := getGrammars(b)
 
 	b.ResetTimer()
+	p := NewParser()
 
 	for _, name := range grammarNames {
 		b.Run(fmt.Sprintf("Grammar %s", name), func(b *testing.B) {
+			p.SetInput(grammars[name])
+
 			for n := 0; n < b.N; n++ {
-				p := NewParser()
-				p.SetInput(grammars[name])
 				p.ParseGrammar()
 			}
 		})
@@ -48,12 +49,13 @@ func BenchmarkNoCapParser(b *testing.B) {
 	grammars := getGrammars(b)
 
 	b.ResetTimer()
+	p := NewNoCapParser()
 
 	for _, name := range grammarNames {
 		b.Run(fmt.Sprintf("Grammar %s", name), func(b *testing.B) {
+			p.SetInput(grammars[name])
+
 			for n := 0; n < b.N; n++ {
-				p := NewNoCapParser()
-				p.SetInput(grammars[name])
 				p.ParseGrammar()
 			}
 		})

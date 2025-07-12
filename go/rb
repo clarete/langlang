@@ -4,6 +4,15 @@ VERSION=$(git describe --tags --always --dirty)
 
 declare -a suites=("charsets" "import" "json" "langlang")
 
+echo -n "Regenerate parsers"
+go generate ./...
+if [ $? -eq 0 ]; then
+    echo OK
+else
+    echo FAIL
+    exit 1
+fi
+
 for suite in "${suites[@]}"; do
   echo "Benchmark $suite"
 

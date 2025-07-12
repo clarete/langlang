@@ -40,45 +40,76 @@ type frame struct {
 	// a capId
 	values []Value
 
-	// captured contains how many values have been captured
-	captured int
-
 	// suppress is true if we should *not* keep any captures under
 	// this frame (nor any frame nested underneath it)
 	suppress bool
 }
 
-type stack []frame
+func (f *frame) len() int {
+	return len(f.values)
+}
+
+func (f *frame) capture(values ...Value) {
+	if len(f.values) == 0 {
+		f.values = values
+	} else {
+		f.values = append(f.values, values...)
+	}
+}
+
+type stack struct {
+	frames []frame
+	values []Value
+}
 
 func (s *stack) push(f frame) {
-	*s = append(*s, f)
+	s.frames = append(s.frames, f)
 }
 
 func (s *stack) pop() frame {
-	f := (*s)[len(*s)-1]
-	*s = (*s)[:len(*s)-1]
+	f := (s.frames)[len(s.frames)-1]
+	s.frames = (s.frames)[:len(s.frames)-1]
 	return f
 }
 
 func (s *stack) top() *frame {
-	return &(*s)[len(*s)-1]
+	return s.peek(0)
+}
+
+func (s *stack) peek(n int) *frame {
+	return &s.frames[len(s.frames)-n-1]
 }
 
 func (s *stack) len() int {
-	return len(*s)
+	return len(s.frames)
 }
 
-func (s *stack) dropUncommittedValues(captured int) {
-	if top, ok := s.findCaptureFrame(); ok {
-		top.values = top.values[:captured]
+func (s *stack) capture(values ...Value) {
+	if len(values) == 0 {
+		return
+	}
+	if s.len() > 0 {
+		s.top().capture(values...)
+		return
+	}
+	if len(s.values) == 0 {
+		s.values = values
+	} else {
+		s.values = append(s.values, values...)
 	}
 }
 
-func (s *stack) findCaptureFrame() (*frame, bool) {
-	for i := s.len() - 1; i >= 0; i-- {
-		if (*s)[i].t == frameType_Capture {
-			return &(*s)[i], true
+func (s *stack) collectCaptures() {
+	n := s.len()
+	if n == 0 {
+		return
+	}
+	f := s.top()
+	if f.len() > 0 {
+		if n == 1 {
+			s.values = append(s.values, f.values...)
+		} else {
+			s.peek(1).capture(f.values...)
 		}
 	}
-	return nil, false
 }

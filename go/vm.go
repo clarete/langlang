@@ -73,7 +73,6 @@ type virtualMachine struct {
 	stack     *stack
 	bytecode  *Bytecode
 	predicate bool
-	values    []Value
 	expected  expectedInfo
 	errLabels map[string]string
 	supprset  map[int]struct{}
@@ -179,8 +178,8 @@ code:
 		case opHalt:
 			// dbg(fmt.Sprintf("vals: %#v\n", vm.values))
 			var top Value
-			if len(vm.values) > 0 {
-				top = vm.values[len(vm.values)-1]
+			if len(vm.stack.values) > 0 {
+				top = vm.stack.values[len(vm.stack.values)-1]
 			}
 			return top, vm.cursor, nil
 
@@ -248,7 +247,8 @@ code:
 			vm.predicate = true
 
 		case opCommit:
-			vm.stack.pop()
+			f := vm.stack.pop()
+			vm.stack.capture(f.values...)
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opPartialCommit:
@@ -257,10 +257,13 @@ code:
 			top.cursor = vm.cursor
 			top.line = vm.line
 			top.column = vm.column
-			top.captured = vm.numCapturedValues()
+			vm.stack.collectCaptures()
+			top.values = nil
 
 		case opBackCommit:
-			vm.backtrackToFrame(input, vm.stack.pop())
+			f := vm.stack.pop()
+			vm.stack.capture(f.values...)
+			vm.backtrackToFrame(input, f)
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opCall:
@@ -268,7 +271,9 @@ code:
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 
 		case opReturn:
-			vm.pc = vm.stack.pop().pc
+			f := vm.stack.pop()
+			vm.stack.capture(f.values...)
+			vm.pc = f.pc
 
 		case opThrow:
 			if vm.predicate {
@@ -303,12 +308,18 @@ fail:
 
 	for vm.stack.len() > 0 {
 		f := vm.stack.pop()
-		if f.t == frameType_Backtracking {
+		switch {
+		case f.t == frameType_Backtracking:
+			f.values = nil
 			vm.pc = f.pc
 			vm.predicate = f.predicate
 			vm.backtrackToFrame(input, f)
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
 			goto code
+
+		case f.t == frameType_Call:
+			f.values = nil
+			goto fail
 		}
 	}
 	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", vm.cursor, vm.ffp))
@@ -333,27 +344,17 @@ func (vm *virtualMachine) backtrackToFrame(input Input, f frame) {
 	vm.cursor = f.cursor
 	vm.line = f.line
 	vm.column = f.column
-	vm.stack.dropUncommittedValues(f.captured)
 	input.Seek(int64(vm.cursor), io.SeekStart)
 }
 
 func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {
 	return frame{
-		t:        frameType_Backtracking,
-		pc:       pc,
-		cursor:   vm.cursor,
-		line:     vm.line,
-		column:   vm.column,
-		captured: vm.numCapturedValues(),
+		t:      frameType_Backtracking,
+		pc:     pc,
+		cursor: vm.cursor,
+		line:   vm.line,
+		column: vm.column,
 	}
-}
-
-func (vm *virtualMachine) numCapturedValues() int {
-	captured := 0
-	if f, ok := vm.stack.findCaptureFrame(); ok {
-		captured = len(f.values)
-	}
-	return captured
 }
 
 func (vm *virtualMachine) mkBacktrackPredFrame(pc int) frame {
@@ -423,7 +424,7 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 		if !ok {
 			msg = capId
 		}
-		vm.capture(NewError(capId, msg, node, span))
+		vm.stack.capture(NewError(capId, msg, node, span))
 		return
 	}
 
@@ -437,30 +438,14 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 	// if the capture ID is empty, it means that it is an inner
 	// expression capture.
 	if capId == "" {
-		vm.capture(node)
+		vm.stack.capture(node)
 		return
 	}
 
 	// This is a named capture.  The `AddCaptures` step of the
 	// Grammar Compiler wraps the expression within `Definition`
 	// nodes with `Capture` nodes named after the definition.
-	vm.capture(NewNode(capId, node, span))
-}
-
-func (vm *virtualMachine) capture(values ...Value) {
-	if capFrame, ok := vm.stack.findCaptureFrame(); ok {
-		if len(capFrame.values) == 0 {
-			capFrame.values = values
-		} else {
-			capFrame.values = append(capFrame.values, values...)
-		}
-		return
-	}
-	if len(vm.values) == 0 {
-		vm.values = values
-	} else {
-		vm.values = append(vm.values, values...)
-	}
+	vm.stack.capture(NewNode(capId, node, span))
 }
 
 // Error Handling Helpers

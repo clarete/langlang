@@ -1,0 +1,26 @@
+// https://en.wikipedia.org/wiki/Wirth_syntax_notation
+
+Syntax     <- Production* EOF
+Production <- Identifier "=" Expression? "."
+Expression <- Term ("|" Term)*
+Term       <- Factor+
+Factor     <- Identifier !"="
+            / Range
+            / Group
+            / Option
+            / Repetition
+Range      <- Literal ("…" Literal)?
+Group      <- "(" Expression ")"
+Option     <- "[" Expression "]"
+Repetition <- "{" Expression "}"
+
+
+// Syntactic Rules
+
+Identifier <- [a-zA-Z_]+
+Literal    <- ["] (!["] .)* ["]
+            / ['] (!['] .)* [']
+
+// Include Comment rule into Spacing to get automatically ignored
+Spacing    <- (Space / Comment)*
+Comment    <- '(*' (!'*)' .)* '*)'

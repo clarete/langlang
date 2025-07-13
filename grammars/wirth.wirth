@@ -1,0 +1,24 @@
+(* https://en.wikipedia.org/wiki/Wirth_syntax_notation *)
+
+Syntax     = { Production } .
+Production = Identifier "=" Expression "." .
+Expression = Term { "|" Term } .
+Term       = Factor { Factor } .
+Factor     = Identifier
+           | Range
+           | Group
+           | Option
+           | Repetition .
+
+Group      = "(" Expression ")" .
+Option     = "[" Expression "]" .
+Repetition = "{" Expression "}" .
+Range      = Literal [ "…" Literal ] .
+
+Identifier = IdStart { IdCont } .
+IdStart    = "a"…"z" | "A"…"Z" | "_" .
+IdCont     = IdStart | "0"…"9" .
+
+Literal    = "\'" char { char } "\'" .
+
+char       = letter | "0"…"9" | "\\" | "\"" | "\'" .

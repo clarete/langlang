@@ -12,6 +12,8 @@ import (
 )
 
 type args struct {
+	useWirth *bool
+
 	grammarPath *string
 
 	grammarAST *bool
@@ -35,6 +37,8 @@ type args struct {
 
 func readArgs() *args {
 	a := &args{
+		useWirth: flag.Bool("use-wirth", false, "Read Wirth input files instead of PEGs"),
+
 		grammarPath: flag.String("grammar", "", "Path to the grammar file"),
 
 		// Debugging Options
@@ -75,15 +79,20 @@ func main() {
 		a         = readArgs()
 		suppress  map[int]struct{}
 		errLabels map[string]string
+		ast       langlang.AstNode
+		err       error
 	)
 
 	if *a.grammarPath == "" {
 		log.Fatal("Grammar not informed")
 	}
 
-	// TODO: this should move into the API
-
-	ast, err := importGrammar(*a.grammarPath)
+	if *a.useWirth {
+		ast, err = importWirthGrammar(*a.grammarPath)
+	} else {
+		// TODO: this should move into the API
+		ast, err = importGrammar(*a.grammarPath)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -218,4 +227,13 @@ func importGrammar(path string) (langlang.AstNode, error) {
 	importLoader := langlang.NewRelativeImportLoader()
 	importResolver := langlang.NewImportResolver(importLoader)
 	return importResolver.Resolve(path)
+}
+
+func importWirthGrammar(path string) (langlang.AstNode, error) {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	parser := langlang.NewWirthGrammarParser(string(text))
+	return parser.Parse()
 }

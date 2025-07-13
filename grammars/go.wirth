@@ -1,0 +1,368 @@
+(* // https://go.dev/ref/spec *)
+
+(* // https://go.dev/ref/spec#Packages *)
+
+SourceFile = PackageClause ";" { ImportDecl ";" } { TopLevelDecl ";" } .
+
+(* // https://go.dev/ref/spec#Import_declarations *)
+
+ImportDecl = "import" ( ImportSpec | "(" { ImportSpec ";" } ")" ) .
+ImportSpec = [ "." | PackageName ] ImportPath .
+ImportPath = string_lit .
+
+(* // https://go.dev/ref/spec#Package_clause *)
+
+PackageClause = "package" PackageName .
+PackageName   = identifier .
+
+(* // Statements *)
+
+DeferStmt       = "defer" Expression .             (* // https://go.dev/ref/spec#Defer_statements *)
+FallthroughStmt = "fallthrough" .                  (* // https://go.dev/ref/spec#Fallthrough_statements *)
+GotoStmt        = "goto" Label .                   (* // https://go.dev/ref/spec#Goto_statements *)
+ContinueStmt    = "continue" [ Label ] .           (* // https://go.dev/ref/spec#Continue_statements *)
+BreakStmt       = "break" [ Label ] .              (* // https://go.dev/ref/spec#Break_statements *)
+ReturnStmt      = "return" [ ExpressionList ] .    (* // https://go.dev/ref/spec#Return_statements *)
+
+(* // https://go.dev/ref/spec#Select_statements *)
+
+SelectStmt = "select" "{" { CommClause } "}" .
+CommClause = CommCase ":" StatementList .
+CommCase   = "case" ( SendStmt | RecvStmt ) | "default" .
+RecvStmt   = [ ExpressionList "=" | IdentifierList ":=" ] RecvExpr .
+RecvExpr   = Expression .
+
+(* // https://go.dev/ref/spec#Go_statements *)
+
+GoStmt = "go" Expression .
+
+(* // https://go.dev/ref/spec#For_range *)
+
+RangeClause = [ ExpressionList "=" | IdentifierList ":=" ] "range" Expression .
+
+(* // https://go.dev/ref/spec#For_clause *)
+
+ForClause = [ InitStmt ] ";" [ Condition ] ";" [ PostStmt ] .
+InitStmt  = SimpleStmt .
+PostStmt  = SimpleStmt .
+
+(* // https://go.dev/ref/spec#For_statements *)
+
+ForStmt   = "for" [ Condition | ForClause | RangeClause ] Block .
+Condition = Expression .
+
+(* // https://go.dev/ref/spec#Type_switches *)
+
+TypeSwitchStmt  = "switch" [ SimpleStmt ";" ] TypeSwitchGuard "{" { TypeCaseClause } "}" .
+TypeSwitchGuard = [ identifier ":=" ] PrimaryExpr "." "(" "type" ")" .
+TypeCaseClause  = TypeSwitchCase ":" StatementList .
+TypeSwitchCase  = "case" TypeList | "default" .
+
+(* // https://go.dev/ref/spec#Expression_switches *)
+
+ExprSwitchStmt = "switch" [ SimpleStmt ";" ] [ Expression ] "{" { ExprCaseClause } "}" .
+ExprCaseClause = ExprSwitchCase ":" StatementList .
+ExprSwitchCase = "case" ExpressionList | "default" .
+
+(* // https://go.dev/ref/spec#Switch_statements *)
+
+SwitchStmt = ExprSwitchStmt | TypeSwitchStmt .
+
+(* // https://go.dev/ref/spec#If_statements *)
+
+IfStmt = "if" [ SimpleStmt ";" ] Expression Block [ "else" ( IfStmt | Block ) ] .
+
+(* // https://go.dev/ref/spec#Assignment_statements *)
+
+Assignment = ExpressionList assign_op ExpressionList .
+
+assign_op  = [ add_op | mul_op ] "=" .
+
+(* // https://go.dev/ref/spec#IncDec_statements *)
+
+IncDecStmt = Expression ( "++" | "--" ) .
+
+(* // https://go.dev/ref/spec#Send_statements *)
+
+SendStmt = Channel "<-" Expression .
+Channel  = Expression .
+
+(* // https://go.dev/ref/spec#Expression_statements *)
+
+ExpressionStmt = Expression .
+
+(* // https://go.dev/ref/spec#Empty_statements *)
+
+EmptyStmt = .
+
+(* // https://go.dev/ref/spec#Statements *)
+
+Statement  = Declaration | LabeledStmt | SimpleStmt |
+             GoStmt | ReturnStmt | BreakStmt | ContinueStmt | GotoStmt |
+             FallthroughStmt | Block | IfStmt | SwitchStmt | SelectStmt | ForStmt |
+             DeferStmt .
+
+SimpleStmt = EmptyStmt | ExpressionStmt | SendStmt | IncDecStmt | Assignment | ShortVarDecl .
+
+(* // https://go.dev/ref/spec#Conversions *)
+
+Conversion = Type "(" Expression [ "," ] ")" .
+
+(* // https://go.dev/ref/spec#Operators *)
+
+Expression = UnaryExpr | Expression binary_op Expression .
+UnaryExpr  = PrimaryExpr | unary_op UnaryExpr .
+
+binary_op  = "||" | "&&" | rel_op | add_op | mul_op .
+rel_op     = "==" | "!=" | "<" | "<=" | ">" | ">=" .
+add_op     = "+" | "-" | "|" | "^" .
+mul_op     = "*" | "/" | "%" | "<<" | ">>" | "&" | "&^" .
+
+unary_op   = "+" | "-" | "!" | "^" | "*" | "&" | "<-" .
+
+(* // https://go.dev/ref/spec#Method_expressions *)
+
+MethodExpr   = ReceiverType "." MethodName .
+ReceiverType = Type .
+
+(* // https://go.dev/ref/spec#Primary_expressions *)
+
+PrimaryExpr   = Operand |
+                Conversion |
+                MethodExpr |
+                PrimaryExpr Selector |
+                PrimaryExpr Index |
+                PrimaryExpr Slice |
+                PrimaryExpr TypeAssertion |
+                PrimaryExpr Arguments .
+
+Selector      = "." identifier .
+Index         = "[" Expression [ "," ] "]" .
+Slice         = "[" [ Expression ] ":" [ Expression ] "]" |
+                "[" [ Expression ] ":" Expression ":" Expression "]" .
+TypeAssertion = "." "(" Type ")" .
+Arguments     = "(" [ ( ExpressionList | Type [ "," ExpressionList ] ) [ "..." ] [ "," ] ] ")" .
+
+(* // https://go.dev/ref/spec#Function_literals *)
+
+FunctionLit = "func" Signature FunctionBody .
+
+(* // https://go.dev/ref/spec#Composite_literals *)
+
+CompositeLit = LiteralType LiteralValue .
+LiteralType  = StructType | ArrayType | "[" "..." "]" ElementType |
+               SliceType | MapType | TypeName [ TypeArgs ] .
+LiteralValue = "{" [ ElementList [ "," ] ] "}" .
+ElementList  = KeyedElement { "," KeyedElement } .
+KeyedElement = [ Key ":" ] Element .
+Key          = FieldName | Expression | LiteralValue .
+FieldName    = identifier .
+Element      = Expression | LiteralValue .
+
+(* // https://go.dev/ref/spec#Qualified_identifiers *)
+
+QualifiedIdent = PackageName "." identifier .
+
+(* // https://go.dev/ref/spec#Expressions *)
+
+Operand     = Literal | OperandName [ TypeArgs ] | "(" Expression ")" .
+Literal     = BasicLit | CompositeLit | FunctionLit .
+BasicLit    = int_lit | float_lit | imaginary_lit | rune_lit | string_lit .
+OperandName = identifier | QualifiedIdent .
+
+(* // https://go.dev/ref/spec#Method_declarations *)
+
+MethodDecl = "func" Receiver MethodName Signature [ FunctionBody ] .
+Receiver   = Parameters .
+
+(* // https://go.dev/ref/spec#Function_declarations *)
+
+FunctionDecl = "func" FunctionName [ TypeParameters ] Signature [ FunctionBody ] .
+FunctionName = identifier .
+FunctionBody = Block .
+
+(* // https://go.dev/ref/spec#Short_variable_declarations *)
+
+ShortVarDecl = IdentifierList ":=" ExpressionList .
+
+(* // https://go.dev/ref/spec#Variable_declarations *)
+
+VarDecl = "var" ( VarSpec | "(" { VarSpec ";" } ")" ) .
+VarSpec = IdentifierList ( Type [ "=" ExpressionList ] | "=" ExpressionList ) .
+
+(* // https://go.dev/ref/spec#Type_constraints *)
+
+TypeConstraint = TypeElem .
+
+(* // https://go.dev/ref/spec#Type_parameter_declarations *)
+
+TypeParameters = "[" TypeParamList [ "," ] "]" .
+TypeParamList  = TypeParamDecl { "," TypeParamDecl } .
+TypeParamDecl  = IdentifierList TypeConstraint .
+
+(* // https://go.dev/ref/spec#Type_definitions *)
+
+TypeDef = identifier [ TypeParameters ] Type .
+
+(* // https://go.dev/ref/spec#Alias_declarations *)
+
+AliasDecl = identifier [ TypeParameters ] "=" Type .
+
+(* // https://go.dev/ref/spec#Type_declarations *)
+
+TypeDecl = "type" ( TypeSpec | "(" { TypeSpec ";" } ")" ) .
+TypeSpec = AliasDecl | TypeDef .
+
+(* // https://go.dev/ref/spec#Constant_declarations *)
+
+ConstDecl      = "const" ( ConstSpec | "(" { ConstSpec ";" } ")" ) .
+ConstSpec      = IdentifierList [ [ Type ] "=" ExpressionList ] .
+
+IdentifierList = identifier { "," identifier } .
+ExpressionList = Expression { "," Expression } .
+
+(* // https://go.dev/ref/spec#Declarations_and_scope *)
+
+Declaration  = ConstDecl | TypeDecl | VarDecl .
+TopLevelDecl = Declaration | FunctionDecl | MethodDecl .
+
+(* // https://go.dev/ref/spec#Blocks *)
+
+Block         = "{" StatementList "}" .
+StatementList = { Statement ";" } .
+
+(* // https://go.dev/ref/spec#Channel_types *)
+
+ChannelType = ( "chan" | "chan" "<-" | "<-" "chan" ) ElementType .
+
+(* // https://go.dev/ref/spec#Map_types *)
+
+MapType = "map" "[" KeyType "]" ElementType .
+KeyType = Type .
+
+(* // https://go.dev/ref/spec#Interface_types *)
+
+InterfaceType  = "interface" "{" { InterfaceElem ";" } "}" .
+InterfaceElem  = MethodElem | TypeElem .
+MethodElem     = MethodName Signature .
+MethodName     = identifier .
+TypeElem       = TypeTerm { "|" TypeTerm } .
+TypeTerm       = Type | UnderlyingType .
+UnderlyingType = "~" Type .
+
+(* // https://go.dev/ref/spec#Function_types *)
+
+FunctionType  = "func" Signature .
+Signature     = Parameters [ Result ] .
+Result        = Parameters | Type .
+Parameters    = "(" [ ParameterList [ "," ] ] ")" .
+ParameterList = ParameterDecl { "," ParameterDecl } .
+ParameterDecl = [ IdentifierList ] [ "..." ] Type .
+
+(* // https://go.dev/ref/spec#Pointer_types *)
+
+PointerType = "*" BaseType .
+BaseType    = Type .
+
+(* // https://go.dev/ref/spec#Slice_types *)
+
+StructType    = "struct" "{" { FieldDecl ";" } "}" .
+FieldDecl     = (IdentifierList Type | EmbeddedField) [ Tag ] .
+EmbeddedField = [ "*" ] TypeName [ TypeArgs ] .
+Tag           = string_lit .
+
+(* // https://go.dev/ref/spec#Slice_types *)
+
+SliceType = "[" "]" ElementType .
+
+(* // https://go.dev/ref/spec#Array_types *)
+
+ArrayType   = "[" ArrayLength "]" ElementType .
+ArrayLength = Expression .
+ElementType = Type .
+
+(* // https://go.dev/ref/spec#Types *)
+
+Type     = TypeName [ TypeArgs ] | TypeLit | "(" Type ")" .
+TypeName = identifier | QualifiedIdent .
+TypeArgs = "[" TypeList [ "," ] "]" .
+TypeList = Type { "," Type } .
+TypeLit  = ArrayType | StructType | PointerType | FunctionType | InterfaceType |
+           SliceType | MapType | ChannelType .
+
+(* // https://go.dev/ref/spec#String_literals *)
+
+string_lit             = raw_string_lit | interpreted_string_lit .
+raw_string_lit         = "`" { unicode_char | newline } "`" .
+interpreted_string_lit = `"` { unicode_value | byte_value } `"` .
+
+(* // https://go.dev/ref/spec#Rune_literals *)
+
+rune_lit         = "'" ( unicode_value | byte_value ) "'" .
+unicode_value    = unicode_char | little_u_value | big_u_value | escaped_char .
+byte_value       = octal_byte_value | hex_byte_value .
+octal_byte_value = `\` octal_digit octal_digit octal_digit .
+hex_byte_value   = `\` "x" hex_digit hex_digit .
+little_u_value   = `\` "u" hex_digit hex_digit hex_digit hex_digit .
+big_u_value      = `\` "U" hex_digit hex_digit hex_digit hex_digit
+                           hex_digit hex_digit hex_digit hex_digit .
+escaped_char     = `\` ( "a" | "b" | "f" | "n" | "r" | "t" | "v" | `\` | "'" | `"` ) .
+
+(* // https://go.dev/ref/spec#Imaginary_literals *)
+
+imaginary_lit = (decimal_digits | int_lit | float_lit) "i" .
+
+(* // https://go.dev/ref/spec#Floating-point_literals *)
+
+float_lit         = decimal_float_lit | hex_float_lit .
+
+decimal_float_lit = decimal_digits "." [ decimal_digits ] [ decimal_exponent ] |
+                    decimal_digits decimal_exponent |
+                    "." decimal_digits [ decimal_exponent ] .
+decimal_exponent  = ( "e" | "E" ) [ "+" | "-" ] decimal_digits .
+
+hex_float_lit     = "0" ( "x" | "X" ) hex_mantissa hex_exponent .
+hex_mantissa      = [ "_" ] hex_digits "." [ hex_digits ] |
+                    [ "_" ] hex_digits |
+                    "." hex_digits .
+hex_exponent      = ( "p" | "P" ) [ "+" | "-" ] decimal_digits .
+
+(* // https://go.dev/ref/spec#Integer_literals *)
+
+int_lit        = decimal_lit | binary_lit | octal_lit | hex_lit .
+decimal_lit    = "0" | ( "1" … "9" ) [ [ "_" ] decimal_digits ] .
+binary_lit     = "0" ( "b" | "B" ) [ "_" ] binary_digits .
+octal_lit      = "0" [ "o" | "O" ] [ "_" ] octal_digits .
+hex_lit        = "0" ( "x" | "X" ) [ "_" ] hex_digits .
+
+decimal_digits = decimal_digit { [ "_" ] decimal_digit } .
+binary_digits  = binary_digit { [ "_" ] binary_digit } .
+octal_digits   = octal_digit { [ "_" ] octal_digit } .
+hex_digits     = hex_digit { [ "_" ] hex_digit } .
+
+(* // https://go.dev/ref/spec#Keywords *)
+
+keywords = "break"    | "default"     | "func"   | "interface" | "select"
+         | "case"     | "defer"       | "go"     | "map"       | "struct"
+         | "chan"     | "else"        | "goto"   | "package"   | "switch"
+         | "const"    | "fallthrough" | "if"     | "range"     | "type"
+         | "continue" | "for"         | "import" | "return"    | "var"
+
+(* // https://go.dev/ref/spec#Identifiers *)
+
+identifier = letter { letter | unicode_digit } .
+
+(* // https://go.dev/ref/spec#Identifiers *)
+
+letter        = unicode_letter | "_" .
+decimal_digit = "0" … "9" .
+binary_digit  = "0" | "1" .
+octal_digit   = "0" … "7" .
+hex_digit     = "0" … "9" | "A" … "F" | "a" … "f" .
+
+(* // https://go.dev/ref/spec#Characters *)
+
+newline        = "\n" | "\r\n" . (* /* the Unicode code point U+000A */ . *)
+unicode_char   = (* /* an arbitrary Unicode code point except newline */ . *)
+unicode_letter = (* /* a Unicode code point categorized as "Letter" */ . *)
+unicode_digit  = (* /* a Unicode code point categorized as "Number, decimal digit" */ . *)

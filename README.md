@@ -1,36 +1,37 @@
 
 # Table of Contents
 
-1.  [Introduction](#org49c8cf3)
-    1.  [Project Status](#org2838d6b)
-    2.  [Supported targets](#orgf10e390)
-        1.  [Notes](#orge3f2c3a)
-    3.  [Basic Usage](#org6c7d336)
-        1.  [Interactive](#org698726c)
-        2.  [Point it at a file](#orgea6699c)
-        3.  [Command line arguments](#org6479e2d)
-        4.  [Go specific options](#org775fcd4)
-2.  [Input Language](#org460ab31)
-    1.  [Productions and Expressions](#org8705cef)
-    2.  [Terminals](#orgff91357)
-    3.  [Non-Terminals](#orga858177)
-    4.  [Expression Composition](#orgd4c3597)
-        1.  [Ordered Choice](#org6e2f078)
-        2.  [Syntactic Predicates](#org63b9c73)
-        3.  [Repetitions](#orgdcd649d)
-        4.  [Lexification](#org6454100)
-        5.  [Error reporting with Labels](#org9aa1ff5)
-        6.  [Import system](#orgd217d35)
-3.  [Roadmap](#org0abad28)
-4.  [Changelog](#org663abfd)
-    1.  [go/v0.0.9 (unreleased)](#orgee48ec8)
-    2.  [go/v0.0.8](#orgb555e69)
-    3.  [go/v0.0.7](#org3079627)
-    4.  [go/v0.0.6](#orga329959)
-    5.  [go/v0.0.5](#orgf35e80d)
+1.  [Introduction](#org64417c3)
+    1.  [Project Status](#org5164cdc)
+    2.  [Supported targets](#org12bfeb9)
+        1.  [Notes](#orgd934bc4)
+    3.  [Basic Usage](#org4302ac8)
+        1.  [Interactive](#orgf4c0582)
+        2.  [Point it at a file](#orgd7646ee)
+        3.  [Command line arguments](#orgde65d06)
+        4.  [Go specific options](#org52077f5)
+        5.  [Other options](#orga5b56c5)
+2.  [Input Language](#org76f1e51)
+    1.  [Productions and Expressions](#org0a0700c)
+    2.  [Terminals](#org54a6c50)
+    3.  [Non-Terminals](#orgb8ea383)
+    4.  [Expression Composition](#org2bdcc04)
+        1.  [Ordered Choice](#org4534be1)
+        2.  [Syntactic Predicates](#orgeb0c7b2)
+        3.  [Repetitions](#org095c0aa)
+        4.  [Lexification](#orga8283dd)
+        5.  [Error reporting with Labels](#orga5eb4be)
+        6.  [Import system](#org604171f)
+3.  [Roadmap](#org43fc7ef)
+4.  [Changelog](#org4e429b8)
+    1.  [go/v0.0.9 (unreleased)](#org90f5f36)
+    2.  [go/v0.0.8](#org56e222b)
+    3.  [go/v0.0.7](#orgdffda78)
+    4.  [go/v0.0.6](#orgd1abf58)
+    5.  [go/v0.0.5](#orgf36dff4)
 
 
-<a id="org49c8cf3"></a>
+<a id="org64417c3"></a>
 
 # Introduction
 
@@ -46,7 +47,7 @@ different languages.  Some are reasons why you might want to use this:
     even upon multiple parsing errors.
 
 
-<a id="org2838d6b"></a>
+<a id="org5164cdc"></a>
 
 ## Project Status
 
@@ -58,7 +59,7 @@ different languages.  Some are reasons why you might want to use this:
     first, then being stable, then being featureful.
 
 
-<a id="orgf10e390"></a>
+<a id="org12bfeb9"></a>
 
 ## Supported targets
 
@@ -69,7 +70,7 @@ different languages.  Some are reasons why you might want to use this:
 -   [ ] Write your own code generator
 
 
-<a id="orge3f2c3a"></a>
+<a id="orgd934bc4"></a>
 
 ### Notes
 
@@ -85,12 +86,12 @@ different languages.  Some are reasons why you might want to use this:
     the target languages.
 
 
-<a id="org6c7d336"></a>
+<a id="org4302ac8"></a>
 
 ## Basic Usage
 
 
-<a id="org698726c"></a>
+<a id="orgf4c0582"></a>
 
 ### Interactive
 
@@ -116,7 +117,7 @@ out different input expressions. e.g.:
                 └── "]" (4..5)
 
 
-<a id="orgea6699c"></a>
+<a id="orgd7646ee"></a>
 
 ### Point it at a file
 
@@ -127,7 +128,7 @@ of the repository.  It contains a grammar library for commonly used
 input formats.
 
 
-<a id="org6479e2d"></a>
+<a id="orgde65d06"></a>
 
 ### Command line arguments
 
@@ -135,24 +136,35 @@ input formats.
     grammar FILE as input and if no output path is provided, an
     interactive shell presented.
 
--   `-grammar-ast`: Shows the AST of the input grammar.
+-   `-disable-whitespaces`: If this flag is set, the whitespace
+    handling productions won't be inserted into the AST.  This is
+    useful for grammars that already have spacing rules placed
+    throughout their definitions.
 
--   `-grammar-asm`: Shows the ASM code generated from the input
-    grammar.
+-   `-disable-captures`: If this flag is set, the generated parser
+    won't capture any values (functioning as matching only.)
 
--   `--disable-whitespace-handling`: If this flag is present, the
-    whitespace handling productions won't be inserted into the AST.
+-   `-enable-capture-spaces`: Even when captures are enabled, one might
+    want the parser to skip collecting space chars anyway.  This flag
+    does just that on runtime (in contrast to `-disable-captures`, that
+    disables all captures in ****compile**** time)
 
--   `--output-path PATH`: this option replaces `stdout` as the output with
+-   `-output-path PATH`: this option replaces `stdout` as the output with
     the PATH value provided to this command.
 
--   `--output-language LANG`: this will cause the generator to output a
+-   `-output-language LANG`: this will cause the generator to output a
     parser in the target language LANG.  As of this writing, the only
     supported value is `go`, but there are plans to extend support to
     both Python, JavaScript/TypeScript, Rust and other languages.
 
+-   `-show-fails`: If this flag is set, the runtime will collect a set
+    of characters that were attempted to match but failed just so the
+    default error message can be more informative.  Since this might
+    incur some performance costs while not being a critical feature, it
+    can be safely disabled.
 
-<a id="org775fcd4"></a>
+
+<a id="org52077f5"></a>
 
 ### Go specific options
 
@@ -169,12 +181,22 @@ in the command line:
     put more than one parser in the same package.
 
 
-<a id="org460ab31"></a>
+<a id="orga5b56c5"></a>
+
+### Other options
+
+-   `-grammar-ast`: Shows the AST of the input grammar.
+
+-   `-grammar-asm`: Shows the ASM code generated from the input
+    grammar.
+
+
+<a id="org76f1e51"></a>
 
 # Input Language
 
 
-<a id="org8705cef"></a>
+<a id="org0a0700c"></a>
 
 ## Productions and Expressions
 
@@ -191,7 +213,7 @@ If you've ever seen or used regular expressions, you've got a head
 start.
 
 
-<a id="orgff91357"></a>
+<a id="org54a6c50"></a>
 
 ## Terminals
 
@@ -208,7 +230,7 @@ start.
     translated to `'a' / 'b' / 'c' / 'A' / 'B' / 'C'`.
 
 
-<a id="orga858177"></a>
+<a id="orgb8ea383"></a>
 
 ## Non-Terminals
 
@@ -224,7 +246,7 @@ The topmost production `Signed` calls itself or the production
 recursively. (e.g.: `+-+--1` and so forth would be accepted).
 
 
-<a id="orgd4c3597"></a>
+<a id="org2bdcc04"></a>
 
 ## Expression Composition
 
@@ -308,7 +330,7 @@ Non-Terminals, on top of parenthesized expressions:
 </table>
 
 
-<a id="org6e2f078"></a>
+<a id="org4534be1"></a>
 
 ### Ordered Choice
 
@@ -321,7 +343,7 @@ E.g.:
 Passing `6` to the above expression will generate an error.
 
 
-<a id="org63b9c73"></a>
+<a id="orgeb0c7b2"></a>
 
 ### Syntactic Predicates
 
@@ -336,7 +358,7 @@ parser finds the closing square bracket.
 The **and** predicate (`&`) is just syntactical sugar for `!!`.
 
 
-<a id="orgdcd649d"></a>
+<a id="org095c0aa"></a>
 
 ### Repetitions
 
@@ -350,7 +372,7 @@ The **and** predicate (`&`) is just syntactical sugar for `!!`.
 -   **Optional** will match an expression zero or one time.
 
 
-<a id="org6454100"></a>
+<a id="orga8283dd"></a>
 
 ### Lexification
 
@@ -454,12 +476,12 @@ There are definitely more use-cases of the lexification operator out
 there, these are just the common ones.
 
 
-<a id="org9aa1ff5"></a>
+<a id="orga5eb4be"></a>
 
 ### Error reporting with Labels
 
 
-<a id="orgd217d35"></a>
+<a id="org604171f"></a>
 
 ### Import system
 
@@ -490,14 +512,12 @@ be used in other grammars using imports.  Behind the scenes, the
 `player.peg` grammar.
 
 
-<a id="org0abad28"></a>
+<a id="org43fc7ef"></a>
 
 # Roadmap
 
--   SIM: [compvm] known optimizations: set, span (charsets branch)
 -   SIM: [compvm] known optimizations: head-fail
 -   SIM: [compvm] known optimizations: inlining, tco
--   SIM: [compvm] precompile \`expected\` tuples from \`charsets\`
 -   SIM: [compvm] more profiling
 -   SIM: [compvm] memoize results to guarantee O(1) parsing time
 -   SIM: [compvm] allocates memory through an allocator interface
@@ -511,15 +531,16 @@ be used in other grammars using imports.  Behind the scenes, the
 -   BIG: [featxp] Integration with serde of target language (go, rust)
 
 
-<a id="org663abfd"></a>
+<a id="org4e429b8"></a>
 
 # Changelog
 
 
-<a id="orgee48ec8"></a>
+<a id="org90f5f36"></a>
 
 ## go/v0.0.9 (unreleased)
 
+-   [PERF: known optimizations: charsets (set, span)](https://github.com/clarete/langlang/commit/d08d9ca46d610901beba3b7f7e63ca4f59cd54ff)
 -   [FEAT/PERF: New Compiler and Virtual Machine based design](https://github.com/clarete/langlang/commit/e1276b6071ec41b747fdb5d0c1d38a6dc58e4798)
 -   [FEAT: New Codegen based on the Compiler and VM](https://github.com/clarete/langlang/commit/ab3f63af92a052f0d5b7f4547c9f7e38f0d30171)
 -   [PERF: VisitSequenceNode: shorten path with no or single item](https://github.com/clarete/langlang/commit/111206f683534608545830890033daa9d20cbe68)
@@ -532,21 +553,21 @@ be used in other grammars using imports.  Behind the scenes, the
 -   [BREAKING CHANGE: Move cmd to a directory with a better name](https://github.com/clarete/langlang/commit/b360504659703df19121965865e788bfe858e7f3)
 
 
-<a id="orgb555e69"></a>
+<a id="org56e222b"></a>
 
 ## go/v0.0.8
 
 -   [BUG FIX: Clear result cache when parser is reset](https://github.com/clarete/langlang/commit/5195eae565fea7c17ebad2d32f9b917908beec02)
 
 
-<a id="org3079627"></a>
+<a id="orgdffda78"></a>
 
 ## go/v0.0.7
 
 -   [BUG FIX: Capturing error messages for CHOICE](https://github.com/clarete/langlang/commit/e2553fdaf69ab96ecc1a4184f21a0d61e27b069a)
 
 
-<a id="orga329959"></a>
+<a id="orgd1abf58"></a>
 
 ## go/v0.0.6
 
@@ -554,7 +575,7 @@ be used in other grammars using imports.  Behind the scenes, the
 -   [PERF: Remove fmt.Sprintf from core matching functions](https://github.com/clarete/langlang/commit/0fd67c472f60e5ce9b1e17c20bab7b443dbf62ad)
 
 
-<a id="orgf35e80d"></a>
+<a id="orgf36dff4"></a>
 
 ## go/v0.0.5
 

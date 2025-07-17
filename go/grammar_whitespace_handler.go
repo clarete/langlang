@@ -14,7 +14,7 @@ func InjectWhitespaces(n AstNode) (AstNode, error) {
 	case *GrammarNode:
 		return wi.Run(node), nil
 	default:
-		return nil, fmt.Errorf("Expected GrammarNode, received %T", node)
+		return nil, fmt.Errorf("expected GrammarNode, received %T", node)
 	}
 }
 

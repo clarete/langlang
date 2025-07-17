@@ -24,7 +24,7 @@ func mustLoadBuiltins() *GrammarNode {
 
 	node, ok := parsed.(*GrammarNode)
 	if !ok {
-		panic(fmt.Errorf("Grammar expected, but got %#v", parsed))
+		panic(fmt.Errorf("grammar expected, but got %#v", parsed))
 	}
 	return node
 }
@@ -34,7 +34,7 @@ func mustLoadBuiltins() *GrammarNode {
 func AddBuiltins(n AstNode) (*GrammarNode, error) {
 	originalGrammar, ok := n.(*GrammarNode)
 	if !ok {
-		return nil, fmt.Errorf("Grammar expected, but got %#v", n)
+		return nil, fmt.Errorf("grammar expected, but got %#v", n)
 	}
 
 	for _, def := range builtinsGrammar.Definitions {

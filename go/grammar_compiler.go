@@ -86,7 +86,7 @@ func (c *compiler) VisitGrammarNode(node *GrammarNode) error {
 }
 
 func (c *compiler) VisitImportNode(node *ImportNode) error {
-	return fmt.Errorf("Import isn't translatable")
+	return fmt.Errorf("import isn't translatable")
 }
 
 func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
@@ -339,7 +339,7 @@ func (c *compiler) VisitCharsetNode(n *CharsetNode) error {
 }
 
 func (c *compiler) VisitLiteralNode(node *LiteralNode) error {
-	for _, r := range []rune(node.Value) {
+	for _, r := range node.Value {
 		c.emit(IChar{Char: r})
 	}
 	return nil
@@ -362,7 +362,7 @@ func (c *compiler) backpatchCallSites() error {
 			c.code[callAddr] = ICall{Label: label}
 			continue
 		}
-		return fmt.Errorf("Production `%s` does not exist", c.strings[id])
+		return fmt.Errorf("production `%s` does not exist", c.strings[id])
 	}
 
 	// patch up call to main

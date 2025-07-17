@@ -15,20 +15,20 @@ func NewMemInput(data string) MemInput {
 	return MemInput{data: data}
 }
 
-func (in *MemInput) PeekByte() (rune, error) {
+func (in *MemInput) PeekByte() (byte, error) {
 	if in.pos >= len(in.data) {
 		return 0, io.EOF
 	}
-	return rune(in.data[in.pos]), nil
+	return in.data[in.pos], nil
 }
 
-func (in *MemInput) ReadByte() (rune, error) {
-	r, err := in.PeekByte()
+func (in *MemInput) ReadByte() (byte, error) {
+	b, err := in.PeekByte()
 	if err != nil {
 		return 0, err
 	}
 	in.pos++
-	return r, nil
+	return b, nil
 }
 
 func (in *MemInput) PeekRune() (rune, int, error) {
@@ -51,15 +51,15 @@ func (in *MemInput) ReadRune() (rune, int, error) {
 	return r, size, nil
 }
 
-func (in *MemInput) Seek(offset int64, whence int) error {
+func (in *MemInput) Seek(offset int64, whence int) (int64, error) {
 	if offset < 0 || int(offset) > len(in.data) {
-		return fmt.Errorf("invalid seek offset")
+		return 0, fmt.Errorf("invalid seek offset")
 	}
 	if whence != io.SeekStart {
-		return fmt.Errorf("invalid seek whence")
+		return 0, fmt.Errorf("invalid seek whence")
 	}
 	in.pos = int(offset)
-	return nil
+	return offset, nil
 }
 
 func (in *MemInput) ReadString(start, end int) (string, error) {

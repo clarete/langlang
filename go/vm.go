@@ -7,12 +7,12 @@ import (
 )
 
 type Input interface {
-	PeekByte() (r rune, err error)
-	ReadByte() (r rune, err error)
+	PeekByte() (r byte, err error)
+	ReadByte() (r byte, err error)
 	ReadRune() (r rune, size int, err error)
 	PeekRune() (r rune, size int, err error)
 	Advance(n int)
-	Seek(offset int64, whence int) error
+	Seek(offset int64, whence int) (int64, error)
 	ReadString(start, end int) (string, error)
 }
 
@@ -73,11 +73,11 @@ func (e *expectedInfo) add(s expected) {
 }
 
 var skipFromFFPUpdate = map[expected]struct{}{
-	expected{}:        struct{}{},
-	expected{a: ' '}:  struct{}{},
-	expected{a: '\n'}: struct{}{},
-	expected{a: '\r'}: struct{}{},
-	expected{a: '\t'}: struct{}{},
+	{}:        {},
+	{a: ' '}:  {},
+	{a: '\n'}: {},
+	{a: '\r'}: {},
+	{a: '\t'}: {},
 }
 
 func (e *expectedInfo) clear() {
@@ -277,11 +277,12 @@ code:
 				return nil, vm.cursor, err
 			}
 			i := decodeU16(vm.bytecode.code[vm.pc+1:])
-			if !vm.bytecode.sets[i].has(c) {
+			ru := rune(c)
+			if !vm.bytecode.sets[i].has(ru) {
 				vm.updateSetFFP(i)
 				goto fail
 			}
-			vm.updatePos(c, 1)
+			vm.updatePos(ru, 1)
 			vm.pc += opSetSizeInBytes
 
 		case opSpan:
@@ -295,9 +296,10 @@ code:
 					}
 					return nil, vm.cursor, err
 				}
-				if set.has(c) {
+				ru := rune(c)
+				if set.has(ru) {
 					input.Advance(1)
-					vm.updatePos(c, 1)
+					vm.updatePos(ru, 1)
 					continue
 				}
 				break

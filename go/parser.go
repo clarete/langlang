@@ -25,7 +25,6 @@ type Parser struct {
 	actionFns  map[string]func(*Node) (Value, error)
 
 	captureSpaces bool
-	recoveryTable map[string]ParserFn[Value]
 
 	mtable map[string]mentry
 }
@@ -297,10 +296,10 @@ func (p *Parser) parseLiteral(literal string) (Value, error) {
 }
 
 var spacingRunes = map[rune]struct{}{
-	' ':  struct{}{},
-	'\t': struct{}{},
-	'\r': struct{}{},
-	'\n': struct{}{},
+	' ':  {},
+	'\t': {},
+	'\r': {},
+	'\n': {},
 }
 
 func (p *Parser) parseSpacingChar() (rune, error) {

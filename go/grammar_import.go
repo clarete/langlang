@@ -2,7 +2,7 @@ package langlang
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 )
 
@@ -70,7 +70,7 @@ func (r *ImportResolver) createImporterResolverFrame(importPath, parentPath stri
 	}
 	grammar, ok := node.(*GrammarNode)
 	if !ok {
-		return nil, fmt.Errorf("Grammar expected, but got %#v", node)
+		return nil, fmt.Errorf("grammar expected, but got %#v", node)
 	}
 	f := &importerResolverFrame{
 		ImportPath: path,
@@ -97,17 +97,17 @@ func (ril *RelativeImportLoader) GetPath(importPath, parentPath string) (string,
 	}
 	var contents string
 	if len(importPath) < 4 {
-		return contents, fmt.Errorf("Path too short, it should start with ./: %s", importPath)
+		return contents, fmt.Errorf("path too short, it should start with ./: %s", importPath)
 	}
 	if importPath[:2] != "./" {
-		return contents, fmt.Errorf("Path isn't relative to the import site: %s", importPath)
+		return contents, fmt.Errorf("path isn't relative to the import site: %s", importPath)
 	}
 	modulePath := importPath[2:]
 	return filepath.Join(filepath.Dir(parentPath), modulePath), nil
 }
 
 func (ril *RelativeImportLoader) GetContent(path string) (string, error) {
-	content, err := ioutil.ReadFile(path)
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}

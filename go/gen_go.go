@@ -16,7 +16,6 @@ import (
 type goCodeEmitter struct {
 	options     GenGoOptions
 	parser      *outputWriter
-	indentLevel int
 	lexLevel    int
 	labelsMap   map[string]struct{}
 	labels      []string
@@ -615,13 +614,6 @@ func cleanGoModule(fs embed.FS, fileName string) (string, error) {
 // into the local concrete `Parser`.
 func (g *goCodeEmitter) isAtRuleLevel() bool {
 	return g.parser.indentLevel == 1
-}
-
-// isUnderRuleLevel returns true when the traversal is any level
-// within the `DefinitionNode`.  It's only in that level that we
-// should be automatically handling spaces.
-func (g *goCodeEmitter) isUnderRuleLevel() bool {
-	return g.parser.indentLevel >= 1
 }
 
 func (g *goCodeEmitter) output() (string, error) {

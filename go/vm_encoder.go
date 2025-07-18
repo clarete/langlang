@@ -79,8 +79,12 @@ func Encode(p *Program) *Bytecode {
 			code = encodeU16(code, uint16(ii.ID))
 		case ICapEnd:
 			code = append(code, opCapEnd)
-		case ICapOnce:
-			code = append(code, opCapOnce)
+		case ICapTerm:
+			code = append(code, opCapTerm)
+			code = encodeU16(code, uint16(ii.Offset))
+		case ICapNonTerm:
+			code = append(code, opCapNonTerm)
+			code = encodeU16(code, uint16(ii.ID))
 			code = encodeU16(code, uint16(ii.Offset))
 		}
 	}

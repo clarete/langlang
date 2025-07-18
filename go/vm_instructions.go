@@ -123,7 +123,15 @@ type ICapEnd struct{}
 func (ICapEnd) Name() string     { return "cap_end" }
 func (ICapEnd) SizeInBytes() int { return opCapEndSizeInBytes }
 
-type ICapOnce struct{ Offset int }
+type ICapTerm struct{ Offset int }
 
-func (ICapOnce) Name() string     { return "cap_once" }
-func (ICapOnce) SizeInBytes() int { return opCapOnceSizeInBytes }
+func (ICapTerm) Name() string     { return "cap_term" }
+func (ICapTerm) SizeInBytes() int { return opCapTermSizeInBytes }
+
+type ICapNonTerm struct {
+	ID     int
+	Offset int
+}
+
+func (ICapNonTerm) Name() string     { return "cap_non_term" }
+func (ICapNonTerm) SizeInBytes() int { return opCapNonTermSizeInBytes }

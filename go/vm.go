@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"strings"
+	"unicode/utf8"
 )
 
 type Input interface {
@@ -122,7 +123,8 @@ const (
 	opCapEnd
 	opSet
 	opSpan
-	opCapOnce
+	opCapTerm
+	opCapNonTerm
 )
 
 var opNames = map[byte]string{
@@ -145,7 +147,8 @@ var opNames = map[byte]string{
 	opThrow:         "throw",
 	opCapBegin:      "cap_begin",
 	opCapEnd:        "cap_end",
-	opCapOnce:       "cap_once",
+	opCapTerm:       "cap_term",
+	opCapNonTerm:    "cap_non_term",
 }
 
 var (
@@ -174,13 +177,14 @@ var (
 	//  4. uint8 precedence level
 	opCallSizeInBytes = 4
 	// opReturnSizeInBytes contains just one byte for the operator
-	opReturnSizeInBytes   = 1
-	opJumpSizeInBytes     = 3
-	opThrowSizeInBytes    = 3
-	opHaltSizeInBytes     = 1
-	opCapBeginSizeInBytes = 3
-	opCapEndSizeInBytes   = 1
-	opCapOnceSizeInBytes  = 3
+	opReturnSizeInBytes     = 1
+	opJumpSizeInBytes       = 3
+	opThrowSizeInBytes      = 3
+	opHaltSizeInBytes       = 1
+	opCapBeginSizeInBytes   = 3
+	opCapEndSizeInBytes     = 1
+	opCapTermSizeInBytes    = 3
+	opCapNonTermSizeInBytes = 5
 )
 
 func newVirtualMachine(
@@ -376,9 +380,15 @@ code:
 			vm.newNode(input, vm.stack.pop())
 			vm.pc += opCapEndSizeInBytes
 
-		case opCapOnce:
+		case opCapTerm:
 			vm.newTermNode(input, int(decodeU16(vm.bytecode.code[vm.pc+1:])))
-			vm.pc += opCapOnceSizeInBytes
+			vm.pc += opCapTermSizeInBytes
+
+		case opCapNonTerm:
+			id := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			offset := int(decodeU16(vm.bytecode.code[vm.pc+3:]))
+			vm.newNonTermNode(input, id, offset)
+			vm.pc += opCapNonTermSizeInBytes
 
 		default:
 			panic("NO ENTIENDO SENOR")
@@ -470,18 +480,33 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 // Node Capture Helpers
 
 func (vm *virtualMachine) newTermNode(input Input, offset int) {
-	var (
-		begin = NewLocation(vm.line, vm.column-offset, vm.cursor-offset)
-		end   = NewLocation(vm.line, vm.column, vm.cursor)
-		span  = NewSpan(begin, end)
-	)
+	if node, ok := vm.newTextNode(input, offset); ok {
+		vm.stack.capture(node)
+	}
+}
+
+func (vm *virtualMachine) newNonTermNode(input Input, capId, offset int) {
+	if node, ok := vm.newTextNode(input, offset); ok {
+		capName := vm.bytecode.strs[capId]
+		vm.stack.capture(NewNode(capName, node, node.Span()))
+	}
+}
+
+func (vm *virtualMachine) newTextNode(input Input, offset int) (Value, bool) {
 	if offset > 0 {
 		text, err := input.ReadString(vm.cursor-offset, vm.cursor)
 		if err != nil {
 			panic(err.Error())
 		}
-		vm.stack.capture(NewString(text, span))
+		var (
+			runes = utf8.RuneCountInString(text)
+			begin = NewLocation(vm.line, vm.column-runes, vm.cursor-runes)
+			end   = NewLocation(vm.line, vm.column, vm.cursor)
+			span  = NewSpan(begin, end)
+		)
+		return NewString(text, span), true
 	}
+	return nil, false
 }
 
 func (vm *virtualMachine) newNode(input Input, f frame) {

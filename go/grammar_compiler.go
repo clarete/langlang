@@ -110,15 +110,21 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 }
 
 func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
-	if sz, ok := c.exprSize(node.Expr); ok && node.Name == "" {
+	id := c.pushString(node.Name)
+
+	if sz, ok := c.capExprSize(node.Expr); ok {
 		if err := node.Expr.Accept(c); err != nil {
 			return err
 		}
-		c.emit(ICapOnce{Offset: sz})
+
+		if node.Name == "" {
+			c.emit(ICapTerm{Offset: sz})
+			return nil
+		}
+
+		c.emit(ICapNonTerm{ID: id, Offset: sz})
 		return nil
 	}
-
-	id := c.pushString(node.Name)
 
 	c.emit(ICapBegin{ID: id})
 
@@ -128,16 +134,6 @@ func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
 
 	c.emit(ICapEnd{})
 	return nil
-}
-
-func (c *compiler) exprSize(node AstNode) (int, bool) {
-	switch n := node.(type) {
-	case *LiteralNode:
-		return len(n.Value), true
-	case *CharsetNode:
-		return 1, true
-	}
-	return 0, false
 }
 
 func (c *compiler) VisitSequenceNode(node *SequenceNode) error {
@@ -398,4 +394,65 @@ func (c *compiler) pushString(s string) int {
 	c.strings = append(c.strings, s)
 	c.stringsMap[s] = strID
 	return strID
+}
+
+func (c *compiler) capExprSize(node AstNode) (int, bool) {
+	switch n := node.(type) {
+	case *CharsetNode:
+		return 1, true
+
+	case *LiteralNode:
+		return len(n.Value), true
+
+	case *ClassNode:
+		val := -1
+		for _, item := range n.Items {
+			if is, ok := c.capExprSize(item); ok {
+				if val >= 0 && val != is {
+					return 0, false
+				}
+				val = is
+			} else {
+				return 0, false
+			}
+		}
+		if val > 0 {
+			return val, true
+		}
+		return 0, false
+
+	case *ChoiceNode:
+		left, ok := c.capExprSize(n.Left)
+		if !ok {
+			return 0, false
+		}
+		right, ok := c.capExprSize(n.Right)
+		if !ok {
+			return 0, false
+		}
+		if left == right {
+			return left, true
+		}
+		return 0, false
+
+	case *SequenceNode:
+		var total int
+		for _, item := range n.Items {
+			if is, ok := c.capExprSize(item); ok {
+				total += is
+			} else {
+				return 0, false
+			}
+		}
+		if total > 0 {
+			return total, true
+		}
+		return 0, false
+
+	case *LexNode:
+		return c.capExprSize(n.Expr)
+
+	default:
+		return 0, false
+	}
 }

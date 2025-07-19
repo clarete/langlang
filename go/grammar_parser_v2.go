@@ -73,18 +73,31 @@ func parseGrammar(v Value) (*GrammarNode, error) {
 
 // Import <- "@import" Identifier ("," Identifier)* "from" Literal
 func parseImport(node *Node) *ImportNode {
-	items := node.Expr.(*Sequence).Items
-	var names []*LiteralNode
-	switch i := items[1].(type) {
-	case *Node:
-		names = append(names, NewLiteralNode(i.Text(), i.Span()))
-	case *Sequence:
-		for _, ii := range i.Items {
-			names = append(names, NewLiteralNode(ii.Text(), ii.Span()))
+	var (
+		names []*LiteralNode
+		items = node.Expr.(*Sequence).Items
+		idx   = 1
+	)
+	for _, item := range items[idx:] {
+		switch it := item.(type) {
+		case *String:
+			idx++
+			if it.Value == "from" {
+				break
+			}
+			continue
+		case *Node:
+			if s, ok := it.Expr.(*String); ok {
+				idx++
+				names = append(names, NewLiteralNode(s.Value, s.Span()))
+			}
+			continue
 		}
+		break
 	}
-	path, _ := parseLiteral(items[3].(*Node))
-	return NewImportNode(path, names, node.Span())
+	path, _ := unescape(items[idx].Text())
+	path = path[1 : len(path)-1]
+	return NewImportNode(NewLiteralNode(path, items[3].Span()), names, node.Span())
 }
 
 // Definition <- Identifier LEFTARROW Expression

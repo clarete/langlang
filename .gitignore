@@ -11,6 +11,8 @@ go/tests/import/import.go
 go/tests/import/import.nocap.go
 go/tests/json/json.go
 go/tests/json/json.nocap.go
+go/tests/json/json.stripped.go
+go/tests/json/json.stripped.nocap.go
 go/tests/langlang/langlang.go
 go/tests/langlang/langlang.nocap.go
 go/tests/recovery/recovery.go

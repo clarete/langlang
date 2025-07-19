@@ -10,6 +10,8 @@ import (
 
 //go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.peg -output-language goeval -output-path ./json.go
 //go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.peg -output-language goeval -output-path ./json.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.stripped.peg -output-language goeval -go-remove-lib -output-path ./json.stripped.go -go-parser StrippedParser
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.stripped.peg -output-language goeval -go-remove-lib -output-path ./json.stripped.nocap.go -disable-captures -go-parser StrippedNoCapParser
 
 var inputNames = []string{"30kb", "500kb", "2000kb"}
 
@@ -51,6 +53,42 @@ func BenchmarkNoCapParser(b *testing.B) {
 
 	b.ResetTimer()
 	p := NewNoCapParser()
+	p.SetShowFails(false)
+
+	for _, name := range inputNames {
+		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
+			p.SetInput(inputs[name])
+
+			for n := 0; n < b.N; n++ {
+				p.ParseJSON()
+			}
+		})
+	}
+}
+
+func BenchmarkStrippedParser(b *testing.B) {
+	inputs := getInputs(b)
+
+	b.ResetTimer()
+	p := NewStrippedParser()
+	p.SetShowFails(false)
+
+	for _, name := range inputNames {
+		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
+			p.SetInput(inputs[name])
+
+			for n := 0; n < b.N; n++ {
+				p.ParseJSON()
+			}
+		})
+	}
+}
+
+func BenchmarkStrippedNoCapParser(b *testing.B) {
+	inputs := getInputs(b)
+
+	b.ResetTimer()
+	p := NewStrippedNoCapParser()
 	p.SetShowFails(false)
 
 	for _, name := range inputNames {

@@ -19,12 +19,14 @@ type args struct {
 	outputLang *string
 	outputPath *string
 
-	disableBuiltins     *bool
-	disableWhitespaces  *bool
-	disableCharsets     *bool
-	disableCaptures     *bool
-	enableCaptureSpaces *bool
-	showFails           *bool
+	disableBuiltins      *bool
+	disableSpaces        *bool
+	disableCharsets      *bool
+	disableCaptures      *bool
+	disableCaptureSpaces *bool
+	suppressSpaces       *bool
+
+	showFails *bool
 
 	inputPath   *string
 	interactive *bool
@@ -45,12 +47,13 @@ func readArgs() *args {
 
 		// Output Options
 
-		disableBuiltins:     flag.Bool("disable-builtins", false, "Tells the compiler not to inject builtin rules into the grammar"),
-		disableWhitespaces:  flag.Bool("disable-whitespaces", false, "Tells the compiler not to inject automatic white space char handling into the grammar"),
-		disableCharsets:     flag.Bool("disable-charsets", false, "Inject whitespace handling rules into the grammar"),
-		disableCaptures:     flag.Bool("disable-captures", false, "Tells the compiler not to inject capture rules into the grammar"),
-		enableCaptureSpaces: flag.Bool("enable-capture-spaces", false, "If enabled, the runtime will capture the output of the Spacing production"),
-		showFails:           flag.Bool("show-fails", true, "If enabled, shows what the parser attempted to match (there is a perf penalty cost for this)"),
+		disableBuiltins:      flag.Bool("disable-builtins", false, "Tells the compiler not to inject builtin rules into the grammar"),
+		disableSpaces:        flag.Bool("disable-spaces", false, "Tells the compiler not to inject automatic whitespace char handling into the grammar"),
+		disableCharsets:      flag.Bool("disable-charsets", false, "Inject whitespace handling rules into the grammar"),
+		disableCaptures:      flag.Bool("disable-captures", false, "Tells the compiler not to inject capture rules into the grammar"),
+		disableCaptureSpaces: flag.Bool("disable-capture-spaces", false, "Tells the compiler not to inject capture rules for spaces into the grammar"),
+		suppressSpaces:       flag.Bool("suppress-spaces", true, "If enabled, it will suppress capturing spaces during Runtime"),
+		showFails:            flag.Bool("show-fails", true, "If enabled, shows what the parser attempted to match (there is a perf penalty cost for this)"),
 
 		// Dynamic parser generation and evaluation
 
@@ -78,48 +81,23 @@ func main() {
 		a         = readArgs()
 		suppress  map[int]struct{}
 		errLabels map[string]string
+		cfg       = langlang.NewConfig()
 	)
 
 	if *a.grammarPath == "" {
 		log.Fatal("Grammar not informed")
 	}
 
-	// TODO: this should move into the API
+	cfg.SetBool("grammar.add_builtins", !*a.disableBuiltins)
+	cfg.SetBool("grammar.charsets", !*a.disableCharsets)
+	cfg.SetBool("grammar.captures", !*a.disableCaptures)
+	cfg.SetBool("grammar.capture_spaces", !*a.disableCaptureSpaces)
+	cfg.SetBool("grammar.disable_spaces", *a.disableSpaces)
+	cfg.SetInt("compiler.optimize", 1)
 
-	ast, err := importGrammar(*a.grammarPath)
+	ast, err := langlang.GrammarFromFile(*a.grammarPath, cfg)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	// Post process the AST
-	// TODO: this should move into the API
-
-	if !*a.disableBuiltins {
-		ast, err = langlang.AddBuiltins(ast)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	if !*a.disableCharsets {
-		ast, err = langlang.AddCharsets(ast)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	if !*a.disableWhitespaces {
-		ast, err = langlang.InjectWhitespaces(ast)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	if !*a.disableCaptures {
-		ast, err = langlang.AddCaptures(ast)
-		if err != nil {
-			log.Fatal(err)
-		}
 	}
 
 	if *a.grammarAST {
@@ -129,7 +107,7 @@ func main() {
 
 	// Translate the AST into bytecode
 
-	asm, err := langlang.Compile(ast, langlang.CompilerConfig{Optimize: 1})
+	asm, err := langlang.Compile(ast, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -139,7 +117,7 @@ func main() {
 		return
 	}
 
-	if !*a.enableCaptureSpaces {
+	if *a.suppressSpaces {
 		suppress = map[int]struct{}{asm.StringID("Spacing"): struct{}{}}
 	}
 
@@ -224,10 +202,4 @@ func main() {
 	if err = os.WriteFile(*a.outputPath, []byte(outputData), 0644); err != nil {
 		log.Fatalf("Can't write output: %s", err.Error())
 	}
-}
-
-func importGrammar(path string) (langlang.AstNode, error) {
-	importLoader := langlang.NewRelativeImportLoader()
-	importResolver := langlang.NewImportResolver(importLoader)
-	return importResolver.Resolve(path)
 }

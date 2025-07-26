@@ -2,12 +2,8 @@ package langlang
 
 import "fmt"
 
-type CompilerConfig struct {
-	Optimize int
-}
-
 type compiler struct {
-	config CompilerConfig
+	config *Config
 
 	// cursor is the index of the last instruction written the
 	// `code` vector
@@ -48,7 +44,7 @@ type compiler struct {
 	grammarNode *GrammarNode
 }
 
-func Compile(expr AstNode, config CompilerConfig) (*Program, error) {
+func Compile(expr AstNode, config *Config) (*Program, error) {
 	var err error
 	c := &compiler{
 		config:           config,
@@ -157,7 +153,7 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 	l1 := NewILabel()
 	l2 := NewILabel()
 
-	switch c.config.Optimize {
+	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		c.emit(l0)
 	}
@@ -169,7 +165,7 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 		return err
 	}
 
-	switch c.config.Optimize {
+	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		c.emit(ICommit{Label: l0})
 	case 1:
@@ -218,7 +214,7 @@ func (c *compiler) VisitChoiceNode(node *ChoiceNode) error {
 }
 
 func (c *compiler) VisitAndNode(node *AndNode) error {
-	switch c.config.Optimize {
+	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		return c.VisitNotNode(NewNotNode(NewNotNode(node.Expr, node.Span()), node.Span()))
 
@@ -249,7 +245,7 @@ func (c *compiler) VisitNotNode(node *NotNode) error {
 		return nil
 	}
 
-	switch c.config.Optimize {
+	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		l2 := NewILabel()
 		c.emit(ICommit{Label: l2})

@@ -76,16 +76,25 @@ func (c *Config) SetString(path string, v string) {
 }
 
 func (c *Config) GetBool(path string) bool {
-	(*c)[path].checkType(cfgValType_Bool)
-	return (*c)[path].asBool
+	if val, ok := (*c)[path]; ok {
+		val.checkType(cfgValType_Bool)
+		return val.asBool
+	}
+	panic(fmt.Sprintf("Bool setting `%s` does not exist", path))
 }
 
 func (c *Config) GetInt(path string) int {
-	(*c)[path].checkType(cfgValType_Int)
-	return (*c)[path].asInt
+	if val, ok := (*c)[path]; ok {
+		val.checkType(cfgValType_Int)
+		return val.asInt
+	}
+	panic(fmt.Sprintf("Int setting `%s` does not exist", path))
 }
 
 func (c *Config) GetString(path string) string {
-	(*c)[path].checkType(cfgValType_String)
-	return (*c)[path].asString
+	if val, ok := (*c)[path]; ok {
+		val.checkType(cfgValType_String)
+		return val.asString
+	}
+	panic(fmt.Sprintf("String setting `%s` does not exist", path))
 }

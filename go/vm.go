@@ -369,7 +369,7 @@ code:
 				vm.pc = addr
 				continue
 			}
-			return nil, vm.cursor, vm.mkErr(input, id)
+			return nil, vm.cursor, vm.mkErr(input, id, vm.cursor)
 
 		case opCapBegin:
 			id := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
@@ -416,7 +416,7 @@ fail:
 	}
 	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", vm.cursor, vm.ffp))
 
-	return nil, vm.cursor, vm.mkErr(input, "")
+	return nil, vm.cursor, vm.mkErr(input, "", vm.ffp)
 }
 
 // Cursor/Line/Column Helpers
@@ -600,13 +600,13 @@ func (vm *virtualMachine) updateSetFFP(sid uint16) {
 	}
 }
 
-func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
+func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) error {
 	// First we seek back to where the cursor backtracked to, and
 	// increment the information about line and column.
 	input.Seek(int64(vm.cursor), io.SeekStart)
 	line, column, cursor := vm.line, vm.column, vm.cursor
 
-	for cursor < vm.ffp {
+	for cursor < errCursor {
 		c, s, err := input.ReadRune()
 		if err != nil {
 			break
@@ -628,7 +628,7 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string) error {
 	var (
 		isEof   bool
 		message strings.Builder
-		pos     = NewLocation(line, column, vm.ffp)
+		pos     = NewLocation(line, column, errCursor)
 		span    = NewSpan(pos, pos)
 	)
 	c, _, err := input.ReadRune()

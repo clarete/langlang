@@ -12,6 +12,7 @@ type vmTest struct {
 	Name           string
 	Grammar        string
 	Input          string
+	ErrLabels      map[string]string
 	ExpectedAST    string
 	ExpectedError  string
 	ExpectedCursor int
@@ -32,12 +33,6 @@ func TestVM(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, cur)
-	})
-
-	t.Run("did the cursor move", func(t *testing.T) {
-		_, cur, err := exec("G <- .", "foo", 1, true)
-		require.NoError(t, err)
-		assert.Equal(t, 1, cur)
 	})
 
 	vmTests := []vmTest{
@@ -287,6 +282,27 @@ Digit  <- [0-9]
     │   └── "f" (2..3)
     └── "\"" (3..4)`,
 		},
+		{
+			Name: "Throw Cursor",
+			Grammar: `
+                           EXP <- OR (!PRI)^MissingOperator
+                           OR  <- AND ("OR" AND)*
+                           AND <- PRI ("AND" PRI)*
+                           PRI <- '(' WRD ')'
+                                / '!' WRD
+                                / WRD
+                           WRD <- "abacate"
+                               / "abobora"
+                               / "abadia"
+                               / "abalado"
+			`,
+			Input:          `abacate abadia`,
+			ExpectedCursor: 8,
+			ExpectedError:  "Missing Operand Between Operators @ 9",
+			ErrLabels: map[string]string{
+				"MissingOperator": "Missing Operand Between Operators",
+			},
+		},
 	}
 
 	for _, test := range vmTests {
@@ -297,9 +313,35 @@ Digit  <- [0-9]
 	}
 }
 
-func mkVmTestFn(test vmTest, opt int, enableCharsets bool) func(t *testing.T) {
+func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.T) {
 	return func(t *testing.T) {
-		val, cur, err := exec(test.Grammar, test.Input, opt, enableCharsets)
+		cfg := NewConfig()
+		cfg.SetInt("compiler.optimize", optimize)
+		cfg.SetBool("grammar.add_charsets", enableCharsets)
+
+		ast, err := GrammarFromString(test.Grammar, cfg)
+		if err != nil {
+			panic(err)
+		}
+		// fmt.Printf("ast\n%s\n", ast.HighlightPrettyString())
+
+		asm, err := Compile(ast, cfg)
+		if err != nil {
+			panic(err)
+		}
+		// fmt.Printf("asm\n%s\n", asm.HighlightPrettyString())
+
+		code := Encode(asm)
+		// fmt.Printf("code\n%#v\n", code.code)
+
+		memInput := NewMemInput(test.Input)
+
+		// Notice `showFails` is marked as false because `ClassNode`
+		// and `CharsetNode` will generate different ordered choices.
+		// The `ClassNode` variant generates a slice in the order it
+		// was declared in the grammar.  The `CharsetNode` will use
+		// the ascii table ordering.
+		val, cur, err := code.MatchE(&memInput, test.ErrLabels, nil, false)
 
 		// The cursor should be right for both error and
 		// success states
@@ -323,34 +365,4 @@ func mkVmTestFn(test vmTest, opt int, enableCharsets bool) func(t *testing.T) {
 			assert.Equal(t, test.ExpectedAST, val.PrettyString())
 		}
 	}
-}
-
-func exec(expr, input string, optimize int, enableCharsets bool) (Value, int, error) {
-	cfg := NewConfig()
-	cfg.SetInt("compiler.optimize", optimize)
-	cfg.SetBool("grammar.add_charsets", enableCharsets)
-
-	ast, err := GrammarFromString(expr, cfg)
-	if err != nil {
-		panic(err)
-	}
-	// fmt.Printf("ast\n%s\n", ast.HighlightPrettyString())
-
-	asm, err := Compile(ast, cfg)
-	if err != nil {
-		panic(err)
-	}
-	// fmt.Printf("asm\n%s\n", asm.HighlightPrettyString())
-
-	code := Encode(asm)
-	// fmt.Printf("code\n%#v\n", code.code)
-
-	memInput := NewMemInput(input)
-
-	// Notice `showFails` is marked as false because `ClassNode`
-	// and `CharsetNode` will generate different ordered choices.
-	// The `ClassNode` variant generates a slice in the order it
-	// was declared in the grammar.  The `CharsetNode` will use
-	// the ascii table ordering.
-	return code.MatchE(&memInput, nil, nil, false)
 }

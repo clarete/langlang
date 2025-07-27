@@ -50,6 +50,13 @@ func addUnamedCaptures(expr AstNode) AstNode {
 	case *ZeroOrMoreNode:
 		i := addUnamedCaptures(e.Expr)
 
+		// Rewrite: Star(Cap(Syntactic())) -> Cap(Star(Syntactic()))
+		if cap, isCap := i.(*CaptureNode); isCap && isSyntactic(cap.Expr, false) {
+			e.Expr = cap.Expr
+			cap.Expr = e
+			return cap
+		}
+
 		// Rewrite: (!x Cap(y))* -> Cap((!x y)*)
 		//
 		// This will generate way less capture frames on the

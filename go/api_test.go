@@ -63,6 +63,23 @@ func TestGrammarTransformations(t *testing.T) {
             │   └── Charset[[` + "\x00" + `..!#..ÿ]] (11..17)
             └── Charset[[\"]] (20..23)`,
 		},
+		{
+			Name: "Span from Not X with label",
+			Grammar: `G <- '"' (!'"' .)* '"'^DQ
+`,
+			ExpectedAST: `Grammar (1..2:1)
+└── Definition[G] (1..2:1)
+    └── Capture[G] (1..2:1)
+        └── Sequence (6..26)
+            ├── Capture (6..9)
+            │   └── Charset[[\"]] (6..9)
+            ├── Capture (11..17)
+            │   └── ZeroOrMore (10..19)
+            │       └── Charset[[` + "\x00" + `..!#..ÿ]] (11..17)
+            └── Throw[DQ] (20..26)
+                └── Capture (20..23)
+                    └── Charset[[\"]] (20..23)`,
+		},
 	}
 
 	for _, test := range tests {

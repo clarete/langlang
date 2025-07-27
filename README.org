@@ -86,26 +86,34 @@ input formats.
    grammar FILE as input and if no output path is provided, an
    interactive shell presented.
 
- * ~-disable-whitespaces~: If this flag is set, the whitespace
-   handling productions won't be inserted into the AST.  This is
-   useful for grammars that already have spacing rules placed
-   throughout their definitions.
-
- * ~-disable-captures~: If this flag is set, the generated parser
-   won't capture any values (functioning as matching only.)
-
- * ~-enable-capture-spaces~: Even when captures are enabled, one might
-   want the parser to skip collecting space chars anyway.  This flag
-   does just that on runtime (in contrast to ~-disable-captures~, that
-   disables all captures in **compile** time)
-
- * ~-output-path PATH~: this option replaces ~stdout~ as the output with
-   the PATH value provided to this command.
+ * ~-output-path PATH~: Path in which the generated parser will be
+   saved.  (Not required for interactive mode.)
 
  * ~-output-language LANG~: this will cause the generator to output a
    parser in the target language LANG.  As of this writing, the only
-   supported value is ~go~, but there are plans to extend support to
-   both Python, JavaScript/TypeScript, Rust and other languages.
+   supported values are ~goeval~ and ~go~, but there are plans to
+   extend support to both Python, JavaScript/TypeScript, Rust and
+   other languages.  Notice this option is required if ~-output-path~
+   is set.  (Not required for interactive mode.)
+
+ * ~-disable-spaces~: If this flag is set the space handling
+   productions won't be inserted into the AST.  This is useful for
+   grammars that already have spacing rules placed throughout their
+   definitions.
+
+ * ~-disable-captures~: If this flag is set the generated parser won't
+   capture any values (functioning as matching only.)
+
+ * ~-disable-capture-spaces~: If this flag is set the generated parser
+   won't capture space chars in the output tree.  This is useful if
+   you only care for generating an AST of the parse tree, for example.
+
+ * ~-suppress-spaces~: Even when captures are enabled when generating
+   a parser, one might want the parser to suppress capturing space
+   chars anyway.  This flag does just that on runtime (in contrast to
+   ~-disable-space-captures~, that disables all captures in
+   **compile** time, thus it is mostly useful for the interactive
+   use.)
 
  * ~-show-fails~: If this flag is set, the runtime will collect a set
    of characters that were attempted to match but failed just so the
@@ -133,6 +141,12 @@ in the command line:
 
  * ~-grammar-asm~: Shows the ASM code generated from the input
    grammar.
+
+ * ~-disable-builtins~: Do not add builtin rules into the grammar
+   (mostly space handling at this point.)
+
+ * ~-disable-charsets~: Disable rewriting classes as ~charsets~.
+   Mostly useful for debugging.
 
 * Input Language
 ** Productions and Expressions

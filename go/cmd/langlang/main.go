@@ -89,7 +89,7 @@ func main() {
 	}
 
 	cfg.SetBool("grammar.add_builtins", !*a.disableBuiltins)
-	cfg.SetBool("grammar.charsets", !*a.disableCharsets)
+	cfg.SetBool("grammar.add_charsets", !*a.disableCharsets)
 	cfg.SetBool("grammar.captures", !*a.disableCaptures)
 	cfg.SetBool("grammar.capture_spaces", !*a.disableCaptureSpaces)
 	cfg.SetBool("grammar.disable_spaces", *a.disableSpaces)

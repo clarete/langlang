@@ -30,13 +30,6 @@ type AstNode interface {
 	// Equal compares two AstNodes and returns true if they're
 	// considered equal
 	Equal(AstNode) bool
-
-	// IsSyntactic returns true only for nodes that are considered
-	// syntactical rules.  Outside this module, it makes sense to
-	// call this method on a `DefinitionNode`, but it'd then
-	// trigger the recursive call needed to answer that question
-	// in such level
-	IsSyntactic() bool
 }
 
 // Node Type: Any
@@ -50,7 +43,6 @@ func NewAnyNode(s Span) *AnyNode {
 }
 
 func (n AnyNode) Span() Span                    { return n.span }
-func (n AnyNode) IsSyntactic() bool             { return true }
 func (n AnyNode) String() string                { return "." }
 func (n AnyNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n AnyNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -79,7 +71,6 @@ func NewLiteralNode(v string, s Span) *LiteralNode {
 }
 
 func (n LiteralNode) Span() Span                    { return n.span }
-func (n LiteralNode) IsSyntactic() bool             { return true }
 func (n LiteralNode) String() string                { return fmt.Sprintf("'%s'", n.Value) }
 func (n LiteralNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n LiteralNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -108,7 +99,6 @@ func NewIdentifierNode(v string, s Span) *IdentifierNode {
 }
 
 func (n IdentifierNode) Span() Span                    { return n.span }
-func (n IdentifierNode) IsSyntactic() bool             { return false }
 func (n IdentifierNode) String() string                { return n.Value }
 func (n IdentifierNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n IdentifierNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -138,7 +128,6 @@ func NewRangeNode(left, right rune, s Span) *RangeNode {
 }
 
 func (n RangeNode) Span() Span                    { return n.span }
-func (n RangeNode) IsSyntactic() bool             { return true }
 func (n RangeNode) String() string                { return fmt.Sprintf("%c-%c", n.Left, n.Right) }
 func (n RangeNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n RangeNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -165,7 +154,6 @@ func NewCharsetNode(cs *charset, s Span) *CharsetNode {
 }
 
 func (n CharsetNode) Span() Span                    { return n.span }
-func (n CharsetNode) IsSyntactic() bool             { return true }
 func (n CharsetNode) String() string                { return n.cs.String() }
 func (n CharsetNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n CharsetNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -192,7 +180,6 @@ func NewClassNode(items []AstNode, s Span) *ClassNode {
 }
 
 func (n ClassNode) Span() Span                    { return n.span }
-func (n ClassNode) IsSyntactic() bool             { return true }
 func (n ClassNode) String() string                { return fmt.Sprintf("[%s]", nodesString(n.Items, "")) }
 func (n ClassNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n ClassNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -229,7 +216,6 @@ func NewOptionalNode(expr AstNode, s Span) *OptionalNode {
 }
 
 func (n OptionalNode) Span() Span                    { return n.span }
-func (n OptionalNode) IsSyntactic() bool             { return n.Expr.IsSyntactic() }
 func (n OptionalNode) String() string                { return fmt.Sprintf("%s?", n.Expr.String()) }
 func (n OptionalNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n OptionalNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -258,7 +244,6 @@ func NewZeroOrMoreNode(expr AstNode, s Span) *ZeroOrMoreNode {
 }
 
 func (n ZeroOrMoreNode) Span() Span                    { return n.span }
-func (n ZeroOrMoreNode) IsSyntactic() bool             { return n.Expr.IsSyntactic() }
 func (n ZeroOrMoreNode) String() string                { return fmt.Sprintf("%s*", n.Expr.String()) }
 func (n ZeroOrMoreNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n ZeroOrMoreNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -287,7 +272,6 @@ func NewOneOrMoreNode(expr AstNode, s Span) *OneOrMoreNode {
 }
 
 func (n OneOrMoreNode) Span() Span                    { return n.span }
-func (n OneOrMoreNode) IsSyntactic() bool             { return n.Expr.IsSyntactic() }
 func (n OneOrMoreNode) String() string                { return fmt.Sprintf("%s+", n.Expr.String()) }
 func (n OneOrMoreNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n OneOrMoreNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -316,7 +300,6 @@ func NewAndNode(expr AstNode, s Span) *AndNode {
 }
 
 func (n AndNode) Span() Span                    { return n.span }
-func (n AndNode) IsSyntactic() bool             { return true }
 func (n AndNode) String() string                { return fmt.Sprintf("&%s", n.Expr.String()) }
 func (n AndNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n AndNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -345,7 +328,6 @@ func NewNotNode(expr AstNode, s Span) *NotNode {
 }
 
 func (n NotNode) Span() Span                    { return n.span }
-func (n NotNode) IsSyntactic() bool             { return true }
 func (n NotNode) String() string                { return fmt.Sprintf("!%s", n.Expr.String()) }
 func (n NotNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n NotNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -374,7 +356,6 @@ func NewLexNode(expr AstNode, s Span) *LexNode {
 }
 
 func (n LexNode) Span() Span                    { return n.span }
-func (n LexNode) IsSyntactic() bool             { return n.Expr.IsSyntactic() }
 func (n LexNode) Accept(v AstNodeVisitor) error { return v.VisitLexNode(&n) }
 func (n LexNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n LexNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -410,7 +391,6 @@ func NewLabeledNode(label string, expr AstNode, s Span) *LabeledNode {
 }
 
 func (n LabeledNode) Span() Span                    { return n.span }
-func (n LabeledNode) IsSyntactic() bool             { return false }
 func (n LabeledNode) String() string                { return fmt.Sprintf("%s^%s", n.Expr.String(), n.Label) }
 func (n LabeledNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n LabeledNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -438,17 +418,7 @@ func NewSequenceNode(items []AstNode, s Span) *SequenceNode {
 	return n
 }
 
-func (n SequenceNode) Span() Span { return n.span }
-
-func (n SequenceNode) IsSyntactic() bool {
-	for _, expr := range n.Items {
-		if !expr.IsSyntactic() {
-			return false
-		}
-	}
-	return true
-}
-
+func (n SequenceNode) Span() Span                    { return n.span }
 func (n SequenceNode) Accept(v AstNodeVisitor) error { return v.VisitSequenceNode(&n) }
 func (n SequenceNode) String() string                { return nodesString(n.Items, " ") }
 func (n SequenceNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
@@ -486,7 +456,6 @@ func NewChoiceNode(left, right AstNode, s Span) *ChoiceNode {
 }
 
 func (n ChoiceNode) Span() Span                    { return n.span }
-func (n ChoiceNode) IsSyntactic() bool             { return n.Left.IsSyntactic() && n.Right.IsSyntactic() }
 func (n ChoiceNode) Accept(v AstNodeVisitor) error { return v.VisitChoiceNode(&n) }
 func (n ChoiceNode) String() string                { return fmt.Sprintf("%s / %s", n.Left.String(), n.Right.String()) }
 func (n ChoiceNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
@@ -518,7 +487,6 @@ func NewCaptureNode(name string, expr AstNode, s Span) *CaptureNode {
 }
 
 func (n CaptureNode) Span() Span                    { return n.span }
-func (n CaptureNode) IsSyntactic() bool             { return n.Expr.IsSyntactic() }
 func (n CaptureNode) Accept(v AstNodeVisitor) error { return v.VisitCaptureNode(&n) }
 func (n CaptureNode) String() string                { return fmt.Sprintf("#%s{{ %s }}", n.Name, n.Expr) }
 func (n CaptureNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
@@ -548,7 +516,6 @@ func NewDefinitionNode(name string, expr AstNode, s Span) *DefinitionNode {
 }
 
 func (n DefinitionNode) Span() Span                    { return n.span }
-func (n DefinitionNode) IsSyntactic() bool             { return n.Expr.IsSyntactic() }
 func (n DefinitionNode) String() string                { return fmt.Sprintf("%s <- %s", n.Name, n.Expr.String()) }
 func (n DefinitionNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n DefinitionNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -578,7 +545,6 @@ func NewImportNode(path *LiteralNode, names []*LiteralNode, s Span) *ImportNode 
 }
 
 func (n ImportNode) Span() Span                    { return n.span }
-func (n ImportNode) IsSyntactic() bool             { return false }
 func (n ImportNode) Accept(v AstNodeVisitor) error { return v.VisitImportNode(&n) }
 func (n ImportNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n ImportNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
@@ -638,7 +604,6 @@ func NewGrammarNode(
 }
 
 func (n GrammarNode) Span() Span                    { return n.span }
-func (n GrammarNode) IsSyntactic() bool             { return false }
 func (n GrammarNode) String() string                { return nodesString(n.GetItems(), "\n") }
 func (n GrammarNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
 func (n GrammarNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }

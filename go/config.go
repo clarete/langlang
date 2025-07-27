@@ -1,6 +1,9 @@
 package langlang
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 type Config map[string]*cfgVal
 
@@ -16,6 +19,27 @@ func NewConfig() *Config {
 	m.SetBool("grammar.handle_spaces", true)
 	m.SetInt("compiler.optimize", 1)
 	return &m
+}
+
+func (c *Config) Debug() {
+	fmt.Println("Configuration")
+
+	keys := make([]string, 0, len(*c))
+	width := 0
+	for k := range *c {
+		keys = append(keys, k)
+		width = max(width, len(k))
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		fmt.Printf(k)
+		for i := 0; i < width-len(k); i++ {
+			fmt.Printf(" ")
+		}
+		fmt.Printf(" : ")
+		fmt.Println((*c)[k].String())
+	}
 }
 
 type cfgValType int
@@ -54,6 +78,21 @@ func (v *cfgVal) assignType(vt cfgValType) {
 func (v *cfgVal) checkType(vt cfgValType) {
 	if v.typ != vt {
 		panic(fmt.Sprintf("Can't retrieve `%s` from `%s` variable", vt, v.typ))
+	}
+}
+
+func (v *cfgVal) String() string {
+	switch v.typ {
+	case cfgValType_Bool:
+		return fmt.Sprintf("%t (bool)", v.asBool)
+	case cfgValType_Int:
+		return fmt.Sprintf("%d (int)", v.asInt)
+	case cfgValType_String:
+		return fmt.Sprintf("%s (string)", v.asString)
+	case cfgValType_Undefined:
+		return "(undefined)"
+	default:
+		panic(fmt.Sprintf("unknown cfgVal type: %v", v.typ))
 	}
 }
 

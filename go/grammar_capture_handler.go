@@ -10,7 +10,7 @@ func AddCaptures(n AstNode) (*GrammarNode, error) {
 
 	for _, def := range grammar.Definitions {
 		expr := def.Expr
-		if !def.IsSyntactic() {
+		if !isSyntactic(def, false) {
 			expr = addUnamedCaptures(expr)
 		}
 		def.Expr = NewCaptureNode(def.Name, expr, def.Span())
@@ -97,7 +97,7 @@ func addUnamedCaptures(expr AstNode) AstNode {
 
 	default:
 		_, isCap := expr.(*CaptureNode)
-		if expr.IsSyntactic() && !isCap {
+		if isSyntactic(expr, false) && !isCap {
 			return NewCaptureNode("", e, e.Span())
 		}
 	}

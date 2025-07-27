@@ -57,7 +57,7 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 		return NewLexNode(expr, n.Span())
 
 	case *SequenceNode:
-		shouldConsumeSpaces := wi.lexLevel == 0 && !n.IsSyntactic()
+		shouldConsumeSpaces := wi.lexLevel == 0 && !isSyntactic(n, true)
 		newItems := make([]AstNode, 0, len(node.Items))
 		for i, item := range node.Items {
 			idNode, isIdNode := item.(*IdentifierNode)
@@ -81,7 +81,7 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 		// No need to inject whitespace handling, we just
 		// return the choice with all its child nodes
 		// expanded, but the choice node itself is untouched.
-		if node.IsSyntactic() {
+		if isSyntactic(node, true) {
 			node.Left = wi.expandExpr(node.Left, true)
 			node.Right = wi.expandExpr(node.Right, true)
 			return node

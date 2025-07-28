@@ -22,8 +22,10 @@ Hex     <- [0-9A-Fa-f]
 // Recovery Expressions
 eof              <- .*
 itemAfterComma   <- (![,\]] .)*
-arrayClose       <-
 memberAfterComma <- (![,}] .)*
-objectClose      <-
-memberColon      <-
 memberValue      <- (![,}] .)*
+memberColon      <-
+arrayClose       <-
+objectClose      <-
+strClose         <-
+jsonValue        <-

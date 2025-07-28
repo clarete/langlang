@@ -372,7 +372,7 @@ be used in other grammars using imports.  Behind the scenes, the
 
 * Changelog
 
-** go/v0.0.9 (unreleased)
+** go/v0.0.9
 
  * [[https://github.com/clarete/langlang/commit/d08d9ca46d610901beba3b7f7e63ca4f59cd54ff][PERF: known optimizations: charsets (set, span)]]
  * [[https://github.com/clarete/langlang/commit/e1276b6071ec41b747fdb5d0c1d38a6dc58e4798][FEAT/PERF: New Compiler and Virtual Machine based design]]

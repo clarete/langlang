@@ -179,17 +179,19 @@ func main() {
 	var outputData string
 	switch *a.outputLang {
 	case "go":
-		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
-			PackageName: *a.goOptPackage,
-			ParserName:  *a.goOptParser,
-			RemoveLib:   *a.goOptRemoveLib,
-		})
-	case "goeval":
 		outputData, err = langlang.GenGoEval(asm, langlang.GenGoOptions{
 			PackageName: *a.goOptPackage,
 			ParserName:  *a.goOptParser,
 			RemoveLib:   *a.goOptRemoveLib,
 		})
+
+	case "go_legacy":
+		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
+			PackageName: *a.goOptPackage,
+			ParserName:  *a.goOptParser,
+			RemoveLib:   *a.goOptRemoveLib,
+		})
+
 	// case "python":
 	// 	outputData, err = langlang.GenParserPython(ast)
 	default:

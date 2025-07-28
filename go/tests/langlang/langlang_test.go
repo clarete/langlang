@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ../../../grammars/langlang.peg -output-language goeval -output-path ./langlang.go
-//go:generate go run ../../cmd/langlang -grammar ../../../grammars/langlang.peg -output-language goeval -output-path ./langlang.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/langlang.peg -output-language go -output-path ./langlang.go
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/langlang.peg -output-language go -output-path ./langlang.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
 
 var grammarNames = []string{"csv", "json", "peg", "langlang"}
 

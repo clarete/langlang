@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-//go:generate go run ./cmd/langlang -grammar ../grammars/langlang.peg -output-language goeval -output-path ./grammar_parser_bootstrap.go -go-remove-lib -go-package langlang -go-parser GrammarParserBootstrap
+//go:generate go run ./cmd/langlang -grammar ../grammars/langlang.peg -output-language go -output-path ./grammar_parser_bootstrap.go -go-remove-lib -go-package langlang -go-parser GrammarParserBootstrap
 
 type GrammarParserV2 struct {
 	file  string

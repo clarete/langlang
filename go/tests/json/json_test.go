@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.peg -output-language goeval -output-path ./json.go
-//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.peg -output-language goeval -output-path ./json.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
-//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.stripped.peg -output-language goeval -go-remove-lib -output-path ./json.stripped.go -go-parser StrippedParser
-//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.stripped.peg -output-language goeval -go-remove-lib -output-path ./json.stripped.nocap.go -disable-captures -go-parser StrippedNoCapParser
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.peg -output-language go -output-path ./json.go
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.peg -output-language go -output-path ./json.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.stripped.peg -output-language go -go-remove-lib -output-path ./json.stripped.go -go-parser StrippedParser
+//go:generate go run ../../cmd/langlang -grammar ../../../grammars/json.stripped.peg -output-language go -go-remove-lib -output-path ./json.stripped.nocap.go -disable-captures -go-parser StrippedNoCapParser
 
 var inputNames = []string{"30kb", "500kb", "2000kb"}
 

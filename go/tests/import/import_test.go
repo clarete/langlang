@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language goeval -output-path ./import.go
-//go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language goeval -output-path ./import.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
+//go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language go -output-path ./import.go
+//go:generate go run ../../cmd/langlang -grammar ./import_gr_expr.peg -output-language go -output-path ./import.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
 
 func TestImport(t *testing.T) {
 	for _, test := range []struct {

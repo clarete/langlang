@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ./charsets.peg -output-language goeval -output-path ./charsets.go
-//go:generate go run ../../cmd/langlang -grammar ./charsets.peg -output-language goeval -output-path ./charsets.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
+//go:generate go run ../../cmd/langlang -grammar ./charsets.peg -output-language go -output-path ./charsets.go
+//go:generate go run ../../cmd/langlang -grammar ./charsets.peg -output-language go -output-path ./charsets.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib
 
 type P interface {
 	ParseIdentifier() (Value, error)

@@ -120,13 +120,14 @@ func (p *GrammarParserBootstrap) SetInput(input string)                 { p.inpu
 func (p *GrammarParserBootstrap) SetLabelMessages(el map[string]string) { p.errLabels = el }
 func (p *GrammarParserBootstrap) SetCaptureSpaces(v bool)               { p.captureSpaces = v }
 func (p *GrammarParserBootstrap) SetShowFails(v bool)                   { p.showFails = v }
-func (p *GrammarParserBootstrap) parseFn(addr uint16) (Value, error)    {
-	writeU16(bytecodeForGrammarParserBootstrap.code[1:], addr)
+func (p *GrammarParserBootstrap) parseFn(addr int) (Value, error)       {
 	var suppress map[int]struct{}
 	if !p.captureSpaces {
 		suppress = p.suppress
 	}
-	vm := newVirtualMachine(bytecodeForGrammarParserBootstrap, p.errLabels, suppress, p.showFails)
+	vm := newVirtualMachine(
+		bytecodeForGrammarParserBootstrap, p.errLabels, suppress, p.showFails, addr,
+	)
 	input := NewMemInput(p.input)
 	val, _, err := vm.Match(&input)
 	return val, err

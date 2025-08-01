@@ -27,7 +27,7 @@ type Bytecode struct {
 }
 
 func (b *Bytecode) Match(input Input) (Value, int, error) {
-	return b.MatchE(input, nil, nil, false)
+	return b.MatchE(input, nil, nil, false, 0)
 }
 
 func (b *Bytecode) MatchE(
@@ -35,8 +35,9 @@ func (b *Bytecode) MatchE(
 	errLabels map[string]string,
 	suppress map[int]struct{},
 	showFails bool,
+	startAddr int,
 ) (Value, int, error) {
-	vm := newVirtualMachine(b, errLabels, suppress, showFails)
+	vm := newVirtualMachine(b, errLabels, suppress, showFails, startAddr)
 	return vm.Match(input)
 }
 
@@ -100,6 +101,7 @@ type virtualMachine struct {
 	errLabels map[string]string
 	supprset  map[int]struct{}
 	suppress  int
+	startAddr int
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -192,6 +194,7 @@ func newVirtualMachine(
 	errLabels map[string]string,
 	suppressSet map[int]struct{},
 	showFails bool,
+	startAddr int,
 ) *virtualMachine {
 	var ex *expectedInfo
 	if showFails {
@@ -206,12 +209,18 @@ func newVirtualMachine(
 		expected:  ex,
 		supprset:  suppressSet,
 		ffp:       -1,
+		startAddr: startAddr,
 	}
 }
 
 func (vm *virtualMachine) Match(input Input) (Value, int, error) {
 	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
+
+	if vm.startAddr > 0 {
+		vm.stack.push(vm.mkCallFrame(opCallSizeInBytes))
+		vm.pc = vm.startAddr
+	}
 
 code:
 	for {

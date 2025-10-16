@@ -1,0 +1,55 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/json
+cpu: Apple M1 Max
+BenchmarkParser
+BenchmarkParser/Input_30kb
+BenchmarkParser/Input_30kb-10         	     226	  10287875 ns/op	 9021233 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     230	  10359293 ns/op	 9021125 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     234	  10153766 ns/op	 9021210 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     236	  11780606 ns/op	 9021129 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     213	  10772821 ns/op	 9021092 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     234	  10325271 ns/op	 9021085 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     220	  10104007 ns/op	 9021304 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     236	  10104522 ns/op	 9021053 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     237	  10245598 ns/op	 9021058 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     235	  10096035 ns/op	 9021091 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     235	  10093987 ns/op	 9021091 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     235	  10646489 ns/op	 9021057 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     235	  10319039 ns/op	 9021089 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     236	  11339205 ns/op	 9021051 B/op	  132822 allocs/op
+BenchmarkParser/Input_30kb-10         	     234	  10486321 ns/op	 9021124 B/op	  132822 allocs/op
+BenchmarkParser/Input_500kb
+BenchmarkParser/Input_500kb-10        	      13	 170924433 ns/op	148489688 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      12	 169498177 ns/op	148490362 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 178410978 ns/op	148490314 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 181044894 ns/op	148490318 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 169154003 ns/op	148489695 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 172802205 ns/op	148489706 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 188698891 ns/op	148489695 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 169989474 ns/op	148492534 B/op	 2213214 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 172667801 ns/op	148490963 B/op	 2213214 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 173684558 ns/op	148492528 B/op	 2213214 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 171934862 ns/op	148489676 B/op	 2213213 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 172193067 ns/op	148490347 B/op	 2213214 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 171268093 ns/op	148489706 B/op	 2213214 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 170249199 ns/op	148489699 B/op	 2213214 allocs/op
+BenchmarkParser/Input_500kb-10        	      13	 171166093 ns/op	148490318 B/op	 2213213 allocs/op
+BenchmarkParser/Input_2000kb
+BenchmarkParser/Input_2000kb-10       	       3	 676716014 ns/op	594051090 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 687700736 ns/op	594048360 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 680867486 ns/op	594053821 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 719975889 ns/op	594051090 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 710010055 ns/op	594048360 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 704028042 ns/op	594048424 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 672257972 ns/op	594048360 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 679509569 ns/op	594048360 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 673768389 ns/op	594053853 B/op	 8839873 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 702398458 ns/op	594048360 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       4	 694260166 ns/op	594050396 B/op	 8839871 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 667241056 ns/op	594051122 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 675294736 ns/op	594048360 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       3	 688422931 ns/op	594048360 B/op	 8839872 allocs/op
+BenchmarkParser/Input_2000kb-10       	       4	 675707927 ns/op	594048348 B/op	 8839871 allocs/op
+PASS
+ok  	github.com/clarete/langlang/go/tests/json	161.394s

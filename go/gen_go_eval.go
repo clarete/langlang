@@ -159,9 +159,8 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 func (g *goEvalEmitter) writeParserStruct() {
 	g.parser.writel(fmt.Sprintf("type %s struct{", g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil("input         string")
-	g.parser.writeil("vm            *virtualMachine")
-	g.parser.writeil("captureSpaces bool")
+	g.parser.writeil("input string")
+	g.parser.writeil("vm    *virtualMachine")
 	g.parser.unindent()
 	g.parser.writel("}")
 }
@@ -170,9 +169,7 @@ func (g *goEvalEmitter) writeParserConstructor() {
 	g.parser.writel(fmt.Sprintf("func New%s() *%s {", g.options.ParserName, g.options.ParserName))
 	g.parser.indent()
 
-	g.parser.writeil(fmt.Sprintf(`spcAddr := bytecodeFor%s.smap["Spacing"]`, g.options.ParserName))
 	g.parser.writeil("supprset := make(map[int]struct{})")
-	g.parser.writeil("supprset[spcAddr] = struct{}{}")
 	g.parser.writei("vm := NewVirtualMachine(")
 	g.parser.write(fmt.Sprintf("bytecodeFor%s,", g.options.ParserName))
 	g.parser.write(" map[string]string{},")
@@ -215,8 +212,18 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input string)                 { p.input = input }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.vm.errLabels = el }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.vm.showFails = v }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool)               { p.captureSpaces = v }", g.options.ParserName))
 
+	// Update the suppression map adding the address of the space rule
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool) {", g.options.ParserName))
+	g.parser.indent()
+	g.parser.writeil("supprset := make(map[int]struct{})")
+	g.parser.writeil(fmt.Sprintf(`spcAddr := bytecodeFor%s.smap["Spacing"]`, g.options.ParserName))
+	g.parser.writeil("supprset[spcAddr] = struct{}{}")
+	g.parser.writeil("p.vm.supprset = supprset")
+	g.parser.unindent()
+	g.parser.writel("}")
+
+	// The entrypoint for parsing
 	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr int) (Value, error) {", g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil("input := NewMemInput(p.input)")

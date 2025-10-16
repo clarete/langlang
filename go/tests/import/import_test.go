@@ -59,6 +59,7 @@ func TestImport(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			p := NewParser()
 			p.SetInput(test.Input)
+			p.SetShowFails(false)
 			_, err := p.ParseExpr()
 			require.Error(t, err)
 			assert.Equal(t, test.Error, err.Error())

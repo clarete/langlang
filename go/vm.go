@@ -179,17 +179,11 @@ func NewVirtualMachine(
 	suppressSet map[int]struct{},
 	showFails bool,
 ) *virtualMachine {
-	var ex *expectedInfo
-	if showFails {
-		ei := newExpectedInfo()
-		ex = &ei
-	}
 	return &virtualMachine{
 		stack:     &stack{},
 		bytecode:  bytecode,
 		errLabels: errLabels,
 		showFails: showFails,
-		expected:  ex,
 		supprset:  suppressSet,
 		ffp:       -1,
 	}
@@ -425,6 +419,15 @@ func (vm *virtualMachine) reset() {
 	vm.cursor = 0
 	vm.line = 0
 	vm.column = 0
+
+	if vm.showFails {
+		if vm.expected == nil {
+			ei := newExpectedInfo()
+			vm.expected = &ei
+		} else {
+			vm.expected.clear()
+		}
+	}
 }
 
 func (vm *virtualMachine) updatePos(c rune, s int) {

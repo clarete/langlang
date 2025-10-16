@@ -70,14 +70,15 @@ var bytecodeForGrammarParserBootstrap = &Bytecode{
 }
 type GrammarParserBootstrap struct{
 	input         string
+	vm            *virtualMachine
 	captureSpaces bool
-	showFails     bool
-	suppress      map[int]struct{}
-	errLabels     map[string]string
 }
 func NewGrammarParserBootstrap() *GrammarParserBootstrap {
-	suppress := map[int]struct{}{bytecodeForGrammarParserBootstrap.smap["Spacing"]: struct{}{}}
-	return &GrammarParserBootstrap{captureSpaces: true, suppress: suppress}
+	spcAddr := bytecodeForGrammarParserBootstrap.smap["Spacing"]
+	supprset := make(map[int]struct{})
+	supprset[spcAddr] = struct{}{}
+	vm := NewVirtualMachine(bytecodeForGrammarParserBootstrap, map[string]string{}, supprset, true)
+	return &GrammarParserBootstrap{vm: vm}
 }
 func (p *GrammarParserBootstrap) ParseGrammar() (Value, error) { return p.parseFn(5) }
 func (p *GrammarParserBootstrap) ParseImport() (Value, error) { return p.parseFn(55) }
@@ -117,18 +118,11 @@ func (p *GrammarParserBootstrap) ParseMissingImportFrom() (Value, error) { retur
 func (p *GrammarParserBootstrap) ParseMissingImportSrc() (Value, error) { return p.parseFn(1192) }
 func (p *GrammarParserBootstrap) Parse() (Value, error)                 { return p.parseFn(5) }
 func (p *GrammarParserBootstrap) SetInput(input string)                 { p.input = input }
-func (p *GrammarParserBootstrap) SetLabelMessages(el map[string]string) { p.errLabels = el }
+func (p *GrammarParserBootstrap) SetLabelMessages(el map[string]string) { p.vm.errLabels = el }
+func (p *GrammarParserBootstrap) SetShowFails(v bool)                   { p.vm.showFails = v }
 func (p *GrammarParserBootstrap) SetCaptureSpaces(v bool)               { p.captureSpaces = v }
-func (p *GrammarParserBootstrap) SetShowFails(v bool)                   { p.showFails = v }
-func (p *GrammarParserBootstrap) parseFn(addr int) (Value, error)       {
-	var suppress map[int]struct{}
-	if !p.captureSpaces {
-		suppress = p.suppress
-	}
-	vm := newVirtualMachine(
-		bytecodeForGrammarParserBootstrap, p.errLabels, suppress, p.showFails, addr,
-	)
+func (p *GrammarParserBootstrap) parseFn(addr int) (Value, error) {
 	input := NewMemInput(p.input)
-	val, _, err := vm.Match(&input)
+	val, _, err := p.vm.MatchRule(&input, addr)
 	return val, err
 }

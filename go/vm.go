@@ -26,21 +26,6 @@ type Bytecode struct {
 	rxps map[int]int
 }
 
-func (b *Bytecode) Match(input Input) (Value, int, error) {
-	return b.MatchE(input, nil, nil, false, 0)
-}
-
-func (b *Bytecode) MatchE(
-	input Input,
-	errLabels map[string]string,
-	suppress map[int]struct{},
-	showFails bool,
-	startAddr int,
-) (Value, int, error) {
-	vm := newVirtualMachine(b, errLabels, suppress, showFails, startAddr)
-	return vm.Match(input)
-}
-
 type expected struct {
 	a, b rune
 }
@@ -101,7 +86,6 @@ type virtualMachine struct {
 	errLabels map[string]string
 	supprset  map[int]struct{}
 	suppress  int
-	startAddr int
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -189,12 +173,11 @@ var (
 	opCapNonTermSizeInBytes = 5
 )
 
-func newVirtualMachine(
+func NewVirtualMachine(
 	bytecode *Bytecode,
 	errLabels map[string]string,
 	suppressSet map[int]struct{},
 	showFails bool,
-	startAddr int,
 ) *virtualMachine {
 	var ex *expectedInfo
 	if showFails {
@@ -209,19 +192,23 @@ func newVirtualMachine(
 		expected:  ex,
 		supprset:  suppressSet,
 		ffp:       -1,
-		startAddr: startAddr,
 	}
 }
 
 func (vm *virtualMachine) Match(input Input) (Value, int, error) {
+	return vm.MatchRule(input, 0)
+}
+
+func (vm *virtualMachine) MatchRule(input Input, ruleAddress int) (Value, int, error) {
 	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
-	if vm.startAddr > 0 {
-		vm.stack.push(vm.mkCallFrame(opCallSizeInBytes))
-		vm.pc = vm.startAddr
-	}
+	vm.reset()
 
+	if ruleAddress > 0 {
+		vm.stack.push(vm.mkCallFrame(opCallSizeInBytes))
+		vm.pc = ruleAddress
+	}
 code:
 	for {
 		op := vm.bytecode.code[vm.pc]
@@ -229,7 +216,7 @@ code:
 
 		switch op {
 		case opHalt:
-			// dbg(fmt.Sprintf("vals: %#v\n", vm.values))
+			// dbg(fmt.Sprintf("vals: %#v\n", vm.stack.values))
 			var top Value
 			if len(vm.stack.values) > 0 {
 				top = vm.stack.values[len(vm.stack.values)-1]
@@ -429,6 +416,16 @@ fail:
 }
 
 // Cursor/Line/Column Helpers
+
+func (vm *virtualMachine) reset() {
+	vm.stack.frames = vm.stack.frames[:0]
+	vm.stack.values = vm.stack.values[:0]
+	vm.pc = 0
+	vm.ffp = -1
+	vm.cursor = 0
+	vm.line = 0
+	vm.column = 0
+}
 
 func (vm *virtualMachine) updatePos(c rune, s int) {
 	vm.cursor += s

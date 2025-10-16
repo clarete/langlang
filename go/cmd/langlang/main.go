@@ -141,7 +141,8 @@ func main() {
 			}
 
 			input := langlang.NewMemInput(text)
-			val, _, err := code.MatchE(&input, errLabels, suppress, *a.showFails, 0)
+			vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
+			val, _, err := vm.Match(&input)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
 			} else if val != nil {
@@ -161,7 +162,8 @@ func main() {
 		}
 		code := langlang.Encode(asm)
 		input := langlang.NewMemInput(string(text))
-		val, _, err := code.MatchE(&input, errLabels, suppress, *a.showFails, 0)
+		vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
+		val, _, err := vm.Match(&input)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())
 		} else if val != nil {

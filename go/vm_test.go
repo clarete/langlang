@@ -25,7 +25,7 @@ func TestVM(t *testing.T) {
 		}})
 		assert.Equal(t, uint8(0), bytecode.code[0])
 
-		vm := newVirtualMachine(bytecode, nil, nil, true, 0)
+		vm := NewVirtualMachine(bytecode, nil, nil, true)
 
 		input := NewMemInput("")
 
@@ -341,7 +341,8 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		// The `ClassNode` variant generates a slice in the order it
 		// was declared in the grammar.  The `CharsetNode` will use
 		// the ascii table ordering.
-		val, cur, err := code.MatchE(&memInput, test.ErrLabels, nil, false, 0)
+		vm := NewVirtualMachine(code, test.ErrLabels, nil, false)
+		val, cur, err := vm.Match(&memInput)
 
 		// The cursor should be right for both error and
 		// success states

@@ -329,7 +329,12 @@ code:
 			top.cursor = vm.cursor
 			top.line = vm.line
 			top.column = vm.column
-			vm.stack.collectCaptures()
+			// Skip collectCaptures if the top frame is
+			// suppressed, since values will be discarded
+			// anyway
+			if !top.suppress {
+				vm.stack.collectCaptures()
+			}
 			top.values = nil
 
 		case opBackCommit:

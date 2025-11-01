@@ -67,8 +67,12 @@ func (s *stack) push(f frame) {
 }
 
 func (s *stack) pop() frame {
-	f := (s.frames)[len(s.frames)-1]
-	s.frames = (s.frames)[:len(s.frames)-1]
+	idx := len(s.frames) - 1
+	f := s.frames[idx]
+	// Clear values slice in the frame that's still in the stack
+	// to help GC and potentially reuse capacity
+	s.frames[idx].values = s.frames[idx].values[:0]
+	s.frames = s.frames[:idx]
 	return f
 }
 

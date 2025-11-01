@@ -159,7 +159,7 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 func (g *goEvalEmitter) writeParserStruct() {
 	g.parser.writel(fmt.Sprintf("type %s struct{", g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil("input string")
+	g.parser.writeil("input MemInput")
 	g.parser.writeil("vm    *virtualMachine")
 	g.parser.unindent()
 	g.parser.writel("}")
@@ -209,7 +209,7 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	}
 
 	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Value, error)                 { return p.parseFn(5) }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input string)                 { p.input = input }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input string)                 { p.input = NewMemInput(input) }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.vm.errLabels = el }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.vm.showFails = v }", g.options.ParserName))
 
@@ -226,8 +226,8 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	// The entrypoint for parsing
 	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr int) (Value, error) {", g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil("input := NewMemInput(p.input)")
-	g.parser.writeil("val, _, err := p.vm.MatchRule(&input, addr)")
+	g.parser.writeil("p.input.pos = 0")
+	g.parser.writeil("val, _, err := p.vm.MatchRule(&p.input, addr)")
 	g.parser.writeil("return val, err")
 	g.parser.unindent()
 	g.parser.writel("}")

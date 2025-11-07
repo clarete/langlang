@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"go/format"
 	"sort"
 	"strconv"
 	"text/template"
@@ -262,5 +263,9 @@ func (g *goEvalEmitter) output() (string, error) {
 	if err = parserTmpl.Execute(&output, vv); err != nil {
 		return "", err
 	}
-	return output.String(), nil
+	formatted, err := format.Source(output.Bytes())
+	if err != nil {
+		return "", err
+	}
+	return string(formatted), nil
 }

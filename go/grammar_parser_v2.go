@@ -39,7 +39,7 @@ func (p *GrammarParserV2) Parse() (AstNode, error) {
 func parseGrammar(v Value) (*GrammarNode, error) {
 	var (
 		nodeValue  = v.(*Node)
-		span       = v.Span()
+		span       = v.Range()
 		imports    []*ImportNode
 		defs       []*DefinitionNode
 		defsByName = map[string]*DefinitionNode{}
@@ -89,7 +89,7 @@ func parseImport(node *Node) *ImportNode {
 		case *Node:
 			if s, ok := it.Expr.(*String); ok {
 				idx++
-				names = append(names, NewLiteralNode(s.Value, s.Span()))
+				names = append(names, NewLiteralNode(s.Value, s.Range()))
 			}
 			continue
 		}
@@ -97,7 +97,7 @@ func parseImport(node *Node) *ImportNode {
 	}
 	path, _ := unescape(items[idx].Text())
 	path = path[1 : len(path)-1]
-	return NewImportNode(NewLiteralNode(path, items[3].Span()), names, node.Span())
+	return NewImportNode(NewLiteralNode(path, items[3].Range()), names, node.Range())
 }
 
 // Definition <- Identifier LEFTARROW Expression
@@ -114,9 +114,9 @@ func parseDefinition(node *Node) (*DefinitionNode, error) {
 			return nil, err
 		}
 	} else {
-		expr = NewSequenceNode([]AstNode{}, node.Span())
+		expr = NewSequenceNode([]AstNode{}, node.Range())
 	}
-	return NewDefinitionNode(name, expr, node.Span()), nil
+	return NewDefinitionNode(name, expr, node.Range()), nil
 }
 
 // Expression <- Sequence ("/" Sequence)*
@@ -154,7 +154,7 @@ func parseChoice(s *Sequence) (AstNode, error) {
 	accum := items[len(items)-1]
 
 	for i := len(items) - 2; i >= 0; i-- {
-		span := NewSpan(items[i].Span().Start, accum.Span().End)
+		span := NewRange(items[i].Range().Pos, accum.Range().Len)
 		accum = NewChoiceNode(items[i], accum, span)
 	}
 
@@ -175,7 +175,7 @@ func parseSequence(v Value) (AstNode, error) {
 				return nil, err
 			}
 		}
-		return NewSequenceNode(items, e.Span()), nil
+		return NewSequenceNode(items, e.Range()), nil
 	case *Node:
 		prefix, err := parsePrefix(e)
 		if err != nil {
@@ -185,7 +185,7 @@ func parseSequence(v Value) (AstNode, error) {
 	default:
 		return nil, fmt.Errorf("unknown node type for parseSequence: %s", e)
 	}
-	return NewSequenceNode(items, v.Span()), nil
+	return NewSequenceNode(items, v.Range()), nil
 }
 
 func parsePrefix(v *Node) (AstNode, error) {
@@ -197,11 +197,11 @@ func parsePrefix(v *Node) (AstNode, error) {
 		}
 		switch e.Items[0].Text() {
 		case "!":
-			return NewNotNode(labeled, e.Span()), nil
+			return NewNotNode(labeled, e.Range()), nil
 		case "&":
-			return NewAndNode(labeled, e.Span()), nil
+			return NewAndNode(labeled, e.Range()), nil
 		case "#":
-			return NewLexNode(labeled, e.Span()), nil
+			return NewLexNode(labeled, e.Range()), nil
 		}
 	case *Node:
 		return parseLabeled(e)
@@ -218,7 +218,7 @@ func parseLabeled(v *Node) (AstNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewLabeledNode(e.Items[2].Text(), suffix, e.Span()), nil
+		return NewLabeledNode(e.Items[2].Text(), suffix, e.Range()), nil
 	case *Node:
 		return parseSuffix(e)
 	default:
@@ -236,11 +236,11 @@ func parseSuffix(v *Node) (AstNode, error) {
 
 		switch e.Items[1].Text() {
 		case "?":
-			return NewOptionalNode(primary, e.Span()), nil
+			return NewOptionalNode(primary, e.Range()), nil
 		case "*":
-			return NewZeroOrMoreNode(primary, e.Span()), nil
+			return NewZeroOrMoreNode(primary, e.Range()), nil
 		case "+":
-			return NewOneOrMoreNode(primary, e.Span()), nil
+			return NewOneOrMoreNode(primary, e.Range()), nil
 		}
 	case *Node:
 		return parsePrimary(e)
@@ -263,7 +263,7 @@ func parsePrimary(v *Node) (AstNode, error) {
 		case "Class":
 			return parseClass(e)
 		case "Any":
-			return NewAnyNode(e.Span()), nil
+			return NewAnyNode(e.Range()), nil
 		}
 	default:
 		return nil, fmt.Errorf("unknown node type for parsePrimary: %s", e)
@@ -275,13 +275,13 @@ func parseLiteral(v *Node) (*LiteralNode, error) {
 	var (
 		all       = v.Expr.(*Sequence).Items
 		noquote   = all[1 : len(all)-1]
-		newseq    = NewSequence(noquote, v.Span())
+		newseq    = NewSequence(noquote, v.Range())
 		text, err = unescape(newseq.Text())
 	)
 	if err != nil {
 		return nil, err
 	}
-	return NewLiteralNode(text, v.Span()), nil
+	return NewLiteralNode(text, v.Range()), nil
 }
 
 // Unescape takes a string and unescapes it
@@ -402,7 +402,7 @@ func parseClass(v *Node) (*ClassNode, error) {
 			return nil, err
 		}
 	}
-	return NewClassNode(output, v.Span()), nil
+	return NewClassNode(output, v.Range()), nil
 }
 
 func parseRange(v *Node) (AstNode, error) {
@@ -416,13 +416,13 @@ func parseRange(v *Node) (AstNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewRangeNode(r(left), r(right), e.Span()), nil
+		return NewRangeNode(r(left), r(right), e.Range()), nil
 	case *Node:
 		s, err := parseChar(e)
 		if err != nil {
 			return nil, err
 		}
-		return NewLiteralNode(s, e.Span()), nil
+		return NewLiteralNode(s, e.Range()), nil
 	default:
 		panic(fmt.Sprintf("NO ENTIENDO: %s", e))
 	}
@@ -430,7 +430,7 @@ func parseRange(v *Node) (AstNode, error) {
 
 // Identifier <- [a-zA-Z_][a-zA-Z0-9_]*
 func parseIdentifier(n *Node) (*IdentifierNode, error) {
-	return NewIdentifierNode(n.Expr.(*String).Value, n.Span()), nil
+	return NewIdentifierNode(n.Expr.(*String).Value, n.Range()), nil
 }
 
 func parseChar(n *Node) (string, error) {

@@ -6,7 +6,7 @@ import "fmt"
 type ParsingError struct {
 	Message string
 	Label   string
-	Span    Span
+	Range   Range
 }
 
 // String returns the human readable representation of a parsing error
@@ -15,7 +15,7 @@ func (e ParsingError) Error() string {
 	if e.Message != "" {
 		message = e.Message
 	}
-	return fmt.Sprintf("%s @ %s", message, e.Span)
+	return fmt.Sprintf("%s @ %s", message, e.Range)
 }
 
 // backtrackingError is an internal error type that is captured by the
@@ -23,12 +23,12 @@ func (e ParsingError) Error() string {
 type backtrackingError struct {
 	Message  string
 	Expected string
-	Span     Span
+	Range    Range
 }
 
 // String returns the human readable representation of a parsing error
 func (e backtrackingError) Error() string {
-	return fmt.Sprintf("%s @ %s", e.Message, e.Span)
+	return fmt.Sprintf("%s @ %s", e.Message, e.Range)
 }
 
 func isthrown(err error) bool {

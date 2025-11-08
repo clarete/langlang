@@ -13,7 +13,7 @@ func AddCaptures(n AstNode) (*GrammarNode, error) {
 		if !isSyntactic(def, false) {
 			expr = addUnamedCaptures(expr)
 		}
-		def.Expr = NewCaptureNode(def.Name, expr, def.Span())
+		def.Expr = NewCaptureNode(def.Name, expr, def.Range())
 	}
 
 	return grammar, nil
@@ -38,7 +38,7 @@ func addUnamedCaptures(expr AstNode) AstNode {
 		// capture node instead of adding one capture per
 		// choice branch.
 		if clOk && cl.Name == "" && crOk && cr.Name == "" {
-			expr = NewCaptureNode("", e, e.Span())
+			expr = NewCaptureNode("", e, e.Range())
 		} else {
 			e.Left = l
 			e.Right = r
@@ -83,7 +83,7 @@ func addUnamedCaptures(expr AstNode) AstNode {
 			if firstIsNot && secondIsCapture && second.Name == "" {
 				// unwrap item within capture, and wrap the whole expr
 				seq.Items[1] = second.Expr
-				expr = NewCaptureNode("", e, e.Span())
+				expr = NewCaptureNode("", e, e.Range())
 				return expr
 			}
 		}
@@ -105,7 +105,7 @@ func addUnamedCaptures(expr AstNode) AstNode {
 	default:
 		_, isCap := expr.(*CaptureNode)
 		if isSyntactic(expr, false) && !isCap {
-			return NewCaptureNode("", e, e.Span())
+			return NewCaptureNode("", e, e.Range())
 		}
 	}
 	return expr

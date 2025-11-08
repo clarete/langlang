@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"io"
 	"strings"
-	"unicode/utf8"
 )
 
 type Input interface {
@@ -76,8 +75,6 @@ type virtualMachine struct {
 	pc        int
 	ffp       int
 	cursor    int
-	line      int
-	column    int
 	stack     *stack
 	bytecode  *Bytecode
 	predicate bool
@@ -218,7 +215,7 @@ code:
 			return top, vm.cursor, nil
 
 		case opAny:
-			c, s, err := input.ReadRune()
+			_, s, err := input.ReadRune()
 			if err != nil {
 				if err == io.EOF {
 					vm.updateFFP(expected{})
@@ -226,7 +223,7 @@ code:
 				}
 				return nil, vm.cursor, err
 			}
-			vm.updatePos(c, s)
+			vm.cursor += s
 			vm.pc += opAnySizeInBytes
 
 		case opChar:
@@ -242,7 +239,7 @@ code:
 				vm.updateFFP(expected{a: e})
 				goto fail
 			}
-			vm.updatePos(c, s)
+			vm.cursor += s
 			vm.pc += opCharSizeInBytes
 
 		case opRange:
@@ -259,7 +256,7 @@ code:
 				vm.updateFFP(expected{a: a, b: b})
 				goto fail
 			}
-			vm.updatePos(c, s)
+			vm.cursor += s
 			vm.pc += opRangeSizeInBytes
 
 		case opSet:
@@ -276,7 +273,7 @@ code:
 				vm.updateSetFFP(i)
 				goto fail
 			}
-			vm.updatePos(ru, 1)
+			vm.cursor += 1
 			vm.pc += opSetSizeInBytes
 
 		case opSpan:
@@ -293,7 +290,7 @@ code:
 				ru := rune(c)
 				if set.has(ru) {
 					input.Advance(1)
-					vm.updatePos(ru, 1)
+					vm.cursor += 1
 					continue
 				}
 				break
@@ -327,8 +324,6 @@ code:
 			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
 			top := vm.stack.top()
 			top.cursor = vm.cursor
-			top.line = vm.line
-			top.column = vm.column
 			// Skip collectCaptures if the top frame is
 			// suppressed, since values will be discarded
 			// anyway
@@ -414,7 +409,7 @@ fail:
 	return nil, vm.cursor, vm.mkErr(input, "", vm.ffp)
 }
 
-// Cursor/Line/Column Helpers
+// Helpers
 
 func (vm *virtualMachine) reset() {
 	vm.stack.frames = vm.stack.frames[:0]
@@ -422,8 +417,6 @@ func (vm *virtualMachine) reset() {
 	vm.pc = 0
 	vm.ffp = -1
 	vm.cursor = 0
-	vm.line = 0
-	vm.column = 0
 
 	if vm.showFails {
 		if vm.expected == nil {
@@ -435,21 +428,10 @@ func (vm *virtualMachine) reset() {
 	}
 }
 
-func (vm *virtualMachine) updatePos(c rune, s int) {
-	vm.cursor += s
-	vm.column++
-	if c == '\n' {
-		vm.column = 0
-		vm.line++
-	}
-}
-
 // Stack Management Helpers
 
 func (vm *virtualMachine) backtrackToFrame(input Input, f frame) {
 	vm.cursor = f.cursor
-	vm.line = f.line
-	vm.column = f.column
 	input.Seek(int64(vm.cursor), io.SeekStart)
 }
 
@@ -458,8 +440,6 @@ func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {
 		t:      frameType_Backtracking,
 		pc:     pc,
 		cursor: vm.cursor,
-		line:   vm.line,
-		column: vm.column,
 	}
 }
 
@@ -481,8 +461,6 @@ func (vm *virtualMachine) mkCaptureFrame(id int) frame {
 		t:        frameType_Capture,
 		capId:    id,
 		cursor:   vm.cursor,
-		line:     vm.line,
-		column:   vm.column,
 		suppress: shouldSuppress,
 	}
 }
@@ -502,23 +480,18 @@ func (vm *virtualMachine) newTermNode(input Input, offset int) {
 func (vm *virtualMachine) newNonTermNode(input Input, capId, offset int) {
 	if node, ok := vm.newTextNode(input, offset); ok {
 		capName := vm.bytecode.strs[capId]
-		vm.stack.capture(NewNode(capName, node, node.Span()))
+		vm.stack.capture(NewNode(capName, node, node.Range()))
 	}
 }
 
 func (vm *virtualMachine) newTextNode(input Input, offset int) (Value, bool) {
 	if offset > 0 {
-		text, err := input.ReadString(vm.cursor-offset, vm.cursor)
+		begin := vm.cursor - offset
+		text, err := input.ReadString(begin, vm.cursor)
 		if err != nil {
 			panic(err.Error())
 		}
-		var (
-			runes = utf8.RuneCountInString(text)
-			begin = NewLocation(vm.line, vm.column-runes, vm.cursor-runes)
-			end   = NewLocation(vm.line, vm.column, vm.cursor)
-			span  = NewSpan(begin, end)
-		)
-		return NewString(text, span), true
+		return NewString(text, NewRange(begin, vm.cursor)), true
 	}
 	return nil, false
 }
@@ -532,9 +505,7 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 		node     Value
 		_, isrxp = vm.bytecode.rxps[f.capId]
 		capId    = vm.bytecode.strs[f.capId]
-		begin    = NewLocation(f.line, f.column, f.cursor)
-		end      = NewLocation(vm.line, vm.column, vm.cursor)
-		span     = NewSpan(begin, end)
+		rg       = NewRange(f.cursor, vm.cursor)
 	)
 	switch len(f.values) {
 	case 0:
@@ -543,12 +514,12 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 			if err != nil {
 				panic(err)
 			}
-			node = NewString(text, span)
+			node = NewString(text, rg)
 		}
 	case 1:
 		node = f.values[0]
 	default:
-		node = NewSequence(f.values, span)
+		node = NewSequence(f.values, rg)
 	}
 
 	// This is a capture of an error recovery expression, so we
@@ -559,7 +530,7 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 		if !ok {
 			msg = capId
 		}
-		vm.stack.capture(NewError(capId, msg, node, span))
+		vm.stack.capture(NewError(capId, msg, node, rg))
 		return
 	}
 
@@ -580,7 +551,7 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 	// This is a named capture.  The `AddCaptures` step of the
 	// Grammar Compiler wraps the expression within `Definition`
 	// nodes with `Capture` nodes named after the definition.
-	vm.stack.capture(NewNode(capId, node, span))
+	vm.stack.capture(NewNode(capId, node, rg))
 }
 
 // Error Handling Helpers
@@ -615,25 +586,6 @@ func (vm *virtualMachine) updateSetFFP(sid uint16) {
 }
 
 func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) error {
-	// First we seek back to where the cursor backtracked to, and
-	// increment the information about line and column.
-	input.Seek(int64(vm.cursor), io.SeekStart)
-	line, column, cursor := vm.line, vm.column, vm.cursor
-
-	for cursor < errCursor {
-		c, s, err := input.ReadRune()
-		if err != nil {
-			break
-		}
-
-		cursor += s
-		column++
-		if c == '\n' {
-			column = 0
-			line++
-		}
-	}
-
 	// at this point, the input cursor should be at vm.ffp, so we
 	// try to read the unexpected value to add it to the err
 	// message.  Right now, we read just a single char from ffp's
@@ -642,8 +594,7 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) err
 	var (
 		isEof   bool
 		message strings.Builder
-		pos     = NewLocation(line, column, errCursor)
-		span    = NewSpan(pos, pos)
+		rg      = NewRange(errCursor, errCursor)
 	)
 	c, _, err := input.ReadRune()
 	if err != nil {
@@ -695,7 +646,7 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) err
 			message.WriteRune('\'')
 		}
 	}
-	return ParsingError{Message: message.String(), Label: errLabel, Span: span}
+	return ParsingError{Message: message.String(), Label: errLabel, Range: rg}
 }
 
 var decodeU16 = binary.LittleEndian.Uint16

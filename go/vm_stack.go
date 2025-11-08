@@ -19,15 +19,6 @@ type frame struct {
 	// stores the position of the parser cursor
 	cursor int
 
-	// line is a zero-based counter that increments when
-	// `updatePos` sees a `\n` character.
-	line int
-
-	// column is a zero-based counter that increments when
-	// `updatePos` sees a new character.  It gets reset when `\n`
-	// is under the cursor.
-	column int
-
 	// predicate is a flag that marks the current stack frame as a
 	// frame created within the predicate Not.
 	predicate bool

@@ -41,11 +41,11 @@ outer:
 			}
 		}
 		expr := wi.expandExpr(def.Expr, true)
-		newDef := NewDefinitionNode(def.Name, expr, def.Span())
+		newDef := NewDefinitionNode(def.Name, expr, def.Range())
 		defs = append(defs, newDef)
 		defMap[def.Name] = newDef
 	}
-	return NewGrammarNode(n.Imports, defs, defMap, n.Span())
+	return NewGrammarNode(n.Imports, defs, defMap, n.Range())
 }
 
 func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
@@ -54,7 +54,7 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 		wi.lexLevel++
 		expr := wi.expandExpr(node.Expr, true)
 		wi.lexLevel--
-		return NewLexNode(expr, n.Span())
+		return NewLexNode(expr, n.Range())
 
 	case *SequenceNode:
 		shouldConsumeSpaces := wi.lexLevel == 0 && !isSyntactic(n, true)
@@ -75,7 +75,7 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 
 			newItems = append(newItems, wi.expandExpr(item, true))
 		}
-		return NewSequenceNode(newItems, node.Span())
+		return NewSequenceNode(newItems, node.Range())
 
 	case *ChoiceNode:
 		// No need to inject whitespace handling, we just
@@ -96,25 +96,25 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 		return node
 
 	case *NotNode:
-		return NewNotNode(wi.expandExpr(node.Expr, true), n.Span())
+		return NewNotNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *AndNode:
-		return NewAndNode(wi.expandExpr(node.Expr, true), n.Span())
+		return NewAndNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *OptionalNode:
-		return NewOptionalNode(wi.expandExpr(node.Expr, true), n.Span())
+		return NewOptionalNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *ZeroOrMoreNode:
-		return NewZeroOrMoreNode(wi.expandExpr(node.Expr, true), n.Span())
+		return NewZeroOrMoreNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *OneOrMoreNode:
-		return NewOneOrMoreNode(wi.expandExpr(node.Expr, true), n.Span())
+		return NewOneOrMoreNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *LabeledNode:
-		return NewLabeledNode(node.Label, wi.expandExpr(node.Expr, true), n.Span())
+		return NewLabeledNode(node.Label, wi.expandExpr(node.Expr, true), n.Range())
 
 	case *CaptureNode:
-		return NewCaptureNode(node.Name, wi.expandExpr(node.Expr, true), n.Span())
+		return NewCaptureNode(node.Name, wi.expandExpr(node.Expr, true), n.Range())
 
 	default:
 		return node
@@ -122,5 +122,5 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 }
 
 func wsCall() AstNode {
-	return NewIdentifierNode(spacingIdentifier, Span{})
+	return NewIdentifierNode(spacingIdentifier, Range{})
 }

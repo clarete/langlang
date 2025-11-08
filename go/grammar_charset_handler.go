@@ -59,11 +59,11 @@ func addCharset(expr AstNode) AstNode {
 			if fstIsNot && sndIsAny {
 				switch ee := not.Expr.(type) {
 				case *CharsetNode:
-					return NewCharsetNode(ee.cs.complement(), e.Span())
+					return NewCharsetNode(ee.cs.complement(), e.Range())
 				case *LiteralNode:
 					if len(ee.Value) == 1 && fitcs(r(ee.Value)) {
 						cs := newCharsetForRune(r(ee.Value))
-						return NewCharsetNode(cs.complement(), e.Span())
+						return NewCharsetNode(cs.complement(), e.Range())
 					}
 				}
 			}
@@ -91,7 +91,7 @@ func addCharset(expr AstNode) AstNode {
 			}
 			classCharset = charsetMerge(classCharset, cs)
 		}
-		return NewCharsetNode(classCharset, e.Span())
+		return NewCharsetNode(classCharset, e.Range())
 
 	case *ChoiceNode:
 		lh := addCharset(e.Left)
@@ -100,7 +100,7 @@ func addCharset(expr AstNode) AstNode {
 		sr, srOk := rh.(*CharsetNode)
 		if slOk && srOk {
 			cs := charsetMerge(sl.cs, sr.cs)
-			return NewCharsetNode(cs, e.Span())
+			return NewCharsetNode(cs, e.Range())
 		}
 
 		e.Left = lh
@@ -109,7 +109,7 @@ func addCharset(expr AstNode) AstNode {
 	case *LiteralNode:
 		if len(e.Value) == 1 && fitcs(r(e.Value)) {
 			cs := newCharsetForRune(r(e.Value))
-			return NewCharsetNode(cs, e.Span())
+			return NewCharsetNode(cs, e.Range())
 		}
 
 	case *OptionalNode:

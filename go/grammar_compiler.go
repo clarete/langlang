@@ -313,7 +313,7 @@ func (c *compiler) VisitClassNode(node *ClassNode) error {
 	accum := node.Items[len(node.Items)-1]
 
 	for i := len(node.Items) - 2; i >= 0; i-- {
-		span := NewRange(node.Items[i].Range().Pos, accum.Range().Len)
+		span := NewRange(node.Items[i].Range().Start, accum.Range().End)
 		accum = NewChoiceNode(node.Items[i], accum, span)
 	}
 

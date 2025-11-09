@@ -16,34 +16,34 @@ func TestParseDefinition(t *testing.T) {
 		{
 			Name:    "Any",
 			Grammar: "A <- .",
-			ExpectedOutput: `Grammar (1..7)
-└── Definition[A] (1..7)
-    └── Sequence (6..7)
-        └── Any (6..7)`,
+			ExpectedOutput: `Grammar (0..6)
+└── Definition[A] (0..6)
+    └── Sequence (5..6)
+        └── Any (5..6)`,
 		},
 
 		{
 			Name:    "Choice",
 			Grammar: "A <- 'a' / 'b'",
-			ExpectedOutput: `Grammar (1..15)
-└── Definition[A] (1..15)
-    └── Choice (6..15)
-        ├── Sequence (6..10)
-        │   └── Literal[a] (6..9)
-        └── Sequence (12..15)
-            └── Literal[b] (12..15)`,
+			ExpectedOutput: `Grammar (0..14)
+└── Definition[A] (0..14)
+    └── Choice (5..14)
+        ├── Sequence (5..9)
+        │   └── Literal[a] (6..7)
+        └── Sequence (11..14)
+            └── Literal[b] (12..13)`,
 		},
 		{
 			Name:    "Comment",
 			Grammar: "A <- . // something something",
-			ExpectedOutput: `Grammar (1..30)
-└── Definition[A] (1..30)
-    └── Sequence (6..30)
-        └── Any (6..7)`,
+			ExpectedOutput: `Grammar (0..29)
+└── Definition[A] (0..29)
+    └── Sequence (5..29)
+        └── Any (5..6)`,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			parser := NewGrammarParser(test.Grammar)
+			parser := NewGrammarParser([]byte(test.Grammar))
 			output, err := parser.Parse()
 			require.NoError(t, err)
 			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
@@ -60,49 +60,49 @@ func TestParseExpression(t *testing.T) {
 		{
 			Name:    "Single Item",
 			Grammar: "G <- .",
-			ExpectedOutput: `Grammar (1..7)
-└── Definition[G] (1..7)
-    └── Sequence (6..7)
-        └── Any (6..7)`,
+			ExpectedOutput: `Grammar (0..6)
+└── Definition[G] (0..6)
+    └── Sequence (5..6)
+        └── Any (5..6)`,
 		},
 		{
 			Name:    "Single Choice",
 			Grammar: "G <- 'a' / 'b' / 'c'",
-			ExpectedOutput: `Grammar (1..21)
-└── Definition[G] (1..21)
-    └── Choice (6..21)
-        ├── Sequence (6..10)
-        │   └── Literal[a] (6..9)
-        └── Choice (12..21)
-            ├── Sequence (12..16)
-            │   └── Literal[b] (12..15)
-            └── Sequence (18..21)
-                └── Literal[c] (18..21)`,
+			ExpectedOutput: `Grammar (0..20)
+└── Definition[G] (0..20)
+    └── Choice (5..20)
+        ├── Sequence (5..9)
+        │   └── Literal[a] (6..7)
+        └── Choice (11..20)
+            ├── Sequence (11..15)
+            │   └── Literal[b] (12..13)
+            └── Sequence (17..20)
+                └── Literal[c] (18..19)`,
 		},
 		{
 			Name:    "More Items",
 			Grammar: "G <- A B C 'D'",
-			ExpectedOutput: `Grammar (1..15)
-└── Definition[G] (1..15)
-    └── Sequence (6..15)
-        ├── Identifier[A] (6..7)
-        ├── Identifier[B] (8..9)
-        ├── Identifier[C] (10..11)
-        └── Literal[D] (12..15)`,
+			ExpectedOutput: `Grammar (0..14)
+└── Definition[G] (0..14)
+    └── Sequence (5..14)
+        ├── Identifier[A] (5..6)
+        ├── Identifier[B] (7..8)
+        ├── Identifier[C] (9..10)
+        └── Literal[D] (12..13)`,
 		},
 		{
 			Name:    "Sequence with Optional followed by ID",
 			Grammar: "G <- .? x",
-			ExpectedOutput: `Grammar (1..10)
-└── Definition[G] (1..10)
-    └── Sequence (6..10)
-        ├── Optional (6..8)
-        │   └── Any (6..7)
-        └── Identifier[x] (9..10)`,
+			ExpectedOutput: `Grammar (0..9)
+└── Definition[G] (0..9)
+    └── Sequence (5..9)
+        ├── Optional (5..7)
+        │   └── Any (5..6)
+        └── Identifier[x] (8..9)`,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			parser := NewGrammarParser(test.Grammar)
+			parser := NewGrammarParser([]byte(test.Grammar))
 			output, err := parser.Parse()
 			require.NoError(t, err)
 			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
@@ -119,24 +119,24 @@ func TestParsePrefix(t *testing.T) {
 		{
 			Name:    "And",
 			Grammar: "G <- &.",
-			ExpectedOutput: `Grammar (1..8)
-└── Definition[G] (1..8)
-    └── Sequence (6..8)
-        └── And (6..8)
-            └── Any (7..8)`,
+			ExpectedOutput: `Grammar (0..7)
+└── Definition[G] (0..7)
+    └── Sequence (5..7)
+        └── And (5..7)
+            └── Any (6..7)`,
 		},
 		{
 			Name:    "Not",
 			Grammar: "G <- !.",
-			ExpectedOutput: `Grammar (1..8)
-└── Definition[G] (1..8)
-    └── Sequence (6..8)
-        └── Not (6..8)
-            └── Any (7..8)`,
+			ExpectedOutput: `Grammar (0..7)
+└── Definition[G] (0..7)
+    └── Sequence (5..7)
+        └── Not (5..7)
+            └── Any (6..7)`,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			parser := NewGrammarParser(test.Grammar)
+			parser := NewGrammarParser([]byte(test.Grammar))
 			output, err := parser.Parse()
 			require.NoError(t, err)
 			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
@@ -153,33 +153,33 @@ func TestParseSuffix(t *testing.T) {
 		{
 			Name:    "Optional",
 			Grammar: "G <- .?",
-			ExpectedOutput: `Grammar (1..8)
-└── Definition[G] (1..8)
-    └── Sequence (6..8)
-        └── Optional (6..8)
-            └── Any (6..7)`,
+			ExpectedOutput: `Grammar (0..7)
+└── Definition[G] (0..7)
+    └── Sequence (5..7)
+        └── Optional (5..7)
+            └── Any (5..6)`,
 		},
 		{
 			Name:    "Zero or More",
 			Grammar: "G <- .*",
-			ExpectedOutput: `Grammar (1..8)
-└── Definition[G] (1..8)
-    └── Sequence (6..8)
-        └── ZeroOrMore (6..8)
-            └── Any (6..7)`,
+			ExpectedOutput: `Grammar (0..7)
+└── Definition[G] (0..7)
+    └── Sequence (5..7)
+        └── ZeroOrMore (5..7)
+            └── Any (5..6)`,
 		},
 		{
 			Name:    "One or More",
 			Grammar: "G <- .+",
-			ExpectedOutput: `Grammar (1..8)
-└── Definition[G] (1..8)
-    └── Sequence (6..8)
-        └── OneOrMore (6..8)
-            └── Any (6..7)`,
+			ExpectedOutput: `Grammar (0..7)
+└── Definition[G] (0..7)
+    └── Sequence (5..7)
+        └── OneOrMore (5..7)
+            └── Any (5..6)`,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			parser := NewGrammarParser(test.Grammar)
+			parser := NewGrammarParser([]byte(test.Grammar))
 			output, err := parser.Parse()
 			require.NoError(t, err)
 			assert.Equal(t, test.ExpectedOutput, output.PrettyString())
@@ -196,47 +196,47 @@ func TestParsePrimary(t *testing.T) {
 		{
 			Name:    "Any",
 			Grammar: "G <- .",
-			ExpectedOutput: `Grammar (1..7)
-└── Definition[G] (1..7)
-    └── Sequence (6..7)
-        └── Any (6..7)`,
+			ExpectedOutput: `Grammar (0..6)
+└── Definition[G] (0..6)
+    └── Sequence (5..6)
+        └── Any (5..6)`,
 		},
 		{
 			Name:    "Single Quote Literal",
 			Grammar: "G <- 'abcd'",
-			ExpectedOutput: `Grammar (1..12)
-└── Definition[G] (1..12)
-    └── Sequence (6..12)
-        └── Literal[abcd] (6..12)`,
+			ExpectedOutput: `Grammar (0..11)
+└── Definition[G] (0..11)
+    └── Sequence (5..11)
+        └── Literal[abcd] (6..10)`,
 		},
 		{
 			Name:    "Double Quote Literal",
 			Grammar: `G <- "abcd"`,
-			ExpectedOutput: `Grammar (1..12)
-└── Definition[G] (1..12)
-    └── Sequence (6..12)
-        └── Literal[abcd] (6..12)`,
+			ExpectedOutput: `Grammar (0..11)
+└── Definition[G] (0..11)
+    └── Sequence (5..11)
+        └── Literal[abcd] (6..10)`,
 		},
 		{
 			Name:    "Identifier",
 			Grammar: "G <- FooBarBaz",
-			ExpectedOutput: `Grammar (1..15)
-└── Definition[G] (1..15)
-    └── Sequence (6..15)
-        └── Identifier[FooBarBaz] (6..15)`,
+			ExpectedOutput: `Grammar (0..14)
+└── Definition[G] (0..14)
+    └── Sequence (5..14)
+        └── Identifier[FooBarBaz] (5..14)`,
 		},
 		{
 			Name:    "Class with single Range",
 			Grammar: "G <- [0-9]",
-			ExpectedOutput: `Grammar (1..11)
-└── Definition[G] (1..11)
-    └── Sequence (6..11)
-        └── Class (6..11)
-            └── Range[0, 9] (7..10)`,
+			ExpectedOutput: `Grammar (0..10)
+└── Definition[G] (0..10)
+    └── Sequence (5..10)
+        └── Class (5..10)
+            └── Range[0, 9] (6..9)`,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			parser := NewGrammarParser(test.Grammar)
+			parser := NewGrammarParser([]byte(test.Grammar))
 			output, err := parser.Parse()
 			require.NoError(t, err)
 			assert.Equal(t, test.ExpectedOutput, output.PrettyString())

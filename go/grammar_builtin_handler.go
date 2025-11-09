@@ -14,7 +14,7 @@ var (
 // mustLoadBuiltins will parse the grammar within `builtins.peg` and
 // save the output into the global variable `builtinsGrammar`.
 func mustLoadBuiltins() *GrammarNode {
-	p := NewGrammarParser(string(builtinsText))
+	p := NewGrammarParser(builtinsText)
 	p.SetGrammarFile("builtins.peg")
 
 	parsed, err := p.Parse()

@@ -15,7 +15,8 @@ func TestIsSyntactic(t *testing.T) {
 		p := newBasicParser("abc")
 		v, err := p.ParseSyntactic0()
 		require.NoError(t, err)
-		assert.Equal(t, "abc", v.Text())
+		assert.Equal(t, `Syntactic0 (1..4)
+└── "abc" (1..4)`, PrettyString(p.GetInput(), v))
 
 		// It doesn't expect spaces between the sequence items
 		p = newBasicParser("a b c")
@@ -31,19 +32,39 @@ func TestIsSyntactic(t *testing.T) {
 		p := newBasicParser("abcabc!")
 		v, err := p.ParseNotSyntactic0()
 		require.NoError(t, err)
-		assert.Equal(t, "abcabc!", v.Text())
+		assert.Equal(t, `NotSyntactic0 (1..8)
+└── Sequence<3> (1..8)
+    ├── Syntactic0 (1..4)
+    │   └── "abc" (1..4)
+    ├── Syntactic0 (4..7)
+    │   └── "abc" (4..7)
+    └── "!" (7..8)`, PrettyString(p.GetInput(), v))
 
 		p = newBasicParser("abc abc !")
 		v, err = p.ParseNotSyntactic0()
 		require.NoError(t, err)
-		assert.Equal(t, "abc abc !", v.Text())
+		assert.Equal(t, `NotSyntactic0 (1..10)
+└── Sequence<5> (1..10)
+    ├── Syntactic0 (1..4)
+    │   └── "abc" (1..4)
+    ├── Spacing (4..5)
+    │   └── " " (4..5)
+    ├── Syntactic0 (5..8)
+    │   └── "abc" (5..8)
+    ├── Spacing (8..9)
+    │   └── " " (8..9)
+    └── "!" (9..10)`, PrettyString(p.GetInput(), v))
 	})
 
 	t.Run("Lexification operator on a single item within a syntactic rule", func(t *testing.T) {
 		p := newBasicParser("1st")
 		v, err := p.ParseOrdinal()
 		require.NoError(t, err)
-		assert.Equal(t, "1st", v.Text())
+		assert.Equal(t, `Ordinal (1..4)
+└── Sequence<2> (1..4)
+    ├── Decimal (1..2)
+    │   └── "1" (1..2)
+    └── "st" (2..4)`, PrettyString(p.GetInput(), v))
 
 		p = newBasicParser("1 st")
 		_, err = p.ParseOrdinal()
@@ -52,15 +73,51 @@ func TestIsSyntactic(t *testing.T) {
 	})
 
 	t.Run("Lexification operator on a sequence within a sequence", func(t *testing.T) {
-		for _, test := range []string{
-			"a9:30",
-			"a999:99",
-			"bb :12",
+		for _, test := range [][]string{
+			{"a9:30", `SPC0 (1..6)
+└── Sequence<5> (1..6)
+    ├── Letter (1..2)
+    │   └── "a" (1..2)
+    ├── Alnum (2..3)
+    │   └── "9" (2..3)
+    ├── ":" (3..4)
+    ├── Digit (4..5)
+    │   └── "3" (4..5)
+    └── Digit (5..6)
+        └── "0" (5..6)`},
+			{"a999:99", `SPC0 (1..8)
+└── Sequence<7> (1..8)
+    ├── Letter (1..2)
+    │   └── "a" (1..2)
+    ├── Alnum (2..3)
+    │   └── "9" (2..3)
+    ├── Alnum (3..4)
+    │   └── "9" (3..4)
+    ├── Alnum (4..5)
+    │   └── "9" (4..5)
+    ├── ":" (5..6)
+    ├── Digit (6..7)
+    │   └── "9" (6..7)
+    └── Digit (7..8)
+        └── "9" (7..8)`},
+			{"bb :12", `SPC0 (1..7)
+└── Sequence<6> (1..7)
+    ├── Letter (1..2)
+    │   └── "b" (1..2)
+    ├── Alnum (2..3)
+    │   └── "b" (2..3)
+    ├── Spacing (3..4)
+    │   └── " " (3..4)
+    ├── ":" (4..5)
+    ├── Digit (5..6)
+    │   └── "1" (5..6)
+    └── Digit (6..7)
+        └── "2" (6..7)`},
 		} {
-			p := newBasicParser(test)
+			p := newBasicParser(test[0])
 			v, err := p.ParseSPC0()
 			require.NoError(t, err)
-			assert.Equal(t, test, v.Text())
+			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
 		}
 
 		for test, errMsg := range map[string]string{
@@ -76,15 +133,59 @@ func TestIsSyntactic(t *testing.T) {
 	})
 
 	t.Run("Variation of lexification operator on a sequence within a sequence", func(t *testing.T) {
-		for _, test := range []string{
-			"a9:30",
-			"a 999:99",
-			"a 999: 99",
+		for _, test := range [][]string{
+			{"a9:30", `SPC1 (1..6)
+└── Sequence<5> (1..6)
+    ├── Letter (1..2)
+    │   └── "a" (1..2)
+    ├── Alnum (2..3)
+    │   └── "9" (2..3)
+    ├── ":" (3..4)
+    ├── Digit (4..5)
+    │   └── "3" (4..5)
+    └── Digit (5..6)
+        └── "0" (5..6)`},
+			{"a 999:99", `SPC1 (1..9)
+└── Sequence<8> (1..9)
+    ├── Letter (1..2)
+    │   └── "a" (1..2)
+    ├── Spacing (2..3)
+    │   └── " " (2..3)
+    ├── Alnum (3..4)
+    │   └── "9" (3..4)
+    ├── Alnum (4..5)
+    │   └── "9" (4..5)
+    ├── Alnum (5..6)
+    │   └── "9" (5..6)
+    ├── ":" (6..7)
+    ├── Digit (7..8)
+    │   └── "9" (7..8)
+    └── Digit (8..9)
+        └── "9" (8..9)`},
+			{"a 999: 99", `SPC1 (1..10)
+└── Sequence<9> (1..10)
+    ├── Letter (1..2)
+    │   └── "a" (1..2)
+    ├── Spacing (2..3)
+    │   └── " " (2..3)
+    ├── Alnum (3..4)
+    │   └── "9" (3..4)
+    ├── Alnum (4..5)
+    │   └── "9" (4..5)
+    ├── Alnum (5..6)
+    │   └── "9" (5..6)
+    ├── ":" (6..7)
+    ├── Spacing (7..8)
+    │   └── " " (7..8)
+    ├── Digit (8..9)
+    │   └── "9" (8..9)
+    └── Digit (9..10)
+        └── "9" (9..10)`},
 		} {
-			p := newBasicParser(test)
+			p := newBasicParser(test[0])
 			v, err := p.ParseSPC1()
 			require.NoError(t, err)
-			assert.Equal(t, test, v.Text())
+			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
 		}
 
 		for test, errMsg := range map[string]string{
@@ -101,15 +202,24 @@ func TestIsSyntactic(t *testing.T) {
 
 func TestAnd(t *testing.T) {
 	t.Run("Succeeds", func(t *testing.T) {
-		for _, test := range []string{
-			"#",
-			"#*",
-			"#***",
+		for _, test := range [][]string{
+			{"#", `HashWithAnAnd (1..2)
+└── "#" (1..2)`},
+			{"#*", `HashWithAnAnd (1..3)
+└── Sequence<2> (1..3)
+    ├── "#" (1..2)
+    └── "*" (2..3)`},
+			{"#***", `HashWithAnAnd (1..5)
+└── Sequence<4> (1..5)
+    ├── "#" (1..2)
+    ├── "*" (2..3)
+    ├── "*" (3..4)
+    └── "*" (4..5)`},
 		} {
-			p := newBasicParser(test)
+			p := newBasicParser(test[0])
 			v, err := p.ParseHashWithAnAnd()
 			require.NoError(t, err)
-			assert.Equal(t, test, v.Text())
+			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
 		}
 	})
 
@@ -130,15 +240,22 @@ func TestAnd(t *testing.T) {
 
 func TestNot(t *testing.T) {
 	t.Run("Succeeds", func(t *testing.T) {
-		for _, test := range []string{
-			"*",
-			"*#",
-			"*###",
+		for _, test := range [][]string{
+			{"*", `HashWithNot (1..2)
+└── "*" (1..2)`},
+			{"*#", `HashWithNot (1..3)
+└── Sequence<2> (1..3)
+    ├── "*" (1..2)
+    └── "#" (2..3)`},
+			{"*###", `HashWithNot (1..5)
+└── Sequence<2> (1..5)
+    ├── "*" (1..2)
+    └── "###" (2..5)`},
 		} {
-			p := newBasicParser(test)
+			p := newBasicParser(test[0])
 			v, err := p.ParseHashWithNot()
 			require.NoError(t, err)
-			assert.Equal(t, test, v.Text())
+			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
 		}
 	})
 
@@ -168,7 +285,7 @@ func TestNullable(t *testing.T) {
 
 func newBasicParser(input string) *Parser {
 	p := NewParser()
-	p.SetInput(input)
+	p.SetInput([]byte(input))
 	p.SetShowFails(true)
 	return p
 }

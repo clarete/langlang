@@ -487,11 +487,7 @@ func (vm *virtualMachine) newNonTermNode(input Input, capId, offset int) {
 func (vm *virtualMachine) newTextNode(input Input, offset int) (Value, bool) {
 	if offset > 0 {
 		begin := vm.cursor - offset
-		text, err := input.ReadString(begin, vm.cursor)
-		if err != nil {
-			panic(err.Error())
-		}
-		return NewString(text, NewRange(begin, vm.cursor)), true
+		return NewString(NewRange(begin, vm.cursor)), true
 	}
 	return nil, false
 }
@@ -510,11 +506,7 @@ func (vm *virtualMachine) newNode(input Input, f frame) {
 	switch len(f.values) {
 	case 0:
 		if vm.cursor-f.cursor > 0 {
-			text, err := input.ReadString(f.cursor, vm.cursor)
-			if err != nil {
-				panic(err)
-			}
-			node = NewString(text, rg)
+			node = NewString(rg)
 		}
 	case 1:
 		node = f.values[0]
@@ -586,6 +578,10 @@ func (vm *virtualMachine) updateSetFFP(sid uint16) {
 }
 
 func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) error {
+	// First we seek back to where the cursor backtracked to, and
+	// increment the information about line and column.
+	input.Seek(int64(vm.cursor), io.SeekStart)
+
 	// at this point, the input cursor should be at vm.ffp, so we
 	// try to read the unexpected value to add it to the err
 	// message.  Right now, we read just a single char from ffp's
@@ -594,7 +590,7 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) err
 	var (
 		isEof   bool
 		message strings.Builder
-		rg      = NewRange(errCursor, errCursor)
+		rg      = NewRange(vm.cursor+1, errCursor+1)
 	)
 	c, _, err := input.ReadRune()
 	if err != nil {

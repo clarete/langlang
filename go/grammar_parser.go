@@ -4,7 +4,7 @@ type GrammarParser struct {
 	Parser
 }
 
-func NewGrammarParser(grammar string) *GrammarParserV2 {
+func NewGrammarParser(grammar []byte) *GrammarParserV2 {
 	return NewGrammarParserV2(grammar)
 }
 
@@ -156,7 +156,7 @@ func (p *GrammarParser) ParseExpression() (AstNode, error) {
 	accum := items[len(items)-1]
 
 	for i := len(items) - 2; i >= 0; i-- {
-		span := NewRange(items[i].Range().Pos, accum.Range().Len)
+		span := NewRange(items[i].Range().Start, accum.Range().End)
 		accum = NewChoiceNode(items[i], accum, span)
 	}
 

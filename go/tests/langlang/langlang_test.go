@@ -13,14 +13,14 @@ import (
 
 var grammarNames = []string{"csv", "json", "peg", "langlang"}
 
-func getGrammars(tb testing.TB) map[string]string {
+func getGrammars(tb testing.TB) map[string][]byte {
 	tb.Helper()
 
-	grammars := make(map[string]string, len(grammarNames))
-	read := func(n string) string {
+	grammars := make(map[string][]byte, len(grammarNames))
+	read := func(n string) []byte {
 		text, err := os.ReadFile(fmt.Sprintf("../../../grammars/%s.peg", n))
 		require.NoError(tb, err)
-		return string(text)
+		return text
 	}
 	for _, name := range grammarNames {
 		grammars[name] = read(name)

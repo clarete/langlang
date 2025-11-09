@@ -27,7 +27,7 @@ func TestVM(t *testing.T) {
 
 		vm := NewVirtualMachine(bytecode, nil, nil, true)
 
-		input := NewMemInput("")
+		input := NewMemInput([]byte(""))
 
 		_, cur, err := vm.Match(&input)
 
@@ -319,7 +319,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		cfg.SetInt("compiler.optimize", optimize)
 		cfg.SetBool("grammar.add_charsets", enableCharsets)
 
-		ast, err := GrammarFromString(test.Grammar, cfg)
+		ast, err := GrammarFromBytes([]byte(test.Grammar), cfg)
 		if err != nil {
 			panic(err)
 		}
@@ -334,7 +334,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		code := Encode(asm)
 		// fmt.Printf("code\n%#v\n", code.code)
 
-		memInput := NewMemInput(test.Input)
+		memInput := NewMemInput([]byte(test.Input))
 
 		// Notice `showFails` is marked as false because `ClassNode`
 		// and `CharsetNode` will generate different ordered choices.
@@ -363,7 +363,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 			assert.Nil(t, val)
 		} else {
 			require.NotNil(t, val)
-			assert.Equal(t, test.ExpectedAST, val.PrettyString())
+			assert.Equal(t, test.ExpectedAST, PrettyString(&memInput, val))
 		}
 	}
 }

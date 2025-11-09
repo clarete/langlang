@@ -3,7 +3,7 @@ package langlang
 // GrammarFromString takes a `grammar` string definition alongside
 // with an instance of a configuration object and returns the Grammar
 // AST transformed according to the configured values.
-func GrammarFromString(grammar string, cfg *Config) (AstNode, error) {
+func GrammarFromBytes(grammar []byte, cfg *Config) (AstNode, error) {
 	ast, err := NewGrammarParser(grammar).Parse()
 	if err != nil {
 		return nil, err

@@ -116,7 +116,8 @@ func (p *GrammarParserBootstrap) ParseMissingImportName() (Value, error)     { r
 func (p *GrammarParserBootstrap) ParseMissingImportFrom() (Value, error)     { return p.parseFn(1172) }
 func (p *GrammarParserBootstrap) ParseMissingImportSrc() (Value, error)      { return p.parseFn(1192) }
 func (p *GrammarParserBootstrap) Parse() (Value, error)                      { return p.parseFn(5) }
-func (p *GrammarParserBootstrap) SetInput(input string)                      { p.input = NewMemInput(input) }
+func (p *GrammarParserBootstrap) SetInput(input []byte)                      { p.input = NewMemInput(input) }
+func (p *GrammarParserBootstrap) GetInput() Input                            { return &p.input }
 func (p *GrammarParserBootstrap) SetLabelMessages(el map[string]string)      { p.vm.errLabels = el }
 func (p *GrammarParserBootstrap) SetShowFails(v bool)                        { p.vm.showFails = v }
 func (p *GrammarParserBootstrap) SetCaptureSpaces(v bool) {

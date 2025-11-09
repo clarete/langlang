@@ -81,7 +81,7 @@ func (r *ImportResolver) createImporterResolverFrame(importPath, parentPath stri
 
 type ImportLoader interface {
 	GetPath(importPath, parentPath string) (string, error)
-	GetContent(path string) (string, error)
+	GetContent(path string) ([]byte, error)
 }
 
 type RelativeImportLoader struct{}
@@ -106,12 +106,8 @@ func (ril *RelativeImportLoader) GetPath(importPath, parentPath string) (string,
 	return filepath.Join(filepath.Dir(parentPath), modulePath), nil
 }
 
-func (ril *RelativeImportLoader) GetContent(path string) (string, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(content), nil
+func (ril *RelativeImportLoader) GetContent(path string) ([]byte, error) {
+	return os.ReadFile(path)
 }
 
 type importerResolverFrame struct {

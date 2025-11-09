@@ -51,11 +51,11 @@ func TestRecoverySuccess(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			p := NewParser()
-			p.SetInput(test.Input)
+			p.SetInput([]byte(test.Input))
 			p.SetCaptureSpaces(false)
 			v, err := p.ParseP()
 			require.NoError(t, err)
-			assert.Equal(t, test.Expected, v.PrettyString())
+			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
 		})
 	}
 }
@@ -135,12 +135,12 @@ func TestRecovery(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			p := NewParser()
-			p.SetInput(test.Input)
+			p.SetInput([]byte(test.Input))
 			p.SetCaptureSpaces(false)
 			v, err := p.ParseP()
 			require.NoError(t, err)
 			require.NotNil(t, v)
-			assert.Equal(t, test.Expected, v.PrettyString())
+			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
 		})
 	}
 }

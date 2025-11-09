@@ -15,14 +15,14 @@ import (
 
 var inputNames = []string{"30kb", "500kb", "2000kb"}
 
-func getInputs(tb testing.TB) map[string]string {
+func getInputs(tb testing.TB) map[string][]byte {
 	tb.Helper()
 
-	inputs := make(map[string]string, len(inputNames))
-	read := func(n string) string {
+	inputs := make(map[string][]byte, len(inputNames))
+	read := func(n string) []byte {
 		text, err := os.ReadFile(fmt.Sprintf("./input_%s.json", n))
 		require.NoError(tb, err)
-		return string(text)
+		return text
 	}
 	for _, name := range inputNames {
 		inputs[name] = read(name)

@@ -7,11 +7,11 @@ import (
 )
 
 type MemInput struct {
-	data string
+	data []byte
 	pos  int
 }
 
-func NewMemInput(data string) MemInput {
+func NewMemInput(data []byte) MemInput {
 	return MemInput{data: data}
 }
 
@@ -38,7 +38,7 @@ func (in *MemInput) PeekRune() (rune, int, error) {
 	if r := in.data[in.pos]; r < utf8.RuneSelf {
 		return rune(r), 1, nil
 	}
-	r, size := utf8.DecodeRuneInString(in.data[in.pos:])
+	r, size := utf8.DecodeRune(in.data[in.pos:])
 	return r, size, nil
 }
 

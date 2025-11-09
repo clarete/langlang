@@ -18,7 +18,7 @@ type P interface {
 
 type test struct {
 	Name     string
-	Input    string
+	Input    []byte
 	Expected string
 	Func     func(P) (Value, error)
 }
@@ -32,42 +32,42 @@ var (
 var tests = []test{
 	{
 		Name:  "Identifier Letter",
-		Input: "A",
+		Input: []byte("A"),
 		Func:  identifierFn,
 		Expected: `Identifier (1..2)
 └── "A" (1..2)`,
 	},
 	{
 		Name:  "Identifier Word",
-		Input: "Abacate",
+		Input: []byte("Abacate"),
 		Func:  identifierFn,
 		Expected: `Identifier (1..8)
 └── "Abacate" (1..8)`,
 	},
 	{
 		Name:  "Digit Single",
-		Input: "0",
+		Input: []byte("0"),
 		Func:  digitsFn,
 		Expected: `Digits (1..2)
 └── "0" (1..2)`,
 	},
 	{
 		Name:  "Digit Multiple",
-		Input: "1234",
+		Input: []byte("1234"),
 		Func:  digitsFn,
 		Expected: `Digits (1..5)
 └── "1234" (1..5)`,
 	},
 	{
 		Name:  "Hiragana Single",
-		Input: "あ",
+		Input: []byte("あ"),
 		Func:  hiraganaFn,
 		Expected: `Hiragana (1..2)
 └── "あ" (1..2)`,
 	},
 	{
 		Name:  "Hiragana Many",
-		Input: "こんにちは",
+		Input: []byte("こんにちは"),
 		Func:  hiraganaFn,
 		Expected: `Hiragana (1..6)
 └── "こんにちは" (1..6)`,
@@ -82,7 +82,7 @@ func TestCharset(t *testing.T) {
 			p.SetCaptureSpaces(false)
 			v, err := test.Func(p)
 			require.NoError(t, err)
-			assert.Equal(t, test.Expected, v.PrettyString())
+			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
 		})
 	}
 }

@@ -26,25 +26,28 @@ const eof = -1
 
 // Range takes as little as possible (8 bytes in 64bit systems) to
 // represent a position within the input.
-type Range struct{ Pos, Len int }
+type Range struct{ Start, End int }
 
 func (r Range) String() string {
-	return fmt.Sprintf("%d..%d", r.Pos, r.Pos+r.Len)
+	if r.Start == r.End {
+		return fmt.Sprintf("%d", r.Start)
+	}
+	return fmt.Sprintf("%d..%d", r.Start, r.End)
 }
 
-func NewRange(ps, ln int) Range {
-	return Range{Pos: ps, Len: ln}
+func NewRange(start, end int) Range {
+	return Range{Start: start, End: end}
+}
+
+func (r Range) Str(v []byte) string {
+	return string(v[r.Start:r.End])
 }
 
 type Value interface {
-	Range() Range
-	String() string
-	Text() string
 	Type() string
+	Range() Range
+	String(input []byte) string
 	Accept(ValueVisitor) error
-	PrettyString() string
-	HighlightPrettyString() string
-	Format(FormatFunc[FormatToken]) string
 }
 
 type ValueVisitor interface {
@@ -57,22 +60,17 @@ type ValueVisitor interface {
 // String Value
 
 type String struct {
-	rg    Range
-	Value string
+	rg Range
 }
 
-func NewString(value string, rg Range) *String {
-	return &String{rg: rg, Value: value}
+func NewString(rg Range) *String {
+	return &String{rg: rg}
 }
 
-func (n String) Type() string                             { return "string" }
-func (n String) Range() Range                             { return n.rg }
-func (n String) String() string                           { return fmt.Sprintf(`"%s" @ %s`, n.Value, n.Range()) }
-func (n String) Text() string                             { return n.Value }
-func (n String) Accept(v ValueVisitor) error              { return v.VisitString(&n) }
-func (n String) PrettyString() string                     { return n.Format(formatValuePlain) }
-func (n String) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
-func (n String) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
+func (n String) Type() string                { return "string" }
+func (n String) Range() Range                { return n.rg }
+func (n String) String(input []byte) string  { return n.Range().Str(input) }
+func (n String) Accept(v ValueVisitor) error { return v.VisitString(&n) }
 
 // Sequence Value
 
@@ -85,30 +83,19 @@ func NewSequence(items []Value, rg Range) *Sequence {
 	return &Sequence{Items: items, rg: rg}
 }
 
-func (n Sequence) Type() string                             { return "sequence" }
-func (n Sequence) Range() Range                             { return n.rg }
-func (n Sequence) Accept(v ValueVisitor) error              { return v.VisitSequence(&n) }
-func (n Sequence) PrettyString() string                     { return n.Format(formatValuePlain) }
-func (n Sequence) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
-func (n Sequence) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
-func (n Sequence) String() string {
+func (n Sequence) Type() string                { return "sequence" }
+func (n Sequence) Range() Range                { return n.rg }
+func (n Sequence) Accept(v ValueVisitor) error { return v.VisitSequence(&n) }
+func (n Sequence) String(input []byte) string {
 	var s strings.Builder
 	s.WriteString("Sequence(")
 	for i, expr := range n.Items {
-		s.WriteString(expr.String())
+		s.WriteString(expr.String(input))
 		if i < len(n.Items)-1 {
 			s.WriteString(", ")
 		}
 	}
-	fmt.Fprintf(&s, ") @ %s", n.Range())
-	return s.String()
-}
-
-func (n Sequence) Text() string {
-	var s strings.Builder
-	for _, expr := range n.Items {
-		s.WriteString(expr.Text())
-	}
+	fmt.Fprintf(&s, ")")
 	return s.String()
 }
 
@@ -124,20 +111,10 @@ func NewNode(name string, expr Value, rg Range) *Node {
 	return &Node{Name: name, Expr: expr, rg: rg}
 }
 
-func (n Node) Type() string                             { return "node" }
-func (n Node) Range() Range                             { return n.rg }
-func (n Node) Accept(v ValueVisitor) error              { return v.VisitNode(&n) }
-func (n Node) String() string                           { return fmt.Sprintf("%s(%s) @ %s", n.Name, n.Expr, n.Range()) }
-func (n Node) PrettyString() string                     { return n.Format(formatValuePlain) }
-func (n Node) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
-func (n Node) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
-
-func (n Node) Text() string {
-	if n.Expr == nil {
-		return "???"
-	}
-	return n.Expr.Text()
-}
+func (n Node) Type() string                { return "node" }
+func (n Node) Range() Range                { return n.rg }
+func (n Node) Accept(v ValueVisitor) error { return v.VisitNode(&n) }
+func (n Node) String(input []byte) string  { return n.Range().Str(input) }
 
 // Node Error
 
@@ -152,25 +129,12 @@ func NewError(label, message string, expr Value, rg Range) *Error {
 	return &Error{Label: label, Message: message, Expr: expr, rg: rg}
 }
 
-func (n Error) Type() string                             { return "error" }
-func (n Error) Range() Range                             { return n.rg }
-func (n Error) Accept(v ValueVisitor) error              { return v.VisitError(&n) }
-func (n Error) PrettyString() string                     { return n.Format(formatValuePlain) }
-func (n Error) HighlightPrettyString() string            { return n.Format(formatValueHighlight) }
-func (n Error) Format(fn FormatFunc[FormatToken]) string { return formatValue(n, fn) }
+func (n Error) Type() string                { return "error" }
+func (n Error) Range() Range                { return n.rg }
+func (n Error) Accept(v ValueVisitor) error { return v.VisitError(&n) }
 
-func (n Error) Text() string {
-	if n.Expr == nil {
-		return "error[" + n.Label + "]"
-	}
-	return fmt.Sprintf("error[%s: %s]", n.Label, n.Expr.Text())
-}
-
-func (n Error) String() string {
-	if n.Expr == nil {
-		return fmt.Sprintf(`Error("%s") @ %s`, n.Label, n.Range())
-	}
-	return fmt.Sprintf(`Error("%s", %s) @ %s`, n.Label, n.Expr, n.Range())
+func (n Error) String(input []byte) string {
+	return fmt.Sprintf(`Error("%s", "%s")`, n.Label, n.Range().Str(input))
 }
 
 func (n Error) AsError() ParsingError {
@@ -181,38 +145,82 @@ func (n Error) AsError() ParsingError {
 	}
 }
 
-type ValuePrinter struct {
-	*treePrinter[FormatToken]
-}
-
-func NewValuePrinter(format FormatFunc[FormatToken]) *ValuePrinter {
-	return &ValuePrinter{newTreePrinter(format)}
-}
-
-func formatValuePlain(input string, _ FormatToken) string {
-	return input
-}
-
-func formatValueHighlight(input string, token FormatToken) string {
-	return valuePrinterTheme[token] + input + valuePrinterTheme[FormatToken_None]
-}
-
-func formatValue(node Value, fmtFn FormatFunc[FormatToken]) string {
-	p := NewValuePrinter(fmtFn)
+func PrettyString(input Input, node Value) string {
+	p := NewValuePrinter(input, func(input string, _ FormatToken) string {
+		return input
+	})
 	node.Accept(p)
 	return p.output.String()
 }
 
+func HighlightPrettyString(input Input, node Value) string {
+	p := NewValuePrinter(input, func(input string, token FormatToken) string {
+		return valuePrinterTheme[token] + input + valuePrinterTheme[FormatToken_None]
+	})
+	node.Accept(p)
+	return p.output.String()
+}
+
+type ValuePrinter struct {
+	input  Input
+	line   int
+	column int
+	*treePrinter[FormatToken]
+}
+
+func NewValuePrinter(input Input, format FormatFunc[FormatToken]) *ValuePrinter {
+	return &ValuePrinter{input: input, line: 1, column: 1, treePrinter: newTreePrinter(format)}
+}
+
+// posToLineCol converts a byte position in the input to line and column numbers (both 1-based)
+func (v *ValuePrinter) posToLineCol(pos int) (line, column int) {
+	line, column = 1, 1
+	data, err := v.input.ReadString(0, pos)
+	if err != nil {
+		return line, column
+	}
+	for _, ch := range data {
+		if ch == '\n' {
+			line++
+			column = 1
+		} else {
+			column++
+		}
+	}
+	return line, column
+}
+
+// formatPosition formats a Range as "startLine:startCol-endLine:endCol"
+func (v *ValuePrinter) formatPosition(rg Range) string {
+	startLine, startCol := v.posToLineCol(rg.Start)
+	endLine, endCol := v.posToLineCol(rg.End)
+	if startLine == endLine && startLine == 1 {
+		if startCol == endCol {
+			return fmt.Sprintf("%d", startCol)
+		}
+		return fmt.Sprintf("%d..%d", startCol, endCol)
+	}
+	if startLine == endLine && startCol == endCol {
+		return fmt.Sprintf("%d:%d", startLine, startCol)
+	}
+	return fmt.Sprintf("%d:%d..%d:%d", startLine, startCol, endLine, endCol)
+}
+
 func (v *ValuePrinter) VisitString(n *String) error {
-	escaped := strconv.Quote(n.Value)
+	rg := n.Range()
+	text, err := v.input.ReadString(rg.Start, rg.End)
+	if err != nil {
+		return err
+	}
+	escaped := strconv.Quote(text)
 	v.write(v.format(escaped, FormatToken_Literal))
-	v.write(v.format(fmt.Sprintf(" (%s)", n.Range()), FormatToken_Range))
+	v.write(v.format(fmt.Sprintf(" (%s)", v.formatPosition(rg)), FormatToken_Range))
 	return nil
 }
 
 func (v *ValuePrinter) VisitError(n *Error) error {
 	v.write(v.format(fmt.Sprintf("Error<%s>", n.Label), FormatToken_Error))
-	v.write(v.format(fmt.Sprintf(" (%s)", n.Range()), FormatToken_Range))
+	v.write(v.format(fmt.Sprintf(" (%s)", v.formatPosition(n.Range())), FormatToken_Range))
 	if n.Expr != nil {
 		v.writel("")
 		v.pwrite("└── ")
@@ -224,7 +232,7 @@ func (v *ValuePrinter) VisitError(n *Error) error {
 }
 
 func (v *ValuePrinter) VisitSequence(n *Sequence) error {
-	seq := fmt.Sprintf("Sequence<%d> (%s)", len(n.Items), n.Range())
+	seq := fmt.Sprintf("Sequence<%d> (%s)", len(n.Items), v.formatPosition(n.Range()))
 	v.writel(v.format(seq, FormatToken_Range))
 	for i, item := range n.Items {
 		switch {
@@ -246,7 +254,7 @@ func (v *ValuePrinter) VisitSequence(n *Sequence) error {
 
 func (v *ValuePrinter) VisitNode(n *Node) error {
 	v.write(v.format(n.Name, FormatToken_Literal))
-	v.writel(v.format(fmt.Sprintf(" (%s)", n.Range()), FormatToken_Range))
+	v.writel(v.format(fmt.Sprintf(" (%s)", v.formatPosition(n.Range())), FormatToken_Range))
 	v.pwrite("└── ")
 	v.indent("    ")
 	n.Expr.Accept(v)

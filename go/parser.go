@@ -251,32 +251,32 @@ func (p *Parser) NewError(exp, msg string, rg Range) error {
 
 func (p *Parser) parseRange(left, right rune) (Value, error) {
 	start := p.Cursor()
-	r, err := p.ExpectRange(left, right)
+	_, err := p.ExpectRange(left, right)
 	if err != nil {
 		var zero Value
 		return zero, err
 	}
-	return NewString(string(r), NewRange(start, p.Cursor())), nil
+	return NewString(NewRange(start, p.Cursor())), nil
 }
 
 func (p *Parser) parseAny() (Value, error) {
 	start := p.Cursor()
-	r, err := p.Any()
+	_, err := p.Any()
 	if err != nil {
 		var zero Value
 		return zero, err
 	}
-	return NewString(string(r), NewRange(start, p.Cursor())), nil
+	return NewString(NewRange(start, p.Cursor())), nil
 }
 
 func (p *Parser) parseLiteral(literal string) (Value, error) {
 	start := p.Cursor()
-	r, err := p.ExpectLiteral(literal)
+	_, err := p.ExpectLiteral(literal)
 	if err != nil {
 		var zero Value
 		return zero, err
 	}
-	return NewString(r, NewRange(start, p.Cursor())), nil
+	return NewString(NewRange(start, p.Cursor())), nil
 }
 
 var spacingRunes = map[rune]struct{}{
@@ -301,7 +301,7 @@ func (p *Parser) parseSpacingChar() (rune, error) {
 
 func (p *Parser) parseSpacing() (Value, error) {
 	start := p.Cursor()
-	v, err := ZeroOrMore(p, func(p Backtrackable) (rune, error) {
+	_, err := ZeroOrMore(p, func(p Backtrackable) (rune, error) {
 		return p.(*Parser).parseSpacingChar()
 	})
 	if err != nil {
@@ -310,11 +310,11 @@ func (p *Parser) parseSpacing() (Value, error) {
 	if !p.captureSpaces {
 		return nil, nil
 	}
-	r := string(v)
-	if len(r) == 0 {
+	end := p.Cursor()
+	if end-start == 0 {
 		return nil, nil
 	}
-	s := NewString(r, NewRange(start, p.Cursor()))
+	s := NewString(NewRange(start, p.Cursor()))
 	return NewNode("Spacing", s, NewRange(start, p.Cursor())), nil
 }
 

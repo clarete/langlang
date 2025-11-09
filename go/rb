@@ -9,6 +9,53 @@ declare -a suites=(
     "langlang"
 )
 
+diff_benchmarks() {
+    local version1=go/$1
+    local version2=go/$2
+
+    if [ ! -d "benches/${version1}" ]; then
+        echo "Error: Version ${version1} not found in benches/"
+        exit 1
+    fi
+    if [ ! -d "benches/${version2}" ]; then
+        echo "Error: Version ${version2} not found in benches/"
+        exit 1
+    fi
+    for suite in "${suites[@]}"; do
+        local variants=("${suite}" "${suite}_nocap")
+
+        if [ "${suite}" = "json" ]; then
+            variants+=("${suite}_stripped" "${suite}_stripped_nocap")
+        fi
+        for variant in "${variants[@]}"; do
+            local path1="benches/${version1}/${variant}"
+            local path2="benches/${version2}/${variant}"
+
+            if [ ! -d "$path1" ] || [ ! -d "$path2" ]; then
+                continue
+            fi
+
+            echo "# ----------------------- ${variant} ----------------------"
+
+            benchstat "${path1}/txt" "${path2}/txt"
+        done
+    done
+}
+
+# Parse command line arguments
+if [ "$1" = "--diff" ] || [ "$1" = "-d" ]; then
+    if [ -z "$2" ] || [ -z "$3" ]; then
+        echo "Usage: $0 --diff <version1> <version2>"
+        echo "Example: $0 --diff v0.0.9-11-g218f967 v0.0.9-12-g78a7212"
+        echo
+        echo "Available versions:"
+        ls -1 benches/go 2>/dev/null | sed 's/^/  /'
+        exit 1
+    fi
+    diff_benchmarks "$2" "$3"
+    exit 0
+fi
+
 echo -n "Regenerate parsers "
 go generate ./...
 if [ $? -eq 0 ]; then

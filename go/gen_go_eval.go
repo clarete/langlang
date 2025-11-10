@@ -44,7 +44,6 @@ func (g *goEvalEmitter) writePrelude() {
 	if !g.options.RemoveLib {
 		g.parser.write("import (\n")
 		g.parser.indent()
-		g.parser.writeil(`"encoding/binary"`)
 		g.parser.writeil(`"encoding/hex"`)
 		g.parser.writeil(`"fmt"`)
 		g.parser.writeil(`"io"`)

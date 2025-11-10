@@ -1,7 +1,6 @@
 package langlang
 
 import (
-	"encoding/binary"
 	"io"
 	"strings"
 )
@@ -645,5 +644,8 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) err
 	return ParsingError{Message: message.String(), Label: errLabel, Range: rg}
 }
 
-var decodeU16 = binary.LittleEndian.Uint16
-var writeU16 = binary.LittleEndian.PutUint16
+// decodeU16 decodes a uint16 from byte array `b`. See
+// https://github.com/golang/go/issues/14808
+func decodeU16(b []byte) uint16 {
+	return uint16(b[0]) | uint16(b[1])<<8
+}

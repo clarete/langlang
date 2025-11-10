@@ -193,15 +193,21 @@ func (vm *virtualMachine) MatchRule(input Input, ruleAddress int) (Value, int, e
 	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
+	// we want to reset the VM state every match
 	vm.reset()
 
+	// take a local reference of the code
+	code := vm.bytecode.code
+
+	// if a rule was received, push a call frame for it and set
+	// the program appropriately
 	if ruleAddress > 0 {
 		vm.stack.push(vm.mkCallFrame(opCallSizeInBytes))
 		vm.pc = ruleAddress
 	}
 code:
 	for {
-		op := vm.bytecode.code[vm.pc]
+		op := code[vm.pc]
 		// dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", vm.cursor, vm.pc, op, opNames[op]))
 
 		switch op {
@@ -226,7 +232,7 @@ code:
 			vm.pc += opAnySizeInBytes
 
 		case opChar:
-			e := rune(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			e := rune(decodeU16(code, vm.pc+1))
 			c, s, err := input.ReadRune()
 			if err != nil {
 				if err == io.EOF {
@@ -249,8 +255,8 @@ code:
 				}
 				return nil, vm.cursor, err
 			}
-			a := rune(decodeU16(vm.bytecode.code[vm.pc+1:]))
-			b := rune(decodeU16(vm.bytecode.code[vm.pc+3:]))
+			a := rune(decodeU16(code, vm.pc+1))
+			b := rune(decodeU16(code, vm.pc+3))
 			if c < a || c > b {
 				vm.updateFFP(expected{a: a, b: b})
 				goto fail
@@ -266,7 +272,7 @@ code:
 				}
 				return nil, vm.cursor, err
 			}
-			i := decodeU16(vm.bytecode.code[vm.pc+1:])
+			i := decodeU16(code, vm.pc+1)
 			ru := rune(c)
 			if !vm.bytecode.sets[i].has(ru) {
 				vm.updateSetFFP(i)
@@ -276,7 +282,7 @@ code:
 			vm.pc += opSetSizeInBytes
 
 		case opSpan:
-			sid := decodeU16(vm.bytecode.code[vm.pc+1:])
+			sid := decodeU16(code, vm.pc+1)
 			set := vm.bytecode.sets[sid]
 			for {
 				c, err := input.PeekByte()
@@ -304,12 +310,12 @@ code:
 			goto fail
 
 		case opChoice:
-			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			lb := int(decodeU16(code, vm.pc+1))
 			vm.stack.push(vm.mkBacktrackFrame(lb))
 			vm.pc += opChoiceSizeInBytes
 
 		case opChoicePred:
-			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			lb := int(decodeU16(code, vm.pc+1))
 			vm.stack.push(vm.mkBacktrackPredFrame(lb))
 			vm.pc += opChoiceSizeInBytes
 			vm.predicate = true
@@ -317,10 +323,10 @@ code:
 		case opCommit:
 			f := vm.stack.pop()
 			vm.stack.capture(f.values...)
-			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			vm.pc = int(decodeU16(code, vm.pc+1))
 
 		case opPartialCommit:
-			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			vm.pc = int(decodeU16(code, vm.pc+1))
 			top := vm.stack.top()
 			top.cursor = vm.cursor
 			// Skip collectCaptures if the top frame is
@@ -335,23 +341,26 @@ code:
 			f := vm.stack.pop()
 			vm.stack.capture(f.values...)
 			vm.backtrackToFrame(input, f)
-			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			vm.pc = int(decodeU16(code, vm.pc+1))
 
 		case opCall:
 			vm.stack.push(vm.mkCallFrame(vm.pc + opCallSizeInBytes))
-			vm.pc = int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			vm.pc = int(decodeU16(code, vm.pc+1))
 
 		case opReturn:
 			f := vm.stack.pop()
 			vm.stack.capture(f.values...)
 			vm.pc = f.pc
 
+		case opJump:
+			vm.pc = int(decodeU16(code, vm.pc+1))
+
 		case opThrow:
 			if vm.predicate {
 				vm.pc += opThrowSizeInBytes
 				goto fail
 			}
-			lb := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			lb := int(decodeU16(code, vm.pc+1))
 			id := vm.bytecode.strs[lb]
 			if addr, ok := vm.bytecode.rxps[lb]; ok {
 				vm.stack.push(vm.mkCallFrame(vm.pc + opThrowSizeInBytes))
@@ -361,7 +370,7 @@ code:
 			return nil, vm.cursor, vm.mkErr(input, id, vm.cursor)
 
 		case opCapBegin:
-			id := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
+			id := int(decodeU16(code, vm.pc+1))
 			vm.stack.push(vm.mkCaptureFrame(id))
 			vm.pc += opCapBeginSizeInBytes
 
@@ -370,12 +379,12 @@ code:
 			vm.pc += opCapEndSizeInBytes
 
 		case opCapTerm:
-			vm.newTermNode(input, int(decodeU16(vm.bytecode.code[vm.pc+1:])))
+			vm.newTermNode(input, int(decodeU16(code, vm.pc+1)))
 			vm.pc += opCapTermSizeInBytes
 
 		case opCapNonTerm:
-			id := int(decodeU16(vm.bytecode.code[vm.pc+1:]))
-			offset := int(decodeU16(vm.bytecode.code[vm.pc+3:]))
+			id := int(decodeU16(code, vm.pc+1))
+			offset := int(decodeU16(code, vm.pc+3))
 			vm.newNonTermNode(input, id, offset)
 			vm.pc += opCapNonTermSizeInBytes
 
@@ -646,6 +655,6 @@ func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) err
 
 // decodeU16 decodes a uint16 from byte array `b`. See
 // https://github.com/golang/go/issues/14808
-func decodeU16(b []byte) uint16 {
-	return uint16(b[0]) | uint16(b[1])<<8
+func decodeU16(code []byte, offset int) uint16 {
+	return uint16(code[offset]) | uint16(code[offset+1])<<8
 }

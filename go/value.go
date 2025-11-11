@@ -145,7 +145,7 @@ func (n Error) AsError() ParsingError {
 	}
 }
 
-func PrettyString(input Input, node Value) string {
+func PrettyString(input *MemInput, node Value) string {
 	p := NewValuePrinter(input, func(input string, _ FormatToken) string {
 		return input
 	})
@@ -153,7 +153,7 @@ func PrettyString(input Input, node Value) string {
 	return p.output.String()
 }
 
-func HighlightPrettyString(input Input, node Value) string {
+func HighlightPrettyString(input *MemInput, node Value) string {
 	p := NewValuePrinter(input, func(input string, token FormatToken) string {
 		return valuePrinterTheme[token] + input + valuePrinterTheme[FormatToken_None]
 	})
@@ -162,13 +162,13 @@ func HighlightPrettyString(input Input, node Value) string {
 }
 
 type ValuePrinter struct {
-	input  Input
+	input  *MemInput
 	line   int
 	column int
 	*treePrinter[FormatToken]
 }
 
-func NewValuePrinter(input Input, format FormatFunc[FormatToken]) *ValuePrinter {
+func NewValuePrinter(input *MemInput, format FormatFunc[FormatToken]) *ValuePrinter {
 	return &ValuePrinter{input: input, line: 1, column: 1, treePrinter: newTreePrinter(format)}
 }
 

@@ -210,7 +210,7 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 
 	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Value, error)                 { return p.parseFn(5) }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input []byte)                 { p.input = NewMemInput(input) }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) GetInput() Input                       { return &p.input }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) GetInput() *MemInput                   { return &p.input }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.vm.errLabels = el }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.vm.showFails = v }", g.options.ParserName))
 

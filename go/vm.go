@@ -5,16 +5,6 @@ import (
 	"strings"
 )
 
-type Input interface {
-	PeekByte() (r byte, err error)
-	ReadByte() (r byte, err error)
-	ReadRune() (r rune, size int, err error)
-	PeekRune() (r rune, size int, err error)
-	Advance(n int)
-	Seek(offset int64, whence int) (int64, error)
-	ReadString(start, end int) (string, error)
-}
-
 type Bytecode struct {
 	code []byte
 	strs []string
@@ -185,11 +175,11 @@ func NewVirtualMachine(
 	}
 }
 
-func (vm *virtualMachine) Match(input Input) (Value, int, error) {
+func (vm *virtualMachine) Match(input *MemInput) (Value, int, error) {
 	return vm.MatchRule(input, 0)
 }
 
-func (vm *virtualMachine) MatchRule(input Input, ruleAddress int) (Value, int, error) {
+func (vm *virtualMachine) MatchRule(input *MemInput, ruleAddress int) (Value, int, error) {
 	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
@@ -375,17 +365,17 @@ code:
 			vm.pc += opCapBeginSizeInBytes
 
 		case opCapEnd:
-			vm.newNode(input, vm.stack.pop())
+			vm.newNode(vm.stack.pop())
 			vm.pc += opCapEndSizeInBytes
 
 		case opCapTerm:
-			vm.newTermNode(input, int(decodeU16(code, vm.pc+1)))
+			vm.newTermNode(int(decodeU16(code, vm.pc+1)))
 			vm.pc += opCapTermSizeInBytes
 
 		case opCapNonTerm:
 			id := int(decodeU16(code, vm.pc+1))
 			offset := int(decodeU16(code, vm.pc+3))
-			vm.newNonTermNode(input, id, offset)
+			vm.newNonTermNode(id, offset)
 			vm.pc += opCapNonTermSizeInBytes
 
 		default:
@@ -438,9 +428,9 @@ func (vm *virtualMachine) reset() {
 
 // Stack Management Helpers
 
-func (vm *virtualMachine) backtrackToFrame(input Input, f frame) {
+func (vm *virtualMachine) backtrackToFrame(input *MemInput, f frame) {
 	vm.cursor = f.cursor
-	input.Seek(int64(vm.cursor), io.SeekStart)
+	input.Seek(vm.cursor)
 }
 
 func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {
@@ -479,20 +469,20 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 
 // Node Capture Helpers
 
-func (vm *virtualMachine) newTermNode(input Input, offset int) {
-	if node, ok := vm.newTextNode(input, offset); ok {
+func (vm *virtualMachine) newTermNode(offset int) {
+	if node, ok := vm.newTextNode(offset); ok {
 		vm.stack.capture(node)
 	}
 }
 
-func (vm *virtualMachine) newNonTermNode(input Input, capId, offset int) {
-	if node, ok := vm.newTextNode(input, offset); ok {
+func (vm *virtualMachine) newNonTermNode(capId, offset int) {
+	if node, ok := vm.newTextNode(offset); ok {
 		capName := vm.bytecode.strs[capId]
 		vm.stack.capture(NewNode(capName, node, node.Range()))
 	}
 }
 
-func (vm *virtualMachine) newTextNode(input Input, offset int) (Value, bool) {
+func (vm *virtualMachine) newTextNode(offset int) (Value, bool) {
 	if offset > 0 {
 		begin := vm.cursor - offset
 		return NewString(NewRange(begin, vm.cursor)), true
@@ -500,7 +490,7 @@ func (vm *virtualMachine) newTextNode(input Input, offset int) (Value, bool) {
 	return nil, false
 }
 
-func (vm *virtualMachine) newNode(input Input, f frame) {
+func (vm *virtualMachine) newNode(f frame) {
 	if f.suppress {
 		vm.suppress--
 		return
@@ -585,10 +575,10 @@ func (vm *virtualMachine) updateSetFFP(sid uint16) {
 	}
 }
 
-func (vm *virtualMachine) mkErr(input Input, errLabel string, errCursor int) error {
+func (vm *virtualMachine) mkErr(input *MemInput, errLabel string, errCursor int) error {
 	// First we seek back to where the cursor backtracked to, and
 	// increment the information about line and column.
-	input.Seek(int64(vm.cursor), io.SeekStart)
+	input.Seek(vm.cursor)
 
 	// at this point, the input cursor should be at vm.ffp, so we
 	// try to read the unexpected value to add it to the err

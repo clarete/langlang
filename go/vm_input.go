@@ -1,7 +1,6 @@
 package langlang
 
 import (
-	"fmt"
 	"io"
 	"unicode/utf8"
 )
@@ -51,22 +50,15 @@ func (in *MemInput) ReadRune() (rune, int, error) {
 	return r, size, nil
 }
 
-func (in *MemInput) Seek(offset int64, whence int) (int64, error) {
-	if offset < 0 || int(offset) > len(in.data) {
-		return 0, fmt.Errorf("invalid seek offset")
-	}
-	if whence != io.SeekStart {
-		return 0, fmt.Errorf("invalid seek whence")
-	}
-	in.pos = int(offset)
-	return offset, nil
-}
-
 func (in *MemInput) ReadString(start, end int) (string, error) {
 	if start < 0 || end > len(in.data) {
 		return "", io.EOF
 	}
 	return string(in.data[start:end]), nil
+}
+
+func (in *MemInput) Seek(n int) {
+	in.pos = n
 }
 
 func (in *MemInput) Advance(n int) {

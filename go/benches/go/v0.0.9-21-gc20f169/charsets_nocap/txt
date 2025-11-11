@@ -1,0 +1,103 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/charsets
+cpu: Apple M1 Max
+BenchmarkNoCapParser
+BenchmarkNoCapParser/Identifier_Letter
+BenchmarkNoCapParser/Identifier_Letter-10         	137212065	        18.11 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	137525055	        17.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	138141298	        17.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	137026318	        17.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	130225330	        17.49 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	138047018	        17.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	137699059	        17.46 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	138280550	        17.64 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	131671567	        17.40 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	137623414	        17.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	137870455	        17.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	138601888	        17.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	138781058	        17.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	136284033	        17.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Letter-10         	138836800	        17.47 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word
+BenchmarkNoCapParser/Identifier_Word-10           	100000000	        24.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	95186316	        24.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	98840172	        24.52 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	99002409	        24.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	97887928	        24.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	98888366	        24.24 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	98955470	        24.19 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	97780747	        24.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	98547956	        24.38 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	99589194	        24.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	99161432	        24.09 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	98232831	        24.05 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	100000000	        24.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	97325412	        24.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Identifier_Word-10           	100000000	        24.21 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single
+BenchmarkNoCapParser/Digit_Single-10              	131391949	        17.37 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138272035	        17.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	134212956	        17.35 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	137840599	        17.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	139054518	        17.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138730190	        17.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	132021150	        17.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	137824375	        17.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138938775	        17.44 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138612775	        17.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138746706	        17.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138051164	        17.28 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138010734	        17.55 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	133134451	        17.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Single-10              	138107730	        17.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.52 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.55 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.57 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	99651050	        20.43 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.55 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	112983003	        20.61 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.54 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Digit_Multiple-10            	100000000	        20.59 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single
+BenchmarkNoCapParser/Hiragana_Single-10           	79427788	        30.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79732785	        30.46 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79110770	        30.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79947146	        30.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79245079	        30.28 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79352942	        30.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	78120867	        30.35 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79704098	        31.04 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	76722356	        32.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	76049944	        31.14 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	76622746	        30.72 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79166769	        30.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	75114530	        30.64 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	79531426	        31.19 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Single-10           	78976813	        30.68 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many
+BenchmarkNoCapParser/Hiragana_Many-10             	35938410	        66.85 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35137354	        67.76 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35761892	        67.43 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	33496940	        67.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35253829	        67.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	36020373	        69.77 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	36038222	        67.26 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35799944	        68.30 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35087612	        67.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35820360	        68.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	36074425	        67.06 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35579120	        67.80 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35049862	        67.47 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35672040	        67.88 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Hiragana_Many-10             	35239120	        67.86 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/clarete/langlang/go/tests/charsets	267.538s

@@ -372,6 +372,13 @@ be used in other grammars using imports.  Behind the scenes, the
 
 * Changelog
 
+** go/v0.0.10 (unreleased)
+
+ * [[https://github.com/clarete/langlang/commit/c20f169246c5efcbe9ab016f4514c8404655082b][PERF: Drop Input interface and use concrete MemInput all over]]
+ * PERF: Rework how we decode uint16 from our bytecode ([[https://github.com/clarete/langlang/commit/5f0f3794ecb22778e993322420c5122bd0e1b240][PR1]], [[https://github.com/clarete/langlang/commit/ec27e503cdc35004a0086e6147817d740a794c39][PR2]])
+ * [[https://github.com/clarete/langlang/commit/68d7425da659b898c33780e36ab4fb3d95943b46][PERF: Rework initializating vm when creating parser]]
+ * [[https://github.com/clarete/langlang/commit/78a72123bac3ca8161b26b2d77a573f0e7efe6b9][FEAT: Format generated parser code]]
+
 ** go/v0.0.9
 
  * [[https://github.com/clarete/langlang/commit/d08d9ca46d610901beba3b7f7e63ca4f59cd54ff][PERF: known optimizations: charsets (set, span)]]

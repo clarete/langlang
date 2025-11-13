@@ -87,7 +87,7 @@ func (c *compiler) VisitImportNode(node *ImportNode) error {
 
 func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 	var (
-		id = c.pushString(node.Name)
+		id = c.intern(node.Name)
 		l0 = NewILabel()
 	)
 
@@ -106,7 +106,7 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 }
 
 func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
-	id := c.pushString(node.Name)
+	id := c.intern(node.Name)
 
 	if sz, ok := c.capExprSize(node.Expr); ok {
 		if err := node.Expr.Accept(c); err != nil {
@@ -266,7 +266,7 @@ func (c *compiler) VisitLexNode(node *LexNode) error {
 func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 	l1 := NewILabel()
 	l2 := NewILabel()
-	id := c.pushString(node.Label)
+	id := c.intern(node.Label)
 
 	c.errorLabelIDs[id] = struct{}{}
 	c.emit(IChoice{Label: l1})
@@ -283,7 +283,7 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 }
 
 func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
-	id := c.pushString(node.Value)
+	id := c.intern(node.Value)
 
 	// TODO[bounded left recursion]
 	precedence := 0
@@ -295,7 +295,7 @@ func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
 	if label, ok := c.definitionLabels[id]; ok {
 		c.emit(ICall{Label: label, Precedence: precedence})
 	} else {
-		c.openAddrs[c.cursor] = id
+		c.saveOpenAddr(id)
 		c.emit(ICall{Precedence: precedence})
 	}
 
@@ -357,11 +357,11 @@ func (c *compiler) backpatchCallSites() error {
 		return fmt.Errorf("production `%s` does not exist", c.strings[id])
 	}
 
-	// patch up call to main
+	// Patch main call
 	def := c.grammarNode.FirstDefinition()
-	defID := c.pushString(def.Name)
-	label := c.definitionLabels[defID]
-	c.code[0] = ICall{Label: label}
+	id := c.intern(def.Name)
+	label := c.definitionLabels[id]
+	c.emitAt(0, ICall{Label: label})
 
 	return nil
 }
@@ -376,12 +376,20 @@ func (c *compiler) mapRecoveryExprs() error {
 	return nil
 }
 
+func (c *compiler) saveOpenAddr(addr int) {
+	c.openAddrs[c.cursor] = addr
+}
+
 func (c *compiler) emit(i Instruction) {
 	c.code = append(c.code, i)
 	c.cursor++
 }
 
-func (c *compiler) pushString(s string) int {
+func (c *compiler) emitAt(cursor int, i Instruction) {
+	c.code[cursor] = i
+}
+
+func (c *compiler) intern(s string) int {
 	strID := len(c.strings)
 	if savedString, ok := c.stringsMap[s]; ok {
 		return savedString

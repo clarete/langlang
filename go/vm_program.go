@@ -136,6 +136,11 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeInt(ii.Precedence)
 			s.WriteString("\n")
 
+		case IJump:
+			writeName(instruction.Name())
+			writeLabel(ii.Label.ID)
+			s.WriteString("\n")
+
 		case IThrow:
 			writeName(instruction.Name())
 			writeString(ii.ErrorLabel)

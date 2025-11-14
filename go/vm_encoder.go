@@ -67,6 +67,8 @@ func Encode(p *Program) *Bytecode {
 			code = append(code, byte(ii.Precedence))
 		case IReturn:
 			code = append(code, opReturn)
+		case IJump:
+			code = encodeJmp(code, opJump, labels[ii.Label])
 		case IFail:
 			code = append(code, opFail)
 		case IFailTwice:

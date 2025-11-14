@@ -1,8 +1,8 @@
 package langlang
 
 import (
-	"io"
 	"strings"
+	"unicode/utf8"
 )
 
 type Bytecode struct {
@@ -175,19 +175,21 @@ func NewVirtualMachine(
 	}
 }
 
-func (vm *virtualMachine) Match(input *MemInput) (Value, int, error) {
-	return vm.MatchRule(input, 0)
+func (vm *virtualMachine) Match(data []byte) (Value, int, error) {
+	return vm.MatchRule(data, 0)
 }
 
-func (vm *virtualMachine) MatchRule(input *MemInput, ruleAddress int) (Value, int, error) {
+func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Value, int, error) {
 	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
 	// we want to reset the VM state every match
 	vm.reset()
 
-	// take a local reference of the code
+	// take a local reference of important data
 	code := vm.bytecode.code
+	sets := vm.bytecode.sets
+	ilen := len(data)
 
 	// if a rule was received, push a call frame for it and set
 	// the program appropriately
@@ -210,26 +212,21 @@ code:
 			return top, vm.cursor, nil
 
 		case opAny:
-			_, s, err := input.ReadRune()
-			if err != nil {
-				if err == io.EOF {
-					vm.updateFFP(expected{})
-					goto fail
-				}
-				return nil, vm.cursor, err
+			if vm.cursor >= ilen {
+				vm.updateFFP(expected{})
+				goto fail
 			}
+			_, s := decodeRune(data, vm.cursor)
 			vm.cursor += s
 			vm.pc += opAnySizeInBytes
 
 		case opChar:
 			e := rune(decodeU16(code, vm.pc+1))
-			c, s, err := input.ReadRune()
-			if err != nil {
-				if err == io.EOF {
-					goto fail
-				}
-				return nil, vm.cursor, err
+			if vm.cursor >= ilen {
+				vm.updateFFP(expected{})
+				goto fail
 			}
+			c, s := decodeRune(data, vm.cursor)
 			if c != e {
 				vm.updateFFP(expected{a: e})
 				goto fail
@@ -238,13 +235,11 @@ code:
 			vm.pc += opCharSizeInBytes
 
 		case opRange:
-			c, s, err := input.ReadRune()
-			if err != nil {
-				if err == io.EOF {
-					goto fail
-				}
-				return nil, vm.cursor, err
+			if vm.cursor >= ilen {
+				vm.updateFFP(expected{})
+				goto fail
 			}
+			c, s := decodeRune(data, vm.cursor)
 			a := rune(decodeU16(code, vm.pc+1))
 			b := rune(decodeU16(code, vm.pc+3))
 			if c < a || c > b {
@@ -255,37 +250,31 @@ code:
 			vm.pc += opRangeSizeInBytes
 
 		case opSet:
-			c, err := input.ReadByte()
-			if err != nil {
-				if err == io.EOF {
-					goto fail
-				}
-				return nil, vm.cursor, err
+			if vm.cursor >= ilen {
+				vm.updateFFP(expected{})
+				goto fail
 			}
+			c := data[vm.cursor]
 			i := decodeU16(code, vm.pc+1)
 			ru := rune(c)
-			if !vm.bytecode.sets[i].has(ru) {
+			if !sets[i].has(ru) {
 				vm.updateSetFFP(i)
 				goto fail
 			}
-			vm.cursor += 1
+			vm.cursor++
 			vm.pc += opSetSizeInBytes
 
 		case opSpan:
 			sid := decodeU16(code, vm.pc+1)
-			set := vm.bytecode.sets[sid]
+			set := sets[sid]
 			for {
-				c, err := input.PeekByte()
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					return nil, vm.cursor, err
+				if vm.cursor >= ilen {
+					break
 				}
+				c := data[vm.cursor]
 				ru := rune(c)
 				if set.has(ru) {
-					input.Advance(1)
-					vm.cursor += 1
+					vm.cursor++
 					continue
 				}
 				break
@@ -330,7 +319,7 @@ code:
 		case opBackCommit:
 			f := vm.stack.pop()
 			vm.stack.capture(f.values...)
-			vm.backtrackToFrame(input, f)
+			vm.cursor = f.cursor
 			vm.pc = int(decodeU16(code, vm.pc+1))
 
 		case opCall:
@@ -357,7 +346,7 @@ code:
 				vm.pc = addr
 				continue
 			}
-			return nil, vm.cursor, vm.mkErr(input, id, vm.cursor)
+			return nil, vm.cursor, vm.mkErr(data, id, vm.cursor)
 
 		case opCapBegin:
 			id := int(decodeU16(code, vm.pc+1))
@@ -393,7 +382,7 @@ fail:
 			f.values = nil
 			vm.pc = f.pc
 			vm.predicate = f.predicate
-			vm.backtrackToFrame(input, f)
+			vm.cursor = f.cursor
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
 			goto code
 
@@ -404,7 +393,7 @@ fail:
 	}
 	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", vm.cursor, vm.ffp))
 
-	return nil, vm.cursor, vm.mkErr(input, "", vm.ffp)
+	return nil, vm.cursor, vm.mkErr(data, "", vm.ffp)
 }
 
 // Helpers
@@ -427,11 +416,6 @@ func (vm *virtualMachine) reset() {
 }
 
 // Stack Management Helpers
-
-func (vm *virtualMachine) backtrackToFrame(input *MemInput, f frame) {
-	vm.cursor = f.cursor
-	input.Seek(vm.cursor)
-}
 
 func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {
 	return frame{
@@ -575,11 +559,7 @@ func (vm *virtualMachine) updateSetFFP(sid uint16) {
 	}
 }
 
-func (vm *virtualMachine) mkErr(input *MemInput, errLabel string, errCursor int) error {
-	// First we seek back to where the cursor backtracked to, and
-	// increment the information about line and column.
-	input.Seek(vm.cursor)
-
+func (vm *virtualMachine) mkErr(data []byte, errLabel string, errCursor int) error {
 	// at this point, the input cursor should be at vm.ffp, so we
 	// try to read the unexpected value to add it to the err
 	// message.  Right now, we read just a single char from ffp's
@@ -589,14 +569,12 @@ func (vm *virtualMachine) mkErr(input *MemInput, errLabel string, errCursor int)
 		isEof   bool
 		message strings.Builder
 		rg      = NewRange(vm.cursor+1, errCursor+1)
+		c       rune
 	)
-	c, _, err := input.ReadRune()
-	if err != nil {
-		if err == io.EOF {
-			isEof = true
-		} else {
-			return err
-		}
+	if vm.cursor >= len(data) {
+		isEof = true
+	} else {
+		c, _ = decodeRune(data, vm.cursor)
 	}
 	if m, ok := vm.errLabels[errLabel]; ok {
 		// If an error message has been associated with the
@@ -647,4 +625,11 @@ func (vm *virtualMachine) mkErr(input *MemInput, errLabel string, errCursor int)
 // https://github.com/golang/go/issues/14808
 func decodeU16(code []byte, offset int) uint16 {
 	return uint16(code[offset]) | uint16(code[offset+1])<<8
+}
+
+func decodeRune(data []byte, offset int) (rune, int) {
+	if r := data[offset]; r < utf8.RuneSelf {
+		return rune(r), 1
+	}
+	return utf8.DecodeRune(data[offset:])
 }

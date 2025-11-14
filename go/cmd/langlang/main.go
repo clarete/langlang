@@ -145,13 +145,13 @@ func main() {
 				continue
 			}
 
-			input := langlang.NewMemInput([]byte(text))
+			input := []byte(text)
 			vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
-			val, _, err := vm.Match(&input)
+			val, _, err := vm.Match(input)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
 			} else if val != nil {
-				fmt.Println(langlang.HighlightPrettyString(&input, val))
+				fmt.Println(langlang.HighlightPrettyString(input, val))
 			}
 		}
 		return
@@ -166,13 +166,12 @@ func main() {
 			log.Fatalf("Can't open input file: %s", err.Error())
 		}
 		code := langlang.Encode(asm)
-		input := langlang.NewMemInput(text)
 		vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
-		val, _, err := vm.Match(&input)
+		val, _, err := vm.Match(text)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())
 		} else if val != nil {
-			fmt.Println(langlang.HighlightPrettyString(&input, val))
+			fmt.Println(langlang.HighlightPrettyString(text, val))
 		}
 		return
 	}

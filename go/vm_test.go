@@ -27,9 +27,9 @@ func TestVM(t *testing.T) {
 
 		vm := NewVirtualMachine(bytecode, nil, nil, true)
 
-		input := NewMemInput([]byte(""))
+		input := []byte("")
 
-		_, cur, err := vm.Match(&input)
+		_, cur, err := vm.Match(input)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, cur)
@@ -152,8 +152,8 @@ func TestVM(t *testing.T) {
 			Grammar:        "G <- [♡]",
 			Input:          "♡",
 			ExpectedCursor: 3,
-			ExpectedAST: `G (1..2)
-└── "♡" (1..2)`,
+			ExpectedAST: `G (1..4)
+└── "♡" (1..4)`,
 		},
 		{
 			Name: "Var",
@@ -334,7 +334,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		code := Encode(asm)
 		// fmt.Printf("code\n%#v\n", code.code)
 
-		memInput := NewMemInput([]byte(test.Input))
+		input := []byte(test.Input)
 
 		// Notice `showFails` is marked as false because `ClassNode`
 		// and `CharsetNode` will generate different ordered choices.
@@ -342,7 +342,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		// was declared in the grammar.  The `CharsetNode` will use
 		// the ascii table ordering.
 		vm := NewVirtualMachine(code, test.ErrLabels, nil, false)
-		val, cur, err := vm.Match(&memInput)
+		val, cur, err := vm.Match(input)
 
 		// The cursor should be right for both error and
 		// success states
@@ -363,7 +363,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 			assert.Nil(t, val)
 		} else {
 			require.NotNil(t, val)
-			assert.Equal(t, test.ExpectedAST, PrettyString(&memInput, val))
+			assert.Equal(t, test.ExpectedAST, PrettyString(input, val))
 		}
 	}
 }

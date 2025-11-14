@@ -145,7 +145,7 @@ func (n Error) AsError() ParsingError {
 	}
 }
 
-func PrettyString(input *MemInput, node Value) string {
+func PrettyString(input []byte, node Value) string {
 	p := NewValuePrinter(input, func(input string, _ FormatToken) string {
 		return input
 	})
@@ -153,7 +153,7 @@ func PrettyString(input *MemInput, node Value) string {
 	return p.output.String()
 }
 
-func HighlightPrettyString(input *MemInput, node Value) string {
+func HighlightPrettyString(input []byte, node Value) string {
 	p := NewValuePrinter(input, func(input string, token FormatToken) string {
 		return valuePrinterTheme[token] + input + valuePrinterTheme[FormatToken_None]
 	})
@@ -162,23 +162,20 @@ func HighlightPrettyString(input *MemInput, node Value) string {
 }
 
 type ValuePrinter struct {
-	input  *MemInput
+	input  []byte
 	line   int
 	column int
 	*treePrinter[FormatToken]
 }
 
-func NewValuePrinter(input *MemInput, format FormatFunc[FormatToken]) *ValuePrinter {
+func NewValuePrinter(input []byte, format FormatFunc[FormatToken]) *ValuePrinter {
 	return &ValuePrinter{input: input, line: 1, column: 1, treePrinter: newTreePrinter(format)}
 }
 
 // posToLineCol converts a byte position in the input to line and column numbers (both 1-based)
 func (v *ValuePrinter) posToLineCol(pos int) (line, column int) {
 	line, column = 1, 1
-	data, err := v.input.ReadString(0, pos)
-	if err != nil {
-		return line, column
-	}
+	data := v.input[0:pos]
 	for _, ch := range data {
 		if ch == '\n' {
 			line++
@@ -208,10 +205,7 @@ func (v *ValuePrinter) formatPosition(rg Range) string {
 
 func (v *ValuePrinter) VisitString(n *String) error {
 	rg := n.Range()
-	text, err := v.input.ReadString(rg.Start, rg.End)
-	if err != nil {
-		return err
-	}
+	text := string(v.input[rg.Start:rg.End])
 	escaped := strconv.Quote(text)
 	v.write(v.format(escaped, FormatToken_Literal))
 	v.write(v.format(fmt.Sprintf(" (%s)", v.formatPosition(rg)), FormatToken_Range))

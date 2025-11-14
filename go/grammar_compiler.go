@@ -1,6 +1,9 @@
 package langlang
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 type compiler struct {
 	config *Config
@@ -41,21 +44,18 @@ type compiler struct {
 
 	recovery map[int]recoveryEntry
 
+	defRecursiveMap map[string]struct{}
+
+	defSizeMap map[string]int
+
 	grammarNode *GrammarNode
+
+	dryRun bool
 }
 
 func Compile(expr AstNode, config *Config) (*Program, error) {
 	var err error
-	c := &compiler{
-		config:           config,
-		identifiers:      map[int]int{},
-		definitionLabels: map[int]ILabel{},
-		openAddrs:        map[int]int{},
-		stringsMap:       map[string]int{},
-		strings:          []string{},
-		errorLabelIDs:    map[int]struct{}{},
-		recovery:         map[int]recoveryEntry{},
-	}
+	c := newCompiler(config)
 	if err = expr.Accept(c); err != nil {
 		return nil, err
 	}
@@ -74,10 +74,26 @@ func Compile(expr AstNode, config *Config) (*Program, error) {
 	}, nil
 }
 
+func newCompiler(config *Config) *compiler {
+	return &compiler{
+		config:           config,
+		identifiers:      map[int]int{},
+		definitionLabels: map[int]ILabel{},
+		defSizeMap:       map[string]int{},
+		openAddrs:        map[int]int{},
+		stringsMap:       map[string]int{},
+		strings:          []string{},
+		errorLabelIDs:    map[int]struct{}{},
+		recovery:         map[int]recoveryEntry{},
+	}
+}
+
 func (c *compiler) VisitGrammarNode(node *GrammarNode) error {
 	c.emit(ICall{})
 	c.emit(IHalt{})
 	c.grammarNode = node
+	c.defRecursiveMap = getIsRecursiveFromGrammar(node)
+	c.collectErrorLabels(node)
 	return WalkGrammarNode(c, node)
 }
 
@@ -86,6 +102,10 @@ func (c *compiler) VisitImportNode(node *ImportNode) error {
 }
 
 func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
+	if inline, err := c.shouldInline(node); err != nil || inline && !c.config.GetBool("compiler.inline.emit.inlined") {
+		return err
+	}
+
 	var (
 		id = c.intern(node.Name)
 		l0 = NewILabel()
@@ -168,7 +188,7 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		c.emit(ICommit{Label: l0})
-	case 1:
+	default:
 		c.emit(IPartialCommit{Label: l1})
 	}
 
@@ -218,7 +238,7 @@ func (c *compiler) VisitAndNode(node *AndNode) error {
 	case 0:
 		return c.VisitNotNode(NewNotNode(NewNotNode(node.Expr, node.Range()), node.Range()))
 
-	case 1:
+	default:
 		l1 := NewILabel()
 		l2 := NewILabel()
 
@@ -251,7 +271,7 @@ func (c *compiler) VisitNotNode(node *NotNode) error {
 		c.emit(ICommit{Label: l2})
 		c.emit(l2)
 		c.emit(IFail{})
-	case 1:
+	default:
 		c.emit(IFailTwice{})
 	}
 
@@ -284,6 +304,14 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 
 func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
 	id := c.intern(node.Value)
+	def := c.grammarNode.DefsByName[node.Value]
+	inline, err := c.shouldInline(def)
+	if err != nil {
+		return err
+	}
+	if inline {
+		return def.Expr.Accept(c)
+	}
 
 	// TODO[bounded left recursion]
 	precedence := 0
@@ -400,6 +428,63 @@ func (c *compiler) intern(s string) int {
 	return strID
 }
 
+func (c *compiler) collectErrorLabels(node *GrammarNode) {
+	// Scan the grammar AST to find all error labels (^label syntax)
+	// so we can avoid inlining recovery definitions
+	Inspect(node, func(n AstNode) bool {
+		if labeled, ok := n.(*LabeledNode); ok {
+			id := c.intern(labeled.Label)
+			c.errorLabelIDs[id] = struct{}{}
+		}
+		return true
+	})
+}
+
+func (c *compiler) shouldInline(def *DefinitionNode) (bool, error) {
+	id := c.intern(def.Name)
+	if c.dryRun || !c.config.GetBool("compiler.inline.enabled") {
+		return false, nil
+	}
+	if c.grammarNode.FirstDefinition().Name == def.Name {
+		return false, nil
+	}
+	// Don't inline recovery/error label definitions
+	if _, isRecovery := c.errorLabelIDs[id]; isRecovery {
+		return false, nil
+	}
+	if _, isRecursive := c.defRecursiveMap[def.Name]; isRecursive {
+		return false, nil
+	}
+	size, err := c.getDefSize(def)
+	if err != nil {
+		return false, err
+	}
+	if size > c.config.GetInt("compiler.inline.max_size") {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (c *compiler) getDefSize(def *DefinitionNode) (int, error) {
+	if s, ok := c.defSizeMap[def.Name]; ok {
+		return s, nil
+	}
+
+	tmpc := newCompiler(c.config)
+	tmpc.dryRun = true
+	tmpc.grammarNode = c.grammarNode
+
+	if err := def.Accept(tmpc); err != nil {
+		return 0, err
+	}
+
+	size := tmpc.cursor
+
+	c.defSizeMap[def.Name] = size
+
+	return size, nil
+}
+
 func (c *compiler) capExprSize(node AstNode) (int, bool) {
 	switch n := node.(type) {
 	case *CharsetNode:
@@ -459,4 +544,85 @@ func (c *compiler) capExprSize(node AstNode) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+type callGraph map[string]map[string]struct{}
+
+func getIsRecursiveFromGrammar(g *GrammarNode) map[string]struct{} {
+	cg := make(callGraph, len(g.Definitions))
+	for _, d := range g.Definitions {
+		if _, ok := cg[d.Name]; !ok {
+			cg[d.Name] = make(map[string]struct{})
+		}
+		for _, id := range findIdentifiers(d.Expr) {
+			cg[d.Name][id] = struct{}{}
+		}
+	}
+	return cg.getIsRecursive()
+}
+
+func findIdentifiers(node AstNode) []string {
+	var ids []string
+	Inspect(node, func(n AstNode) bool {
+		if id, ok := n.(*IdentifierNode); ok {
+			ids = append(ids, id.Value)
+		}
+		return true
+	})
+	return ids
+}
+
+func (g callGraph) getIsRecursive() map[string]struct{} {
+	var (
+		stack   = []string{}
+		onStack = map[string]bool{}
+		visited = map[string]bool{}
+		recurse = map[string]struct{}{}
+		pos     = map[string]int{}
+		dfs     func(string)
+	)
+	dfs = func(v string) {
+		visited[v] = true
+		pos[v] = len(stack)
+		stack = append(stack, v)
+		onStack[v] = true
+
+		// Sort edges for deterministic traversal
+		edges := make([]string, 0, len(g[v]))
+		for w := range g[v] {
+			edges = append(edges, w)
+		}
+		sort.Strings(edges)
+
+		for _, w := range edges {
+			if !visited[w] {
+				dfs(w)
+				continue
+			}
+			if onStack[w] {
+				// back edge v -> w: mark the cycle path w..v
+				for i := pos[w]; i < len(stack); i++ {
+					recurse[stack[i]] = struct{}{}
+				}
+			}
+		}
+		stack = stack[:len(stack)-1]
+		onStack[v] = false
+	}
+
+	// ensure all vertices (even isolated ones) are visited Sort
+	// vertices for deterministic traversal order (Go map
+	// iteration is randomized)
+	vertices := make([]string, 0, len(g))
+	for v := range g {
+		vertices = append(vertices, v)
+	}
+	sort.Strings(vertices)
+
+	for _, v := range vertices {
+		if !visited[v] {
+			dfs(v)
+		}
+	}
+	return recurse
 }

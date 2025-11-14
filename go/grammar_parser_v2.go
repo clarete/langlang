@@ -28,7 +28,7 @@ func (p *GrammarParserV2) Parse() (AstNode, error) {
 	parser := NewGrammarParserBootstrap()
 	parser.SetInput(p.input)
 	parser.SetCaptureSpaces(false)
-	val, err := parser.ParseGrammar()
+	val, err := parser.Parse()
 	if err != nil {
 		return nil, err
 	}

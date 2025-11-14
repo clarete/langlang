@@ -12,11 +12,26 @@ type Config map[string]*cfgVal
 // compiler.
 func NewConfig() *Config {
 	m := make(Config)
+	// add built-in rules by default
 	m.SetBool("grammar.add_builtins", true)
+	// apply charset optimization by default wherever it applies
 	m.SetBool("grammar.add_charsets", true)
+	// add capture nodes and thus emit capture opcodes
 	m.SetBool("grammar.captures", true)
+	// wrap space nodes around capture spaces
 	m.SetBool("grammar.capture_spaces", true)
+	// automatically inject whitespace nodes
 	m.SetBool("grammar.handle_spaces", true)
+	// enable inlining definitions small enough
+	m.SetBool("compiler.inline.enabled", true)
+	// emit code and methods for inlined definitions
+	m.SetBool("compiler.inline.emit.inlined", false)
+	// max instructions a definition can have to be inlined
+	m.SetInt("compiler.inline.max_size", 50)
+	// level 1:
+	// - ZeroOrMore emits partial-commit
+	// - And emits back-commit
+	// - Not emits fail-twice
 	m.SetInt("compiler.optimize", 1)
 	return &m
 }

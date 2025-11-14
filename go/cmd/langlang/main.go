@@ -24,6 +24,8 @@ type args struct {
 	disableCharsets      *bool
 	disableCaptures      *bool
 	disableCaptureSpaces *bool
+	disableInline        *bool
+	disableInlineDefs    *bool
 	suppressSpaces       *bool
 
 	showFails *bool
@@ -52,6 +54,8 @@ func readArgs() *args {
 		disableCharsets:      flag.Bool("disable-charsets", false, "Inject whitespace handling rules into the grammar"),
 		disableCaptures:      flag.Bool("disable-captures", false, "Tells the compiler not to inject capture rules into the grammar"),
 		disableCaptureSpaces: flag.Bool("disable-capture-spaces", false, "Tells the compiler not to inject capture rules for spaces into the grammar"),
+		disableInline:        flag.Bool("disable-inline", false, "Tells the compiler not to inline any definitions"),
+		disableInlineDefs:    flag.Bool("disable-inline-defs", true, "Tells the compiler not to emit Parse methods for inlined definitions (saves space)"),
 		suppressSpaces:       flag.Bool("suppress-spaces", true, "If enabled, it will suppress capturing spaces during Runtime"),
 		showFails:            flag.Bool("show-fails", true, "If enabled, shows what the parser attempted to match (there is a perf penalty cost for this)"),
 
@@ -93,7 +97,8 @@ func main() {
 	cfg.SetBool("grammar.captures", !*a.disableCaptures)
 	cfg.SetBool("grammar.capture_spaces", !*a.disableCaptureSpaces)
 	cfg.SetBool("grammar.disable_spaces", *a.disableSpaces)
-	cfg.SetInt("compiler.optimize", 1)
+	cfg.SetBool("compiler.inline.enabled", !*a.disableInline)
+	cfg.SetBool("compiler.inline.emit.inlined", !*a.disableInlineDefs)
 
 	ast, err := langlang.GrammarFromFile(*a.grammarPath, cfg)
 	if err != nil {

@@ -82,11 +82,11 @@ const (
 	opFailTwice
 	opChoice
 	opChoicePred
-	opCommit
-	opPartialCommit
-	opBackCommit
+	opCapCommit
+	opCapPartialCommit
+	opCapBackCommit
 	opCall
-	opReturn
+	opCapReturn
 	opJump
 	opThrow
 	opCapBegin
@@ -95,30 +95,38 @@ const (
 	opSpan
 	opCapTerm
 	opCapNonTerm
+	opCommit
+	opBackCommit
+	opPartialCommit
+	opReturn
 )
 
 var opNames = map[byte]string{
-	opHalt:          "halt",
-	opAny:           "any",
-	opChar:          "char",
-	opRange:         "range",
-	opSet:           "set",
-	opSpan:          "span",
-	opFail:          "fail",
-	opFailTwice:     "fail_twice",
-	opChoice:        "choice",
-	opChoicePred:    "choice_pred",
-	opCommit:        "commit",
-	opPartialCommit: "partial_commit",
-	opBackCommit:    "back_commit",
-	opCall:          "call",
-	opReturn:        "return",
-	opJump:          "jump",
-	opThrow:         "throw",
-	opCapBegin:      "cap_begin",
-	opCapEnd:        "cap_end",
-	opCapTerm:       "cap_term",
-	opCapNonTerm:    "cap_non_term",
+	opHalt:             "halt",
+	opAny:              "any",
+	opChar:             "char",
+	opRange:            "range",
+	opSet:              "set",
+	opSpan:             "span",
+	opFail:             "fail",
+	opFailTwice:        "fail_twice",
+	opChoice:           "choice",
+	opChoicePred:       "choice_pred",
+	opCommit:           "commit",
+	opPartialCommit:    "partial_commit",
+	opBackCommit:       "back_commit",
+	opCapCommit:        "cap_commit",
+	opCapBackCommit:    "cap_back_commit",
+	opCapPartialCommit: "cap_partial_commit",
+	opCapReturn:        "cap_return",
+	opCall:             "call",
+	opReturn:           "return",
+	opJump:             "jump",
+	opThrow:            "throw",
+	opCapBegin:         "cap_begin",
+	opCapEnd:           "cap_end",
+	opCapTerm:          "cap_term",
+	opCapNonTerm:       "cap_non_term",
 }
 
 var (
@@ -291,27 +299,16 @@ code:
 			vm.predicate = true
 
 		case opCommit:
-			f := vm.stack.pop()
-			vm.stack.capture(f.values...)
+			vm.stack.pop()
+			pc = int(decodeU16(code, pc+1))
+
+		case opBackCommit:
+			cursor = vm.stack.pop().cursor
 			pc = int(decodeU16(code, pc+1))
 
 		case opPartialCommit:
 			pc = int(decodeU16(code, pc+1))
-			top := vm.stack.top()
-			top.cursor = cursor
-			// Skip collectCaptures if the top frame is
-			// suppressed, since values will be discarded
-			// anyway
-			if !top.suppress {
-				vm.stack.collectCaptures()
-			}
-			top.values = nil
-
-		case opBackCommit:
-			f := vm.stack.pop()
-			vm.stack.capture(f.values...)
-			cursor = f.cursor
-			pc = int(decodeU16(code, pc+1))
+			vm.stack.top().cursor = cursor
 
 		case opCall:
 			vm.stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
@@ -319,7 +316,6 @@ code:
 
 		case opReturn:
 			f := vm.stack.pop()
-			vm.stack.capture(f.values...)
 			pc = f.pc
 
 		case opJump:
@@ -357,6 +353,31 @@ code:
 			offset := int(decodeU16(code, pc+3))
 			vm.newNonTermNode(id, cursor, offset)
 			pc += opCapNonTermSizeInBytes
+
+		case opCapCommit:
+			f := vm.stack.pop()
+			vm.stack.capture(f.values...)
+			pc = int(decodeU16(code, pc+1))
+
+		case opCapBackCommit:
+			f := vm.stack.pop()
+			vm.stack.capture(f.values...)
+			cursor = f.cursor
+			pc = int(decodeU16(code, pc+1))
+
+		case opCapPartialCommit:
+			pc = int(decodeU16(code, pc+1))
+			top := vm.stack.top()
+			top.cursor = cursor
+			if !top.suppress {
+				vm.stack.collectCaptures()
+			}
+			top.values = nil
+
+		case opCapReturn:
+			f := vm.stack.pop()
+			vm.stack.capture(f.values...)
+			pc = f.pc
 
 		default:
 			panic("NO ENTIENDO SENOR")

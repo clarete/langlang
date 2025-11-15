@@ -58,15 +58,23 @@ func Encode(p *Program) *Bytecode {
 			code = encodeJmp(code, opChoicePred, labels[ii.Label])
 		case ICommit:
 			code = encodeJmp(code, opCommit, labels[ii.Label])
+		case ICapCommit:
+			code = encodeJmp(code, opCapCommit, labels[ii.Label])
 		case IPartialCommit:
 			code = encodeJmp(code, opPartialCommit, labels[ii.Label])
+		case ICapPartialCommit:
+			code = encodeJmp(code, opCapPartialCommit, labels[ii.Label])
 		case IBackCommit:
 			code = encodeJmp(code, opBackCommit, labels[ii.Label])
+		case ICapBackCommit:
+			code = encodeJmp(code, opCapBackCommit, labels[ii.Label])
 		case ICall:
 			code = encodeJmp(code, opCall, labels[ii.Label])
 			code = append(code, byte(ii.Precedence))
 		case IReturn:
 			code = append(code, opReturn)
+		case ICapReturn:
+			code = append(code, opCapReturn)
 		case IJump:
 			code = encodeJmp(code, opJump, labels[ii.Label])
 		case IFail:

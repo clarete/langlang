@@ -161,12 +161,27 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeLabel(ii.Label.ID)
 			s.WriteString("\n")
 
+		case ICapCommit:
+			writeName(instruction.Name())
+			writeLabel(ii.Label.ID)
+			s.WriteString("\n")
+
 		case IBackCommit:
 			writeName(instruction.Name())
 			writeLabel(ii.Label.ID)
 			s.WriteString("\n")
 
+		case ICapBackCommit:
+			writeName(instruction.Name())
+			writeLabel(ii.Label.ID)
+			s.WriteString("\n")
+
 		case IPartialCommit:
+			writeName(instruction.Name())
+			writeLabel(ii.Label.ID)
+			s.WriteString("\n")
+
+		case ICapPartialCommit:
 			writeName(instruction.Name())
 			writeLabel(ii.Label.ID)
 			s.WriteString("\n")
@@ -209,6 +224,14 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeName(instruction.Name())
 			writeString(ii.ID)
 			writeInt(ii.Offset)
+			s.WriteString("\n")
+
+		case IReturn:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
+		case ICapReturn:
+			writeName(instruction.Name())
 			s.WriteString("\n")
 
 		default:

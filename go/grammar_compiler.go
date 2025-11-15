@@ -110,7 +110,6 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 	if inline, err := c.shouldInline(node); err != nil || inline && !c.config.GetBool("compiler.inline.emit.inlined") {
 		return err
 	}
-
 	var (
 		id = c.intern(node.Name)
 		l0 = NewILabel()
@@ -125,7 +124,7 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 		return err
 	}
 
-	c.emit(IReturn{})
+	c.emitReturn()
 
 	return nil
 }
@@ -196,9 +195,13 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 
 	switch c.config.GetInt("compiler.optimize") {
 	case 0:
-		c.emit(ICommit{Label: l0})
+		c.emitCommit(l0)
 	default:
-		c.emit(IPartialCommit{Label: l1})
+		if c.shouldCapture() {
+			c.emit(ICapPartialCommit{Label: l1})
+		} else {
+			c.emit(IPartialCommit{Label: l1})
+		}
 	}
 
 	c.emit(l2)
@@ -215,7 +218,7 @@ func (c *compiler) VisitOptionalNode(node *OptionalNode) error {
 		return err
 	}
 
-	c.emit(ICommit{Label: lb})
+	c.emitCommit(lb)
 	c.emit(lb)
 	return nil
 }
@@ -230,7 +233,7 @@ func (c *compiler) VisitChoiceNode(node *ChoiceNode) error {
 		return err
 	}
 
-	c.emit(ICommit{Label: l2})
+	c.emitCommit(l2)
 	c.emit(l1)
 
 	if err := node.Right.Accept(c); err != nil {
@@ -261,7 +264,7 @@ func (c *compiler) VisitAndNode(node *AndNode) error {
 			return err
 		}
 
-		c.emit(IBackCommit{Label: l2})
+		c.emitBackCommit(l2)
 		c.emit(l1)
 		c.emit(IFail{})
 		c.emit(l2)
@@ -285,7 +288,7 @@ func (c *compiler) VisitNotNode(node *NotNode) error {
 	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		l2 := NewILabel()
-		c.emit(ICommit{Label: l2})
+		c.emitCommit(l2)
 		c.emit(l2)
 		c.emit(IFail{})
 	default:
@@ -312,7 +315,7 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 		return nil
 	}
 
-	c.emit(ICommit{Label: l2})
+	c.emitCommit(l2)
 	c.emit(l1)
 	c.emit(IThrow{ErrorLabel: id})
 	c.emit(l2)
@@ -423,6 +426,30 @@ func (c *compiler) mapRecoveryExprs() error {
 
 func (c *compiler) shouldCapture() bool {
 	return c.config.GetBool("grammar.captures") && !c.withinPredicate
+}
+
+func (c *compiler) emitCommit(label ILabel) {
+	if c.shouldCapture() {
+		c.emit(ICapCommit{Label: label})
+	} else {
+		c.emit(ICommit{Label: label})
+	}
+}
+
+func (c *compiler) emitBackCommit(label ILabel) {
+	if c.shouldCapture() {
+		c.emit(ICapBackCommit{Label: label})
+	} else {
+		c.emit(IBackCommit{Label: label})
+	}
+}
+
+func (c *compiler) emitReturn() {
+	if c.shouldCapture() {
+		c.emit(ICapReturn{})
+	} else {
+		c.emit(IReturn{})
+	}
 }
 
 func (c *compiler) saveOpenAddr(addr int) {

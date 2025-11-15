@@ -65,15 +65,30 @@ type ICommit struct{ Label ILabel }
 func (ICommit) Name() string     { return "commit" }
 func (ICommit) SizeInBytes() int { return opCommitSizeInBytes }
 
+type IBackCommit struct{ Label ILabel }
+
+func (IBackCommit) Name() string     { return "back_commit" }
+func (IBackCommit) SizeInBytes() int { return opCommitSizeInBytes }
+
 type IPartialCommit struct{ Label ILabel }
 
 func (IPartialCommit) Name() string     { return "partial_commit" }
 func (IPartialCommit) SizeInBytes() int { return opCommitSizeInBytes }
 
-type IBackCommit struct{ Label ILabel }
+type ICapPartialCommit struct{ Label ILabel }
 
-func (IBackCommit) Name() string     { return "back_commit" }
-func (IBackCommit) SizeInBytes() int { return opCommitSizeInBytes }
+func (ICapPartialCommit) Name() string     { return "cap_partial_commit" }
+func (ICapPartialCommit) SizeInBytes() int { return opCommitSizeInBytes }
+
+type ICapCommit struct{ Label ILabel }
+
+func (ICapCommit) Name() string     { return "cap_commit" }
+func (ICapCommit) SizeInBytes() int { return opCommitSizeInBytes }
+
+type ICapBackCommit struct{ Label ILabel }
+
+func (ICapBackCommit) Name() string     { return "cap_back_commit" }
+func (ICapBackCommit) SizeInBytes() int { return opCommitSizeInBytes }
 
 type IFail struct{}
 
@@ -102,6 +117,11 @@ type IReturn struct{}
 
 func (IReturn) Name() string     { return "return" }
 func (IReturn) SizeInBytes() int { return opReturnSizeInBytes }
+
+type ICapReturn struct{}
+
+func (ICapReturn) Name() string     { return "cap_return" }
+func (ICapReturn) SizeInBytes() int { return opReturnSizeInBytes }
 
 type IThrow struct{ ErrorLabel int }
 

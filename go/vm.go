@@ -256,8 +256,7 @@ code:
 			}
 			c := data[vm.cursor]
 			i := decodeU16(code, vm.pc+1)
-			ru := rune(c)
-			if !sets[i].has(ru) {
+			if !sets[i].hasByte(c) {
 				vm.updateSetFFP(i)
 				goto fail
 			}
@@ -267,13 +266,9 @@ code:
 		case opSpan:
 			sid := decodeU16(code, vm.pc+1)
 			set := sets[sid]
-			for {
-				if vm.cursor >= ilen {
-					break
-				}
+			for vm.cursor < ilen {
 				c := data[vm.cursor]
-				ru := rune(c)
-				if set.has(ru) {
+				if set.hasByte(c) {
 					vm.cursor++
 					continue
 				}

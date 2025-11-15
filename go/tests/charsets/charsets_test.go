@@ -62,15 +62,15 @@ var tests = []test{
 		Name:  "Hiragana Single",
 		Input: []byte("あ"),
 		Func:  hiraganaFn,
-		Expected: `Hiragana (1..2)
-└── "あ" (1..2)`,
+		Expected: `Hiragana (1..4)
+└── "あ" (1..4)`,
 	},
 	{
 		Name:  "Hiragana Many",
 		Input: []byte("こんにちは"),
 		Func:  hiraganaFn,
-		Expected: `Hiragana (1..6)
-└── "こんにちは" (1..6)`,
+		Expected: `Hiragana (1..16)
+└── "こんにちは" (1..16)`,
 	},
 }
 

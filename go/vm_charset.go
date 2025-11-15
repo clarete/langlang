@@ -60,11 +60,7 @@ func (cs *charset) addRange(start, end rune) {
 	}
 }
 
-func (cs *charset) has(r rune) bool {
-	// bounds check skipped because the compiler should have
-	// created the appropriate size of a set for us anyway.
-	i := int(r)
-
+func (cs *charset) hasByte(i byte) bool {
 	// writing `i/8` as `i>>3` and `i%8` as `i&7` because division
 	// is usually slower than bit shifting operators.
 	return cs.bits[i>>3]&(1<<(i&7)) != 0
@@ -90,8 +86,8 @@ func (cs *charset) precomputeExpectedSet() []expected {
 	var (
 		ex []expected
 		rg bool
-		st rune
-		pr rune = -2
+		st int
+		pr int = -2
 	)
 	// If we've got too many entries on the set, it means that
 	// it's likely a `complement` set, and it won't look good as
@@ -99,9 +95,8 @@ func (cs *charset) precomputeExpectedSet() []expected {
 	if cs.popcount() > 100 {
 		return ex
 	}
-	for i := cs.begin(); i < cs.end(); i++ {
-		r := rune(i)
-		has := cs.has(r)
+	for r := cs.begin(); r < cs.end(); r++ {
+		has := cs.hasByte(byte(r))
 		if has {
 			if !rg {
 				rg = true
@@ -110,11 +105,11 @@ func (cs *charset) precomputeExpectedSet() []expected {
 			pr = r
 		} else if rg {
 			rg = false
-			addRangeToSlice(&ex, st, pr)
+			addRangeToSlice(&ex, rune(st), rune(pr))
 		}
 	}
 	if rg {
-		addRangeToSlice(&ex, st, pr)
+		addRangeToSlice(&ex, rune(st), rune(pr))
 	}
 
 	return ex
@@ -135,14 +130,13 @@ func (cs *charset) String() string {
 	var (
 		s  strings.Builder
 		rg bool
-		st rune
-		pr rune = -2
+		st int
+		pr int = -2
 	)
 	s.WriteString("[")
 
-	for i := cs.begin(); i < cs.end(); i++ {
-		r := rune(i)
-		has := cs.has(r)
+	for r := cs.begin(); r < cs.end(); r++ {
+		has := cs.hasByte(byte(r))
 		if has {
 			if !rg {
 				rg = true
@@ -151,11 +145,11 @@ func (cs *charset) String() string {
 			pr = r
 		} else if rg {
 			rg = false
-			addRangeToStr(&s, st, pr)
+			addRangeToStr(&s, rune(st), rune(pr))
 		}
 	}
 	if rg {
-		addRangeToStr(&s, st, pr)
+		addRangeToStr(&s, rune(st), rune(pr))
 	}
 
 	s.WriteString("]")

@@ -51,6 +51,11 @@ type compiler struct {
 	grammarNode *GrammarNode
 
 	dryRun bool
+
+	// withinPredicate tracks if we're inside a predicate (&/!)
+	// where captures are not needed, allowing us to emit
+	// IPartialCommit instead of IPartialCommitCap
+	withinPredicate bool
 }
 
 func Compile(expr AstNode, config *Config) (*Program, error) {
@@ -126,6 +131,10 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 }
 
 func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
+	if !c.shouldCapture() {
+		return node.Expr.Accept(c)
+	}
+
 	id := c.intern(node.Name)
 
 	if sz, ok := c.capExprSize(node.Expr); ok {
@@ -244,8 +253,12 @@ func (c *compiler) VisitAndNode(node *AndNode) error {
 
 		c.emit(IChoicePred{Label: l1})
 
-		if err := node.Expr.Accept(c); err != nil {
-			return nil
+		old := c.withinPredicate
+		c.withinPredicate = true
+		err := node.Expr.Accept(c)
+		c.withinPredicate = old
+		if err != nil {
+			return err
 		}
 
 		c.emit(IBackCommit{Label: l2})
@@ -261,8 +274,12 @@ func (c *compiler) VisitNotNode(node *NotNode) error {
 
 	c.emit(IChoicePred{Label: l1})
 
-	if err := node.Expr.Accept(c); err != nil {
-		return nil
+	old := c.withinPredicate
+	c.withinPredicate = true
+	err := node.Expr.Accept(c)
+	c.withinPredicate = old
+	if err != nil {
+		return err
 	}
 
 	switch c.config.GetInt("compiler.optimize") {
@@ -402,6 +419,10 @@ func (c *compiler) mapRecoveryExprs() error {
 		}
 	}
 	return nil
+}
+
+func (c *compiler) shouldCapture() bool {
+	return c.config.GetBool("grammar.captures") && !c.withinPredicate
 }
 
 func (c *compiler) saveOpenAddr(addr int) {

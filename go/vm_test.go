@@ -298,7 +298,7 @@ Digit  <- [0-9]
 			`,
 			Input:          `abacate abadia`,
 			ExpectedCursor: 8,
-			ExpectedError:  "Missing Operand Between Operators @ 9",
+			ExpectedError:  "Missing Operand Between Operators @ 9..15",
 			ErrLabels: map[string]string{
 				"MissingOperator": "Missing Operand Between Operators",
 			},

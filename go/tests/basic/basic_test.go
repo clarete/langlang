@@ -226,8 +226,8 @@ func TestAnd(t *testing.T) {
 	t.Run("Fails", func(t *testing.T) {
 		for test, errMsg := range map[string]string{
 			"x":    "[missingdot] Expected '#' but got 'x' @ 1",
-			"##":   "Expected EOF @ 2",
-			"#**!": "Expected EOF @ 4",
+			"##":   "Expected EOF @ 2..3",
+			"#**!": "Expected EOF @ 4..5",
 		} {
 			p := newBasicParser(test)
 			p.SetLabelMessages(map[string]string{"eof": "Expected EOF"})
@@ -262,8 +262,8 @@ func TestNot(t *testing.T) {
 	t.Run("Fails", func(t *testing.T) {
 		for test, errMsg := range map[string]string{
 			"#":    "[missingdotnot] Unexpected '#' @ 1",
-			"**":   "Expected EOF @ 2",
-			"*##*": "Expected EOF @ 4",
+			"**":   "Expected EOF @ 2..3",
+			"*##*": "Expected EOF @ 4..5",
 		} {
 			p := newBasicParser(test)
 			p.SetLabelMessages(map[string]string{"eofn": "Expected EOF"})

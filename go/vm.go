@@ -61,9 +61,7 @@ func (e *expectedInfo) clear() {
 }
 
 type virtualMachine struct {
-	pc        int
 	ffp       int
-	cursor    int
 	stack     *stack
 	bytecode  *Bytecode
 	predicate bool
@@ -190,17 +188,19 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Value, int, e
 	code := vm.bytecode.code
 	sets := vm.bytecode.sets
 	ilen := len(data)
+	cursor := 0
+	pc := 0
 
 	// if a rule was received, push a call frame for it and set
 	// the program appropriately
 	if ruleAddress > 0 {
 		vm.stack.push(vm.mkCallFrame(opCallSizeInBytes))
-		vm.pc = ruleAddress
+		pc = ruleAddress
 	}
 code:
 	for {
-		op := code[vm.pc]
-		// dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", vm.cursor, vm.pc, op, opNames[op]))
+		op := code[pc]
+		// dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", cursor, pc, op, opNames[op]))
 
 		switch op {
 		case opHalt:
@@ -209,72 +209,68 @@ code:
 			if len(vm.stack.values) > 0 {
 				top = vm.stack.values[len(vm.stack.values)-1]
 			}
-			return top, vm.cursor, nil
+			return top, cursor, nil
 
 		case opAny:
-			if vm.cursor >= ilen {
-				vm.updateFFP(expected{})
+			if cursor >= ilen {
 				goto fail
 			}
-			_, s := decodeRune(data, vm.cursor)
-			vm.cursor += s
-			vm.pc += opAnySizeInBytes
+			_, s := decodeRune(data, cursor)
+			cursor += s
+			pc += opAnySizeInBytes
 
 		case opChar:
-			e := rune(decodeU16(code, vm.pc+1))
-			if vm.cursor >= ilen {
-				vm.updateFFP(expected{})
+			e := rune(decodeU16(code, pc+1))
+			if cursor >= ilen {
 				goto fail
 			}
-			c, s := decodeRune(data, vm.cursor)
+			c, s := decodeRune(data, cursor)
 			if c != e {
-				vm.updateFFP(expected{a: e})
+				vm.updateExpected(cursor, expected{a: e})
 				goto fail
 			}
-			vm.cursor += s
-			vm.pc += opCharSizeInBytes
+			cursor += s
+			pc += opCharSizeInBytes
 
 		case opRange:
-			if vm.cursor >= ilen {
-				vm.updateFFP(expected{})
+			if cursor >= ilen {
 				goto fail
 			}
-			c, s := decodeRune(data, vm.cursor)
-			a := rune(decodeU16(code, vm.pc+1))
-			b := rune(decodeU16(code, vm.pc+3))
+			c, s := decodeRune(data, cursor)
+			a := rune(decodeU16(code, pc+1))
+			b := rune(decodeU16(code, pc+3))
 			if c < a || c > b {
-				vm.updateFFP(expected{a: a, b: b})
+				vm.updateExpected(cursor, expected{a: a, b: b})
 				goto fail
 			}
-			vm.cursor += s
-			vm.pc += opRangeSizeInBytes
+			cursor += s
+			pc += opRangeSizeInBytes
 
 		case opSet:
-			if vm.cursor >= ilen {
-				vm.updateFFP(expected{})
+			if cursor >= ilen {
 				goto fail
 			}
-			c := data[vm.cursor]
-			i := decodeU16(code, vm.pc+1)
+			c := data[cursor]
+			i := decodeU16(code, pc+1)
 			if !sets[i].hasByte(c) {
-				vm.updateSetFFP(i)
+				vm.updateSetExpected(cursor, i)
 				goto fail
 			}
-			vm.cursor++
-			vm.pc += opSetSizeInBytes
+			cursor++
+			pc += opSetSizeInBytes
 
 		case opSpan:
-			sid := decodeU16(code, vm.pc+1)
+			sid := decodeU16(code, pc+1)
 			set := sets[sid]
-			for vm.cursor < ilen {
-				c := data[vm.cursor]
+			for cursor < ilen {
+				c := data[cursor]
 				if set.hasByte(c) {
-					vm.cursor++
+					cursor++
 					continue
 				}
 				break
 			}
-			vm.pc += opSetSizeInBytes
+			pc += opSetSizeInBytes
 
 		case opFail:
 			goto fail
@@ -284,25 +280,25 @@ code:
 			goto fail
 
 		case opChoice:
-			lb := int(decodeU16(code, vm.pc+1))
-			vm.stack.push(vm.mkBacktrackFrame(lb))
-			vm.pc += opChoiceSizeInBytes
+			lb := int(decodeU16(code, pc+1))
+			vm.stack.push(mkBacktrackFrame(lb, cursor))
+			pc += opChoiceSizeInBytes
 
 		case opChoicePred:
-			lb := int(decodeU16(code, vm.pc+1))
-			vm.stack.push(vm.mkBacktrackPredFrame(lb))
-			vm.pc += opChoiceSizeInBytes
+			lb := int(decodeU16(code, pc+1))
+			vm.stack.push(mkBacktrackPredFrame(lb, cursor))
+			pc += opChoiceSizeInBytes
 			vm.predicate = true
 
 		case opCommit:
 			f := vm.stack.pop()
 			vm.stack.capture(f.values...)
-			vm.pc = int(decodeU16(code, vm.pc+1))
+			pc = int(decodeU16(code, pc+1))
 
 		case opPartialCommit:
-			vm.pc = int(decodeU16(code, vm.pc+1))
+			pc = int(decodeU16(code, pc+1))
 			top := vm.stack.top()
-			top.cursor = vm.cursor
+			top.cursor = cursor
 			// Skip collectCaptures if the top frame is
 			// suppressed, since values will be discarded
 			// anyway
@@ -314,53 +310,53 @@ code:
 		case opBackCommit:
 			f := vm.stack.pop()
 			vm.stack.capture(f.values...)
-			vm.cursor = f.cursor
-			vm.pc = int(decodeU16(code, vm.pc+1))
+			cursor = f.cursor
+			pc = int(decodeU16(code, pc+1))
 
 		case opCall:
-			vm.stack.push(vm.mkCallFrame(vm.pc + opCallSizeInBytes))
-			vm.pc = int(decodeU16(code, vm.pc+1))
+			vm.stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
+			pc = int(decodeU16(code, pc+1))
 
 		case opReturn:
 			f := vm.stack.pop()
 			vm.stack.capture(f.values...)
-			vm.pc = f.pc
+			pc = f.pc
 
 		case opJump:
-			vm.pc = int(decodeU16(code, vm.pc+1))
+			pc = int(decodeU16(code, pc+1))
 
 		case opThrow:
 			if vm.predicate {
-				vm.pc += opThrowSizeInBytes
+				pc += opThrowSizeInBytes
 				goto fail
 			}
-			lb := int(decodeU16(code, vm.pc+1))
+			lb := int(decodeU16(code, pc+1))
 			id := vm.bytecode.strs[lb]
 			if addr, ok := vm.bytecode.rxps[lb]; ok {
-				vm.stack.push(vm.mkCallFrame(vm.pc + opThrowSizeInBytes))
-				vm.pc = addr
+				vm.stack.push(vm.mkCallFrame(pc + opThrowSizeInBytes))
+				pc = addr
 				continue
 			}
-			return nil, vm.cursor, vm.mkErr(data, id, vm.cursor)
+			return nil, cursor, vm.mkErr(data, id, cursor, vm.ffp)
 
 		case opCapBegin:
-			id := int(decodeU16(code, vm.pc+1))
-			vm.stack.push(vm.mkCaptureFrame(id))
-			vm.pc += opCapBeginSizeInBytes
+			id := int(decodeU16(code, pc+1))
+			vm.stack.push(vm.mkCaptureFrame(id, cursor))
+			pc += opCapBeginSizeInBytes
 
 		case opCapEnd:
-			vm.newNode(vm.stack.pop())
-			vm.pc += opCapEndSizeInBytes
+			vm.newNode(cursor, vm.stack.pop())
+			pc += opCapEndSizeInBytes
 
 		case opCapTerm:
-			vm.newTermNode(int(decodeU16(code, vm.pc+1)))
-			vm.pc += opCapTermSizeInBytes
+			vm.newTermNode(cursor, int(decodeU16(code, pc+1)))
+			pc += opCapTermSizeInBytes
 
 		case opCapNonTerm:
-			id := int(decodeU16(code, vm.pc+1))
-			offset := int(decodeU16(code, vm.pc+3))
-			vm.newNonTermNode(id, offset)
-			vm.pc += opCapNonTermSizeInBytes
+			id := int(decodeU16(code, pc+1))
+			offset := int(decodeU16(code, pc+3))
+			vm.newNonTermNode(id, cursor, offset)
+			pc += opCapNonTermSizeInBytes
 
 		default:
 			panic("NO ENTIENDO SENOR")
@@ -368,17 +364,21 @@ code:
 	}
 
 fail:
-	// dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", vm.cursor, vm.pc))
+	if cursor > vm.ffp {
+		vm.ffp = cursor
+	}
+
+	// dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", cursor, pc))
 
 	for vm.stack.len() > 0 {
 		f := vm.stack.pop()
 		switch {
 		case f.t == frameType_Backtracking:
 			f.values = nil
-			vm.pc = f.pc
+			pc = f.pc
 			vm.predicate = f.predicate
-			vm.cursor = f.cursor
-			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", vm.cursor, vm.pc))
+			cursor = f.cursor
+			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", cursor, pc))
 			goto code
 
 		case f.t == frameType_Call:
@@ -386,9 +386,9 @@ fail:
 			goto fail
 		}
 	}
-	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", vm.cursor, vm.ffp))
+	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", cursor, vm.ffp))
 
-	return nil, vm.cursor, vm.mkErr(data, "", vm.ffp)
+	return nil, cursor, vm.mkErr(data, "", cursor, vm.ffp)
 }
 
 // Helpers
@@ -396,9 +396,7 @@ fail:
 func (vm *virtualMachine) reset() {
 	vm.stack.frames = vm.stack.frames[:0]
 	vm.stack.values = vm.stack.values[:0]
-	vm.pc = 0
 	vm.ffp = -1
-	vm.cursor = 0
 
 	if vm.showFails {
 		if vm.expected == nil {
@@ -412,21 +410,21 @@ func (vm *virtualMachine) reset() {
 
 // Stack Management Helpers
 
-func (vm *virtualMachine) mkBacktrackFrame(pc int) frame {
+func mkBacktrackFrame(pc, cursor int) frame {
 	return frame{
 		t:      frameType_Backtracking,
 		pc:     pc,
-		cursor: vm.cursor,
+		cursor: cursor,
 	}
 }
 
-func (vm *virtualMachine) mkBacktrackPredFrame(pc int) frame {
-	f := vm.mkBacktrackFrame(pc)
+func mkBacktrackPredFrame(pc, cursor int) frame {
+	f := mkBacktrackFrame(pc, cursor)
 	f.predicate = true
 	return f
 }
 
-func (vm *virtualMachine) mkCaptureFrame(id int) frame {
+func (vm *virtualMachine) mkCaptureFrame(id, cursor int) frame {
 	// if either the capture ID has been disabled, or a capture ID
 	// wrapping it is suppressed, so we put this flag here for
 	// `opCapEnd` to pick it up and skip capturing the node.
@@ -437,7 +435,7 @@ func (vm *virtualMachine) mkCaptureFrame(id int) frame {
 	return frame{
 		t:        frameType_Capture,
 		capId:    id,
-		cursor:   vm.cursor,
+		cursor:   cursor,
 		suppress: shouldSuppress,
 	}
 }
@@ -448,28 +446,28 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 
 // Node Capture Helpers
 
-func (vm *virtualMachine) newTermNode(offset int) {
-	if node, ok := vm.newTextNode(offset); ok {
+func (vm *virtualMachine) newTermNode(cursor, offset int) {
+	if node, ok := vm.newTextNode(cursor, offset); ok {
 		vm.stack.capture(node)
 	}
 }
 
-func (vm *virtualMachine) newNonTermNode(capId, offset int) {
-	if node, ok := vm.newTextNode(offset); ok {
+func (vm *virtualMachine) newNonTermNode(capId, cursor, offset int) {
+	if node, ok := vm.newTextNode(cursor, offset); ok {
 		capName := vm.bytecode.strs[capId]
 		vm.stack.capture(NewNode(capName, node, node.Range()))
 	}
 }
 
-func (vm *virtualMachine) newTextNode(offset int) (Value, bool) {
+func (vm *virtualMachine) newTextNode(cursor, offset int) (Value, bool) {
 	if offset > 0 {
-		begin := vm.cursor - offset
-		return NewString(NewRange(begin, vm.cursor)), true
+		begin := cursor - offset
+		return NewString(NewRange(begin, cursor)), true
 	}
 	return nil, false
 }
 
-func (vm *virtualMachine) newNode(f frame) {
+func (vm *virtualMachine) newNode(cursor int, f frame) {
 	if f.suppress {
 		vm.suppress--
 		return
@@ -478,11 +476,11 @@ func (vm *virtualMachine) newNode(f frame) {
 		node     Value
 		_, isrxp = vm.bytecode.rxps[f.capId]
 		capId    = vm.bytecode.strs[f.capId]
-		rg       = NewRange(f.cursor, vm.cursor)
+		rg       = NewRange(f.cursor, cursor)
 	)
 	switch len(f.values) {
 	case 0:
-		if vm.cursor-f.cursor > 0 {
+		if cursor-f.cursor > 0 {
 			node = NewString(rg)
 		}
 	case 1:
@@ -525,36 +523,44 @@ func (vm *virtualMachine) newNode(f frame) {
 
 // Error Handling Helpers
 
-func (vm *virtualMachine) updateFFP(s expected) {
-	if vm.cursor > vm.ffp {
-		vm.ffp = vm.cursor
-		if vm.showFails {
-			vm.expected.clear()
-			if !vm.predicate {
-				vm.expected.add(s)
-			}
-		}
-	} else if vm.cursor == vm.ffp {
-		if !vm.predicate && vm.showFails {
-			vm.expected.add(s)
-		}
-	}
-}
-
-func (vm *virtualMachine) updateSetFFP(sid uint16) {
-	vm.updateFFP(expected{})
+func (vm *virtualMachine) updateExpected(cursor int, s expected) {
 	if !vm.showFails {
 		return
 	}
-	for i, item := range vm.bytecode.sexp[sid] {
-		vm.expected.add(item)
-		if i > expectedLimit-1 {
-			break
+
+	shouldClear := cursor > vm.ffp
+	shouldAdd := cursor >= vm.ffp
+
+	if shouldClear {
+		vm.expected.clear()
+	}
+	if shouldAdd {
+		vm.expected.add(s)
+	}
+}
+
+func (vm *virtualMachine) updateSetExpected(cursor int, sid uint16) {
+	if !vm.showFails {
+		return
+	}
+
+	shouldClear := cursor > vm.ffp
+	shouldAdd := cursor >= vm.ffp
+
+	if shouldClear {
+		vm.expected.clear()
+	}
+	if shouldAdd {
+		for i, item := range vm.bytecode.sexp[sid] {
+			vm.expected.add(item)
+			if i > expectedLimit-1 {
+				break
+			}
 		}
 	}
 }
 
-func (vm *virtualMachine) mkErr(data []byte, errLabel string, errCursor int) error {
+func (vm *virtualMachine) mkErr(data []byte, errLabel string, cursor, errCursor int) error {
 	// at this point, the input cursor should be at vm.ffp, so we
 	// try to read the unexpected value to add it to the err
 	// message.  Right now, we read just a single char from ffp's
@@ -563,13 +569,13 @@ func (vm *virtualMachine) mkErr(data []byte, errLabel string, errCursor int) err
 	var (
 		isEof   bool
 		message strings.Builder
-		rg      = NewRange(vm.cursor+1, errCursor+1)
+		rg      = NewRange(cursor+1, errCursor+1)
 		c       rune
 	)
-	if vm.cursor >= len(data) {
+	if cursor >= len(data) {
 		isEof = true
 	} else {
-		c, _ = decodeRune(data, vm.cursor)
+		c, _ = decodeRune(data, cursor)
 	}
 	if m, ok := vm.errLabels[errLabel]; ok {
 		// If an error message has been associated with the

@@ -205,6 +205,15 @@ in the command line:
 -   `-disable-charsets`: Disable rewriting classes as `charsets`.
     Mostly useful for debugging.
 
+-   `-disable-inline`: Disable inlining productions.  Mostly useful for
+    debugging.
+
+-   `-disable-inline-defs=false`: When inlining is enabled, the parser
+    generated at the end won't include methods for the productions that
+    have been inlined by default.  If you do want to generate the code
+    for all the productions, even the inlined ones, disable this
+    option.
+
 
 <a id="input-language"></a>
 
@@ -554,7 +563,7 @@ be used in other grammars using imports.  Behind the scenes, the
 ## go/v0.0.10 (unreleased)
 
 -   [PERF: Avoid bounds check within tight loop](https://github.com/clarete/langlang/commit/f382b55ff67e8f5b47b6c1576a6c2a8825f644ac)
--   [PERF: Specialize cap<sub>,<sub>partial</sub>,<sub>back</sub></sub><sub>commit</sub>](https://github.com/clarete/langlang/commit/af2a9b40c060ae8173af3095d46da5895b280a11)
+-   [PERF: Specialize cap{,-partial,-back}-commit](https://github.com/clarete/langlang/commit/af2a9b40c060ae8173af3095d46da5895b280a11)
 -   [PERF: hoist cursor and pc in hot path, clean up FFP update](https://github.com/clarete/langlang/commit/8b8a56bc8a82b956f258610b3adfbe3a1825c4d4)
 -   [PERF: remove rune/int conversions using charsets](https://github.com/clarete/langlang/commit/253d59b1d6d2062a3a1ca13450da773a7d26fbf5)
 -   [PERF: A naive implementation of inlining](https://github.com/clarete/langlang/commit/e56339fdabe20f9a2a46ea785567e17b3cf3b4e2)

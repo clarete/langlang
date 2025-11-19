@@ -357,8 +357,6 @@ be used in other grammars using imports.  Behind the scenes, the
 * Roadmap
 
  * SIM: [compvm] known optimizations: head-fail
- * SIM: [compvm] known optimizations: inlining, tco
- * SIM: [compvm] more profiling
  * SIM: [compvm] memoize results to guarantee O(1) parsing time
  * SIM: [compvm] allocates memory through an allocator interface
  * MID: [genall] generator interface to be shared by all targets
@@ -374,6 +372,11 @@ be used in other grammars using imports.  Behind the scenes, the
 
 ** go/v0.0.10 (unreleased)
 
+ * [[https://github.com/clarete/langlang/commit/f382b55ff67e8f5b47b6c1576a6c2a8825f644ac][PERF: Avoid bounds check within tight loop]]
+ * [[https://github.com/clarete/langlang/commit/af2a9b40c060ae8173af3095d46da5895b280a11][PERF: Specialize cap_{,_partial,_back}_commit]]
+ * [[https://github.com/clarete/langlang/commit/8b8a56bc8a82b956f258610b3adfbe3a1825c4d4][PERF: hoist cursor and pc in hot path, clean up FFP update]]
+ * [[https://github.com/clarete/langlang/commit/253d59b1d6d2062a3a1ca13450da773a7d26fbf5][PERF: remove rune/int conversions using charsets]]
+ * [[https://github.com/clarete/langlang/commit/e56339fdabe20f9a2a46ea785567e17b3cf3b4e2][PERF: A naive implementation of inlining]]
  * [[https://github.com/clarete/langlang/commit/c20f169246c5efcbe9ab016f4514c8404655082b][PERF: Drop Input interface and use concrete MemInput all over]]
  * PERF: Rework how we decode uint16 from our bytecode ([[https://github.com/clarete/langlang/commit/5f0f3794ecb22778e993322420c5122bd0e1b240][PR1]], [[https://github.com/clarete/langlang/commit/ec27e503cdc35004a0086e6147817d740a794c39][PR2]])
  * [[https://github.com/clarete/langlang/commit/68d7425da659b898c33780e36ab4fb3d95943b46][PERF: Rework initializating vm when creating parser]]

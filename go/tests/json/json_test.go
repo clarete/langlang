@@ -32,16 +32,16 @@ func getInputs(tb testing.TB) map[string][]byte {
 
 func BenchmarkParser(b *testing.B) {
 	inputs := getInputs(b)
-
-	b.ResetTimer()
 	p := NewParser()
 	p.SetShowFails(false)
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
-			p.SetInput(inputs[name])
+			input := inputs[name]
+			b.SetBytes(int64(len(input)))
+			p.SetInput(input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				p.ParseJSON()
 			}
 		})
@@ -50,16 +50,16 @@ func BenchmarkParser(b *testing.B) {
 
 func BenchmarkNoCapParser(b *testing.B) {
 	inputs := getInputs(b)
-
-	b.ResetTimer()
 	p := NewNoCapParser()
 	p.SetShowFails(false)
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
-			p.SetInput(inputs[name])
+			input := inputs[name]
+			b.SetBytes(int64(len(input)))
+			p.SetInput(input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				p.ParseJSON()
 			}
 		})
@@ -68,16 +68,16 @@ func BenchmarkNoCapParser(b *testing.B) {
 
 func BenchmarkStrippedParser(b *testing.B) {
 	inputs := getInputs(b)
-
-	b.ResetTimer()
 	p := NewStrippedParser()
 	p.SetShowFails(false)
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
-			p.SetInput(inputs[name])
+			input := inputs[name]
+			b.SetBytes(int64(len(input)))
+			p.SetInput(input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				p.ParseJSON()
 			}
 		})
@@ -86,16 +86,16 @@ func BenchmarkStrippedParser(b *testing.B) {
 
 func BenchmarkStrippedNoCapParser(b *testing.B) {
 	inputs := getInputs(b)
-
-	b.ResetTimer()
 	p := NewStrippedNoCapParser()
 	p.SetShowFails(false)
 
 	for _, name := range inputNames {
 		b.Run(fmt.Sprintf("Input %s", name), func(b *testing.B) {
-			p.SetInput(inputs[name])
+			input := inputs[name]
+			b.SetBytes(int64(len(input)))
+			p.SetInput(input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				p.ParseJSON()
 			}
 		})

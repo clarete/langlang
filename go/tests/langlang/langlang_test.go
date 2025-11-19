@@ -30,16 +30,16 @@ func getGrammars(tb testing.TB) map[string][]byte {
 
 func BenchmarkParser(b *testing.B) {
 	grammars := getGrammars(b)
-
-	b.ResetTimer()
 	p := NewParser()
 	p.SetShowFails(false)
 
 	for _, name := range grammarNames {
 		b.Run(fmt.Sprintf("Grammar %s", name), func(b *testing.B) {
-			p.SetInput(grammars[name])
+			input := grammars[name]
+			b.SetBytes(int64(len(input)))
+			p.SetInput(input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				p.ParseGrammar()
 			}
 		})
@@ -48,16 +48,16 @@ func BenchmarkParser(b *testing.B) {
 
 func BenchmarkNoCapParser(b *testing.B) {
 	grammars := getGrammars(b)
-
-	b.ResetTimer()
 	p := NewNoCapParser()
 	p.SetShowFails(false)
 
 	for _, name := range grammarNames {
 		b.Run(fmt.Sprintf("Grammar %s", name), func(b *testing.B) {
-			p.SetInput(grammars[name])
+			input := grammars[name]
+			b.SetBytes(int64(len(input)))
+			p.SetInput(input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				p.ParseGrammar()
 			}
 		})

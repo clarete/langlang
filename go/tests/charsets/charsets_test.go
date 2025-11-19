@@ -88,17 +88,15 @@ func TestCharset(t *testing.T) {
 }
 
 func BenchmarkParser(b *testing.B) {
-
-	b.ResetTimer()
-
 	p := NewParser()
 	p.SetShowFails(false)
 
 	for _, test := range tests {
 		b.Run(test.Name, func(b *testing.B) {
+			b.SetBytes(int64(len(test.Input)))
 			p.SetInput(test.Input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				test.Func(p)
 			}
 		})
@@ -106,17 +104,15 @@ func BenchmarkParser(b *testing.B) {
 }
 
 func BenchmarkNoCapParser(b *testing.B) {
-
-	b.ResetTimer()
-
 	p := NewNoCapParser()
 	p.SetShowFails(false)
 
 	for _, test := range tests {
 		b.Run(test.Name, func(b *testing.B) {
+			b.SetBytes(int64(len(test.Input)))
 			p.SetInput(test.Input)
 
-			for n := 0; n < b.N; n++ {
+			for b.Loop() {
 				test.Func(p)
 			}
 		})

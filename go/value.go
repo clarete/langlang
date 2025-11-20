@@ -145,6 +145,55 @@ func (n Error) AsError() ParsingError {
 	}
 }
 
+// ---- Text Printer ----
+
+func Text(input []byte, node Value) string {
+	var (
+		output  strings.Builder
+		visitor = &TextVisitor{input: input, output: &output}
+	)
+	_ = node.Accept(visitor)
+	return output.String()
+}
+
+type TextVisitor struct {
+	input  []byte
+	output *strings.Builder
+}
+
+func (v *TextVisitor) VisitString(n *String) error {
+	r := n.Range()
+	v.output.WriteString(string(v.input[r.Start:r.End]))
+	return nil
+}
+
+func (v *TextVisitor) VisitSequence(n *Sequence) error {
+	for _, expr := range n.Items {
+		expr.Accept(v)
+	}
+	return nil
+}
+
+func (v *TextVisitor) VisitNode(n *Node) error {
+	return n.Expr.Accept(v)
+}
+
+func (v *TextVisitor) VisitError(n *Error) error {
+	if n.Expr == nil {
+		v.output.WriteString("error[" + n.Label + "]")
+		return nil
+	}
+	r := n.Expr.Range()
+	v.output.WriteString("error[")
+	v.output.WriteString(n.Label)
+	v.output.WriteString(": ")
+	v.output.WriteString(string(v.input[r.Start:r.End]))
+	v.output.WriteString("]")
+	return nil
+}
+
+// ---- Tree Printer ----
+
 func PrettyString(input []byte, node Value) string {
 	tp := NewTreePrinter(input, func(input string, _ FormatToken) string {
 		return input

@@ -15,7 +15,7 @@ const (
 	FormatToken_Error
 )
 
-var valuePrinterTheme = map[FormatToken]string{
+var treePrinterTheme = map[FormatToken]string{
 	FormatToken_None:    "\033[0m",          // reset
 	FormatToken_Range:   "\033[1;31;5;228m", // orange
 	FormatToken_Literal: "\033[1;38;5;245m", // gray
@@ -146,34 +146,33 @@ func (n Error) AsError() ParsingError {
 }
 
 func PrettyString(input []byte, node Value) string {
-	p := NewValuePrinter(input, func(input string, _ FormatToken) string {
+	tp := NewTreePrinter(input, func(input string, _ FormatToken) string {
 		return input
 	})
-	node.Accept(p)
-	return p.output.String()
+	node.Accept(tp)
+	return tp.output.String()
 }
 
 func HighlightPrettyString(input []byte, node Value) string {
-	p := NewValuePrinter(input, func(input string, token FormatToken) string {
-		return valuePrinterTheme[token] + input + valuePrinterTheme[FormatToken_None]
+	tp := NewTreePrinter(input, func(input string, token FormatToken) string {
+		return treePrinterTheme[token] + input + treePrinterTheme[FormatToken_None]
 	})
-	node.Accept(p)
-	return p.output.String()
+	node.Accept(tp)
+	return tp.output.String()
 }
 
-type ValuePrinter struct {
-	input  []byte
-	line   int
-	column int
+type TreePrinter struct {
+	input []byte
 	*treePrinter[FormatToken]
 }
 
-func NewValuePrinter(input []byte, format FormatFunc[FormatToken]) *ValuePrinter {
-	return &ValuePrinter{input: input, line: 1, column: 1, treePrinter: newTreePrinter(format)}
+func NewTreePrinter(input []byte, format FormatFunc[FormatToken]) *TreePrinter {
+	return &TreePrinter{input: input, treePrinter: newTreePrinter(format)}
 }
 
-// posToLineCol converts a byte position in the input to line and column numbers (both 1-based)
-func (v *ValuePrinter) posToLineCol(pos int) (line, column int) {
+// posToLineCol converts a byte position in the input to line and
+// column numbers (both 1-based)
+func (v *TreePrinter) posToLineCol(pos int) (line, column int) {
 	line, column = 1, 1
 	data := v.input[0:pos]
 	for _, ch := range data {
@@ -188,7 +187,7 @@ func (v *ValuePrinter) posToLineCol(pos int) (line, column int) {
 }
 
 // formatPosition formats a Range as "startLine:startCol-endLine:endCol"
-func (v *ValuePrinter) formatPosition(rg Range) string {
+func (v *TreePrinter) formatPosition(rg Range) string {
 	startLine, startCol := v.posToLineCol(rg.Start)
 	endLine, endCol := v.posToLineCol(rg.End)
 	if startLine == endLine && startLine == 1 {
@@ -203,7 +202,7 @@ func (v *ValuePrinter) formatPosition(rg Range) string {
 	return fmt.Sprintf("%d:%d..%d:%d", startLine, startCol, endLine, endCol)
 }
 
-func (v *ValuePrinter) VisitString(n *String) error {
+func (v *TreePrinter) VisitString(n *String) error {
 	rg := n.Range()
 	text := string(v.input[rg.Start:rg.End])
 	escaped := strconv.Quote(text)
@@ -212,7 +211,7 @@ func (v *ValuePrinter) VisitString(n *String) error {
 	return nil
 }
 
-func (v *ValuePrinter) VisitError(n *Error) error {
+func (v *TreePrinter) VisitError(n *Error) error {
 	v.write(v.format(fmt.Sprintf("Error<%s>", n.Label), FormatToken_Error))
 	v.write(v.format(fmt.Sprintf(" (%s)", v.formatPosition(n.Range())), FormatToken_Range))
 	if n.Expr != nil {
@@ -225,7 +224,7 @@ func (v *ValuePrinter) VisitError(n *Error) error {
 	return nil
 }
 
-func (v *ValuePrinter) VisitSequence(n *Sequence) error {
+func (v *TreePrinter) VisitSequence(n *Sequence) error {
 	seq := fmt.Sprintf("Sequence<%d> (%s)", len(n.Items), v.formatPosition(n.Range()))
 	v.writel(v.format(seq, FormatToken_Range))
 	for i, item := range n.Items {
@@ -246,7 +245,7 @@ func (v *ValuePrinter) VisitSequence(n *Sequence) error {
 	return nil
 }
 
-func (v *ValuePrinter) VisitNode(n *Node) error {
+func (v *TreePrinter) VisitNode(n *Node) error {
 	v.write(v.format(n.Name, FormatToken_Literal))
 	v.writel(v.format(fmt.Sprintf(" (%s)", v.formatPosition(n.Range())), FormatToken_Range))
 	v.pwrite("└── ")

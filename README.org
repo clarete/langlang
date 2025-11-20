@@ -381,15 +381,18 @@ be used in other grammars using imports.  Behind the scenes, the
 
 ** go/v0.0.10 (unreleased)
 
+ * [[https://github.com/clarete/langlang/commit/1de1e5286ee9ca8b7d8a14d2e0a1ed5424daf7de][FEAT: Use pointer receivers for all Value.Accept() methods]]
+ * [[https://github.com/clarete/langlang/commit/78a72123bac3ca8161b26b2d77a573f0e7efe6b9][FEAT: Format generated parser code]]
+ * [[https://github.com/clarete/langlang/commit/e56339fdabe20f9a2a46ea785567e17b3cf3b4e2][PERF[BREAKING]: A naive implementation of inlining]]
  * [[https://github.com/clarete/langlang/commit/f382b55ff67e8f5b47b6c1576a6c2a8825f644ac][PERF: Avoid bounds check within tight loop]]
  * [[https://github.com/clarete/langlang/commit/af2a9b40c060ae8173af3095d46da5895b280a11][PERF: Specialize cap{,-partial,-back}-commit]]
  * [[https://github.com/clarete/langlang/commit/8b8a56bc8a82b956f258610b3adfbe3a1825c4d4][PERF: hoist cursor and pc in hot path, clean up FFP update]]
  * [[https://github.com/clarete/langlang/commit/253d59b1d6d2062a3a1ca13450da773a7d26fbf5][PERF: remove rune/int conversions using charsets]]
- * [[https://github.com/clarete/langlang/commit/e56339fdabe20f9a2a46ea785567e17b3cf3b4e2][PERF: A naive implementation of inlining]]
  * [[https://github.com/clarete/langlang/commit/c20f169246c5efcbe9ab016f4514c8404655082b][PERF: Drop Input interface and use concrete MemInput all over]]
- * PERF: Rework how we decode uint16 from our bytecode ([[https://github.com/clarete/langlang/commit/5f0f3794ecb22778e993322420c5122bd0e1b240][PR1]], [[https://github.com/clarete/langlang/commit/ec27e503cdc35004a0086e6147817d740a794c39][PR2]])
+ * [[https://github.com/clarete/langlang/commit/5f0f3794ecb22778e993322420c5122bd0e1b240][PERF: Rework how we decode uint16 from our bytecode]] ([[https://github.com/clarete/langlang/commit/5f0f3794ecb22778e993322420c5122bd0e1b240][PR2]])
+ * [[https://github.com/clarete/langlang/commit/0d662030a8434b71d7defbe3b007e73563562864][PERF[BREAKING]: Keep only Range within String & use []byte vs string]]
+ * [[https://github.com/clarete/langlang/commit/adfb7d12534efa864b574748065714ddbbd2c11f][PERF: Replace Span with Range and remove line/column from vm]]
  * [[https://github.com/clarete/langlang/commit/68d7425da659b898c33780e36ab4fb3d95943b46][PERF: Rework initializating vm when creating parser]]
- * [[https://github.com/clarete/langlang/commit/78a72123bac3ca8161b26b2d77a573f0e7efe6b9][FEAT: Format generated parser code]]
 
 ** go/v0.0.9
 

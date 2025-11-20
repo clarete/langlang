@@ -39,7 +39,7 @@ func BenchmarkParser(b *testing.B) {
 			b.SetBytes(int64(len(input)))
 			p.SetInput(input)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseGrammar()
 			}
 		})
@@ -57,7 +57,7 @@ func BenchmarkNoCapParser(b *testing.B) {
 			b.SetBytes(int64(len(input)))
 			p.SetInput(input)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseGrammar()
 			}
 		})

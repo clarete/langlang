@@ -41,7 +41,7 @@ func BenchmarkParser(b *testing.B) {
 			b.SetBytes(int64(len(input)))
 			p.SetInput(input)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseJSON()
 			}
 		})
@@ -59,7 +59,7 @@ func BenchmarkNoCapParser(b *testing.B) {
 			b.SetBytes(int64(len(input)))
 			p.SetInput(input)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseJSON()
 			}
 		})
@@ -77,7 +77,7 @@ func BenchmarkStrippedParser(b *testing.B) {
 			b.SetBytes(int64(len(input)))
 			p.SetInput(input)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseJSON()
 			}
 		})
@@ -95,7 +95,7 @@ func BenchmarkStrippedNoCapParser(b *testing.B) {
 			b.SetBytes(int64(len(input)))
 			p.SetInput(input)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseJSON()
 			}
 		})

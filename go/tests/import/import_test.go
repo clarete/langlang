@@ -205,7 +205,7 @@ func BenchmarkParser(b *testing.B) {
 			b.SetBytes(int64(len(scenario.Query)))
 			p.SetInput(scenario.Query)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseExpr()
 			}
 		})
@@ -221,7 +221,7 @@ func BenchmarkNoCapParser(b *testing.B) {
 			b.SetBytes(int64(len(scenario.Query)))
 			p.SetInput(scenario.Query)
 
-			for b.Loop() {
+			for n := 0; n < b.N; n++ {
 				p.ParseExpr()
 			}
 		})

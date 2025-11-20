@@ -67,10 +67,10 @@ func NewString(rg Range) *String {
 	return &String{rg: rg}
 }
 
-func (n String) Type() string                { return "string" }
-func (n String) Range() Range                { return n.rg }
-func (n String) String(input []byte) string  { return n.Range().Str(input) }
-func (n String) Accept(v ValueVisitor) error { return v.VisitString(&n) }
+func (n String) Type() string                 { return "string" }
+func (n String) Range() Range                 { return n.rg }
+func (n String) String(input []byte) string   { return n.Range().Str(input) }
+func (n *String) Accept(v ValueVisitor) error { return v.VisitString(n) }
 
 // Sequence Value
 
@@ -83,9 +83,9 @@ func NewSequence(items []Value, rg Range) *Sequence {
 	return &Sequence{Items: items, rg: rg}
 }
 
-func (n Sequence) Type() string                { return "sequence" }
-func (n Sequence) Range() Range                { return n.rg }
-func (n Sequence) Accept(v ValueVisitor) error { return v.VisitSequence(&n) }
+func (n Sequence) Type() string                 { return "sequence" }
+func (n Sequence) Range() Range                 { return n.rg }
+func (n *Sequence) Accept(v ValueVisitor) error { return v.VisitSequence(n) }
 func (n Sequence) String(input []byte) string {
 	var s strings.Builder
 	s.WriteString("Sequence(")
@@ -111,10 +111,10 @@ func NewNode(name string, expr Value, rg Range) *Node {
 	return &Node{Name: name, Expr: expr, rg: rg}
 }
 
-func (n Node) Type() string                { return "node" }
-func (n Node) Range() Range                { return n.rg }
-func (n Node) Accept(v ValueVisitor) error { return v.VisitNode(&n) }
-func (n Node) String(input []byte) string  { return n.Range().Str(input) }
+func (n Node) Type() string                 { return "node" }
+func (n Node) Range() Range                 { return n.rg }
+func (n *Node) Accept(v ValueVisitor) error { return v.VisitNode(n) }
+func (n Node) String(input []byte) string   { return n.Range().Str(input) }
 
 // Node Error
 
@@ -129,9 +129,9 @@ func NewError(label, message string, expr Value, rg Range) *Error {
 	return &Error{Label: label, Message: message, Expr: expr, rg: rg}
 }
 
-func (n Error) Type() string                { return "error" }
-func (n Error) Range() Range                { return n.rg }
-func (n Error) Accept(v ValueVisitor) error { return v.VisitError(&n) }
+func (n Error) Type() string                 { return "error" }
+func (n Error) Range() Range                 { return n.rg }
+func (n *Error) Accept(v ValueVisitor) error { return v.VisitError(n) }
 
 func (n Error) String(input []byte) string {
 	return fmt.Sprintf(`Error("%s", "%s")`, n.Label, n.Range().Str(input))

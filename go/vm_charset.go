@@ -53,7 +53,7 @@ func (cs *charset) add(r rune) {
 
 func (cs *charset) addRange(start, end rune) {
 	if !fitcs(start) || !fitcs(end) || start > end {
-		panic(fmt.Sprintf("range out of charset bounds: %c-%c", start, end))
+		panic(fmt.Sprintf("range out of charset bounds: `%c-%c`", start, end))
 	}
 	for r := start; r <= end; r++ {
 		cs.add(r)

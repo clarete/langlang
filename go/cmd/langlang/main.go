@@ -96,7 +96,7 @@ func main() {
 	cfg.SetBool("grammar.add_charsets", !*a.disableCharsets)
 	cfg.SetBool("grammar.captures", !*a.disableCaptures)
 	cfg.SetBool("grammar.capture_spaces", !*a.disableCaptureSpaces)
-	cfg.SetBool("grammar.disable_spaces", *a.disableSpaces)
+	cfg.SetBool("grammar.handle_spaces", !*a.disableSpaces)
 	cfg.SetBool("compiler.inline.enabled", !*a.disableInline)
 	cfg.SetBool("compiler.inline.emit.inlined", !*a.disableInlineDefs)
 

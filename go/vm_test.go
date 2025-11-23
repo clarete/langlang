@@ -303,6 +303,34 @@ Digit  <- [0-9]
 				"MissingOperator": "Missing Operand Between Operators",
 			},
 		},
+		{
+			Name: "Space Injection within Repetition",
+			Grammar: `
+                           Val <- ID / Seq
+                           Seq <- '(' Val* ')'   // <-- we should inject a space within this *
+                           ID  <- [a-zA-Z_][a-zA-Z0-9_]*
+			`,
+			Input:          `(a b c)`,
+			ExpectedCursor: 7,
+			ExpectedAST: `Val (1..8)
+└── Seq (1..8)
+    └── Sequence<7> (1..8)
+        ├── "(" (1..2)
+        ├── Val (2..3)
+        │   └── ID (2..3)
+        │       └── "a" (2..3)
+        ├── Spacing (3..4)
+        │   └── " " (3..4)
+        ├── Val (4..5)
+        │   └── ID (4..5)
+        │       └── "b" (4..5)
+        ├── Spacing (5..6)
+        │   └── " " (5..6)
+        ├── Val (6..7)
+        │   └── ID (6..7)
+        │       └── "c" (6..7)
+        └── ")" (7..8)`,
+		},
 	}
 
 	for _, test := range vmTests {

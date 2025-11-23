@@ -190,7 +190,7 @@ func TestIsSyntactic(t *testing.T) {
 
 		for test, errMsg := range map[string]string{
 			" a9:30":    "Expected 'A-Z', 'a-z' but got ' ' @ 1",
-			"a 999 :99": "Expected '0-9', 'A-Z', 'a-z', ':' but got ' ' @ 6",
+			"a 999 :99": "Expected '0-9', 'A-Z', 'a-z' but got ' ' @ 6..7",
 		} {
 			p := newBasicParser(test)
 			_, err := p.ParseSPC1()

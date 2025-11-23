@@ -636,9 +636,10 @@ func (g *goCodeEmitter) output() (string, error) {
 // on the `builtinsGrammar` global variable.
 func isBuiltinSpacing(g *GrammarNode) bool {
 	var (
-		spacing = g.DefsByName["Spacing"].Equal(builtinsGrammar.DefsByName["Spacing"])
-		space   = g.DefsByName["Space"].Equal(builtinsGrammar.DefsByName["Space"])
-		eol     = g.DefsByName["EOL"].Equal(builtinsGrammar.DefsByName["EOL"])
+		builtinsGrammar = mustLoadBuiltins()
+		spacing         = g.DefsByName["Spacing"].Equal(builtinsGrammar.DefsByName["Spacing"])
+		space           = g.DefsByName["Space"].Equal(builtinsGrammar.DefsByName["Space"])
+		eol             = g.DefsByName["EOL"].Equal(builtinsGrammar.DefsByName["EOL"])
 	)
 	return spacing && space && eol
 }

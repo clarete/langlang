@@ -68,8 +68,8 @@ func TestGrammarTransformations(t *testing.T) {
 			Grammar: `G <- '"' (!'"' .)* '"'^DQ
 `,
 			ExpectedAST: `Grammar (0..26)
-└── Definition[G] (0..26)
-    └── Capture[G] (0..26)
+└── Definition[G] (0..25)
+    └── Capture[G] (0..25)
         └── Sequence (5..25)
             ├── Capture (6..7)
             │   └── Charset[[\"]] (6..7)

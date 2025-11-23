@@ -66,13 +66,18 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 
 			_, isLexNode := item.(*LexNode)
 			_, isSeqNode := item.(*SequenceNode)
+			_, isZeroOrMore := item.(*ZeroOrMoreNode)
+			_, isOneOrMore := item.(*OneOrMoreNode)
 
-			skip := !consumeFirst && i == 0 || isLexNode || isSeqNode || isSpacingNode
+			skip := !consumeFirst && i == 0 || (isLexNode ||
+				isSeqNode ||
+				isSpacingNode ||
+				isZeroOrMore ||
+				isOneOrMore)
 
 			if shouldConsumeSpaces && !skip {
 				newItems = append(newItems, wsCall())
 			}
-
 			newItems = append(newItems, wi.expandExpr(item, true))
 		}
 		return NewSequenceNode(newItems, node.Range())
@@ -105,9 +110,21 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 		return NewOptionalNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *ZeroOrMoreNode:
+		shouldConsumeSpaces := wi.lexLevel == 0 && !isSyntactic(n, true)
+		if shouldConsumeSpaces {
+			expr := wi.expandExpr(node.Expr, true)
+			seq := NewSequenceNode([]AstNode{wsCall(), expr}, node.Range())
+			return NewZeroOrMoreNode(seq, n.Range())
+		}
 		return NewZeroOrMoreNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *OneOrMoreNode:
+		shouldConsumeSpaces := wi.lexLevel == 0 && !isSyntactic(n, true)
+		if shouldConsumeSpaces {
+			expr := wi.expandExpr(node.Expr, true)
+			seq := NewSequenceNode([]AstNode{wsCall(), expr}, node.Range())
+			return NewOneOrMoreNode(seq, n.Range())
+		}
 		return NewOneOrMoreNode(wi.expandExpr(node.Expr, true), n.Range())
 
 	case *LabeledNode:

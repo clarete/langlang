@@ -1,0 +1,15 @@
+// https://arxiv.org/pdf/2509.15834v1
+//
+//      diagram d := "lbl"     // terminal
+//                | [lbl]      // non-terminal
+//                | (d...)     // sequence
+//                | (pol d d)  // stack
+//   polarity pol := + | -
+//      label lbl := string
+Diagram     <- Terminal / NonTerminal / Sequence / Stack
+Terminal    <- '"' #((!'"' .)* '"')
+NonTerminal <- '[' Label ']'
+Stack       <- '(' Polarity Diagram Diagram ')'
+Sequence    <- '(' Diagram* ')'
+Label       <- [a-zA-Z_][a-zA-Z0-9_]*
+Polarity    <- [-+]

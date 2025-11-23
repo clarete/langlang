@@ -2,13 +2,17 @@ package langlang
 
 import "fmt"
 
-func AddCaptures(n AstNode) (*GrammarNode, error) {
+func AddCaptures(n AstNode, cfg *Config) (*GrammarNode, error) {
 	grammar, ok := n.(*GrammarNode)
 	if !ok {
 		return nil, fmt.Errorf("grammar expected, but got %#v", n)
 	}
 
 	for _, def := range grammar.Definitions {
+		if def.Name == "Spacing" && !cfg.GetBool("grammar.capture_spaces") {
+			continue
+		}
+
 		expr := def.Expr
 		if !isSyntactic(def, false) {
 			expr = addUnamedCaptures(expr)

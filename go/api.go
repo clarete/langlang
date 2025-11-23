@@ -44,17 +44,6 @@ func GrammarTransformations(expr AstNode, cfg *Config) (AstNode, error) {
 		}
 	}
 
-	// If captures are enabled [grammar.captures=true], but
-	// capturing *spaces* is disabled,
-	// [grammar.capture_spaces=false], we apply `AddCaptures`
-	// *before* `InjectWhitespaces`.
-	if cfg.GetBool("grammar.captures") && !cfg.GetBool("grammar.capture_spaces") {
-		expr, err = AddCaptures(expr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	if cfg.GetBool("grammar.handle_spaces") {
 		expr, err = InjectWhitespaces(expr)
 		if err != nil {
@@ -62,11 +51,8 @@ func GrammarTransformations(expr AstNode, cfg *Config) (AstNode, error) {
 		}
 	}
 
-	// if captures and capturing spaces are all enabled
-	// [grammar.captures=true], [grammar.capture_spaces=true], we
-	// then call `AddCaptures` *after* `InjectWhitespaces`.
-	if cfg.GetBool("grammar.captures") && cfg.GetBool("grammar.capture_spaces") {
-		expr, err = AddCaptures(expr)
+	if cfg.GetBool("grammar.captures") {
+		expr, err = AddCaptures(expr, cfg)
 		if err != nil {
 			return nil, err
 		}

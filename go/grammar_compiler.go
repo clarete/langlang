@@ -489,6 +489,9 @@ func (c *compiler) collectErrorLabels(node *GrammarNode) {
 }
 
 func (c *compiler) shouldInline(def *DefinitionNode) (bool, error) {
+	if def == nil {
+		return false, nil
+	}
 	id := c.intern(def.Name)
 	if c.dryRun || !c.config.GetBool("compiler.inline.enabled") {
 		return false, nil

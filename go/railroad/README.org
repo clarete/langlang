@@ -1,0 +1,22 @@
+* Railroad Diagram Implementation
+
+** Overview
+
+Railroad diagrams, or syntax diagrams, are intuitive visualizations of
+formal grammars.
+
+This package implements railroad diagram generation based on the paper
+[[https://arxiv.org/pdf/2509.15834v1][Automatic layout of railroad diagrams]] by Shardul Chiplunkar and
+Clément Pit-Claudel (EPFL, 2025).
+
+The first phase of the algorithm translates the AST of the input
+grammar into the following diagram language:
+
+#+begin_src peg
+ diagram d := "lbl"     // terminal
+           | [lbl]      // non-terminal
+           | (d...)     // sequence
+           | (pol d d)  // stack
+polarity pol := + | -
+   label lbl := string
+#+end_src

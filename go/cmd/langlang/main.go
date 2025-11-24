@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/clarete/langlang/go"
+	"github.com/clarete/langlang/go/railroad/diagram"
 )
 
 type args struct {
@@ -15,6 +16,9 @@ type args struct {
 
 	grammarAST *bool
 	grammarASM *bool
+
+	grammarRailroadDiagram *bool
+	grammarRailroadLayout  *bool
 
 	outputLang *string
 	outputPath *string
@@ -46,6 +50,9 @@ func readArgs() *args {
 
 		grammarAST: flag.Bool("grammar-ast", false, "Output the AST of the grammar"),
 		grammarASM: flag.Bool("grammar-asm", false, "Output the ASM of the grammar"),
+
+		grammarRailroadDiagram: flag.Bool("grammar-railroad-diagram", false, "Output the Railroad Diagram of the grammar"),
+		grammarRailroadLayout:  flag.Bool("grammar-railroad-layout", false, "Output the Railroad Layout of the grammar"),
 
 		// Output Options
 
@@ -107,6 +114,20 @@ func main() {
 
 	if *a.grammarAST {
 		fmt.Println(ast.HighlightPrettyString())
+		return
+	}
+
+	if *a.grammarRailroadDiagram {
+		fmt.Println(diagram.DiagramString(ast))
+		return
+	}
+
+	if *a.grammarRailroadLayout {
+		s, err := diagram.DiagramToACII(ast)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(s)
 		return
 	}
 

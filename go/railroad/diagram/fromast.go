@@ -77,7 +77,7 @@ func (vi *ast2diagram) VisitOneOrMoreNode(node *langlang.OneOrMoreNode) error {
 
 func (vi *ast2diagram) VisitZeroOrMoreNode(node *langlang.ZeroOrMoreNode) error {
 	node.Expr.Accept(vi)
-	vi.push(newstack(pol_minus, vi.pop(), newempty()))
+	vi.push(newstack(pol_minus, newempty(), vi.pop()))
 	return nil
 }
 

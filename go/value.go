@@ -92,14 +92,9 @@ func (n Sequence) Range() Range                 { return n.rg }
 func (n *Sequence) Accept(v ValueVisitor) error { return v.VisitSequence(n) }
 func (n Sequence) String(input []byte) string {
 	var s strings.Builder
-	s.WriteString("Sequence(")
-	for i, expr := range n.Items {
+	for _, expr := range n.Items {
 		s.WriteString(expr.String(input))
-		if i < len(n.Items)-1 {
-			s.WriteString(", ")
-		}
 	}
-	fmt.Fprintf(&s, ")")
 	return s.String()
 }
 

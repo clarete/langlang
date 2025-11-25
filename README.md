@@ -562,6 +562,8 @@ be used in other grammars using imports.  Behind the scenes, the
 
 ## go/v0.0.10 (unreleased)
 
+-   [BUG FIX: Fix space injection around repetitions](https://github.com/clarete/langlang/commit/8ae815837f6a432eceff8bf03fc59eb7b39f5b35)
+-   [BUG FIX: Fix disabling capturing spaces](https://github.com/clarete/langlang/commit/e7cf6f1a25f924053d4d863dad53a58c5e2875c4)
 -   [FEAT: Use pointer receivers for all Value.Accept() methods](https://github.com/clarete/langlang/commit/1de1e5286ee9ca8b7d8a14d2e0a1ed5424daf7de)
 -   [FEAT: Format generated parser code](https://github.com/clarete/langlang/commit/78a72123bac3ca8161b26b2d77a573f0e7efe6b9)
 -   [PERF[BREAKING]: A naive implementation of inlining](https://github.com/clarete/langlang/commit/e56339fdabe20f9a2a46ea785567e17b3cf3b4e2)

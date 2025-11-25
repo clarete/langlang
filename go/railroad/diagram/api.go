@@ -2,21 +2,27 @@ package diagram
 
 import (
 	"fmt"
-	"github.com/clarete/langlang/go"
+
+	langlang "github.com/clarete/langlang/go"
 )
 
 func DiagramString(n langlang.AstNode) string {
 	return fromAstNode(n).String()
 }
 
-func DiagramToLayout(n langlang.AstNode) (layout, error) {
+func DiagramToLayout(n langlang.AstNode, maxWidth, maxHeight int) (layout, error) {
 	d := fromAstNode(n)
 	if err := computeVerticalMetrics(d); err != nil {
 		return nil, err
 	}
 	fmt.Println(d)
 
-	l, err := lineWrap(d)
+	// Scale maxWidth from character units to abstract units
+	// In the ASCII renderer, we divide by 8 to convert abstract to chars
+	// So multiply by 8 here to convert chars to abstract
+	abstractMaxWidth := float64(maxWidth) * 8.0
+
+	l, err := lineWrap(d, abstractMaxWidth)
 	if err != nil {
 		return nil, err
 	}
@@ -24,10 +30,10 @@ func DiagramToLayout(n langlang.AstNode) (layout, error) {
 	return l, nil
 }
 
-func DiagramToACII(n langlang.AstNode) (string, error) {
-	l, err := DiagramToLayout(n)
+func DiagramToACII(n langlang.AstNode, maxWidth, maxHeight int) (string, error) {
+	l, err := DiagramToLayout(n, maxWidth, maxHeight)
 	if err != nil {
 		return "", err
 	}
-	return layoutToASCII(l, 200, 8), nil
+	return layoutToASCII(l, maxWidth, maxHeight), nil
 }

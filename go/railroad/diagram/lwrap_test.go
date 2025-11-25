@@ -123,9 +123,56 @@ func TestLineWrap(t *testing.T) {
 			err = computeVerticalMetrics(d)
 			require.NoError(t, err, "failed to compute vertical metrics")
 
-			layout, err := lineWrap(d)
+			layout, err := lineWrap(d, 0) // maxWidth=0 means no wrapping
 			require.NoError(t, err, "failed to wrap diagram")
 			assert.Equal(t, test.expected, layout.String())
+		})
+	}
+}
+
+func TestLineWrapWithWidth(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		maxWidth float64
+		check    func(*testing.T, layout)
+	}{
+		{
+			name:     "fits on one line",
+			input:    `("A" "B" "C")`,
+			maxWidth: 1000.0,
+			check: func(t *testing.T, l layout) {
+				// Should be a simple hconcat
+				hc, ok := l.(*hconcat)
+				require.True(t, ok, "expected hconcat")
+				assert.Len(t, hc.children, 3)
+			},
+		},
+		{
+			name:     "needs wrapping",
+			input:    `("AAA" "BBB" "CCC" "DDD")`,
+			maxWidth: 50.0, // Small width to force wrapping
+			check: func(t *testing.T, l layout) {
+				// Should be wrapped into a vconcat-block
+				_, ok := l.(*vconcatBlock)
+				require.True(t, ok, "expected vconcatBlock for wrapped sequence, got %T", l)
+				t.Logf("Wrapped layout: %s", l.String())
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			d, err := fromBytes([]byte(test.input))
+			require.NoError(t, err, "failed to parse diagram")
+
+			err = computeVerticalMetrics(d)
+			require.NoError(t, err, "failed to compute vertical metrics")
+
+			layout, err := lineWrap(d, test.maxWidth)
+			require.NoError(t, err, "failed to wrap diagram")
+
+			test.check(t, layout)
 		})
 	}
 }

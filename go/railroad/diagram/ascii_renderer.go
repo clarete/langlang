@@ -37,9 +37,13 @@ func (r *asciiRenderer) peek() renderFrame {
 func layoutToASCII(l layout, width, height int) string {
 	canvas := NewASCII(width, height)
 
+	// Calculate how much space we need above the main track
+	// For choices, we need room for the top branch
+	topPadding := calculateTopPadding(l)
+
 	// Start with some horizontal offset for entry rail
 	entryRailWidth := 0
-	renderer := &asciiRenderer{canvas: canvas, x: entryRailWidth, y: 0}
+	renderer := &asciiRenderer{canvas: canvas, x: entryRailWidth, y: topPadding}
 
 	// // Draw entry rail
 	// trackY := 1 // Assume tracks are at row 1 (middle of 3-row boxes)
@@ -321,6 +325,38 @@ func (r *asciiRenderer) AcceptVConcatInline(v *vconcatInline) error {
 func (r *asciiRenderer) AcceptVConcatBlock(v *vconcatBlock) error {
 	startX, startY := r.x, r.y
 
+	// Special case: pol_plus means this is a wrapped sequence, not a loop
+	// Render lines stacked vertically without loop arrows
+	if v.polarity == pol_plus {
+		// Render main path (first line)
+		v.mainPath.Accept(r)
+		mainFrame := r.pop()
+
+		// Render loop path (remaining lines, might be nested vconcat-block)
+		r.x = startX
+		r.y = startY + mainFrame.height + 1 // Next line
+		v.loopPath.Accept(r)
+		loopFrame := r.pop()
+
+		// Push combined dimensions
+		totalHeight := mainFrame.height + 1 + loopFrame.height
+		totalWidth := max(mainFrame.width, loopFrame.width)
+
+		r.push(renderFrame{
+			startX: startX,
+			startY: startY,
+			width:  totalWidth,
+			height: totalHeight,
+		})
+
+		// Move cursor past the wrapped content
+		r.x = startX + totalWidth
+		r.y = startY
+
+		return nil
+	}
+
+	// Normal case: this is a loop (pol_minus)
 	// Check if main path is empty (zero-or-more case: (- () X))
 	if rail, isRail := v.mainPath.(*rail); isRail && rail.width == 0 {
 		// Render zero-or-more pattern: straight track with
@@ -511,5 +547,71 @@ func (r *asciiRenderer) AcceptSpace(v *space) error {
 
 	r.x += spaceWidth
 
+	return nil
+}
+
+// calculateTopPadding determines how much vertical space we need above y=0
+// to prevent clipping of elements that extend above their baseline
+func calculateTopPadding(l layout) int {
+	visitor := &topPaddingCalculator{}
+	l.Accept(visitor)
+	return visitor.maxTopExtent
+}
+
+type topPaddingCalculator struct {
+	maxTopExtent int
+}
+
+func (c *topPaddingCalculator) AcceptRail(v *rail) error {
+	return nil
+}
+
+func (c *topPaddingCalculator) AcceptSpace(v *space) error {
+	return nil
+}
+
+func (c *topPaddingCalculator) AcceptStation(v *station) error {
+	// Stations don't extend above their start position
+	return nil
+}
+
+func (c *topPaddingCalculator) AcceptHConcat(v *hconcat) error {
+	// Check all children
+	for _, child := range v.children {
+		child.Accept(c)
+	}
+	return nil
+}
+
+func (c *topPaddingCalculator) AcceptVConcatInline(v *vconcatInline) error {
+	// This is a choice - need to account for top branch
+	if len(v.branches) == 0 {
+		return nil
+	}
+
+	// For a 2-branch choice, the top branch needs space above the main track
+	// Main track is at baseline, top branch track is 2 rows above
+	// Top branch position is: topBranchTrack - topBranchBaseline
+
+	// Simplified calculation: assume we need at least 3 rows above baseline
+	// (1 for box top, 1 for track, 1 for connection)
+	topExtent := int(v.baseline/8.0) + 3
+
+	if topExtent > c.maxTopExtent {
+		c.maxTopExtent = topExtent
+	}
+
+	// Recurse into branches
+	for _, branch := range v.branches {
+		branch.Accept(c)
+	}
+
+	return nil
+}
+
+func (c *topPaddingCalculator) AcceptVConcatBlock(v *vconcatBlock) error {
+	// Check both paths
+	v.mainPath.Accept(c)
+	v.loopPath.Accept(c)
 	return nil
 }

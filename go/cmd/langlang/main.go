@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"syscall"
+	"unsafe"
 
 	"github.com/clarete/langlang/go"
 	"github.com/clarete/langlang/go/railroad/diagram"
@@ -90,9 +92,9 @@ func readArgs() *args {
 func main() {
 	var (
 		a         = readArgs()
+		cfg       = langlang.NewConfig()
 		suppress  map[int]struct{}
 		errLabels map[string]string
-		cfg       = langlang.NewConfig()
 	)
 
 	if *a.grammarPath == "" {
@@ -123,7 +125,7 @@ func main() {
 	}
 
 	if *a.grammarRailroadLayout {
-		s, err := diagram.DiagramToACII(ast)
+		s, err := diagram.DiagramToACII(ast, int(wsize.Col), int(wsize.Row)/2)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -232,3 +234,26 @@ func main() {
 		log.Fatalf("Can't write output: %s", err.Error())
 	}
 }
+
+// Winsize struct represents the terminal window size.
+type winsize struct {
+	Row    uint16
+	Col    uint16
+	Xpixel uint16
+	Ypixel uint16
+}
+
+var wsize = (func() *winsize {
+	ws := &winsize{}
+	// Use os.Stdin.Fd() to get the file descriptor for standard
+	// input.  TIOCGWINSZ is a constant representing the "get
+	// window size" ioctl command.  unsafe.Pointer(ws) casts the
+	// Winsize struct to a pointer for the ioctl call.
+	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, os.Stdin.Fd(), syscall.TIOCGWINSZ, uintptr(unsafe.Pointer(ws)))
+	if err != 0 {
+		// Fallback to default size if terminal size detection fails
+		ws.Row = 40
+		ws.Col = 120
+	}
+	return ws
+}())

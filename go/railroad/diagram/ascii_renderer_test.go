@@ -74,9 +74,9 @@ func TestASCIIRenderer(t *testing.T) {
 			err = computeVerticalMetrics(d)
 			require.NoError(t, err)
 
-			// Wrap to layout
-			layout, err := lineWrap(d)
-			require.NoError(t, err)
+		// Wrap to layout (no max width for these tests)
+		layout, err := lineWrap(d, 0)
+		require.NoError(t, err)
 
 			// Render to ASCII
 			ascii := layoutToASCII(layout, test.width, test.height)

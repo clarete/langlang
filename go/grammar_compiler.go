@@ -149,6 +149,18 @@ func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
 		c.emit(ICapNonTerm{ID: id, Offset: sz})
 		return nil
 	}
+	if c.shouldUseCapOffset(node) {
+		if node.Name == "" {
+			c.emit(ICapTermBeginOffset{})
+		} else {
+			c.emit(ICapNonTermBeginOffset{ID: id})
+		}
+		if err := node.Expr.Accept(c); err != nil {
+			return err
+		}
+		c.emit(ICapEndOffset{})
+		return nil
+	}
 
 	c.emit(ICapBegin{ID: id})
 
@@ -534,6 +546,32 @@ func (c *compiler) getDefSize(def *DefinitionNode) (int, error) {
 	c.defSizeMap[def.Name] = size
 
 	return size, nil
+}
+
+func (c *compiler) shouldUseCapOffset(cap *CaptureNode) bool {
+	// Don't optimize if not syntactic
+	if !isSyntactic(cap.Expr, true) {
+		return false
+	}
+
+	// Don't optimize recovery expressions - they need special Error node wrapping
+	if cap.Name != "" {
+		id := c.intern(cap.Name)
+		if _, isRecovery := c.errorLabelIDs[id]; isRecovery {
+			return false
+		}
+	}
+
+	// Don't optimize if contains nested captures, labels, or identifiers
+	found := false
+	Inspect(cap.Expr, func(n AstNode) bool {
+		switch n.(type) {
+		case *CaptureNode, *LabeledNode, *IdentifierNode:
+			found = true
+		}
+		return true
+	})
+	return !found
 }
 
 func (c *compiler) capExprSize(node AstNode) (int, bool) {

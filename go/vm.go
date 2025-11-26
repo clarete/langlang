@@ -61,15 +61,17 @@ func (e *expectedInfo) clear() {
 }
 
 type virtualMachine struct {
-	ffp       int
-	stack     *stack
-	bytecode  *Bytecode
-	predicate bool
-	expected  *expectedInfo
-	showFails bool
-	errLabels map[string]string
-	supprset  map[int]struct{}
-	suppress  int
+	ffp            int
+	stack          *stack
+	bytecode       *Bytecode
+	predicate      bool
+	expected       *expectedInfo
+	showFails      bool
+	errLabels      map[string]string
+	supprset       map[int]struct{}
+	suppress       int
+	capOffsetId    int
+	capOffsetStart int
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -99,34 +101,40 @@ const (
 	opBackCommit
 	opPartialCommit
 	opReturn
+	opCapTermBeginOffset
+	opCapNonTermBeginOffset
+	opCapEndOffset
 )
 
 var opNames = map[byte]string{
-	opHalt:             "halt",
-	opAny:              "any",
-	opChar:             "char",
-	opRange:            "range",
-	opSet:              "set",
-	opSpan:             "span",
-	opFail:             "fail",
-	opFailTwice:        "fail_twice",
-	opChoice:           "choice",
-	opChoicePred:       "choice_pred",
-	opCommit:           "commit",
-	opPartialCommit:    "partial_commit",
-	opBackCommit:       "back_commit",
-	opCapCommit:        "cap_commit",
-	opCapBackCommit:    "cap_back_commit",
-	opCapPartialCommit: "cap_partial_commit",
-	opCapReturn:        "cap_return",
-	opCall:             "call",
-	opReturn:           "return",
-	opJump:             "jump",
-	opThrow:            "throw",
-	opCapBegin:         "cap_begin",
-	opCapEnd:           "cap_end",
-	opCapTerm:          "cap_term",
-	opCapNonTerm:       "cap_non_term",
+	opHalt:                  "halt",
+	opAny:                   "any",
+	opChar:                  "char",
+	opRange:                 "range",
+	opSet:                   "set",
+	opSpan:                  "span",
+	opFail:                  "fail",
+	opFailTwice:             "fail_twice",
+	opChoice:                "choice",
+	opChoicePred:            "choice_pred",
+	opCommit:                "commit",
+	opPartialCommit:         "partial_commit",
+	opBackCommit:            "back_commit",
+	opCapCommit:             "cap_commit",
+	opCapBackCommit:         "cap_back_commit",
+	opCapPartialCommit:      "cap_partial_commit",
+	opCapReturn:             "cap_return",
+	opCall:                  "call",
+	opReturn:                "return",
+	opJump:                  "jump",
+	opThrow:                 "throw",
+	opCapBegin:              "cap_begin",
+	opCapEnd:                "cap_end",
+	opCapTerm:               "cap_term",
+	opCapNonTerm:            "cap_non_term",
+	opCapTermBeginOffset:    "cap_term_begin_offset",
+	opCapNonTermBeginOffset: "cap_non_term_begin_offset",
+	opCapEndOffset:          "cap_end_offset",
 }
 
 var (
@@ -155,14 +163,17 @@ var (
 	//  4. uint8 precedence level
 	opCallSizeInBytes = 4
 	// opReturnSizeInBytes contains just one byte for the operator
-	opReturnSizeInBytes     = 1
-	opJumpSizeInBytes       = 3
-	opThrowSizeInBytes      = 3
-	opHaltSizeInBytes       = 1
-	opCapBeginSizeInBytes   = 3
-	opCapEndSizeInBytes     = 1
-	opCapTermSizeInBytes    = 3
-	opCapNonTermSizeInBytes = 5
+	opReturnSizeInBytes                = 1
+	opJumpSizeInBytes                  = 3
+	opThrowSizeInBytes                 = 3
+	opHaltSizeInBytes                  = 1
+	opCapBeginSizeInBytes              = 3
+	opCapEndSizeInBytes                = 1
+	opCapTermSizeInBytes               = 3
+	opCapNonTermSizeInBytes            = 5
+	opCapTermBeginOffsetSizeInBytes    = 1
+	opCapNonTermBeginOffsetSizeInBytes = 3
+	opCapEndOffsetSizeInBytes          = 1
 )
 
 func NewVirtualMachine(
@@ -354,6 +365,27 @@ code:
 			offset := int(decodeU16(code, pc+3))
 			vm.newNonTermNode(id, cursor, offset)
 			pc += opCapNonTermSizeInBytes
+
+		case opCapTermBeginOffset:
+			vm.capOffsetId = -1
+			vm.capOffsetStart = cursor
+			pc += opCapTermBeginOffsetSizeInBytes
+
+		case opCapNonTermBeginOffset:
+			vm.capOffsetId = int(decodeU16(code, pc+1))
+			vm.capOffsetStart = cursor
+			pc += opCapNonTermBeginOffsetSizeInBytes
+
+		case opCapEndOffset:
+			offset := cursor - vm.capOffsetStart
+			pc += opCapEndOffsetSizeInBytes
+			if vm.capOffsetId < 0 {
+				vm.newTermNode(cursor, offset)
+				continue
+			}
+			if _, shouldSuppress := vm.supprset[vm.capOffsetId]; !shouldSuppress {
+				vm.newNonTermNode(vm.capOffsetId, cursor, offset)
+			}
 
 		case opCapCommit:
 			f := vm.stack.pop()

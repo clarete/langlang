@@ -215,6 +215,19 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeString(ii.ID)
 			s.WriteString("\n")
 
+		case ICapTermBeginOffset:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
+		case ICapNonTermBeginOffset:
+			writeName(instruction.Name())
+			writeString(ii.ID)
+			s.WriteString("\n")
+
+		case ICapEndOffset:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
 		case ICapTerm:
 			writeName(instruction.Name())
 			writeInt(ii.Offset)

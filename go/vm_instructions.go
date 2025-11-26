@@ -155,3 +155,18 @@ type ICapNonTerm struct {
 
 func (ICapNonTerm) Name() string     { return "cap_non_term" }
 func (ICapNonTerm) SizeInBytes() int { return opCapNonTermSizeInBytes }
+
+type ICapTermBeginOffset struct{}
+
+func (ICapTermBeginOffset) Name() string     { return "cap_term_begin_offset" }
+func (ICapTermBeginOffset) SizeInBytes() int { return opCapTermBeginOffsetSizeInBytes }
+
+type ICapNonTermBeginOffset struct{ ID int }
+
+func (ICapNonTermBeginOffset) Name() string     { return "cap_non_term_begin_offset" }
+func (ICapNonTermBeginOffset) SizeInBytes() int { return opCapNonTermBeginOffsetSizeInBytes }
+
+type ICapEndOffset struct{}
+
+func (ICapEndOffset) Name() string     { return "cap_end_offset" }
+func (ICapEndOffset) SizeInBytes() int { return opCapEndOffsetSizeInBytes }

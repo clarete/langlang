@@ -96,6 +96,13 @@ func Encode(p *Program) *Bytecode {
 			code = append(code, opCapNonTerm)
 			code = encodeU16(code, uint16(ii.ID))
 			code = encodeU16(code, uint16(ii.Offset))
+		case ICapTermBeginOffset:
+			code = append(code, opCapTermBeginOffset)
+		case ICapNonTermBeginOffset:
+			code = append(code, opCapNonTermBeginOffset)
+			code = encodeU16(code, uint16(ii.ID))
+		case ICapEndOffset:
+			code = append(code, opCapEndOffset)
 		}
 	}
 	for id, entry := range p.recovery {

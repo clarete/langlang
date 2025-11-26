@@ -2,6 +2,14 @@ package langlang
 
 import "fmt"
 
+// Keep in sync with `builtins.peg` or find a better way to track them
+var skipAddingCaptures = map[string]struct{}{
+	"Spacing": {},
+	"Space":   {},
+	"EOF":     {},
+	"EOL":     {},
+}
+
 func AddCaptures(n AstNode, cfg *Config) (*GrammarNode, error) {
 	grammar, ok := n.(*GrammarNode)
 	if !ok {
@@ -9,7 +17,7 @@ func AddCaptures(n AstNode, cfg *Config) (*GrammarNode, error) {
 	}
 
 	for _, def := range grammar.Definitions {
-		if def.Name == "Spacing" && !cfg.GetBool("grammar.capture_spaces") {
+		if _, skip := skipAddingCaptures[def.Name]; skip && !cfg.GetBool("grammar.capture_spaces") {
 			continue
 		}
 

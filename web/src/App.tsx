@@ -1,34 +1,20 @@
 "use client";
-// import { useWasmTest } from "@langlang/react";
-import { useRef, useState } from "react";
+
+import { useState } from "react";
 import "./App.css";
 
 // @ts-expect-error - wasmUrl is a file URL
 import wasmUrl from "../langlang.wasm?url" with { type: "file" };
 import { useWasmTest, type LangLangValue } from "@langlang/react";
 import TreeView from "./TreeView";
+import fixtures from "./fixtures";
 
-const DEBUG_GRAMMAR = `
-Expr     <- Multi (( '+' / '-' ) Multi)*
-Multi    <- Primary (( '*' / '/' ) Primary)*
-Primary  <- Call / Id / Num / '(' Expr ')'
-
-Call     <- Id '(' Params ')'
-Params   <- (Expr (',' Expr)*)?
-
-Num      <- [1-9][0-9]* / '0'
-Id       <- [a-zA-Z_][a-zA-Z0-9_]*
-`;
-
-const DEBUG_INPUT = `
-he+1
-`;
+import EditorView from "./EditorView";
 
 function App() {
-	const [count, setCount] = useState(0);
 	const [result, setResult] = useState<LangLangValue | null>(null);
-	const grammarRef = useRef<HTMLTextAreaElement>(null);
-	const inputRef = useRef<HTMLTextAreaElement>(null);
+	const [format, setFormat] = useState<keyof typeof fixtures>("json");
+
 	const [highlight, setHighlight] = useState<string | null>(null);
 
 	if (!wasmUrl) {
@@ -37,15 +23,13 @@ function App() {
 
 	const { status, data, error } = useWasmTest(wasmUrl);
 
-	const handleCompileJson = () => {
-		const grammar = grammarRef.current?.value;
-		const input = inputRef.current?.value;
-		if (!grammar || !input || !data) {
+	const handleCompileJson = (__: string, input: string) => {
+		if (!data) {
 			return;
 		}
 
 		try {
-			const result = data.compileJson(grammar, input);
+			const result = data.compileJson(fixtures[format].grammar, input);
 			console.log(result);
 
 			setResult(result);
@@ -66,79 +50,63 @@ function App() {
 	if (status === "success") {
 		return (
 			<>
-				<div className="playground-container">
-					<label htmlFor="grammar">Grammar</label>
-					<textarea
-						defaultValue={DEBUG_GRAMMAR}
-						id="grammar"
-						className="response-area"
-						placeholder="Grammar"
-						rows={10}
-						ref={grammarRef}
-					/>
-					<label htmlFor="input">Input</label>
-					<textarea
-						defaultValue={DEBUG_INPUT}
-						className="response-area"
-						id="input"
-						placeholder="Input"
-						rows={10}
-						ref={inputRef}
-					/>
-					<div style={{ gridColumn: "span 2" }}>
-						<button
-							type="button"
-							id="compileAndMatch"
-							onClick={handleCompileJson}
-							className="send-button"
-						>
-							Compile JSON
-						</button>
-					</div>
+				<div style={{ marginBottom: "1rem" }}>
+					<select
+						defaultValue="json"
+						onChange={(e) => setFormat(e.target.value as keyof typeof fixtures)}
+					>
+						<option value="demo">Demo</option>
+						<option value="json">JSON</option>
+						<option value="jsonStripped">JSON Stripped</option>
+						<option value="csv">CSV</option>
+						<option value="langlang">LangLang</option>
+						<option value="xmlUnstable">XML Unstable</option>
+					</select>
 				</div>
-				{result && (
-					<>
-						<div
-							style={{
-								display: "grid",
-								gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
-								gap: "0.5rem",
-							}}
-						>
-							<TreeView
-								tree={result}
-								hideMeta
-								highlight={highlight}
-								setHighlight={setHighlight}
-							/>
+				<EditorView
+					grammar={fixtures[format].grammar}
+					input={fixtures[format].input}
+					onCompileRequest={handleCompileJson}
+				>
+					{result && (
+						<div className="editors">
+							<div className="tree-view-container">
+								<div
+									style={{
+										display: "grid",
+										gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
+										gap: "0.5rem",
+									}}
+									onMouseLeave={() => setHighlight(null)}
+								>
+									<TreeView
+										tree={result}
+										hideMeta
+										highlight={highlight}
+										setHighlight={setHighlight}
+									/>
+								</div>
+								<div onMouseLeave={() => setHighlight(null)}>
+									<TreeView
+										tree={result}
+										highlight={highlight}
+										setHighlight={setHighlight}
+									/>
+								</div>
+							</div>
+							<div className="response-container">
+								<textarea
+									className="response-area"
+									value={JSON.stringify(result, null, 2)}
+									rows={30}
+								/>
+							</div>
 						</div>
-						<TreeView
-							tree={result}
-							highlight={highlight}
-							setHighlight={setHighlight}
-						/>
-						<textarea
-							className="response-area"
-							value={JSON.stringify(result, null, 2)}
-							rows={30}
-						/>
-					</>
-				)}
+					)}
+				</EditorView>
 			</>
 		);
 	}
-
-	return (
-		<>
-			<h1>@langlang/web-test</h1>
-			<div className="card">
-				<button onClick={() => setCount((count) => count + 1)} type="button">
-					count is {count}
-				</button>
-				{/* <p></p> */}
-			</div>
-		</>
-	);
 }
 
 export default App;

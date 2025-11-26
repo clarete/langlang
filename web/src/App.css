@@ -25,7 +25,6 @@ body::before {
 	inset: 0;
 	z-index: -1;
 	opacity: 0.05;
-	background: url("./logo.svg");
 	background-size: 256px;
 	transform: rotate(-12deg) scale(1.35);
 	/* animation: slide 30s linear infinite; */
@@ -41,16 +40,14 @@ body::before {
 }
 #app {
 	margin: 0 auto;
-	/* padding: 2rem; */
 	text-align: center;
 	position: relative;
 	z-index: 1;
 	display: flex;
 	flex-direction: column;
-	gap: 2rem;
-  min-width: 70%;
-  max-width: 1000px;
-  width: 100%;
+	width: 100%;
+	min-height: calc(100vh - 2rem);
+	padding: 1rem 0;
 }
 .logo-container {
 	display: flex;
@@ -167,7 +164,7 @@ code {
 	cursor: var(--bun-cursor);
 }
 .send-button:hover {
-	background: #f3d5a3;
+	background: hsl(38, 77%, 80%);
 	transform: translateY(-1px);
 	cursor: pointer;
 }
@@ -211,18 +208,70 @@ code {
 }
 
 .node-name {
-	background-color: #fbf0df;
+	background-color: hsl(36, 78%, calc(var(--highlight-level, 100) * 0.93%));
 	color: #1a1a1a;
 	padding: 0.3rem 0.7rem;
 	font-weight: 500;
 	font-size: 0.9em;
 	margin: 0;
 	white-space: nowrap;
+	position: relative;
+	border-radius: 8px;
+	cursor: pointer;
 }
 
 .node-name.highlighted {
-	background-color: #61dafbaa;
-	color: #1a1a1a;
+	background-color: hsl(38, 77%, 80%);
+	color: hsl(0, 0%, 0%);
+}
+
+.highlighted.level-0 {
+	background-color: hsl(103deg 44% 40%);
+	color: hsl(38, 76%, 95%);
+}
+.highlighted.level-1 {
+	background-color: hsl(38, 76%, 40%);
+}
+.highlighted.level-2 {
+	background-color: hsl(38, 76%, 50%);
+}
+.highlighted.level-3 {
+	background-color: hsl(38, 76%, 60%);
+}
+.highlighted.level-4 {
+	background-color: hsl(38, 76%, 70%);
+}
+
+.node-name.parent-highlighted {
+	background-color: hsl(218, 33%, 50%);
+	color: hsl(0, 0%, 100%);
+}
+
+.parent-highlighted.level-0 {
+	background-color: hsl(218, 33%, 5%);
+}
+.parent-highlighted.level-1 {
+	background-color: hsl(218, 33%, 10%);
+}
+.parent-highlighted.level-2 {
+	background-color: hsl(218, 33%, 20%);
+}
+.parent-highlighted.level-3 {
+	background-color: hsl(218, 33%, 30%);
+}
+.parent-highlighted.level-4 {
+	background-color: hsl(218, 33%, 40%);
+}
+
+.tree-view-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.response-container {
+	flex: 1;
 }
 
 @media (prefers-reduced-motion) {

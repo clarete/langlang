@@ -10,6 +10,40 @@ interface PreviewNodeProps {
 	setHighlight?: (highlight: string | null) => void;
 }
 
+const clamp = (value: number, min: number, max: number): number =>
+	Math.max(min, Math.min(value, max));
+
+function getHighlightLevel(parent: string, highlight?: string | null): string {
+	if (!highlight) return "level-0";
+	const isHighlighted = highlight.startsWith(parent);
+	const previousParent = parent.split("-").slice(0, -1).join("-");
+
+	const isParentHighlighted = previousParent.startsWith(highlight);
+
+	const parentParts = parent.split("-");
+	const highlightParts = highlight.split("-");
+
+	let level = 0;
+
+	if (isParentHighlighted) {
+		return `parent-highlighted level-${clamp(parentParts.length - highlightParts.length, 0, 4)}`;
+	}
+
+	if (isHighlighted) {
+		const total = highlightParts.length;
+		for (let i = 0; i < highlightParts.length; i++) {
+			if (parentParts[i] !== highlightParts[i]) {
+				break;
+			}
+			level++;
+		}
+
+		return `highlighted level-${clamp(total - level, 0, 4)}`;
+	}
+
+	return "";
+}
+
 function PreviewNode({
 	node,
 	children,
@@ -22,14 +56,21 @@ function PreviewNode({
 		return children;
 	}
 
-	const isHighlighted = highlight?.startsWith(parent);
+	const previousParent = parent.split("-").slice(0, -1).join("-");
+
+	const isHighlighted =
+		highlight?.startsWith(parent) ||
+		(highlight ? previousParent.startsWith(highlight) : false);
+	const isParentHighlighted = highlight
+		? previousParent.startsWith(highlight)
+		: false;
 
 	switch (node.type) {
 		case "string":
 			return (
 				<div className="node string" data-parent={parent}>
 					<div
-						className={`node-name ${isHighlighted ? "highlighted" : ""}`}
+						className={`node-name ${getHighlightLevel(parent, highlight)}`}
 						onMouseEnter={() => setHighlight?.(parent)}
 					>
 						{node.value}
@@ -51,7 +92,7 @@ function PreviewNode({
 				<div className="node" data-parent={parent}>
 					{!hideMeta && (
 						<div
-							className={`node-name ${isHighlighted ? "highlighted" : ""}`}
+							className={`node-name ${getHighlightLevel(parent, highlight)}`}
 							onMouseEnter={() => setHighlight?.(parent)}
 						>
 							{node.name}

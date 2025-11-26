@@ -1,0 +1,28 @@
+.root-container {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1rem;
+	flex: 1;
+}
+
+.editors {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+    height: 100%;
+}
+
+.editor-container {
+	flex: 1;
+	background: #1a1a1a;
+	border: 2px solid #fbf0df;
+	border-radius: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.editor-container section {
+    flex: 1;
+}

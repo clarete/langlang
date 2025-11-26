@@ -379,7 +379,7 @@ be used in other grammars using imports.  Behind the scenes, the
 
 * Changelog
 
-** go/v0.0.10 (unreleased)
+** go/v0.0.10
 
  * [[https://github.com/clarete/langlang/commit/8ae815837f6a432eceff8bf03fc59eb7b39f5b35][BUG FIX: Fix space injection around repetitions]]
  * [[https://github.com/clarete/langlang/commit/e7cf6f1a25f924053d4d863dad53a58c5e2875c4][BUG FIX: Fix disabling capturing spaces]]

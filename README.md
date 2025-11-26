@@ -24,7 +24,7 @@
         6.  [Import system](#import-system)
 3.  [Roadmap](#roadmap)
 4.  [Changelog](#changelog)
-    1.  [go/v0.0.10 (unreleased)](#gov0010-unreleased)
+    1.  [go/v0.0.10](#gov0010)
     2.  [go/v0.0.9](#gov009)
     3.  [go/v0.0.8](#gov008)
     4.  [go/v0.0.7](#gov007)
@@ -558,9 +558,9 @@ be used in other grammars using imports.  Behind the scenes, the
 # Changelog
 
 
-<a id="gov0010-unreleased"></a>
+<a id="gov0010"></a>
 
-## go/v0.0.10 (unreleased)
+## go/v0.0.10
 
 -   [BUG FIX: Fix space injection around repetitions](https://github.com/clarete/langlang/commit/8ae815837f6a432eceff8bf03fc59eb7b39f5b35)
 -   [BUG FIX: Fix disabling capturing spaces](https://github.com/clarete/langlang/commit/e7cf6f1a25f924053d4d863dad53a58c5e2875c4)

@@ -1,6 +1,6 @@
 {
   "name": "@langlang/react",
-  "version": "0.0.1",
+  "version": "0.0.10",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "dev": "tsc --watch",
     "prepublishOnly": "bun run build"
   },
   "peerDependencies": {

@@ -1,19 +1,14 @@
-import { test as wasmTest } from '@langlang/wasm';
-import { useState, useEffect } from 'react';
+"use client";
 
-export function useWasmTest() {
-  const [message, setMessage] = useState<string>("");
+import { initializeLangLangWasm } from "@langlang/wasm";
+import { useState, useEffect, use } from "react";
+import { type AsyncState, useAsync } from "./utils/useAsync";
+import type LangLang from "../../wasm/dist/LangLang";
 
-  useEffect(() => {
-    // Simulating async if needed, though test() is sync currently
-    setMessage(wasmTest());
-  }, []);
+export function useWasmTest(langlangWasmUrl: string): AsyncState<LangLang> {
+	const request = useAsync(() => initializeLangLangWasm(langlangWasmUrl));
 
-  return message;
+	return request;
 }
 
-export function TestComponent() {
-  const message = useWasmTest();
-  return <span>{message} (via @langlang/react)</span>;
-}
-
+export * from "@langlang/wasm";

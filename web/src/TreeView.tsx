@@ -1,4 +1,7 @@
 import type { LangLangValue } from "@langlang/react";
+import React from "react";
+import { NodeContainer, NodeName, SequenceContainer } from "./TreeView.styles";
+
 // import { v4 as randomUuid } from "uuid";
 
 interface PreviewNodeProps {
@@ -13,23 +16,30 @@ interface PreviewNodeProps {
 const clamp = (value: number, min: number, max: number): number =>
 	Math.max(min, Math.min(value, max));
 
-function getHighlightLevel(parent: string, highlight?: string | null): string {
-	if (!highlight) return "level-0";
+function getHighlightProps(
+	parent: string,
+	highlight?: string | null,
+): { highlighted: boolean; parentHighlighted: boolean; level: number } {
+	if (!highlight)
+		return { highlighted: false, parentHighlighted: false, level: 0 };
+
 	const isHighlighted = highlight.startsWith(parent);
 	const previousParent = parent.split("-").slice(0, -1).join("-");
-
 	const isParentHighlighted = previousParent.startsWith(highlight);
 
 	const parentParts = parent.split("-");
 	const highlightParts = highlight.split("-");
 
-	let level = 0;
-
 	if (isParentHighlighted) {
-		return `parent-highlighted level-${clamp(parentParts.length - highlightParts.length, 0, 4)}`;
+		return {
+			highlighted: false,
+			parentHighlighted: true,
+			level: clamp(parentParts.length - highlightParts.length, 0, 4),
+		};
 	}
 
 	if (isHighlighted) {
+		let level = 0;
 		const total = highlightParts.length;
 		for (let i = 0; i < highlightParts.length; i++) {
 			if (parentParts[i] !== highlightParts[i]) {
@@ -37,11 +47,14 @@ function getHighlightLevel(parent: string, highlight?: string | null): string {
 			}
 			level++;
 		}
-
-		return `highlighted level-${clamp(total - level, 0, 4)}`;
+		return {
+			highlighted: true,
+			parentHighlighted: false,
+			level: clamp(total - level, 0, 4),
+		};
 	}
 
-	return "";
+	return { highlighted: false, parentHighlighted: false, level: 0 };
 }
 
 function PreviewNode({
@@ -56,57 +69,49 @@ function PreviewNode({
 		return children;
 	}
 
-	const previousParent = parent.split("-").slice(0, -1).join("-");
-
-	const isHighlighted =
-		highlight?.startsWith(parent) ||
-		(highlight ? previousParent.startsWith(highlight) : false);
-	const isParentHighlighted = highlight
-		? previousParent.startsWith(highlight)
-		: false;
+	const highlightProps = getHighlightProps(parent, highlight);
 
 	switch (node.type) {
 		case "string":
 			return (
-				<div className="node string" data-parent={parent}>
-					<div
-						className={`node-name ${getHighlightLevel(parent, highlight)}`}
+				<NodeContainer className="string" data-parent={parent}>
+					<NodeName
+						{...highlightProps}
 						onMouseEnter={() => setHighlight?.(parent)}
 					>
 						{node.value}
-					</div>
-				</div>
+					</NodeName>
+				</NodeContainer>
 			);
 		case "sequence":
 			return (
-				<div
+				<SequenceContainer
 					data-parent={parent}
-					className="sequence"
 					style={{ "--count": node.count } as React.CSSProperties}
 				>
 					{children}
-				</div>
+				</SequenceContainer>
 			);
 		case "node":
 			return (
-				<div className="node" data-parent={parent}>
+				<NodeContainer data-parent={parent}>
 					{!hideMeta && (
-						<div
-							className={`node-name ${getHighlightLevel(parent, highlight)}`}
+						<NodeName
+							{...highlightProps}
 							onMouseEnter={() => setHighlight?.(parent)}
 						>
 							{node.name}
-						</div>
+						</NodeName>
 					)}
 					<div>{children}</div>
-				</div>
+				</NodeContainer>
 			);
 
 		default:
 			return (
-				<div className="node unknown" data-parent={parent}>
+				<NodeContainer className="unknown" data-parent={parent}>
 					{children}
-				</div>
+				</NodeContainer>
 			);
 	}
 }

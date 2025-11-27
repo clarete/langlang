@@ -1,7 +1,13 @@
 import { Editor, type EditorProps } from "@monaco-editor/react";
 
-import "./EditorView.css";
 import { useCallback, useState } from "react";
+import { SendButton } from "./App.styles";
+import {
+	EditorContainer,
+	Editors,
+	ResultContainer,
+	RootContainer,
+} from "./EditorView.styles";
 
 interface EditorViewProps {
 	grammar: string;
@@ -31,9 +37,9 @@ function EditorView({
 	}, [grammarText, inputText, onCompileRequest]);
 
 	return (
-		<div className="root-container">
-			<div className="editors">
-				<div className="editor-container">
+		<RootContainer>
+			<Editors>
+				<EditorContainer>
 					<Editor
 						theme="vs-dark"
 						language="text"
@@ -46,18 +52,17 @@ function EditorView({
 							setGrammarText(value ?? "");
 						}}
 					/>
-				</div>
+				</EditorContainer>
 				<div style={{ gridColumn: "span 2" }}>
-					<button
+					<SendButton
 						type="button"
 						id="compileAndMatch"
 						onClick={handleCompileRequest}
-						className="send-button"
 					>
 						Compile {"→"}
-					</button>
+					</SendButton>
 				</div>
-				<div className="editor-container">
+				<EditorContainer>
 					<Editor
 						theme="vs-dark"
 						language="text"
@@ -69,10 +74,10 @@ function EditorView({
 							setInputText(value ?? "");
 						}}
 					/>
-				</div>
-			</div>
-			<div className="result-container">{children}</div>
-		</div>
+				</EditorContainer>
+			</Editors>
+			<ResultContainer>{children}</ResultContainer>
+		</RootContainer>
 	);
 }
 

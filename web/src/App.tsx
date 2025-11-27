@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import "./App.css";
 
 // @ts-expect-error - wasmUrl is a file URL
 import wasmUrl from "../langlang.wasm?url" with { type: "file" };
@@ -10,6 +9,14 @@ import TreeView from "./TreeView";
 import fixtures from "./fixtures";
 
 import EditorView from "./EditorView";
+import {
+	ResponseArea,
+	ResponseContainer,
+	SourceLine,
+	TreeViewContainer,
+	TreeViewContainerWrapper,
+} from "./App.styles";
+import { Editors } from "./EditorView.styles";
 
 function App() {
 	const [result, setResult] = useState<LangLangValue | null>(null);
@@ -70,20 +77,17 @@ function App() {
 					onCompileRequest={handleCompileJson}
 				>
 					{result && (
-						<div className="editors">
-							<div className="tree-view-container-wrapper">
-								<div className="tree-view-container">
-									<div
-										className="source-line"
-										onMouseLeave={() => setHighlight(null)}
-									>
+						<Editors>
+							<TreeViewContainerWrapper>
+								<TreeViewContainer>
+									<SourceLine onMouseLeave={() => setHighlight(null)}>
 										<TreeView
 											tree={result}
 											hideMeta
 											highlight={highlight}
 											setHighlight={setHighlight}
 										/>
-									</div>
+									</SourceLine>
 									<div onMouseLeave={() => setHighlight(null)}>
 										<TreeView
 											tree={result}
@@ -91,16 +95,15 @@ function App() {
 											setHighlight={setHighlight}
 										/>
 									</div>
-								</div>
-							</div>
-							<div className="response-container">
-								<textarea
-									className="response-area"
+								</TreeViewContainer>
+							</TreeViewContainerWrapper>
+							<ResponseContainer>
+								<ResponseArea
 									value={JSON.stringify(result, null, 2)}
 									rows={30}
 								/>
-							</div>
-						</div>
+							</ResponseContainer>
+						</Editors>
 					)}
 				</EditorView>
 			</>

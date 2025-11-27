@@ -23,13 +23,13 @@ function App() {
 
 	const { status, data, error } = useWasmTest(wasmUrl);
 
-	const handleCompileJson = (__: string, input: string) => {
+	const handleCompileJson = (grammar: string, input: string) => {
 		if (!data) {
 			return;
 		}
 
 		try {
-			const result = data.compileJson(fixtures[format].grammar, input);
+			const result = data.compileJson(grammar, input);
 			console.log(result);
 
 			setResult(result);
@@ -64,6 +64,7 @@ function App() {
 					</select>
 				</div>
 				<EditorView
+					key={format}
 					grammar={fixtures[format].grammar}
 					input={fixtures[format].input}
 					onCompileRequest={handleCompileJson}
@@ -73,11 +74,7 @@ function App() {
 							<div className="tree-view-container-wrapper">
 								<div className="tree-view-container">
 									<div
-										style={{
-											display: "grid",
-											gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
-											gap: "0.5rem",
-										}}
+										className="source-line"
 										onMouseLeave={() => setHighlight(null)}
 									>
 										<TreeView

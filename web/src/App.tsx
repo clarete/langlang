@@ -70,28 +70,30 @@ function App() {
 				>
 					{result && (
 						<div className="editors">
-							<div className="tree-view-container">
-								<div
-									style={{
-										display: "grid",
-										gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
-										gap: "0.5rem",
-									}}
-									onMouseLeave={() => setHighlight(null)}
-								>
-									<TreeView
-										tree={result}
-										hideMeta
-										highlight={highlight}
-										setHighlight={setHighlight}
-									/>
-								</div>
-								<div onMouseLeave={() => setHighlight(null)}>
-									<TreeView
-										tree={result}
-										highlight={highlight}
-										setHighlight={setHighlight}
-									/>
+							<div className="tree-view-container-wrapper">
+								<div className="tree-view-container">
+									<div
+										style={{
+											display: "grid",
+											gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
+											gap: "0.5rem",
+										}}
+										onMouseLeave={() => setHighlight(null)}
+									>
+										<TreeView
+											tree={result}
+											hideMeta
+											highlight={highlight}
+											setHighlight={setHighlight}
+										/>
+									</div>
+									<div onMouseLeave={() => setHighlight(null)}>
+										<TreeView
+											tree={result}
+											highlight={highlight}
+											setHighlight={setHighlight}
+										/>
+									</div>
 								</div>
 							</div>
 							<div className="response-container">

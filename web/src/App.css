@@ -4,6 +4,7 @@
 	color-scheme: light dark;
 	color: rgba(255, 255, 255, 0.87);
 	background-color: #242424;
+	--line-height: 1.5;
 }
 
 #root {
@@ -212,12 +213,13 @@ code {
 	color: #1a1a1a;
 	padding: 0.3rem 0.7rem;
 	font-weight: 500;
-	font-size: 0.9em;
+	font-size: calc(0.5em * var(--line-height));
 	margin: 0;
 	white-space: nowrap;
 	position: relative;
 	border-radius: 8px;
 	cursor: pointer;
+	min-height: calc(var(--line-height) * 1em);
 }
 
 .node-name.highlighted {
@@ -263,11 +265,18 @@ code {
 	background-color: hsl(218, 33%, 40%);
 }
 
+.tree-view-container-wrapper {
+	min-width: 300px;
+	overflow-x: auto;
+	flex: 1;
+}
+
 .tree-view-container {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
+	width: fit-content;
 }
 
 .response-container {

@@ -18,6 +18,42 @@ type vmTest struct {
 	ExpectedCursor int
 }
 
+// convertErrLabels converts string-based error label mapping to integer-based mapping
+// using the bytecode's string table, extending it with new messages as needed
+func convertErrLabels(strLabels map[string]string, code *Bytecode) map[int]int {
+	if strLabels == nil {
+		return nil
+	}
+
+	intLabels := make(map[int]int)
+	for label, message := range strLabels {
+		// Find the label ID in the string table
+		labelID := -1
+		messageID := -1
+
+		for i, s := range code.strs {
+			if s == label {
+				labelID = i
+			}
+			if s == message {
+				messageID = i
+			}
+		}
+
+		// If we found the label but not the message, add the message to the table
+		if labelID >= 0 {
+			if messageID < 0 {
+				// Message not in string table, so add it
+				messageID = len(code.strs)
+				code.strs = append(code.strs, message)
+			}
+			intLabels[labelID] = messageID
+		}
+	}
+
+	return intLabels
+}
+
 func TestVM(t *testing.T) {
 	t.Run("I guess I will just die", func(t *testing.T) {
 		bytecode := Encode(&Program{code: []Instruction{
@@ -351,26 +387,35 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		if err != nil {
 			panic(err)
 		}
-		// fmt.Printf("ast\n%s\n", ast.HighlightPrettyString())
+		// fmt.Printf("ast\n%s\n", ast.Highlight())
 
 		asm, err := Compile(ast, cfg)
 		if err != nil {
 			panic(err)
 		}
-		// fmt.Printf("asm\n%s\n", asm.HighlightPrettyString())
+		// if test.Name == "Var" && optimize == 0 && enableCharsets {
+		// 	fmt.Printf("asm\n%s\n", asm.Highlight())
+		// }
 
 		code := Encode(asm)
+
+		// if test.Name == "Var" && optimize == 0 && enableCharsets {
+		// 	fmt.Printf("strings: %v\n", code.strs)
+		// }
 		// fmt.Printf("code\n%#v\n", code.code)
 
 		input := []byte(test.Input)
+
+		// Convert string-based error labels to int-based
+		errLabels := convertErrLabels(test.ErrLabels, code)
 
 		// Notice `showFails` is marked as false because `ClassNode`
 		// and `CharsetNode` will generate different ordered choices.
 		// The `ClassNode` variant generates a slice in the order it
 		// was declared in the grammar.  The `CharsetNode` will use
 		// the ascii table ordering.
-		vm := NewVirtualMachine(code, test.ErrLabels, nil, false)
-		val, cur, err := vm.Match(input)
+		vm := NewVirtualMachine(code, errLabels, nil, false)
+		tree, cur, err := vm.Match(input)
 
 		// The cursor should be right for both error and
 		// success states
@@ -387,11 +432,17 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		// Finally testing the success state against the
 		// output value, if there's any
 		require.NoError(t, err)
+
+		root, hasRoot := tree.Root()
 		if test.ExpectedAST == "" {
-			assert.Nil(t, val)
+			if hasRoot {
+				assert.Equal(t, "", tree.Pretty(root))
+			}
 		} else {
-			require.NotNil(t, val)
-			assert.Equal(t, test.ExpectedAST, PrettyString(input, val))
+			require.NotNil(t, tree)
+			require.True(t, hasRoot, "expected tree to have a root")
+			pretty := tree.Pretty(root)
+			assert.Equal(t, test.ExpectedAST, pretty)
 		}
 	}
 }

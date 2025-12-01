@@ -67,7 +67,7 @@ type virtualMachine struct {
 	predicate      bool
 	expected       *expectedInfo
 	showFails      bool
-	errLabels      map[string]string
+	errLabels      map[int]int
 	supprset       map[int]struct{}
 	suppress       int
 	capOffsetId    int
@@ -178,12 +178,18 @@ var (
 
 func NewVirtualMachine(
 	bytecode *Bytecode,
-	errLabels map[string]string,
+	errLabels map[int]int,
 	suppressSet map[int]struct{},
 	showFails bool,
 ) *virtualMachine {
+	tree := newTree()
+	tree.bindStrings(bytecode.strs)
 	return &virtualMachine{
-		stack:     &stack{},
+		stack: &stack{
+			frames: make([]frame, 0, 256),   // Pre-allocate stack frames
+			nodes:  make([]NodeID, 0, 1024), // Pre-allocate node capture buffer
+			tree:   tree,
+		},
 		bytecode:  bytecode,
 		errLabels: errLabels,
 		showFails: showFails,
@@ -192,16 +198,38 @@ func NewVirtualMachine(
 	}
 }
 
-func (vm *virtualMachine) Match(data []byte) (Value, int, error) {
+// SetErrorLabels sets error label messages using string-based labels.
+// It converts the string labels to integer IDs using the bytecode's
+// string table, extending the table with new messages as needed.
+func (vm *virtualMachine) SetErrorLabels(strLabels map[string]string) {
+	for label, message := range strLabels {
+		labelID, found := vm.bytecode.smap[label]
+		if !found {
+			continue
+		}
+
+		messageID, found := vm.bytecode.smap[message]
+		if !found {
+			messageID = len(vm.bytecode.strs)
+			vm.bytecode.strs = append(vm.bytecode.strs, message)
+			vm.bytecode.smap[message] = messageID
+		}
+		vm.errLabels[labelID] = messageID
+	}
+}
+
+func (vm *virtualMachine) Match(data []byte) (Tree, int, error) {
 	return vm.MatchRule(data, 0)
 }
 
-func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Value, int, error) {
+func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, error) {
 	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
 	// we want to reset the VM state every match
 	vm.reset()
+
+	vm.stack.tree.bindInput(data)
 
 	// take a local reference of important data
 	code := vm.bytecode.code
@@ -223,12 +251,13 @@ code:
 
 		switch op {
 		case opHalt:
-			// dbg(fmt.Sprintf("vals: %#v\n", vm.stack.values))
-			var top Value
-			if len(vm.stack.values) > 0 {
-				top = vm.stack.values[len(vm.stack.values)-1]
+			// dbg(fmt.Sprintf("nodes: %#v\n", vm.stack.nodes))
+			if len(vm.stack.nodes) > 0 {
+				idx := len(vm.stack.nodes) - 1
+				nid := vm.stack.nodes[idx]
+				vm.stack.tree.SetRoot(nid)
 			}
-			return top, cursor, nil
+			return vm.stack.tree, cursor, nil
 
 		case opAny:
 			if cursor >= ilen {
@@ -338,13 +367,12 @@ code:
 				goto fail
 			}
 			lb := int(decodeU16(code, pc+1))
-			id := vm.bytecode.strs[lb]
 			if addr, ok := vm.bytecode.rxps[lb]; ok {
 				vm.stack.push(vm.mkCallFrame(pc + opThrowSizeInBytes))
 				pc = addr
 				continue
 			}
-			return nil, cursor, vm.mkErr(data, id, cursor, vm.ffp)
+			return nil, cursor, vm.mkErr(data, lb, cursor, vm.ffp)
 
 		case opCapBegin:
 			id := int(decodeU16(code, pc+1))
@@ -388,12 +416,12 @@ code:
 
 		case opCapCommit:
 			f := vm.stack.pop()
-			vm.stack.capture(f.values...)
+			vm.stack.capture(f.nodes...)
 			pc = int(decodeU16(code, pc+1))
 
 		case opCapBackCommit:
 			f := vm.stack.pop()
-			vm.stack.capture(f.values...)
+			vm.stack.capture(f.nodes...)
 			cursor = f.cursor
 			pc = int(decodeU16(code, pc+1))
 
@@ -404,11 +432,11 @@ code:
 			if !top.suppress {
 				vm.stack.collectCaptures()
 			}
-			top.values = nil
+			top.nodes = nil
 
 		case opCapReturn:
 			f := vm.stack.pop()
-			vm.stack.capture(f.values...)
+			vm.stack.capture(f.nodes...)
 			pc = f.pc
 
 		default:
@@ -427,7 +455,7 @@ fail:
 		f := vm.stack.pop()
 		switch {
 		case f.t == frameType_Backtracking:
-			f.values = nil
+			f.nodes = nil
 			pc = f.pc
 			vm.predicate = f.predicate
 			cursor = f.cursor
@@ -435,20 +463,21 @@ fail:
 			goto code
 
 		case f.t == frameType_Call:
-			f.values = nil
+			f.nodes = nil
 			goto fail
 		}
 	}
 	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", cursor, vm.ffp))
 
-	return nil, cursor, vm.mkErr(data, "", cursor, vm.ffp)
+	return nil, cursor, vm.mkErr(data, 0, cursor, vm.ffp)
 }
 
 // Helpers
 
 func (vm *virtualMachine) reset() {
 	vm.stack.frames = vm.stack.frames[:0]
-	vm.stack.values = vm.stack.values[:0]
+	vm.stack.nodes = vm.stack.nodes[:0]
+	vm.stack.tree.reset()
 	vm.ffp = -1
 
 	if vm.showFails {
@@ -500,24 +529,20 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 // Node Capture Helpers
 
 func (vm *virtualMachine) newTermNode(cursor, offset int) {
-	if node, ok := vm.newTextNode(cursor, offset); ok {
-		vm.stack.capture(node)
+	if offset > 0 {
+		begin := cursor - offset
+		nodeID := vm.stack.tree.AddString(begin, cursor)
+		vm.stack.capture(nodeID)
 	}
 }
 
 func (vm *virtualMachine) newNonTermNode(capId, cursor, offset int) {
-	if node, ok := vm.newTextNode(cursor, offset); ok {
-		capName := vm.bytecode.strs[capId]
-		vm.stack.capture(NewNode(capName, node, node.Range()))
-	}
-}
-
-func (vm *virtualMachine) newTextNode(cursor, offset int) (Value, bool) {
 	if offset > 0 {
 		begin := cursor - offset
-		return NewString(NewRange(begin, cursor)), true
+		stringNode := vm.stack.tree.AddString(begin, cursor)
+		named := vm.stack.tree.AddNode(int32(capId), stringNode, begin, cursor)
+		vm.stack.capture(named)
 	}
-	return nil, false
 }
 
 func (vm *virtualMachine) newNode(cursor int, f frame) {
@@ -526,52 +551,69 @@ func (vm *virtualMachine) newNode(cursor int, f frame) {
 		return
 	}
 	var (
-		node     Value
+		nodeID   NodeID
+		hasNode  = false
 		_, isrxp = vm.bytecode.rxps[f.capId]
-		capId    = vm.bytecode.strs[f.capId]
-		rg       = NewRange(f.cursor, cursor)
+		capId    = int32(f.capId)
+		start    = f.cursor
+		end      = cursor
 	)
-	switch len(f.values) {
+	switch len(f.nodes) {
 	case 0:
 		if cursor-f.cursor > 0 {
-			node = NewString(rg)
+			nodeID = vm.stack.tree.AddString(start, end)
+			hasNode = true
+		} else if !isrxp {
+			// Only return early if this is NOT an error recovery expression
+			// Error recovery expressions need to create Error nodes even when empty
+			return
 		}
+		// If isrxp and nothing captured, hasNode remains false
 	case 1:
-		node = f.values[0]
+		nodeID = f.nodes[0]
+		hasNode = true
 	default:
-		node = NewSequence(f.values, rg)
+		nodeID = vm.stack.tree.AddSequence(f.nodes, start, end)
+		hasNode = true
 	}
 
 	// This is a capture of an error recovery expression, so we
-	// need to wrap the captured node (even if it is nil) around
+	// need to wrap the captured node (even if it is invalid) around
 	// an Error.
 	if isrxp {
-		msg, ok := vm.errLabels[capId]
+		msgID, ok := vm.errLabels[f.capId]
 		if !ok {
-			msg = capId
+			msgID = f.capId
 		}
-		vm.stack.capture(NewError(capId, msg, node, rg))
+		var errNode NodeID
+		if hasNode {
+			errNode = vm.stack.tree.AddErrorWithChild(capId, int32(msgID), nodeID, start, end)
+		} else {
+			errNode = vm.stack.tree.AddError(capId, int32(msgID), start, end)
+		}
+		vm.stack.capture(errNode)
 		return
 	}
 
 	// If nothing has been captured up until now, it means that
 	// it's a leaf node in the syntax tree, and the cursor didn't
 	// move, so we can bail earlier.
-	if node == nil {
+	if !hasNode {
 		return
 	}
 
 	// if the capture ID is empty, it means that it is an inner
 	// expression capture.
-	if capId == "" {
-		vm.stack.capture(node)
+	if f.capId == 0 {
+		vm.stack.capture(nodeID)
 		return
 	}
 
 	// This is a named capture.  The `AddCaptures` step of the
 	// Grammar Compiler wraps the expression within `Definition`
 	// nodes with `Capture` nodes named after the definition.
-	vm.stack.capture(NewNode(capId, node, rg))
+	named := vm.stack.tree.AddNode(capId, nodeID, start, end)
+	vm.stack.capture(named)
 }
 
 // Error Handling Helpers
@@ -613,7 +655,7 @@ func (vm *virtualMachine) updateSetExpected(cursor int, sid uint16) {
 	}
 }
 
-func (vm *virtualMachine) mkErr(data []byte, errLabel string, cursor, errCursor int) error {
+func (vm *virtualMachine) mkErr(data []byte, errLabelID int, cursor, errCursor int) error {
 	// at this point, the input cursor should be at vm.ffp, so we
 	// try to read the unexpected value to add it to the err
 	// message.  Right now, we read just a single char from ffp's
@@ -622,7 +664,6 @@ func (vm *virtualMachine) mkErr(data []byte, errLabel string, cursor, errCursor 
 	var (
 		isEof   bool
 		message strings.Builder
-		rg      = NewRange(cursor+1, errCursor+1)
 		c       rune
 	)
 	if cursor >= len(data) {
@@ -630,13 +671,14 @@ func (vm *virtualMachine) mkErr(data []byte, errLabel string, cursor, errCursor 
 	} else {
 		c, _ = decodeRune(data, cursor)
 	}
-	if m, ok := vm.errLabels[errLabel]; ok {
+	if msgID, ok := vm.errLabels[errLabelID]; ok {
 		// If an error message has been associated with the
 		// error label, we just use the message.
-		message.WriteString(m)
+		message.WriteString(vm.bytecode.strs[msgID])
 	} else {
 		// Prefix message with the error label if available
-		if errLabel != "" {
+		if errLabelID > 0 {
+			errLabel := vm.bytecode.strs[errLabelID]
 			message.WriteRune('[')
 			message.WriteString(errLabel)
 			message.WriteRune(']')
@@ -672,7 +714,16 @@ func (vm *virtualMachine) mkErr(data []byte, errLabel string, cursor, errCursor 
 			message.WriteRune('\'')
 		}
 	}
-	return ParsingError{Message: message.String(), Label: errLabel, Range: rg}
+	errLabel := ""
+	if errLabelID > 0 {
+		errLabel = vm.bytecode.strs[errLabelID]
+	}
+	return ParsingError{
+		Message: message.String(),
+		Label:   errLabel,
+		Start:   cursor,
+		End:     errCursor,
+	}
 }
 
 // decodeU16 decodes a uint16 from byte array `b`. See

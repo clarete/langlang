@@ -15,7 +15,7 @@ import (
 	"text/template"
 )
 
-//go:embed vm.go vm_stack.go vm_charset.go tree_printer.go errors.go value.go
+//go:embed api.go vm.go vm_stack.go vm_charset.go tree.go tree_printer.go errors.go range.go
 var goEvalContent embed.FS
 
 type GenGoOptions struct {
@@ -31,6 +31,7 @@ type tmplRenderOpts struct {
 func GenGoEval(asm *Program, opt GenGoOptions) (string, error) {
 	g := newGoEvalEmitter(opt)
 	g.writePrelude()
+	g.writeInterfaces()
 	g.writeParserProgram(Encode(asm))
 	g.writeParserStruct()
 	g.writeParserConstructor()
@@ -67,6 +68,12 @@ func (g *goEvalEmitter) writePrelude() {
 		g.parser.writeil(`"unicode/utf8"`)
 		g.parser.unindent()
 		g.parser.writel(")\n")
+	}
+}
+
+func (g *goEvalEmitter) writeInterfaces() {
+	if !g.options.RemoveLib {
+		g.parser.write(readAPI(goEvalContent, "api.go"))
 	}
 }
 
@@ -186,7 +193,7 @@ func (g *goEvalEmitter) writeParserConstructor() {
 	g.parser.writeil("supprset := make(map[int]struct{})")
 	g.parser.writei("vm := NewVirtualMachine(")
 	g.parser.write(fmt.Sprintf("bytecodeFor%s,", g.options.ParserName))
-	g.parser.write(" map[string]string{},")
+	g.parser.write(" map[int]int{},")
 	g.parser.write(" supprset,")
 	g.parser.write(" true")
 	g.parser.writel(")")
@@ -217,15 +224,15 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	for _, addr := range addrs {
 		strID := asm.identifiers[addr]
 		name := asm.strings[strID]
-		g.parser.write(fmt.Sprintf("func (p *%s) Parse%s() (Value, error) { ", g.options.ParserName, name))
+		g.parser.write(fmt.Sprintf("func (p *%s) Parse%s() (Tree, error) { ", g.options.ParserName, name))
 		g.parser.write(fmt.Sprintf("return p.parseFn(%d)", addrmap[addr]))
 		g.parser.writel(" }")
 	}
 
-	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Value, error)                 { return p.parseFn(5) }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Tree, error)                  { return p.parseFn(5) }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input []byte)                 { p.input = input }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) GetInput() []byte                      { return p.input }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.vm.errLabels = el }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.vm.SetErrorLabels(el) }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.vm.showFails = v }", g.options.ParserName))
 
 	// Update the suppression map adding the address of the space rule
@@ -239,7 +246,7 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel("}")
 
 	// The entrypoint for parsing
-	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr int) (Value, error) {", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr int) (Tree, error) {", g.options.ParserName))
 	g.parser.indent()
 	g.parser.writeil("val, _, err := p.vm.MatchRule(p.input, addr)")
 	g.parser.writeil("return val, err")
@@ -252,7 +259,7 @@ func (g *goEvalEmitter) writeDeps() {
 		return
 	}
 	for _, file := range []string{
-		"value.go", "tree_printer.go", "errors.go",
+		"range.go", "tree.go", "tree_printer.go", "errors.go",
 		"vm_stack.go", "vm_charset.go", "vm.go",
 	} {
 		s, err := cleanGoModule(goEvalContent, file)
@@ -312,6 +319,82 @@ func cleanGoModule(fs embed.FS, fileName string) (string, error) {
 		out.WriteString("\n")
 	}
 	return out.String(), nil
+}
+
+func readAPI(fs embed.FS, fileName string) string {
+	var (
+		out  = &strings.Builder{}
+		fset = token.NewFileSet()
+	)
+
+	data, err := fs.ReadFile(fileName)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	node, err := parser.ParseFile(fset, fileName, data, parser.AllErrors)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Types that should be included alongside interfaces
+	includeTypes := map[string]bool{
+		"NodeID":   true,
+		"NodeType": true,
+	}
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		genDecl, ok := n.(*ast.GenDecl)
+		if !ok {
+			return true
+		}
+
+		// Include type declarations (interfaces and specific named types)
+		if genDecl.Tok == token.TYPE {
+			for _, spec := range genDecl.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				// Include interfaces and specifically named types
+				if _, ok := typeSpec.Type.(*ast.InterfaceType); ok {
+					if err := printer.Fprint(out, fset, n); err != nil {
+						panic(err.Error())
+					}
+					out.WriteString("\n")
+				} else if includeTypes[typeSpec.Name.Name] {
+					if err := printer.Fprint(out, fset, n); err != nil {
+						panic(err.Error())
+					}
+					out.WriteString("\n")
+				}
+			}
+		}
+
+		// Include const declarations for NodeType constants
+		if genDecl.Tok == token.CONST {
+			for _, spec := range genDecl.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				// Check if this is a NodeType constant
+				for _, name := range valueSpec.Names {
+					if strings.HasPrefix(name.Name, "NodeType_") {
+						if err := printer.Fprint(out, fset, n); err != nil {
+							panic(err.Error())
+						}
+						out.WriteString("\n")
+						return true
+					}
+				}
+			}
+		}
+
+		return true
+	})
+	return out.String()
+
 }
 
 type outputWriter struct {

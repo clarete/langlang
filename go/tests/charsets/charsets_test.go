@@ -11,22 +11,22 @@ import (
 //go:generate go run ../../cmd/langlang -grammar ./charsets.peg -output-language go -output-path ./charsets.nocap.go -disable-captures -go-parser NoCapParser -go-remove-lib -disable-inline-defs=false
 
 type P interface {
-	ParseIdentifier() (Value, error)
-	ParseDigits() (Value, error)
-	ParseHiragana() (Value, error)
+	ParseIdentifier() (Tree, error)
+	ParseDigits() (Tree, error)
+	ParseHiragana() (Tree, error)
 }
 
 type test struct {
 	Name     string
 	Input    []byte
 	Expected string
-	Func     func(P) (Value, error)
+	Func     func(P) (Tree, error)
 }
 
 var (
-	identifierFn = func(p P) (Value, error) { return p.ParseIdentifier() }
-	digitsFn     = func(p P) (Value, error) { return p.ParseDigits() }
-	hiraganaFn   = func(p P) (Value, error) { return p.ParseHiragana() }
+	identifierFn = func(p P) (Tree, error) { return p.ParseIdentifier() }
+	digitsFn     = func(p P) (Tree, error) { return p.ParseDigits() }
+	hiraganaFn   = func(p P) (Tree, error) { return p.ParseHiragana() }
 )
 
 var tests = []test{
@@ -82,7 +82,9 @@ func TestCharset(t *testing.T) {
 			p.SetCaptureSpaces(false)
 			v, err := test.Func(p)
 			require.NoError(t, err)
-			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
+			root, hasRoot := v.Root()
+			require.True(t, hasRoot)
+			assert.Equal(t, test.Expected, v.Pretty(root))
 		})
 	}
 }

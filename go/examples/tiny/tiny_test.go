@@ -152,7 +152,9 @@ func assertExpr(t *testing.T, input, expected string) {
 	p.SetInput([]byte(input))
 	v, err := p.ParsePrimary()
 	require.NoError(t, err)
-	require.Equal(t, expected, PrettyString(p.GetInput(), v))
+	root, hasRoot := v.Root()
+	require.True(t, hasRoot)
+	require.Equal(t, expected, v.Pretty(root))
 }
 
 func assertCall(t *testing.T, input, expected string) {
@@ -160,7 +162,9 @@ func assertCall(t *testing.T, input, expected string) {
 	p.SetInput([]byte(input))
 	v, err := p.ParseCall()
 	require.NoError(t, err)
-	require.Equal(t, expected, PrettyString(p.GetInput(), v))
+	root, hasRoot := v.Root()
+	require.True(t, hasRoot)
+	require.Equal(t, expected, v.Pretty(root))
 }
 
 func assertNum(t *testing.T, input, expected string) {
@@ -168,7 +172,9 @@ func assertNum(t *testing.T, input, expected string) {
 	p.SetInput([]byte(input))
 	v, err := p.ParseNum()
 	require.NoError(t, err)
-	require.Equal(t, expected, PrettyString(p.GetInput(), v))
+	root, hasRoot := v.Root()
+	require.True(t, hasRoot)
+	require.Equal(t, expected, v.Pretty(root))
 }
 
 func assertId(t *testing.T, input, expected string) {
@@ -176,5 +182,7 @@ func assertId(t *testing.T, input, expected string) {
 	p.SetInput([]byte(input))
 	v, err := p.ParseId()
 	require.NoError(t, err)
-	require.Equal(t, expected, PrettyString(p.GetInput(), v))
+	root, hasRoot := v.Root()
+	require.True(t, hasRoot)
+	require.Equal(t, expected, v.Pretty(root))
 }

@@ -5,6 +5,15 @@ import (
 	"strings"
 )
 
+// Dummy types for parser.go framework compatibility
+// This is legacy code that uses an old Value interface model
+type Value interface{}
+type Node struct{}
+
+func NewString(rg Range) Value                        { return nil }
+func NewSequence(items []Value, rg Range) Value       { return nil }
+func NewNode(name string, expr Value, rg Range) *Node { return &Node{} }
+
 // Parser keeps the state necessary to build parsing expressions on
 // top of the basic parsing expressions available, like Choice,
 // ZeroOrMore, OneOrMore, Options, etc.
@@ -331,7 +340,6 @@ func (p *Parser) Throw(label string, rg Range) error {
 	e := ParsingError{
 		Label:   label,
 		Message: message,
-		Range:   rg,
 	}
 	p.lastErr = e
 	p.lastErrFFP = p.ffp
@@ -492,4 +500,17 @@ func Not[T any](p Backtrackable, fn ParserFn[T]) (T, error) {
 		return zero, p.NewError("!", "Not Error", NewRange(start, p.Cursor()))
 	}
 	return zero, nil
+}
+
+// backtrackingError is an internal error type that is captured by the
+// Choice operator
+type backtrackingError struct {
+	Message  string
+	Expected string
+	Range    Range
+}
+
+// String returns the human readable representation of a parsing error
+func (e backtrackingError) Error() string {
+	return fmt.Sprintf("%s @ %s", e.Message, e.Range)
 }

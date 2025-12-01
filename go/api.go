@@ -6,10 +6,78 @@ package langlang
 // bytecode and creating a virtual machine for running it.
 type Matcher interface {
 	// Match attempts to parse the input data against the
-	// grammar's start rule, returning a syntax tree (Value), the
+	// grammar's start rule, returning a syntax tree (Tree), the
 	// number of bytes consumed, and any error encountered in the
 	// process.
-	Match([]byte) (Value, int, error)
+	Match([]byte) (Tree, int, error)
+}
+
+// Tree represents a parse tree produced by matching input against a
+// PEG grammar.  The tree structure is immutable once created. Nodes
+// are accessed by NodeID, an opaque handle returned by Root() and
+// navigation methods.
+//
+// A tree contains four node types (see NodeType):
+//
+//   - NodeType_String: a terminal match storing a byte range
+//   - NodeType_Sequence: an ordered list of child nodes
+//   - NodeType_Node: a named rule match with a single child
+//   - NodeType_Error: a recovery point containing error metadata
+//
+// The tree does not copy matched text. Each node records a Range
+// (start/end byte offsets) referencing the original input.
+//
+// Example usage:
+//
+//	tree, _, _ := matcher.Match(input)
+//	root := tree.Root()
+//	fmt.Println(tree.Name(root))        // rule name
+//	fmt.Println(tree.Text(root))        // matched text
+//	for _, child := range tree.Children(root) {
+//	    fmt.Println(tree.Text(child))
+//	}
+type Tree interface {
+	// Root returns the top-level node of the parse tree.  Returns
+	// InvalidNodeID if the tree is empty.
+	Root() NodeID
+
+	// Type returns the NodeType of the given node, indicating
+	// whether it is a string literal, sequence, named node, or
+	// error.
+	Type(NodeID) NodeType
+
+	// Range returns the byte offsets (start inclusive, end
+	// exclusive) into the original input that this node spans.
+	Range(NodeID) Range
+
+	// Name returns the grammar rule name for NodeType_Node and
+	// the error label for NodeType_Error nodes. Returns an empty
+	// string for other node types.
+	Name(NodeID) string
+
+	// Child returns the single child of a NodeType_Node or
+	// NodeType_Error. Returns InvalidNodeID for other node types
+	// or if the node has no child.
+	Child(NodeID) NodeID
+
+	// Children returns all direct children of a node. For
+	// NodeType_Sequence, this is the list of child nodes. For
+	// NodeType_Node and NodeType_Error, returns a single-element
+	// slice. Returns nil for NodeType_String or childless nodes.
+	Children(NodeID) []NodeID
+
+	// Text extracts the matched substring from the original
+	// input.  For sequences, it concatenates all descendant text.
+	Text(NodeID) string
+
+	// Pretty returns a human-readable, indented representation of
+	// the subtree rooted at the given node, showing node types,
+	// names, and byte ranges.
+	Pretty(NodeID) string
+
+	// Highlight is like Pretty but adds ANSI color codes for
+	// terminal display.
+	Highlight(NodeID) string
 }
 
 // MatcherFromBytes creates a Matcher from a PEG grammar definition

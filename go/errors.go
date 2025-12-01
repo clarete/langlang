@@ -4,9 +4,9 @@ import "fmt"
 
 // ParsingError is the error thrown when the parser can't finish successfuly
 type ParsingError struct {
-	Message string
-	Label   string
-	Range   Range
+	Message    string
+	Label      string
+	Start, End int
 }
 
 // String returns the human readable representation of a parsing error
@@ -15,20 +15,12 @@ func (e ParsingError) Error() string {
 	if e.Message != "" {
 		message = e.Message
 	}
-	return fmt.Sprintf("%s @ %s", message, e.Range)
-}
-
-// backtrackingError is an internal error type that is captured by the
-// Choice operator
-type backtrackingError struct {
-	Message  string
-	Expected string
-	Range    Range
-}
-
-// String returns the human readable representation of a parsing error
-func (e backtrackingError) Error() string {
-	return fmt.Sprintf("%s @ %s", e.Message, e.Range)
+	// FIXME: Find a way to show the right line/col
+	span := fmt.Sprintf("%d", e.Start+1)
+	if e.Start != e.End {
+		span += fmt.Sprintf("..%d", e.End+1)
+	}
+	return fmt.Sprintf("%s @ %s", message, span)
 }
 
 func isthrown(err error) bool {

@@ -87,7 +87,7 @@ func newCompiler(config *Config) *compiler {
 		defSizeMap:       map[string]int{},
 		openAddrs:        map[int]int{},
 		stringsMap:       map[string]int{},
-		strings:          []string{},
+		strings:          []string{""}, // Reserve index 0 for "no name" sentinel
 		errorLabelIDs:    map[int]struct{}{},
 		recovery:         map[int]recoveryEntry{},
 	}

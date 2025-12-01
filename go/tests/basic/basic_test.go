@@ -16,7 +16,7 @@ func TestIsSyntactic(t *testing.T) {
 		v, err := p.ParseSyntactic0()
 		require.NoError(t, err)
 		assert.Equal(t, `Syntactic0 (1..4)
-└── "abc" (1..4)`, PrettyString(p.GetInput(), v))
+└── "abc" (1..4)`, v.Pretty(v.Root()))
 
 		// It doesn't expect spaces between the sequence items
 		p = newBasicParser("a b c")
@@ -38,7 +38,7 @@ func TestIsSyntactic(t *testing.T) {
     │   └── "abc" (1..4)
     ├── Syntactic0 (4..7)
     │   └── "abc" (4..7)
-    └── "!" (7..8)`, PrettyString(p.GetInput(), v))
+    └── "!" (7..8)`, v.Pretty(v.Root()))
 
 		p = newBasicParser("abc abc !")
 		v, err = p.ParseNotSyntactic0()
@@ -53,7 +53,7 @@ func TestIsSyntactic(t *testing.T) {
     │   └── "abc" (5..8)
     ├── Spacing (8..9)
     │   └── " " (8..9)
-    └── "!" (9..10)`, PrettyString(p.GetInput(), v))
+    └── "!" (9..10)`, v.Pretty(v.Root()))
 	})
 
 	t.Run("Lexification operator on a single item within a syntactic rule", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestIsSyntactic(t *testing.T) {
 └── Sequence<2> (1..4)
     ├── Decimal (1..2)
     │   └── "1" (1..2)
-    └── "st" (2..4)`, PrettyString(p.GetInput(), v))
+    └── "st" (2..4)`, v.Pretty(v.Root()))
 
 		p = newBasicParser("1 st")
 		_, err = p.ParseOrdinal()
@@ -117,7 +117,7 @@ func TestIsSyntactic(t *testing.T) {
 			p := newBasicParser(test[0])
 			v, err := p.ParseSPC0()
 			require.NoError(t, err)
-			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
+			assert.Equal(t, test[1], v.Pretty(v.Root()))
 		}
 
 		for test, errMsg := range map[string]string{
@@ -185,7 +185,7 @@ func TestIsSyntactic(t *testing.T) {
 			p := newBasicParser(test[0])
 			v, err := p.ParseSPC1()
 			require.NoError(t, err)
-			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
+			assert.Equal(t, test[1], v.Pretty(v.Root()))
 		}
 
 		for test, errMsg := range map[string]string{
@@ -219,7 +219,7 @@ func TestAnd(t *testing.T) {
 			p := newBasicParser(test[0])
 			v, err := p.ParseHashWithAnAnd()
 			require.NoError(t, err)
-			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
+			assert.Equal(t, test[1], v.Pretty(v.Root()))
 		}
 	})
 
@@ -255,7 +255,7 @@ func TestNot(t *testing.T) {
 			p := newBasicParser(test[0])
 			v, err := p.ParseHashWithNot()
 			require.NoError(t, err)
-			assert.Equal(t, test[1], PrettyString(p.GetInput(), v))
+			assert.Equal(t, test[1], v.Pretty(v.Root()))
 		}
 	})
 
@@ -277,9 +277,8 @@ func TestNot(t *testing.T) {
 func TestNullable(t *testing.T) {
 	t.Run("matching will succeed but no input will be consumed", func(t *testing.T) {
 		p := newBasicParser("c")
-		v, err := p.ParseMaybeNull()
+		_, err := p.ParseMaybeNull()
 		require.NoError(t, err)
-		assert.Nil(t, v)
 	})
 }
 

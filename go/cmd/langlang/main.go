@@ -84,7 +84,7 @@ func main() {
 	var (
 		a         = readArgs()
 		suppress  map[int]struct{}
-		errLabels map[string]string
+		errLabels map[int]int
 		cfg       = langlang.NewConfig()
 	)
 
@@ -147,11 +147,11 @@ func main() {
 
 			input := []byte(text)
 			vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
-			val, _, err := vm.Match(input)
+			tree, _, err := vm.Match(input)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
-			} else if val != nil {
-				fmt.Println(langlang.HighlightPrettyString(input, val))
+			} else if tree != nil {
+				fmt.Println(tree.Highlight(tree.Root()))
 			}
 		}
 		return
@@ -167,11 +167,11 @@ func main() {
 		}
 		code := langlang.Encode(asm)
 		vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
-		val, _, err := vm.Match(text)
+		tree, _, err := vm.Match(text)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())
-		} else if val != nil {
-			fmt.Println(langlang.HighlightPrettyString(text, val))
+		} else if tree != nil {
+			fmt.Println(tree.Highlight(tree.Root()))
 		}
 		return
 	}

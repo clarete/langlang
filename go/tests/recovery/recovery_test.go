@@ -55,7 +55,7 @@ func TestRecoverySuccess(t *testing.T) {
 			p.SetCaptureSpaces(false)
 			v, err := p.ParseP()
 			require.NoError(t, err)
-			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
+			assert.Equal(t, test.Expected, v.Pretty(v.Root()))
 		})
 	}
 }
@@ -140,7 +140,7 @@ func TestRecovery(t *testing.T) {
 			v, err := p.ParseP()
 			require.NoError(t, err)
 			require.NotNil(t, v)
-			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
+			assert.Equal(t, test.Expected, v.Pretty(v.Root()))
 		})
 	}
 }

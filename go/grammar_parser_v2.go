@@ -10,8 +10,9 @@ import (
 //go:generate go run ./cmd/langlang -grammar ../grammars/langlang.peg -output-language go -output-path ./grammar_parser_bootstrap.go -go-remove-lib -go-package langlang -go-parser GrammarParserBootstrap
 
 type GrammarParserV2 struct {
-	file  string
 	input []byte
+	file  string
+	tree  Tree
 }
 
 func NewGrammarParserV2(grammar []byte) *GrammarParserV2 {
@@ -28,38 +29,40 @@ func (p *GrammarParserV2) Parse() (AstNode, error) {
 	parser := NewGrammarParserBootstrap()
 	parser.SetInput(p.input)
 	parser.SetCaptureSpaces(false)
-	val, err := parser.Parse()
+	tree, err := parser.Parse()
 	if err != nil {
 		return nil, err
 	}
-	return p.parseGrammar(val)
+	p.tree = tree
+	return p.parseGrammar(tree.Root())
 }
 
 // Grammar <- Import* Definition* EOF
-func (p *GrammarParserV2) parseGrammar(v Value) (*GrammarNode, error) {
+func (p *GrammarParserV2) parseGrammar(id NodeID) (*GrammarNode, error) {
 	var (
-		nodeValue  = v.(*Node)
 		imports    []*ImportNode
 		defs       []*DefinitionNode
 		defsByName = map[string]*DefinitionNode{}
-		items      []Value
+		items      []NodeID
 	)
-	switch nn := nodeValue.Expr.(type) {
-	case *Sequence:
-		items = nn.Items
-	default:
-		items = []Value{nn}
+
+	// Get the expression child of this node
+	childID := p.tree.Child(id)
+	if p.tree.Type(childID) == NodeType_Sequence {
+		items = p.tree.Children(childID)
+	} else {
+		items = []NodeID{childID}
 	}
-	for _, expr := range items {
-		item, ok := expr.(*Node)
-		if !ok {
+
+	for _, itemID := range items {
+		if p.tree.Type(itemID) != NodeType_Node {
 			continue
 		}
-		switch item.Name {
+		switch p.tree.Name(itemID) {
 		case "Import":
-			imports = append(imports, p.parseImport(item))
+			imports = append(imports, p.parseImport(itemID))
 		case "Definition":
-			def, err := p.parseDefinition(item)
+			def, err := p.parseDefinition(itemID)
 			if err != nil {
 				return nil, err
 			}
@@ -67,43 +70,45 @@ func (p *GrammarParserV2) parseGrammar(v Value) (*GrammarNode, error) {
 			defsByName[def.Name] = def
 		}
 	}
-	return NewGrammarNode(imports, defs, defsByName, v.Range()), nil
+	return NewGrammarNode(imports, defs, defsByName, p.tree.Range(id)), nil
 }
 
 // Import <- "@import" Identifier ("," Identifier)* "from" Literal
-func (p *GrammarParserV2) parseImport(node *Node) *ImportNode {
+func (p *GrammarParserV2) parseImport(id NodeID) *ImportNode {
 	var (
 		names []*LiteralNode
-		items = node.Expr.(*Sequence).Items
+		items = p.tree.Children(p.tree.Child(id))
 		idx   = 1
 	)
-	for _, item := range items[idx:] {
-		switch it := item.(type) {
-		case *String:
+	for _, itemID := range items[idx:] {
+		itemType := p.tree.Type(itemID)
+		switch itemType {
+		case NodeType_String:
 			idx++
-			if it.String(p.input) == "from" {
+			if p.tree.Text(itemID) == "from" {
 				break
 			}
 			continue
-		case *Node:
-			if s, ok := it.Expr.(*String); ok {
+		case NodeType_Node:
+			childID := p.tree.Child(itemID)
+			if p.tree.Type(childID) == NodeType_String {
 				idx++
-				names = append(names, NewLiteralNode(s.String(p.input), s.Range()))
+				names = append(names, NewLiteralNode(p.tree.Text(childID), p.tree.Range(childID)))
 			}
 			continue
 		}
 		break
 	}
-	path, _ := unescape(items[idx].String(p.input))
+	path, _ := unescape(p.tree.Text(items[idx]))
 	path = path[1 : len(path)-1]
-	return NewImportNode(NewLiteralNode(path, items[3].Range()), names, node.Range())
+	return NewImportNode(NewLiteralNode(path, p.tree.Range(items[3])), names, p.tree.Range(id))
 }
 
 // Definition <- Identifier LEFTARROW Expression
-func (p *GrammarParserV2) parseDefinition(node *Node) (*DefinitionNode, error) {
+func (p *GrammarParserV2) parseDefinition(id NodeID) (*DefinitionNode, error) {
 	var (
-		items = node.Expr.(*Sequence).Items
-		name  = items[0].String(p.input)
+		items = p.tree.Children(p.tree.Child(id))
+		name  = p.tree.Text(items[0])
 		expr  AstNode
 		err   error
 	)
@@ -113,220 +118,246 @@ func (p *GrammarParserV2) parseDefinition(node *Node) (*DefinitionNode, error) {
 			return nil, err
 		}
 	} else {
-		expr = NewSequenceNode([]AstNode{}, node.Range())
+		expr = NewSequenceNode([]AstNode{}, p.tree.Range(id))
 	}
-	return NewDefinitionNode(name, expr, node.Range()), nil
+	return NewDefinitionNode(name, expr, p.tree.Range(id)), nil
 }
 
 // Expression <- Sequence ("/" Sequence)*
-func (p *GrammarParserV2) parseExpression(v Value) (AstNode, error) {
-	switch e := v.(*Node).Expr.(type) {
-	case *Sequence:
-		return p.parseChoice(e)
-	case *Node:
-		return p.parseSequence(e)
+func (p *GrammarParserV2) parseExpression(id NodeID) (AstNode, error) {
+	childID := p.tree.Child(id)
+	childType := p.tree.Type(childID)
+	switch childType {
+	case NodeType_Sequence:
+		return p.parseChoice(childID)
+	case NodeType_Node:
+		return p.parseSequence(childID)
 	default:
-		return nil, fmt.Errorf("unknown node type for parseExpression: %s", e)
+		return nil, fmt.Errorf("unknown node type for parseExpression: %v", childType)
 	}
 }
 
-func (p *GrammarParserV2) parseChoice(s *Sequence) (AstNode, error) {
-	head, err := p.parseSequence(s.Items[0])
+func (p *GrammarParserV2) parseChoice(seqID NodeID) (AstNode, error) {
+	items := p.tree.Children(seqID)
+	head, err := p.parseSequence(items[0])
 	if err != nil {
 		return nil, err
 	}
-	tail := make([]AstNode, 0, len(s.Items))
-	for i := 1; i < len(s.Items); i++ {
-		item := s.Items[i]
-		if item.String(p.input) == "/" {
+	tail := make([]AstNode, 0, len(items))
+	for i := 1; i < len(items); i++ {
+		itemID := items[i]
+		if p.tree.Text(itemID) == "/" {
 			continue
 		}
-		seq, err := p.parseSequence(item)
+		seq, err := p.parseSequence(itemID)
 		if err != nil {
 			return nil, err
 		}
 		tail = append(tail, seq)
 	}
 
-	items := append([]AstNode{head}, tail...)
+	allItems := append([]AstNode{head}, tail...)
 
-	accum := items[len(items)-1]
+	accum := allItems[len(allItems)-1]
 
-	for i := len(items) - 2; i >= 0; i-- {
-		rg := NewRange(items[i].Range().Start, accum.Range().End)
-		accum = NewChoiceNode(items[i], accum, rg)
+	for i := len(allItems) - 2; i >= 0; i-- {
+		rg := NewRange(allItems[i].Range().Start, accum.Range().End)
+		accum = NewChoiceNode(allItems[i], accum, rg)
 	}
 
 	return accum, nil
 }
 
-func (p *GrammarParserV2) parseSequence(v Value) (AstNode, error) {
+func (p *GrammarParserV2) parseSequence(id NodeID) (AstNode, error) {
 	var (
 		err   error
 		items []AstNode
 	)
-	switch e := v.(*Node).Expr.(type) {
-	case *Sequence:
-		items = make([]AstNode, len(e.Items))
-		for i, exp := range e.Items {
-			if items[i], err = p.parsePrefix(exp.(*Node)); err != nil {
+	childID := p.tree.Child(id)
+	childType := p.tree.Type(childID)
+
+	switch childType {
+	case NodeType_Sequence:
+		children := p.tree.Children(childID)
+		items = make([]AstNode, len(children))
+		for i, expID := range children {
+			if items[i], err = p.parsePrefix(expID); err != nil {
 				return nil, err
 			}
 		}
-	case *Node:
-		prefix, err := p.parsePrefix(e)
+	case NodeType_Node:
+		prefix, err := p.parsePrefix(childID)
 		if err != nil {
 			return nil, err
 		}
 		items = []AstNode{prefix}
 	default:
-		return nil, fmt.Errorf("unknown node type for parseSequence: %s", e)
+		return nil, fmt.Errorf("unknown node type for parseSequence: %v", childType)
 	}
-	return NewSequenceNode(items, v.Range()), nil
+	return NewSequenceNode(items, p.tree.Range(id)), nil
 }
 
-func (p *GrammarParserV2) parsePrefix(v *Node) (AstNode, error) {
-	switch e := v.Expr.(type) {
-	case *Sequence:
-		labeled, err := p.parseLabeled(e.Items[1].(*Node))
+func (p *GrammarParserV2) parsePrefix(id NodeID) (AstNode, error) {
+	childID := p.tree.Child(id)
+	childType := p.tree.Type(childID)
+
+	switch childType {
+	case NodeType_Sequence:
+		items := p.tree.Children(childID)
+		labeled, err := p.parseLabeled(items[1])
 		if err != nil {
 			return nil, err
 		}
-		switch e.Items[0].String(p.input) {
+		switch p.tree.Text(items[0]) {
 		case "!":
-			return NewNotNode(labeled, e.Range()), nil
+			return NewNotNode(labeled, p.tree.Range(childID)), nil
 		case "&":
-			return NewAndNode(labeled, e.Range()), nil
+			return NewAndNode(labeled, p.tree.Range(childID)), nil
 		case "#":
-			return NewLexNode(labeled, e.Range()), nil
+			return NewLexNode(labeled, p.tree.Range(childID)), nil
 		}
-	case *Node:
-		return p.parseLabeled(e)
+	case NodeType_Node:
+		return p.parseLabeled(childID)
 	default:
-		return nil, fmt.Errorf("unknown node type for parsePrefix: %s", e)
+		return nil, fmt.Errorf("unknown node type for parsePrefix: %v", childType)
 	}
 	panic("unreachable")
 }
 
-func (p *GrammarParserV2) parseLabeled(v *Node) (AstNode, error) {
-	switch e := v.Expr.(type) {
-	case *Sequence:
-		suffix, err := p.parseSuffix(e.Items[0].(*Node))
+func (p *GrammarParserV2) parseLabeled(id NodeID) (AstNode, error) {
+	childID := p.tree.Child(id)
+	childType := p.tree.Type(childID)
+
+	switch childType {
+	case NodeType_Sequence:
+		items := p.tree.Children(childID)
+		suffix, err := p.parseSuffix(items[0])
 		if err != nil {
 			return nil, err
 		}
-		return NewLabeledNode(e.Items[2].String(p.input), suffix, e.Range()), nil
-	case *Node:
-		return p.parseSuffix(e)
+		return NewLabeledNode(p.tree.Text(items[2]), suffix, p.tree.Range(childID)), nil
+	case NodeType_Node:
+		return p.parseSuffix(childID)
 	default:
-		return nil, fmt.Errorf("unknown node type for parseLabeled: %s", e)
+		return nil, fmt.Errorf("unknown node type for parseLabeled: %v", childType)
 	}
 }
 
-func (p *GrammarParserV2) parseSuffix(v *Node) (AstNode, error) {
-	switch e := v.Expr.(type) {
-	case *Sequence:
-		primary, err := p.parsePrimary(e.Items[0].(*Node))
+func (p *GrammarParserV2) parseSuffix(id NodeID) (AstNode, error) {
+	childID := p.tree.Child(id)
+	childType := p.tree.Type(childID)
+
+	switch childType {
+	case NodeType_Sequence:
+		items := p.tree.Children(childID)
+		primary, err := p.parsePrimary(items[0])
 		if err != nil {
 			return nil, err
 		}
 
-		switch e.Items[1].String(p.input) {
+		switch p.tree.Text(items[1]) {
 		case "?":
-			return NewOptionalNode(primary, e.Range()), nil
+			return NewOptionalNode(primary, p.tree.Range(childID)), nil
 		case "*":
-			return NewZeroOrMoreNode(primary, e.Range()), nil
+			return NewZeroOrMoreNode(primary, p.tree.Range(childID)), nil
 		case "+":
-			return NewOneOrMoreNode(primary, e.Range()), nil
+			return NewOneOrMoreNode(primary, p.tree.Range(childID)), nil
 		}
-	case *Node:
-		return p.parsePrimary(e)
+	case NodeType_Node:
+		return p.parsePrimary(childID)
 	default:
-		return nil, fmt.Errorf("unknown node type for parseSuffix: %s", e)
+		return nil, fmt.Errorf("unknown node type for parseSuffix: %v", childType)
 	}
 	panic("unreachable")
 }
 
-func (p *GrammarParserV2) parsePrimary(v *Node) (AstNode, error) {
-	switch e := v.Expr.(type) {
-	case *Sequence:
-		return p.parseExpression(e.Items[1])
-	case *Node:
-		switch e.Name {
+func (p *GrammarParserV2) parsePrimary(id NodeID) (AstNode, error) {
+	childID := p.tree.Child(id)
+	childType := p.tree.Type(childID)
+
+	switch childType {
+	case NodeType_Sequence:
+		items := p.tree.Children(childID)
+		return p.parseExpression(items[1])
+	case NodeType_Node:
+		switch p.tree.Name(childID) {
 		case "Identifier":
-			return p.parseIdentifier(e)
+			return p.parseIdentifier(childID)
 		case "Literal":
-			return p.parseLiteral(e)
+			return p.parseLiteral(childID)
 		case "Class":
-			return p.parseClass(e)
+			return p.parseClass(childID)
 		case "Any":
-			return NewAnyNode(e.Range()), nil
+			return NewAnyNode(p.tree.Range(childID)), nil
 		}
 	default:
-		return nil, fmt.Errorf("unknown node type for parsePrimary: %s", e)
+		return nil, fmt.Errorf("unknown node type for parsePrimary: %v", childType)
 	}
 	panic("unreachable")
 }
 
-func (p *GrammarParserV2) parseLiteral(v *Node) (*LiteralNode, error) {
-	var (
-		rg        = NewRange(v.Range().Start+1, v.Range().End-1)
-		text, err = unescape(rg.Str(p.input))
-	)
+func (p *GrammarParserV2) parseLiteral(id NodeID) (*LiteralNode, error) {
+	nodeRange := p.tree.Range(id)
+	rg := NewRange(nodeRange.Start+1, nodeRange.End-1)
+	text, err := unescape(rg.Str(p.input))
 	if err != nil {
 		return nil, err
 	}
 	return NewLiteralNode(text, rg), nil
 }
 
-func (p *GrammarParserV2) parseClass(v *Node) (*ClassNode, error) {
-	var (
-		all    = v.Expr.(*Sequence).Items
-		items  = all[1 : len(all)-1]
-		output = make([]AstNode, len(items))
-		err    error
-	)
-	for i, item := range items {
-		// unpack `Range` node as well
-		output[i], err = p.parseRange(item.(*Node))
+func (p *GrammarParserV2) parseClass(id NodeID) (*ClassNode, error) {
+	childID := p.tree.Child(id)
+	all := p.tree.Children(childID)
+	items := all[1 : len(all)-1]
+	output := make([]AstNode, len(items))
+	var err error
+
+	for i, itemID := range items {
+		output[i], err = p.parseRange(itemID)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return NewClassNode(output, v.Range()), nil
+	return NewClassNode(output, p.tree.Range(id)), nil
 }
 
-func (p *GrammarParserV2) parseRange(v *Node) (AstNode, error) {
-	switch e := v.Expr.(type) {
-	case *Sequence:
-		left, err := p.parseChar(e.Items[0].(*Node))
+func (p *GrammarParserV2) parseRange(id NodeID) (AstNode, error) {
+	childID := p.tree.Child(id)
+	childType := p.tree.Type(childID)
+
+	switch childType {
+	case NodeType_Sequence:
+		items := p.tree.Children(childID)
+		left, err := p.parseChar(items[0])
 		if err != nil {
 			return nil, err
 		}
-		right, err := p.parseChar(e.Items[2].(*Node))
+		right, err := p.parseChar(items[2])
 		if err != nil {
 			return nil, err
 		}
-		return NewRangeNode(r(left), r(right), e.Range()), nil
-	case *Node:
-		s, err := p.parseChar(e)
+		return NewRangeNode(r(left), r(right), p.tree.Range(childID)), nil
+	case NodeType_Node:
+		s, err := p.parseChar(childID)
 		if err != nil {
 			return nil, err
 		}
-		return NewLiteralNode(s, e.Range()), nil
+		return NewLiteralNode(s, p.tree.Range(childID)), nil
 	default:
-		panic(fmt.Sprintf("NO ENTIENDO: %s", e))
+		panic(fmt.Sprintf("NO ENTIENDO: %v", childType))
 	}
 }
 
 // Identifier <- [a-zA-Z_][a-zA-Z0-9_]*
-func (p *GrammarParserV2) parseIdentifier(n *Node) (*IdentifierNode, error) {
-	id := n.Expr.String(p.input)
-	return NewIdentifierNode(id, n.Range()), nil
+func (p *GrammarParserV2) parseIdentifier(id NodeID) (*IdentifierNode, error) {
+	childID := p.tree.Child(id)
+	idText := p.tree.Text(childID)
+	return NewIdentifierNode(idText, p.tree.Range(id)), nil
 }
 
-func (p *GrammarParserV2) parseChar(n *Node) (string, error) {
-	return unescape(n.String(p.input))
+func (p *GrammarParserV2) parseChar(id NodeID) (string, error) {
+	return unescape(p.tree.Text(id))
 }
 
 // Unescape takes a string and unescapes it

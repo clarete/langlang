@@ -105,7 +105,7 @@ func TestImport(t *testing.T) {
 			p.SetInput([]byte(test.Match))
 			v, err := p.ParseExpr()
 			require.NoError(t, err)
-			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
+			assert.Equal(t, test.Expected, v.Pretty(v.Root()))
 		})
 	}
 
@@ -169,7 +169,7 @@ func TestImport(t *testing.T) {
 			v, err := p.ParseExpr()
 			require.NoError(t, err)
 			require.NotNil(t, v)
-			assert.Equal(t, test.Expected, PrettyString(p.GetInput(), v))
+			assert.Equal(t, test.Expected, v.Pretty(v.Root()))
 		})
 	}
 }

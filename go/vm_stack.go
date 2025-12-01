@@ -27,9 +27,9 @@ type frame struct {
 	// ID of the capture that is being created
 	capId int
 
-	// values keeps a slice of the values currently captured under
+	// nodes keeps a slice of the node IDs currently captured under
 	// a capId
-	values []Value
+	nodes []NodeID
 
 	// suppress is true if we should *not* keep any captures under
 	// this frame (nor any frame nested underneath it)
@@ -37,20 +37,21 @@ type frame struct {
 }
 
 func (f *frame) len() int {
-	return len(f.values)
+	return len(f.nodes)
 }
 
-func (f *frame) capture(values ...Value) {
-	if len(f.values) == 0 {
-		f.values = values
+func (f *frame) capture(nodes ...NodeID) {
+	if len(f.nodes) == 0 {
+		f.nodes = nodes
 	} else {
-		f.values = append(f.values, values...)
+		f.nodes = append(f.nodes, nodes...)
 	}
 }
 
 type stack struct {
 	frames []frame
-	values []Value
+	nodes  []NodeID
+	tree   *tree
 }
 
 func (s *stack) push(f frame) {
@@ -60,9 +61,9 @@ func (s *stack) push(f frame) {
 func (s *stack) pop() frame {
 	idx := len(s.frames) - 1
 	f := s.frames[idx]
-	// Clear values slice in the frame that's still in the stack
+	// Clear nodes slice in the frame that's still in the stack
 	// to help GC and potentially reuse capacity
-	s.frames[idx].values = s.frames[idx].values[:0]
+	s.frames[idx].nodes = s.frames[idx].nodes[:0]
 	s.frames = s.frames[:idx]
 	return f
 }
@@ -79,18 +80,18 @@ func (s *stack) len() int {
 	return len(s.frames)
 }
 
-func (s *stack) capture(values ...Value) {
-	if len(values) == 0 {
+func (s *stack) capture(nodes ...NodeID) {
+	if len(nodes) == 0 {
 		return
 	}
 	if s.len() > 0 {
-		s.top().capture(values...)
+		s.top().capture(nodes...)
 		return
 	}
-	if len(s.values) == 0 {
-		s.values = values
+	if len(s.nodes) == 0 {
+		s.nodes = nodes
 	} else {
-		s.values = append(s.values, values...)
+		s.nodes = append(s.nodes, nodes...)
 	}
 }
 
@@ -102,9 +103,9 @@ func (s *stack) collectCaptures() {
 	f := s.top()
 	if f.len() > 0 {
 		if n == 1 {
-			s.values = append(s.values, f.values...)
+			s.nodes = append(s.nodes, f.nodes...)
 		} else {
-			s.peek(1).capture(f.values...)
+			s.peek(1).capture(f.nodes...)
 		}
 	}
 }

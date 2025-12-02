@@ -207,7 +207,6 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Value, int, e
 	code := vm.bytecode.code
 	sets := vm.bytecode.sets
 	ilen := len(data)
-	clen := len(vm.bytecode.code)
 	cursor := 0
 	pc := 0
 
@@ -218,7 +217,7 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Value, int, e
 		pc = ruleAddress
 	}
 code:
-	for pc < clen {
+	for {
 		op := code[pc]
 		// dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", cursor, pc, op, opNames[op]))
 

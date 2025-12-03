@@ -191,13 +191,6 @@ func main() {
 			RemoveLib:   *a.goOptRemoveLib,
 		})
 
-	case "go_legacy":
-		outputData, err = langlang.GenGo(ast, langlang.GenGoOptions{
-			PackageName: *a.goOptPackage,
-			ParserName:  *a.goOptParser,
-			RemoveLib:   *a.goOptRemoveLib,
-		})
-
 	// case "python":
 	// 	outputData, err = langlang.GenParserPython(ast)
 	default:

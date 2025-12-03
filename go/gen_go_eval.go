@@ -4,14 +4,29 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/printer"
+	"go/token"
 	"sort"
 	"strconv"
+	"strings"
 	"text/template"
 )
 
 //go:embed vm.go vm_stack.go vm_charset.go tree_printer.go errors.go value.go
 var goEvalContent embed.FS
+
+type GenGoOptions struct {
+	PackageName string
+	ParserName  string
+	RemoveLib   bool
+}
+
+type tmplRenderOpts struct {
+	PackageName string
+}
 
 func GenGoEval(asm *Program, opt GenGoOptions) (string, error) {
 	g := newGoEvalEmitter(opt)
@@ -265,4 +280,83 @@ func (g *goEvalEmitter) output() (string, error) {
 		return "", err
 	}
 	return string(formatted), nil
+}
+
+func cleanGoModule(fs embed.FS, fileName string) (string, error) {
+	var (
+		out  = &strings.Builder{}
+		fset = token.NewFileSet()
+	)
+
+	data, err := fs.ReadFile(fileName)
+	if err != nil {
+		return "", err
+	}
+
+	node, err := parser.ParseFile(fset, fileName, data, parser.AllErrors)
+	if err != nil {
+		return "", err
+	}
+
+	// Filter out the package and import statements
+	for _, decl := range node.Decls {
+		if gd, ok := decl.(*ast.GenDecl); ok {
+			if gd.Tok == token.PACKAGE || gd.Tok == token.IMPORT {
+				continue
+			}
+		}
+
+		if err := printer.Fprint(out, fset, decl); err != nil {
+			return "", err
+		}
+		out.WriteString("\n")
+	}
+	return out.String(), nil
+}
+
+type outputWriter struct {
+	buffer      *strings.Builder
+	indentLevel int
+	space       string
+}
+
+func newOutputWriter(space string) *outputWriter {
+	return &outputWriter{
+		buffer: &strings.Builder{},
+		space:  space,
+	}
+}
+
+func (o *outputWriter) indent() {
+	o.indentLevel++
+}
+
+func (o *outputWriter) unindent() {
+	o.indentLevel--
+}
+
+func (o *outputWriter) writeIndent() {
+	for i := 0; i < o.indentLevel; i++ {
+		o.buffer.WriteString(o.space)
+	}
+}
+
+func (o *outputWriter) writei(s string) {
+	o.writeIndent()
+	o.write(s)
+}
+
+func (o *outputWriter) writeil(s string) {
+	o.writeIndent()
+	o.write(s)
+	o.write("\n")
+}
+
+func (o *outputWriter) writel(s string) {
+	o.write(s)
+	o.buffer.WriteString("\n")
+}
+
+func (o *outputWriter) write(s string) {
+	o.buffer.WriteString(s)
 }

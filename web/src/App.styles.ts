@@ -132,15 +132,17 @@ export const ResponseArea = styled('textarea')({
   width: '100%',
   minHeight: '120px',
   background: '#1a1a1a',
-  border: '2px solid #fbf0df',
-  borderRadius: '12px',
   padding: '0.75rem',
   color: '#fbf0df',
   fontFamily: 'monospace',
   resize: 'vertical',
   boxSizing: 'border-box',
+  
+
   '&:focus': {
     borderColor: '#f3d5a3',
+    outline: 'none',
+    
   },
   '&::placeholder': {
     color: 'rgba(251, 240, 223, 0.4)',
@@ -161,26 +163,25 @@ export const TreeViewContainerWrapper = styled('div')({
   flex: 1,
 });
 
-export const TreeViewContainer = styled('div')({
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.5rem',
-  width: 'fit-content',
-});
+
 
 export const ResponseContainer = styled('div')({
   flex: 1,
 });
 
-export const SourceLine = styled('div')({
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(0, 1fr))',
-  gap: '0.5rem',
+
+export const EditorContainer = styled('div')({
+  background: '#1a1a1a',
+  height: '100%',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
 });
 
-// Keyframes need to be defined globally or handled. Pigment might have keyframes helper.
-// For now, assuming they are in global CSS or we use css`` for global keyframes injection if supported,
-// or just keep them in index.css.
-
-
+export const TopBar = styled('div')({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '0.5rem',
+  borderBottom: '1px solid #fbf0df',
+});

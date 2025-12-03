@@ -5,24 +5,34 @@ import { useState } from "react";
 // @ts-expect-error - wasmUrl is a file URL
 import wasmUrl from "../langlang.wasm?url" with { type: "file" };
 import { useWasmTest, type LangLangValue } from "@langlang/react";
-import TreeView from "./TreeView";
+
 import fixtures from "./fixtures";
 
-import EditorView from "./EditorView";
+const EDITOR_OPTIONS = {
+	minimap: {
+		enabled: false,
+	},
+	scrollBeyondLastLine: false,
+} satisfies EditorProps["options"];
+
 import {
+	EditorContainer,
 	ResponseArea,
 	ResponseContainer,
-	SourceLine,
-	TreeViewContainer,
+	SendButton,
+	TopBar,
 	TreeViewContainerWrapper,
 } from "./App.styles";
-import { Editors } from "./EditorView.styles";
+
+import TreeExplorer from "./components/TreeExplorer";
+import SplitView from "./components/SplitView";
+import { Editor, type EditorProps } from "@monaco-editor/react";
 
 function App() {
 	const [result, setResult] = useState<LangLangValue | null>(null);
-	const [format, setFormat] = useState<keyof typeof fixtures>("json");
 
-	const [highlight, setHighlight] = useState<string | null>(null);
+	const [grammarText, setGrammarText] = useState<string>(fixtures.json.grammar);
+	const [inputText, setInputText] = useState<string>(fixtures.json.input);
 
 	if (!wasmUrl) {
 		throw new Error("WASM URL is not set");
@@ -46,6 +56,11 @@ function App() {
 		}
 	};
 
+	const handleGrammarChange = (value: string) => {
+		setGrammarText(fixtures[value as keyof typeof fixtures].grammar);
+		setInputText(fixtures[value as keyof typeof fixtures].input);
+	};
+
 	if (status === "pending") {
 		return <div>Loading...</div>;
 	}
@@ -57,10 +72,12 @@ function App() {
 	if (status === "success") {
 		return (
 			<>
-				<div style={{ marginBottom: "1rem" }}>
+				<TopBar>
 					<select
 						defaultValue="json"
-						onChange={(e) => setFormat(e.target.value as keyof typeof fixtures)}
+						onChange={(e) =>
+							handleGrammarChange(e.target.value as keyof typeof fixtures)
+						}
 					>
 						<option value="demo">Demo</option>
 						<option value="json">JSON</option>
@@ -69,43 +86,72 @@ function App() {
 						<option value="langlang">LangLang</option>
 						<option value="xmlUnstable">XML Unstable</option>
 					</select>
-				</div>
-				<EditorView
-					key={format}
-					grammar={fixtures[format].grammar}
-					input={fixtures[format].input}
-					onCompileRequest={handleCompileJson}
-				>
-					{result && (
-						<Editors>
-							<TreeViewContainerWrapper>
-								<TreeViewContainer>
-									<SourceLine onMouseLeave={() => setHighlight(null)}>
-										<TreeView
-											tree={result}
-											hideMeta
-											highlight={highlight}
-											setHighlight={setHighlight}
+					<div style={{ gridColumn: "span 2" }}>
+						<SendButton
+							type="button"
+							id="compileAndMatch"
+							onClick={() => handleCompileJson(grammarText, inputText)}
+						>
+							Compile {"→"}
+						</SendButton>
+					</div>
+				</TopBar>
+
+				<SplitView
+					left={
+						<SplitView
+							top={
+								<EditorContainer>
+									<Editor
+										theme="vs-dark"
+										language="text"
+										height="100%"
+										width="100%"
+										options={EDITOR_OPTIONS}
+										value={grammarText}
+										onChange={(value) => {
+											setGrammarText(value ?? "");
+										}}
+									/>
+								</EditorContainer>
+							}
+							bottom={
+								<EditorContainer>
+									<Editor
+										theme="vs-dark"
+										language="text"
+										height="100%"
+										width="100%"
+										options={EDITOR_OPTIONS}
+										value={inputText}
+										onChange={(value) => {
+											setInputText(value ?? "");
+										}}
+									/>
+								</EditorContainer>
+							}
+						/>
+					}
+					right={
+						result ? (
+							<SplitView
+								top={
+									<TreeViewContainerWrapper>
+										<TreeExplorer tree={result} />
+									</TreeViewContainerWrapper>
+								}
+								bottom={
+									<ResponseContainer>
+										<ResponseArea
+											value={JSON.stringify(result, null, 2)}
+											rows={30}
 										/>
-									</SourceLine>
-									<div onMouseLeave={() => setHighlight(null)}>
-										<TreeView
-											tree={result}
-											highlight={highlight}
-											setHighlight={setHighlight}
-										/>
-									</div>
-								</TreeViewContainer>
-							</TreeViewContainerWrapper>
-							<ResponseContainer>
-								<ResponseArea
-									value={JSON.stringify(result, null, 2)}
-									rows={30}
-								/>
-							</ResponseContainer>
-						</Editors>
-					)}
-				</EditorView>
+									</ResponseContainer>
+								}
+							/>
+						) : null
+					}
+				/>
 			</>
 		);
 	}

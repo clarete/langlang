@@ -2,8 +2,10 @@
 
 import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import "./global.css";
 import App from "./App.tsx";
+
+import "./global.css";
+import SplitView from "./components/SplitView.tsx";
 
 class ErrorBoundary extends React.Component<
 	{ children: React.ReactNode; fallback?: React.ReactNode },

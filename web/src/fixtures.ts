@@ -59,8 +59,8 @@ String  <- '"' (!["\\\\] .
            '"'`
 
 const CSV_GRAMMAR = `File <- Line*
-Line <- Val #((',' Val)* '\n')
-Val  <- (![,\n] .)*`
+Line <- Val #((',' Val)* '\\n')
+Val  <- (![,\\n] .)*`
 
 const CSV_INPUT = `name,age,city
 John,30,New York

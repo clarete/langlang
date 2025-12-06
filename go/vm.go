@@ -380,7 +380,10 @@ code:
 			pc += opCapBeginSizeInBytes
 
 		case opCapEnd:
-			vm.newNode(cursor, vm.stack.pop())
+			f := vm.stack.pop()
+			nodes := vm.stack.frameNodes(&f)
+			vm.stack.truncateArena(f.nodesStart)
+			vm.newNode(cursor, f, nodes)
 			pc += opCapEndSizeInBytes
 
 		case opCapTerm:
@@ -416,12 +419,12 @@ code:
 
 		case opCapCommit:
 			f := vm.stack.pop()
-			vm.stack.capture(f.nodes...)
+			vm.stack.commitCapturesToParent(f.nodesStart, f.nodesEnd)
 			pc = int(decodeU16(code, pc+1))
 
 		case opCapBackCommit:
 			f := vm.stack.pop()
-			vm.stack.capture(f.nodes...)
+			vm.stack.commitCapturesToParent(f.nodesStart, f.nodesEnd)
 			cursor = f.cursor
 			pc = int(decodeU16(code, pc+1))
 
@@ -432,11 +435,14 @@ code:
 			if !top.suppress {
 				vm.stack.collectCaptures()
 			}
-			top.nodes = nil
+			// Reset this frame's capture range for the
+			// next iteration
+			top.nodesStart = len(vm.stack.nodeArena)
+			top.nodesEnd = top.nodesStart
 
 		case opCapReturn:
 			f := vm.stack.pop()
-			vm.stack.capture(f.nodes...)
+			vm.stack.commitCapturesToParent(f.nodesStart, f.nodesEnd)
 			pc = f.pc
 
 		default:
@@ -453,9 +459,9 @@ fail:
 
 	for vm.stack.len() > 0 {
 		f := vm.stack.pop()
+		vm.stack.truncateArena(f.nodesStart)
 		switch {
 		case f.t == frameType_Backtracking:
-			f.nodes = nil
 			pc = f.pc
 			vm.predicate = f.predicate
 			cursor = f.cursor
@@ -463,7 +469,6 @@ fail:
 			goto code
 
 		case f.t == frameType_Call:
-			f.nodes = nil
 			goto fail
 		}
 	}
@@ -475,8 +480,7 @@ fail:
 // Helpers
 
 func (vm *virtualMachine) reset() {
-	vm.stack.frames = vm.stack.frames[:0]
-	vm.stack.nodes = vm.stack.nodes[:0]
+	vm.stack.reset()
 	vm.stack.tree.reset()
 	vm.ffp = -1
 
@@ -545,7 +549,7 @@ func (vm *virtualMachine) newNonTermNode(capId, cursor, offset int) {
 	}
 }
 
-func (vm *virtualMachine) newNode(cursor int, f frame) {
+func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
 	if f.suppress {
 		vm.suppress--
 		return
@@ -558,7 +562,7 @@ func (vm *virtualMachine) newNode(cursor int, f frame) {
 		start    = f.cursor
 		end      = cursor
 	)
-	switch len(f.nodes) {
+	switch len(nodes) {
 	case 0:
 		if cursor-f.cursor > 0 {
 			nodeID = vm.stack.tree.AddString(start, end)
@@ -570,10 +574,10 @@ func (vm *virtualMachine) newNode(cursor int, f frame) {
 		}
 		// If isrxp and nothing captured, hasNode remains false
 	case 1:
-		nodeID = f.nodes[0]
+		nodeID = nodes[0]
 		hasNode = true
 	default:
-		nodeID = vm.stack.tree.AddSequence(f.nodes, start, end)
+		nodeID = vm.stack.tree.AddSequence(nodes, start, end)
 		hasNode = true
 	}
 

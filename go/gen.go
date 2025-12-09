@@ -124,6 +124,17 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.unindent()
 	g.parser.writeil("},")
 
+	// Recovery Expressions Bitset
+
+	g.parser.writeil("rxbs: bitset512{")
+	g.parser.indent()
+	g.parser.writei("")
+	for _, k := range bt.rxbs {
+		g.parser.write(fmt.Sprintf("%d,", k))
+	}
+	g.parser.writel("\n},\n")
+	g.parser.unindent()
+
 	// strings map
 
 	g.parser.writeil("smap: map[string]int{")

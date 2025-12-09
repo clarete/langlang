@@ -10,6 +10,10 @@ var bytecodeForGrammarParserBootstrap = &Bytecode{
 	rxps: map[int]int{
 		2: 4278, 3: 4520, 4: 4744, 5: 4258, 6: 4233, 7: 4238, 8: 4248, 9: 4253, 10: 4243,
 	},
+	rxbs: bitset512{
+		2044, 0, 0, 0, 0, 0, 0, 0,
+	},
+
 	smap: map[string]int{
 		"": 19, "Any": 43, "Char": 25, "Class": 41, "Comment": 18, "Definition": 29, "EOF": 32, "EOL": 20, "Escape": 26, "Expression": 31, "Grammar": 16, "Hex": 28, "Identifier": 23, "Import": 22, "LEFTARROW": 30, "Labeled": 36, "List": 40, "Literal": 24, "MissingClosingBracket": 10, "MissingClosingCurly": 7, "MissingClosingDQuote": 9, "MissingClosingParen": 6, "MissingClosingSQuote": 8, "MissingImportFrom": 3, "MissingImportName": 2, "MissingImportSrc": 4, "MissingLabel": 5, "MissingRightRange": 11, "Prefix": 35, "Primary": 38, "Range": 42, "SLASH": 34, "Sequence": 33, "Space": 21, "Spacing": 17, "Suffix": 37, "Superscript": 39, "Unicode": 27, "chrH1": 12, "chrH2": 13, "chrH3": 14, "chrH4": 15, "eof": 1,
 	},

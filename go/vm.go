@@ -12,7 +12,13 @@ type Bytecode struct {
 	sexp [][]expected
 	smap map[string]int
 	rxps map[int]int
+	rxbs bitset512
 }
+
+type bitset512 [8]uint64 // 64 bytes = 1 cache line
+
+func (b *bitset512) set(id int)      { b[id>>6] |= 1 << (id & 63) }
+func (b *bitset512) has(id int) bool { return b[id>>6]&(1<<(id&63)) != 0 }
 
 type expected struct {
 	a, b rune
@@ -555,12 +561,12 @@ func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
 		return
 	}
 	var (
-		nodeID   NodeID
-		hasNode  = false
-		_, isrxp = vm.bytecode.rxps[f.capId]
-		capId    = int32(f.capId)
-		start    = f.cursor
-		end      = cursor
+		nodeID  NodeID
+		hasNode = false
+		isrxp   = vm.bytecode.rxbs.has(f.capId)
+		capId   = int32(f.capId)
+		start   = f.cursor
+		end     = cursor
 	)
 	switch len(nodes) {
 	case 0:

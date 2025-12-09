@@ -126,7 +126,7 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 
 	// Recovery Expressions Bitset
 
-	g.parser.writeil("rxbs: bitset512{")
+	g.parser.writeil("rxbs: Bitset512{")
 	g.parser.indent()
 	g.parser.writei("")
 	for _, k := range bt.rxbs {
@@ -201,7 +201,7 @@ func (g *goEvalEmitter) writeParserConstructor() {
 	g.parser.writel(fmt.Sprintf("func New%s() *%s {", g.options.ParserName, g.options.ParserName))
 	g.parser.indent()
 
-	g.parser.writeil("supprset := make(map[int]struct{})")
+	g.parser.writeil("var supprset Bitset512")
 	g.parser.writei("vm := NewVirtualMachine(")
 	g.parser.write(fmt.Sprintf("bytecodeFor%s,", g.options.ParserName))
 	g.parser.write(" map[int]int{},")
@@ -249,10 +249,8 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	// Update the suppression map adding the address of the space rule
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool) {", g.options.ParserName))
 	g.parser.indent()
-	g.parser.writeil("supprset := make(map[int]struct{})")
 	g.parser.writeil(fmt.Sprintf(`spcAddr := bytecodeFor%s.smap["Spacing"]`, g.options.ParserName))
-	g.parser.writeil("supprset[spcAddr] = struct{}{}")
-	g.parser.writeil("p.vm.supprset = supprset")
+	g.parser.writeil("p.vm.supprset.Set(spcAddr)")
 	g.parser.unindent()
 	g.parser.writel("}")
 

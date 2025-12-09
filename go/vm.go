@@ -12,13 +12,13 @@ type Bytecode struct {
 	sexp [][]expected
 	smap map[string]int
 	rxps map[int]int
-	rxbs bitset512
+	rxbs Bitset512
 }
 
-type bitset512 [8]uint64 // 64 bytes = 1 cache line
+type Bitset512 [8]uint64 // 64 bytes = 1 cache line
 
-func (b *bitset512) set(id int)      { b[id>>6] |= 1 << (id & 63) }
-func (b *bitset512) has(id int) bool { return b[id>>6]&(1<<(id&63)) != 0 }
+func (b *Bitset512) Set(id int)      { b[id>>6] |= 1 << (id & 63) }
+func (b *Bitset512) Has(id int) bool { return b[id>>6]&(1<<(id&63)) != 0 }
 
 type expected struct {
 	a, b rune
@@ -74,7 +74,7 @@ type virtualMachine struct {
 	expected       *expectedInfo
 	showFails      bool
 	errLabels      map[int]int
-	supprset       map[int]struct{}
+	supprset       Bitset512
 	suppress       int
 	capOffsetId    int
 	capOffsetStart int
@@ -185,7 +185,7 @@ var (
 func NewVirtualMachine(
 	bytecode *Bytecode,
 	errLabels map[int]int,
-	suppressSet map[int]struct{},
+	suppressSet Bitset512,
 	showFails bool,
 ) *virtualMachine {
 	tree := newTree()
@@ -419,7 +419,7 @@ code:
 				vm.newTermNode(cursor, offset)
 				continue
 			}
-			if _, shouldSuppress := vm.supprset[vm.capOffsetId]; !shouldSuppress {
+			if !vm.supprset.Has(vm.capOffsetId) {
 				vm.newNonTermNode(vm.capOffsetId, cursor, offset)
 			}
 
@@ -520,7 +520,7 @@ func (vm *virtualMachine) mkCaptureFrame(id, cursor int) frame {
 	// if either the capture ID has been disabled, or a capture ID
 	// wrapping it is suppressed, so we put this flag here for
 	// `opCapEnd` to pick it up and skip capturing the node.
-	_, shouldSuppress := vm.supprset[id]
+	shouldSuppress := vm.supprset.Has(id)
 	if shouldSuppress {
 		vm.suppress++
 	}
@@ -563,7 +563,7 @@ func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
 	var (
 		nodeID  NodeID
 		hasNode = false
-		isrxp   = vm.bytecode.rxbs.has(f.capId)
+		isrxp   = vm.bytecode.rxbs.Has(f.capId)
 		capId   = int32(f.capId)
 		start   = f.cursor
 		end     = cursor

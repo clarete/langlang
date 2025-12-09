@@ -8,7 +8,7 @@ func Encode(p *Program) *Bytecode {
 		cursor  int
 		labels  = map[ILabel]int{}
 		rxps    = map[int]int{}
-		rxbs    = bitset512{}
+		rxbs    = Bitset512{}
 		setsMap = map[string]int{}
 		sets    []charset
 		sexp    [][]expected
@@ -108,7 +108,7 @@ func Encode(p *Program) *Bytecode {
 	}
 	for id, entry := range p.recovery {
 		rxps[id] = labels[entry.label]
-		rxbs.set(id)
+		rxbs.Set(id)
 	}
 
 	return &Bytecode{

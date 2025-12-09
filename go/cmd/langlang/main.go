@@ -83,7 +83,7 @@ func readArgs() *args {
 func main() {
 	var (
 		a         = readArgs()
-		suppress  map[int]struct{}
+		suppress  langlang.Bitset512
 		errLabels map[int]int
 		cfg       = langlang.NewConfig()
 	)
@@ -123,7 +123,7 @@ func main() {
 	}
 
 	if *a.suppressSpaces {
-		suppress = map[int]struct{}{asm.StringID("Spacing"): struct{}{}}
+		suppress.Set(asm.StringID("Spacing"))
 	}
 
 	// If it's interactive, it will open a lil REPL shell

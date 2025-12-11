@@ -280,7 +280,9 @@ code:
 			}
 			c, s := decodeRune(data, cursor)
 			if c != e {
-				vm.updateExpected(cursor, expected{a: e})
+				if vm.showFails {
+					vm.updateExpected(cursor, expected{a: e})
+				}
 				goto fail
 			}
 			cursor += s
@@ -294,7 +296,9 @@ code:
 			a := rune(decodeU16(code, pc+1))
 			b := rune(decodeU16(code, pc+3))
 			if c < a || c > b {
-				vm.updateExpected(cursor, expected{a: a, b: b})
+				if vm.showFails {
+					vm.updateExpected(cursor, expected{a: a, b: b})
+				}
 				goto fail
 			}
 			cursor += s
@@ -307,7 +311,9 @@ code:
 			c := data[cursor]
 			i := decodeU16(code, pc+1)
 			if !sets[i].hasByte(c) {
-				vm.updateSetExpected(cursor, i)
+				if vm.showFails {
+					vm.updateSetExpected(cursor, i)
+				}
 				goto fail
 			}
 			cursor++
@@ -389,7 +395,11 @@ code:
 			f := vm.stack.pop()
 			nodes := vm.stack.frameNodes(&f)
 			vm.stack.truncateArena(f.nodesStart)
-			vm.newNode(cursor, f, nodes)
+			if f.suppress {
+				vm.suppress--
+			} else {
+				vm.newNode(cursor, f, nodes)
+			}
 			pc += opCapEndSizeInBytes
 
 		case opCapTerm:
@@ -478,6 +488,7 @@ fail:
 			goto fail
 		}
 	}
+
 	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", cursor, vm.ffp))
 
 	return nil, cursor, vm.mkErr(data, 0, cursor, vm.ffp)
@@ -556,10 +567,6 @@ func (vm *virtualMachine) newNonTermNode(capId, cursor, offset int) {
 }
 
 func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
-	if f.suppress {
-		vm.suppress--
-		return
-	}
 	var (
 		nodeID  NodeID
 		hasNode = false
@@ -629,10 +636,6 @@ func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
 // Error Handling Helpers
 
 func (vm *virtualMachine) updateExpected(cursor int, s expected) {
-	if !vm.showFails {
-		return
-	}
-
 	shouldClear := cursor > vm.ffp
 	shouldAdd := cursor >= vm.ffp
 
@@ -645,10 +648,6 @@ func (vm *virtualMachine) updateExpected(cursor int, s expected) {
 }
 
 func (vm *virtualMachine) updateSetExpected(cursor int, sid uint16) {
-	if !vm.showFails {
-		return
-	}
-
 	shouldClear := cursor > vm.ffp
 	shouldAdd := cursor >= vm.ffp
 

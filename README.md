@@ -24,12 +24,13 @@
         6.  [Import system](#import-system)
 3.  [Roadmap](#roadmap)
 4.  [Changelog](#changelog)
-    1.  [go/v0.0.10](#gov0010)
-    2.  [go/v0.0.9](#gov009)
-    3.  [go/v0.0.8](#gov008)
-    4.  [go/v0.0.7](#gov007)
-    5.  [go/v0.0.6](#gov006)
-    6.  [go/v0.0.5](#gov005)
+    1.  [go/v0.0.11 (unreleased)](#gov0011-unreleased)
+    2.  [go/v0.0.10](#gov0010)
+    3.  [go/v0.0.9](#gov009)
+    4.  [go/v0.0.8](#gov008)
+    5.  [go/v0.0.7](#gov007)
+    6.  [go/v0.0.6](#gov006)
+    7.  [go/v0.0.5](#gov005)
 
 
 <a id="introduction"></a>
@@ -542,7 +543,6 @@ be used in other grammars using imports.  Behind the scenes, the
 
 -   SIM: [compvm] known optimizations: head-fail
 -   SIM: [compvm] memoize results to guarantee O(1) parsing time
--   SIM: [compvm] allocates memory through an allocator interface
 -   MID: [genall] generator interface to be shared by all targets
 -   MID: [gencpy] Python Code Generator
 -   MID: [gencjs] Java Script Code Generator
@@ -556,6 +556,16 @@ be used in other grammars using imports.  Behind the scenes, the
 <a id="changelog"></a>
 
 # Changelog
+
+
+<a id="gov0011-unreleased"></a>
+
+## go/v0.0.11 (unreleased)
+
+-   [PERF[BREAKING]: Change Capture Tree design to a Struct of Arrays](https://github.com/clarete/langlang/commit/e2dff9dd8fdab1c380be5c575da95c5b98c9e674)
+-   [PERF: Bitset check for rule capture suppression](https://github.com/clarete/langlang/commit/4d25bf2c26516ba0cefcdf87d984dec44958724a)
+-   [PERF: Replace map lookup with bitset for recovery expr check](https://github.com/clarete/langlang/commit/a660bae4f4f476b2513a56e8818b37f7399e637d)
+-   [PERF: Reduce allocations by using an arena for frame captures](https://github.com/clarete/langlang/commit/6d54884a83c4bc1b34140737fc97c17d8687e15d)
 
 
 <a id="gov0010"></a>

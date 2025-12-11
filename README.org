@@ -367,7 +367,6 @@ be used in other grammars using imports.  Behind the scenes, the
 
  * SIM: [compvm] known optimizations: head-fail
  * SIM: [compvm] memoize results to guarantee O(1) parsing time
- * SIM: [compvm] allocates memory through an allocator interface
  * MID: [genall] generator interface to be shared by all targets
  * MID: [gencpy] Python Code Generator
  * MID: [gencjs] Java Script Code Generator
@@ -378,6 +377,13 @@ be used in other grammars using imports.  Behind the scenes, the
  * BIG: [featxp] Integration with serde of target language (go, rust)
 
 * Changelog
+
+** go/v0.0.11 (unreleased)
+
+ * [[https://github.com/clarete/langlang/commit/e2dff9dd8fdab1c380be5c575da95c5b98c9e674][PERF[BREAKING]: Change Capture Tree design to a Struct of Arrays]]
+ * [[https://github.com/clarete/langlang/commit/4d25bf2c26516ba0cefcdf87d984dec44958724a][PERF: Bitset check for rule capture suppression]]
+ * [[https://github.com/clarete/langlang/commit/a660bae4f4f476b2513a56e8818b37f7399e637d][PERF: Replace map lookup with bitset for recovery expr check]]
+ * [[https://github.com/clarete/langlang/commit/6d54884a83c4bc1b34140737fc97c17d8687e15d][PERF: Reduce allocations by using an arena for frame captures]]
 
 ** go/v0.0.10
 

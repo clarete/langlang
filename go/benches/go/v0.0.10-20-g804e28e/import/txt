@@ -1,0 +1,55 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/import
+cpu: Apple M1 Max
+BenchmarkParser
+BenchmarkParser/Single_Digit
+BenchmarkParser/Single_Digit-10         	 5837380	       397.4 ns/op	   2.52 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 5732170	       406.2 ns/op	   2.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6024204	       398.0 ns/op	   2.51 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 5993709	       398.4 ns/op	   2.51 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6019070	       400.6 ns/op	   2.50 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 5969174	       398.7 ns/op	   2.51 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6003681	       400.0 ns/op	   2.50 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6031159	       398.4 ns/op	   2.51 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6022070	       397.9 ns/op	   2.51 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 5771420	       398.1 ns/op	   2.51 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6034816	       396.2 ns/op	   2.52 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6020064	       400.9 ns/op	   2.49 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 5993180	       397.0 ns/op	   2.52 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6030262	       397.5 ns/op	   2.52 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Single_Digit-10         	 6066746	       396.6 ns/op	   2.52 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term
+BenchmarkParser/Term-10                 	 3315009	       716.8 ns/op	   9.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3362605	       716.4 ns/op	   9.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3363573	       713.0 ns/op	   9.82 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3357302	       715.4 ns/op	   9.78 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3374103	       714.9 ns/op	   9.79 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3319735	       721.4 ns/op	   9.70 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3326502	       741.6 ns/op	   9.44 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3210112	       717.2 ns/op	   9.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3357157	       716.3 ns/op	   9.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3371943	       715.4 ns/op	   9.78 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3332596	       718.1 ns/op	   9.75 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3355554	       716.6 ns/op	   9.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3370891	       712.6 ns/op	   9.82 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3350922	       722.5 ns/op	   9.69 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Term-10                 	 3343252	       714.8 ns/op	   9.79 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi
+BenchmarkParser/Multi-10                	 3670917	       652.0 ns/op	  10.74 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3684225	       652.8 ns/op	  10.72 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3676246	       650.8 ns/op	  10.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3681087	       650.8 ns/op	  10.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3685584	       649.9 ns/op	  10.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3670917	       650.1 ns/op	  10.77 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3559330	       667.1 ns/op	  10.49 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3682939	       651.6 ns/op	  10.74 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3634171	       680.6 ns/op	  10.29 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3673189	       664.0 ns/op	  10.54 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3674716	       654.0 ns/op	  10.70 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3561556	       668.5 ns/op	  10.47 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3669289	       653.4 ns/op	  10.71 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3656302	       655.2 ns/op	  10.68 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Multi-10                	 3633561	       655.2 ns/op	  10.68 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/clarete/langlang/go/tests/import	135.257s

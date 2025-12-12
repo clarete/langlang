@@ -1,0 +1,55 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/json
+cpu: Apple M1 Max
+BenchmarkNoCapParser
+BenchmarkNoCapParser/Input_30kb
+BenchmarkNoCapParser/Input_30kb-10         	    3472	    687013 ns/op	  58.25 MB/s	       6 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3490	    684739 ns/op	  58.45 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3500	    685999 ns/op	  58.34 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3518	    708107 ns/op	  56.52 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3517	    685714 ns/op	  58.36 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3463	    684271 ns/op	  58.49 MB/s	       1 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3504	    685515 ns/op	  58.38 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3519	    686083 ns/op	  58.33 MB/s	       4 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3361	    686319 ns/op	  58.31 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3524	    683804 ns/op	  58.53 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3507	    685241 ns/op	  58.40 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3468	    724527 ns/op	  55.24 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3478	    720004 ns/op	  55.58 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3475	    683914 ns/op	  58.52 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_30kb-10         	    3505	    685834 ns/op	  58.35 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb
+BenchmarkNoCapParser/Input_500kb-10        	     202	  11957794 ns/op	  64.82 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     204	  11728583 ns/op	  66.09 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     204	  11766653 ns/op	  65.87 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     204	  11752109 ns/op	  65.95 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     202	  11864000 ns/op	  65.33 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     202	  11787084 ns/op	  65.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     204	  11765796 ns/op	  65.88 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     204	  11750188 ns/op	  65.96 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     202	  11968730 ns/op	  64.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     193	  11765430 ns/op	  65.88 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     204	  11747573 ns/op	  65.98 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     202	  11723808 ns/op	  66.11 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     204	  11743273 ns/op	  66.00 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     198	  11740800 ns/op	  66.02 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_500kb-10        	     201	  11764999 ns/op	  65.88 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46964271 ns/op	  64.99 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  47149172 ns/op	  64.74 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46867388 ns/op	  65.13 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  47024672 ns/op	  64.91 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      49	  47017221 ns/op	  64.92 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46865289 ns/op	  65.13 MB/s	     163 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46802472 ns/op	  65.22 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46946296 ns/op	  65.02 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46895418 ns/op	  65.09 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  47542918 ns/op	  64.20 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46885446 ns/op	  65.10 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  47004458 ns/op	  64.94 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  47694848 ns/op	  64.00 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  47033714 ns/op	  64.90 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNoCapParser/Input_2000kb-10       	      50	  46924066 ns/op	  65.05 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/clarete/langlang/go/tests/json	129.230s

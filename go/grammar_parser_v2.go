@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-//go:generate go run ./cmd/langlang -grammar ../grammars/langlang.peg -output-language go -output-path ./grammar_parser_bootstrap.go -go-remove-lib -go-package langlang -go-parser GrammarParserBootstrap
+//go:generate go run ./cmd/langlang -grammar ../grammars/langlang.peg -output-language go -output-path ./grammar_parser_bootstrap.go -go-remove-lib -go-package langlang -go-parser GrammarParserBootstrap --disable-capture-spaces
 
 type GrammarParserV2 struct {
 	input []byte
@@ -28,7 +28,6 @@ func (p *GrammarParserV2) SetGrammarFile(file string) {
 func (p *GrammarParserV2) Parse() (AstNode, error) {
 	parser := NewGrammarParserBootstrap()
 	parser.SetInput(p.input)
-	parser.SetCaptureSpaces(false)
 	tree, err := parser.Parse()
 	if err != nil {
 		return nil, errors.New("Parse: " + err.Error())

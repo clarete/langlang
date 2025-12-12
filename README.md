@@ -563,7 +563,7 @@ be used in other grammars using imports.  Behind the scenes, the
 ## go/v0.0.11 (unreleased)
 
 -   [PERF[BREAKING]: Change Capture Tree design to a Struct of Arrays](https://github.com/clarete/langlang/commit/e2dff9dd8fdab1c380be5c575da95c5b98c9e674)
--   [PERF: Bitset check for rule capture suppression](https://github.com/clarete/langlang/commit/4d25bf2c26516ba0cefcdf87d984dec44958724a)
+-   [FEAT/PERF[BREAKING]: Remove runtime suppression of rule captures](https://github.com/clarete/langlang/commit/16351891a52cc2b7be3265e9e835ff08151d3adb)
 -   [PERF: Replace map lookup with bitset for recovery expr check](https://github.com/clarete/langlang/commit/a660bae4f4f476b2513a56e8818b37f7399e637d)
 -   [PERF: Reduce allocations by using an arena for frame captures](https://github.com/clarete/langlang/commit/6d54884a83c4bc1b34140737fc97c17d8687e15d)
 

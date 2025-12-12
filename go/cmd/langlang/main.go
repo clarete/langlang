@@ -26,7 +26,6 @@ type args struct {
 	disableCaptureSpaces *bool
 	disableInline        *bool
 	disableInlineDefs    *bool
-	suppressSpaces       *bool
 
 	showFails *bool
 
@@ -56,7 +55,6 @@ func readArgs() *args {
 		disableCaptureSpaces: flag.Bool("disable-capture-spaces", false, "Tells the compiler not to inject capture rules for spaces into the grammar"),
 		disableInline:        flag.Bool("disable-inline", false, "Tells the compiler not to inline any definitions"),
 		disableInlineDefs:    flag.Bool("disable-inline-defs", true, "Tells the compiler not to emit Parse methods for inlined definitions (saves space)"),
-		suppressSpaces:       flag.Bool("suppress-spaces", true, "If enabled, it will suppress capturing spaces during Runtime"),
 		showFails:            flag.Bool("show-fails", true, "If enabled, shows what the parser attempted to match (there is a perf penalty cost for this)"),
 
 		// Dynamic parser generation and evaluation
@@ -83,7 +81,6 @@ func readArgs() *args {
 func main() {
 	var (
 		a         = readArgs()
-		suppress  langlang.Bitset512
 		errLabels map[int]int
 		cfg       = langlang.NewConfig()
 	)
@@ -122,10 +119,6 @@ func main() {
 		return
 	}
 
-	if *a.suppressSpaces {
-		suppress.Set(asm.StringID("Spacing"))
-	}
-
 	// If it's interactive, it will open a lil REPL shell
 
 	if *a.inputPath == "" && *a.outputPath == "" {
@@ -146,7 +139,7 @@ func main() {
 			}
 
 			input := []byte(text)
-			vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
+			vm := langlang.NewVirtualMachine(code, errLabels, *a.showFails)
 			tree, _, err := vm.Match(input)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
@@ -167,7 +160,7 @@ func main() {
 			log.Fatalf("Can't open input file: %s", err.Error())
 		}
 		code := langlang.Encode(asm)
-		vm := langlang.NewVirtualMachine(code, errLabels, suppress, *a.showFails)
+		vm := langlang.NewVirtualMachine(code, errLabels, *a.showFails)
 		tree, _, err := vm.Match(text)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())

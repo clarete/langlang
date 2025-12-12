@@ -79,7 +79,6 @@ func TestCharset(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			p := NewParser()
 			p.SetInput(test.Input)
-			p.SetCaptureSpaces(false)
 			v, err := test.Func(p)
 			require.NoError(t, err)
 			root, hasRoot := v.Root()

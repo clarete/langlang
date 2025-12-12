@@ -10,7 +10,7 @@ var bytecodeForGrammarParserBootstrap = &Bytecode{
 	rxps: map[int]int{
 		2: 3314, 3: 3556, 4: 3780, 5: 3294, 6: 3269, 7: 3274, 8: 3284, 9: 3289, 10: 3279,
 	},
-	rxbs: Bitset512{
+	rxbs: bitset512{
 		2044, 0, 0, 0, 0, 0, 0, 0,
 	},
 
@@ -79,8 +79,7 @@ type GrammarParserBootstrap struct {
 }
 
 func NewGrammarParserBootstrap() *GrammarParserBootstrap {
-	var supprset Bitset512
-	vm := NewVirtualMachine(bytecodeForGrammarParserBootstrap, map[int]int{}, supprset, true)
+	vm := NewVirtualMachine(bytecodeForGrammarParserBootstrap, map[int]int{}, true)
 	return &GrammarParserBootstrap{vm: vm}
 }
 func (p *GrammarParserBootstrap) ParseGrammar() (Tree, error)               { return p.parseFn(5) }
@@ -105,10 +104,6 @@ func (p *GrammarParserBootstrap) SetInput(input []byte)                     { p.
 func (p *GrammarParserBootstrap) GetInput() []byte                          { return p.input }
 func (p *GrammarParserBootstrap) SetLabelMessages(el map[string]string)     { p.vm.SetErrorLabels(el) }
 func (p *GrammarParserBootstrap) SetShowFails(v bool)                       { p.vm.showFails = v }
-func (p *GrammarParserBootstrap) SetCaptureSpaces(v bool) {
-	spcAddr := bytecodeForGrammarParserBootstrap.smap["Spacing"]
-	p.vm.supprset.Set(spcAddr)
-}
 func (p *GrammarParserBootstrap) parseFn(addr int) (Tree, error) {
 	val, _, err := p.vm.MatchRule(p.input, addr)
 	return val, err

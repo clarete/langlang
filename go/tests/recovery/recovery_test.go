@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:generate go run ../../cmd/langlang -grammar ./recovery.peg -output-language go -output-path ./recovery.go
+//go:generate go run ../../cmd/langlang -grammar ./recovery.peg -output-language go -output-path ./recovery.go -disable-capture-spaces
 
 func TestRecoverySuccess(t *testing.T) {
 	for _, test := range []struct {
@@ -52,7 +52,6 @@ func TestRecoverySuccess(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			p := NewParser()
 			p.SetInput([]byte(test.Input))
-			p.SetCaptureSpaces(false)
 			v, err := p.ParseP()
 			require.NoError(t, err)
 			root, hasRoot := v.Root()
@@ -138,7 +137,6 @@ func TestRecovery(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			p := NewParser()
 			p.SetInput([]byte(test.Input))
-			p.SetCaptureSpaces(false)
 			v, err := p.ParseP()
 			require.NoError(t, err)
 			require.NotNil(t, v)

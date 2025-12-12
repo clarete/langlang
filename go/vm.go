@@ -12,13 +12,13 @@ type Bytecode struct {
 	sexp [][]expected
 	smap map[string]int
 	rxps map[int]int
-	rxbs Bitset512
+	rxbs bitset512
 }
 
-type Bitset512 [8]uint64 // 64 bytes = 1 cache line
+type bitset512 [8]uint64 // 64 bytes = 1 cache line
 
-func (b *Bitset512) Set(id int)      { b[id>>6] |= 1 << (id & 63) }
-func (b *Bitset512) Has(id int) bool { return b[id>>6]&(1<<(id&63)) != 0 }
+func (b *bitset512) Set(id int)      { b[id>>6] |= 1 << (id & 63) }
+func (b *bitset512) Has(id int) bool { return b[id>>6]&(1<<(id&63)) != 0 }
 
 type expected struct {
 	a, b rune
@@ -74,8 +74,6 @@ type virtualMachine struct {
 	expected       *expectedInfo
 	showFails      bool
 	errLabels      map[int]int
-	supprset       Bitset512
-	suppress       int
 	capOffsetId    int
 	capOffsetStart int
 }
@@ -185,21 +183,19 @@ var (
 func NewVirtualMachine(
 	bytecode *Bytecode,
 	errLabels map[int]int,
-	suppressSet Bitset512,
 	showFails bool,
 ) *virtualMachine {
 	tree := newTree()
 	tree.bindStrings(bytecode.strs)
 	return &virtualMachine{
 		stack: &stack{
-			frames: make([]frame, 0, 256),   // Pre-allocate stack frames
-			nodes:  make([]NodeID, 0, 1024), // Pre-allocate node capture buffer
+			frames: make([]frame, 0, 256),
+			nodes:  make([]NodeID, 0, 256),
 			tree:   tree,
 		},
 		bytecode:  bytecode,
 		errLabels: errLabels,
 		showFails: showFails,
-		supprset:  suppressSet,
 		ffp:       -1,
 	}
 }
@@ -395,11 +391,7 @@ code:
 			f := vm.stack.pop()
 			nodes := vm.stack.frameNodes(&f)
 			vm.stack.truncateArena(f.nodesStart)
-			if f.suppress {
-				vm.suppress--
-			} else {
-				vm.newNode(cursor, f, nodes)
-			}
+			vm.newNode(cursor, f, nodes)
 			pc += opCapEndSizeInBytes
 
 		case opCapTerm:
@@ -429,9 +421,7 @@ code:
 				vm.newTermNode(cursor, offset)
 				continue
 			}
-			if !vm.supprset.Has(vm.capOffsetId) {
-				vm.newNonTermNode(vm.capOffsetId, cursor, offset)
-			}
+			vm.newNonTermNode(vm.capOffsetId, cursor, offset)
 
 		case opCapCommit:
 			f := vm.stack.pop()
@@ -448,9 +438,7 @@ code:
 			pc = int(decodeU16(code, pc+1))
 			top := vm.stack.top()
 			top.cursor = cursor
-			if !top.suppress {
-				vm.stack.collectCaptures()
-			}
+			vm.stack.collectCaptures()
 			// Reset this frame's capture range for the
 			// next iteration
 			top.nodesStart = len(vm.stack.nodeArena)
@@ -528,18 +516,10 @@ func mkBacktrackPredFrame(pc, cursor int) frame {
 }
 
 func (vm *virtualMachine) mkCaptureFrame(id, cursor int) frame {
-	// if either the capture ID has been disabled, or a capture ID
-	// wrapping it is suppressed, so we put this flag here for
-	// `opCapEnd` to pick it up and skip capturing the node.
-	shouldSuppress := vm.supprset.Has(id)
-	if shouldSuppress {
-		vm.suppress++
-	}
 	return frame{
-		t:        frameType_Capture,
-		capId:    id,
-		cursor:   cursor,
-		suppress: shouldSuppress,
+		t:      frameType_Capture,
+		capId:  id,
+		cursor: cursor,
 	}
 }
 

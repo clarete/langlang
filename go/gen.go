@@ -126,7 +126,7 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 
 	// Recovery Expressions Bitset
 
-	g.parser.writeil("rxbs: Bitset512{")
+	g.parser.writeil("rxbs: bitset512{")
 	g.parser.indent()
 	g.parser.writei("")
 	for _, k := range bt.rxbs {
@@ -201,11 +201,9 @@ func (g *goEvalEmitter) writeParserConstructor() {
 	g.parser.writel(fmt.Sprintf("func New%s() *%s {", g.options.ParserName, g.options.ParserName))
 	g.parser.indent()
 
-	g.parser.writeil("var supprset Bitset512")
 	g.parser.writei("vm := NewVirtualMachine(")
 	g.parser.write(fmt.Sprintf("bytecodeFor%s,", g.options.ParserName))
 	g.parser.write(" map[int]int{},")
-	g.parser.write(" supprset,")
 	g.parser.write(" true")
 	g.parser.writel(")")
 	g.parser.writeil(fmt.Sprintf("return &%s{vm: vm}", g.options.ParserName))
@@ -245,14 +243,6 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel(fmt.Sprintf("func (p *%s) GetInput() []byte                      { return p.input }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[string]string) { p.vm.SetErrorLabels(el) }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.vm.showFails = v }", g.options.ParserName))
-
-	// Update the suppression map adding the address of the space rule
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetCaptureSpaces(v bool) {", g.options.ParserName))
-	g.parser.indent()
-	g.parser.writeil(fmt.Sprintf(`spcAddr := bytecodeFor%s.smap["Spacing"]`, g.options.ParserName))
-	g.parser.writeil("p.vm.supprset.Set(spcAddr)")
-	g.parser.unindent()
-	g.parser.writel("}")
 
 	// The entrypoint for parsing
 	g.parser.writel(fmt.Sprintf("func (p *%s) parseFn(addr int) (Tree, error) {", g.options.ParserName))

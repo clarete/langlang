@@ -196,7 +196,7 @@ func (t *tree) Text(id NodeID) string {
 	n := &t.nodes[id]
 
 	switch n.typ {
-	case NodeType_String, NodeType_Node:
+	case NodeType_String:
 		return string(t.input[n.start:n.end])
 
 	case NodeType_Sequence:
@@ -206,11 +206,17 @@ func (t *tree) Text(id NodeID) string {
 		}
 		return b.String()
 
+	case NodeType_Node:
+		if child, ok := t.Child(id); ok {
+			return t.Text(child)
+		}
+		return ""
+
 	case NodeType_Error:
 		if child, ok := t.Child(id); ok {
 			return t.Text(child)
 		}
-		return fmt.Sprintf("error[#%d]", t.NameID(id))
+		return fmt.Sprintf("error[%s]", t.Name(id))
 	default:
 		panic(fmt.Sprintf("Unknown node type: %T", n.typ))
 	}

@@ -1,0 +1,71 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/clarete/langlang/go/tests/langlang
+cpu: Apple M1 Max
+BenchmarkParser
+BenchmarkParser/Grammar_csv
+BenchmarkParser/Grammar_csv-10         	  176109	     12624 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189831	     12850 ns/op	   5.06 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189571	     12634 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189853	     12763 ns/op	   5.09 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  188085	     12860 ns/op	   5.05 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189742	     12638 ns/op	   5.14 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189482	     12624 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189704	     12617 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  190120	     12614 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189730	     12623 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189692	     12619 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  189698	     12671 ns/op	   5.13 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  190011	     12623 ns/op	   5.15 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  190076	     12734 ns/op	   5.10 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_csv-10         	  176596	     12842 ns/op	   5.06 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json
+BenchmarkParser/Grammar_json-10        	   22143	    107757 ns/op	   9.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22258	    107756 ns/op	   9.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22261	    107735 ns/op	   9.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22248	    107717 ns/op	   9.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22267	    107744 ns/op	   9.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   21541	    107865 ns/op	   9.45 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22179	    107771 ns/op	   9.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22284	    108709 ns/op	   9.37 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22236	    107774 ns/op	   9.45 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22240	    107799 ns/op	   9.45 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22278	    107781 ns/op	   9.45 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22243	    107730 ns/op	   9.46 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22266	    108223 ns/op	   9.42 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22208	    107900 ns/op	   9.44 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_json-10        	   22243	    108675 ns/op	   9.38 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg
+BenchmarkParser/Grammar_peg-10         	   15064	    158992 ns/op	  12.95 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   14992	    159762 ns/op	  12.89 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15074	    161752 ns/op	  12.73 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15062	    159117 ns/op	  12.94 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15066	    159024 ns/op	  12.95 MB/s	       1 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   14970	    159411 ns/op	  12.92 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15033	    159448 ns/op	  12.91 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15030	    159410 ns/op	  12.92 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15039	    161406 ns/op	  12.76 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15038	    159458 ns/op	  12.91 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   14696	    159300 ns/op	  12.93 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15026	    161102 ns/op	  12.78 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15056	    159128 ns/op	  12.94 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15074	    159044 ns/op	  12.95 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_peg-10         	   15068	    159199 ns/op	  12.93 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang
+BenchmarkParser/Grammar_langlang-10    	   13131	    182421 ns/op	  11.62 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13098	    182472 ns/op	  11.61 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13137	    182436 ns/op	  11.62 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13130	    182620 ns/op	  11.60 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13142	    182586 ns/op	  11.61 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13137	    182419 ns/op	  11.62 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   12871	    182579 ns/op	  11.61 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13129	    183706 ns/op	  11.53 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13130	    182417 ns/op	  11.62 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13118	    183024 ns/op	  11.58 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13110	    182817 ns/op	  11.59 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13074	    184073 ns/op	  11.51 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13123	    182401 ns/op	  11.62 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13128	    182584 ns/op	  11.61 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParser/Grammar_langlang-10    	   13126	    182392 ns/op	  11.62 MB/s	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/clarete/langlang/go/tests/langlang	214.463s

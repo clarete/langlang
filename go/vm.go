@@ -50,41 +50,36 @@ const expectedLimit = 20
 type expectedInfo struct {
 	cur int
 	arr [expectedLimit]expected
-	set map[expected]struct{}
 }
 
 func newExpectedInfo() expectedInfo {
-	return expectedInfo{
-		set: make(map[expected]struct{}, expectedLimit),
-	}
+	return expectedInfo{}
 }
 
+// add a new `expected` entry to the `expectedInfo` array.  Since the
+// statically allocated array's N is ≤20, a linear scan is faster than
+// map hashing.
 func (e *expectedInfo) add(s expected) {
 	if e.cur == expectedLimit {
 		return
 	}
-	if _, skip := skipFromFFPUpdate[s]; skip {
-		return
+	if s.b == 0 {
+		switch s.a {
+		case 0, ' ', '\n', '\r', '\t':
+			return
+		}
 	}
-	if _, skip := e.set[s]; skip {
-		return
+	for i := 0; i < e.cur; i++ {
+		if e.arr[i] == s {
+			return
+		}
 	}
-	e.set[s] = struct{}{}
 	e.arr[e.cur] = s
 	e.cur++
 }
 
-var skipFromFFPUpdate = map[expected]struct{}{
-	{}:        {},
-	{a: ' '}:  {},
-	{a: '\n'}: {},
-	{a: '\r'}: {},
-	{a: '\t'}: {},
-}
-
 func (e *expectedInfo) clear() {
 	e.cur = 0
-	clear(e.set)
 }
 
 type virtualMachine struct {
@@ -208,7 +203,7 @@ func NewVirtualMachine(
 ) *virtualMachine {
 	tree := newTree()
 	tree.bindStrings(bytecode.strs)
-	return &virtualMachine{
+	vm := &virtualMachine{
 		stack: &stack{
 			frames: make([]frame, 0, 256),
 			nodes:  make([]NodeID, 0, 256),
@@ -219,6 +214,11 @@ func NewVirtualMachine(
 		showFails: showFails,
 		ffp:       -1,
 	}
+	if showFails {
+		ei := newExpectedInfo()
+		vm.expected = &ei
+	}
+	return vm
 }
 
 func (vm *virtualMachine) SetErrorLabels(labels map[int]int) {
@@ -494,13 +494,8 @@ func (vm *virtualMachine) reset() {
 	vm.stack.tree.reset()
 	vm.ffp = -1
 
-	if vm.showFails {
-		if vm.expected == nil {
-			ei := newExpectedInfo()
-			vm.expected = &ei
-		} else {
-			vm.expected.clear()
-		}
+	if vm.showFails && vm.expected != nil {
+		vm.expected.clear()
 	}
 }
 
@@ -633,6 +628,9 @@ func (vm *virtualMachine) updateExpected(cursor int, s expected) {
 }
 
 func (vm *virtualMachine) updateSetExpected(cursor int, sid uint16) {
+	if vm.expected == nil {
+		return
+	}
 	shouldClear := cursor > vm.ffp
 	shouldAdd := cursor >= vm.ffp
 
@@ -681,7 +679,7 @@ func (vm *virtualMachine) mkErr(data []byte, errLabelID int, cursor, errCursor i
 		// Use information automatically collected by
 		// `opChar`, `opRange`, and `opAny` fail and they're not
 		// within predicates.
-		if vm.showFails && len(vm.expected.set) > 0 {
+		if vm.showFails && vm.expected != nil && vm.expected.cur > 0 {
 			message.WriteString("Expected ")
 			for i := 0; i < vm.expected.cur; i++ {
 				e := vm.expected.arr[i]

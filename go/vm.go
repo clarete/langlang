@@ -15,6 +15,27 @@ type Bytecode struct {
 	rxbs bitset512
 }
 
+func (b *Bytecode) CompileErrorLabels(labels map[string]string) map[int]int {
+	if len(labels) == 0 {
+		return nil
+	}
+	result := make(map[int]int, len(labels))
+	for label, message := range labels {
+		labelID, ok := b.smap[label]
+		if !ok {
+			continue
+		}
+		messageID, ok := b.smap[message]
+		if !ok {
+			messageID = len(b.strs)
+			b.strs = append(b.strs, message)
+			b.smap[message] = messageID
+		}
+		result[labelID] = messageID
+	}
+	return result
+}
+
 type bitset512 [8]uint64 // 64 bytes = 1 cache line
 
 func (b *bitset512) Set(id int)      { b[id>>6] |= 1 << (id & 63) }
@@ -200,24 +221,8 @@ func NewVirtualMachine(
 	}
 }
 
-// SetErrorLabels sets error label messages using string-based labels.
-// It converts the string labels to integer IDs using the bytecode's
-// string table, extending the table with new messages as needed.
-func (vm *virtualMachine) SetErrorLabels(strLabels map[string]string) {
-	for label, message := range strLabels {
-		labelID, found := vm.bytecode.smap[label]
-		if !found {
-			continue
-		}
-
-		messageID, found := vm.bytecode.smap[message]
-		if !found {
-			messageID = len(vm.bytecode.strs)
-			vm.bytecode.strs = append(vm.bytecode.strs, message)
-			vm.bytecode.smap[message] = messageID
-		}
-		vm.errLabels[labelID] = messageID
-	}
+func (vm *virtualMachine) SetErrorLabels(labels map[int]int) {
+	vm.errLabels = labels
 }
 
 func (vm *virtualMachine) Match(data []byte) (Tree, int, error) {

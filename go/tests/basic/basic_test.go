@@ -244,7 +244,7 @@ func TestAnd(t *testing.T) {
 			"#**!": "Expected EOF @ 4..5",
 		} {
 			p := newBasicParser(test)
-			p.SetLabelMessages(map[string]string{"eof": "Expected EOF"})
+			p.SetLabelMessages(LabelMessagesForParser(map[string]string{"eof": "Expected EOF"}))
 			_, err := p.ParseHashWithAnAnd()
 			require.Error(t, err)
 			assert.Equal(t, errMsg, err.Error())
@@ -282,7 +282,7 @@ func TestNot(t *testing.T) {
 			"*##*": "Expected EOF @ 4..5",
 		} {
 			p := newBasicParser(test)
-			p.SetLabelMessages(map[string]string{"eofn": "Expected EOF"})
+			p.SetLabelMessages(LabelMessagesForParser(map[string]string{"eofn": "Expected EOF"}))
 			_, err := p.ParseHashWithNot()
 			require.Error(t, err)
 			assert.Equal(t, errMsg, err.Error())

@@ -58,6 +58,11 @@ type Tree interface {
 	// is false if the tree is empty.
 	Root() (NodeID, bool)
 
+	// Visit visits all nodes in the parse tree in depth-first
+	// order.  The function `fn` is called for each node under
+	// `id`.  If `fn` returns false, the traversal is aborted.
+	Visit(id NodeID, fn func(NodeID) bool)
+
 	// Type returns the NodeType of the given node, indicating
 	// whether it is a string literal, sequence, named node, or
 	// error.

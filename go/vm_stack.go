@@ -27,14 +27,10 @@ type frame struct {
 	// ID of the capture that is being created
 	capId int
 
-	// nodesStart and nodesEnd are indices into the stack's nodeArena.
-	// This avoids per-frame slice allocations.
+	// nodesStart and nodesEnd are indices into the stack's
+	// nodeArena.  This avoids per-frame slice allocations.
 	nodesStart int
 	nodesEnd   int
-
-	// suppress is true if we should *not* keep any captures under
-	// this frame (nor any frame nested underneath it)
-	suppress bool
 }
 
 type stack struct {

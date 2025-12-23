@@ -48,14 +48,6 @@ type tree struct {
 	root        NodeID
 }
 
-func newTree() *tree {
-	return &tree{
-		nodes:       make([]node, 0, 256),
-		children:    make([]NodeID, 0, 512),
-		childRanges: make([]struct{ start, end int32 }, 0, 256),
-	}
-}
-
 func (t *tree) bindInput(input []byte)    { t.input = input }
 func (t *tree) bindStrings(strs []string) { t.strs = strs }
 func (t *tree) reset() {

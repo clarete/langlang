@@ -80,9 +80,8 @@ func readArgs() *args {
 
 func main() {
 	var (
-		a         = readArgs()
-		errLabels map[int]int
-		cfg       = langlang.NewConfig()
+		a   = readArgs()
+		cfg = langlang.NewConfig()
 	)
 
 	if *a.grammarPath == "" {
@@ -139,7 +138,8 @@ func main() {
 			}
 
 			input := []byte(text)
-			vm := langlang.NewVirtualMachine(code, errLabels, *a.showFails)
+			vm := langlang.NewVirtualMachine(code)
+			vm.SetShowFails(*a.showFails)
 			tree, _, err := vm.Match(input)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
@@ -160,7 +160,8 @@ func main() {
 			log.Fatalf("Can't open input file: %s", err.Error())
 		}
 		code := langlang.Encode(asm)
-		vm := langlang.NewVirtualMachine(code, errLabels, *a.showFails)
+		vm := langlang.NewVirtualMachine(code)
+		vm.SetShowFails(*a.showFails)
 		tree, _, err := vm.Match(text)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())

@@ -79,7 +79,7 @@ type GrammarParserBootstrap struct {
 }
 
 func NewGrammarParserBootstrap() *GrammarParserBootstrap {
-	vm := NewVirtualMachine(bytecodeForGrammarParserBootstrap, nil, true)
+	vm := NewVirtualMachine(bytecodeForGrammarParserBootstrap)
 	return &GrammarParserBootstrap{vm: vm}
 }
 func (p *GrammarParserBootstrap) ParseGrammar() (Tree, error)               { return p.parseFn(5) }
@@ -102,8 +102,8 @@ func (p *GrammarParserBootstrap) ParseMissingImportSrc() (Tree, error)      { re
 func (p *GrammarParserBootstrap) Parse() (Tree, error)                      { return p.parseFn(5) }
 func (p *GrammarParserBootstrap) SetInput(input []byte)                     { p.input = input }
 func (p *GrammarParserBootstrap) GetInput() []byte                          { return p.input }
-func (p *GrammarParserBootstrap) SetLabelMessages(el map[int]int)           { p.vm.SetErrorLabels(el) }
-func (p *GrammarParserBootstrap) SetShowFails(v bool)                       { p.vm.showFails = v }
+func (p *GrammarParserBootstrap) SetLabelMessages(el map[int]int)           { p.vm.SetLabelMessages(el) }
+func (p *GrammarParserBootstrap) SetShowFails(v bool)                       { p.vm.SetShowFails(v) }
 
 func (p *GrammarParserBootstrap) parseFn(addr int) (Tree, error) {
 	val, _, err := p.vm.MatchRule(p.input, addr)

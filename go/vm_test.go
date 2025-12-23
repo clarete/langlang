@@ -18,42 +18,6 @@ type vmTest struct {
 	ExpectedCursor int
 }
 
-// convertErrLabels converts string-based error label mapping to integer-based mapping
-// using the bytecode's string table, extending it with new messages as needed
-func convertErrLabels(strLabels map[string]string, code *Bytecode) map[int]int {
-	if strLabels == nil {
-		return nil
-	}
-
-	intLabels := make(map[int]int)
-	for label, message := range strLabels {
-		// Find the label ID in the string table
-		labelID := -1
-		messageID := -1
-
-		for i, s := range code.strs {
-			if s == label {
-				labelID = i
-			}
-			if s == message {
-				messageID = i
-			}
-		}
-
-		// If we found the label but not the message, add the message to the table
-		if labelID >= 0 {
-			if messageID < 0 {
-				// Message not in string table, so add it
-				messageID = len(code.strs)
-				code.strs = append(code.strs, message)
-			}
-			intLabels[labelID] = messageID
-		}
-	}
-
-	return intLabels
-}
-
 func TestVM(t *testing.T) {
 	t.Run("I guess I will just die", func(t *testing.T) {
 		bytecode := Encode(&Program{code: []Instruction{
@@ -61,7 +25,8 @@ func TestVM(t *testing.T) {
 		}})
 		assert.Equal(t, uint8(0), bytecode.code[0])
 
-		vm := NewVirtualMachine(bytecode, nil, true)
+		vm := NewVirtualMachine(bytecode)
+		vm.SetShowFails(true)
 
 		input := []byte("")
 
@@ -407,14 +372,15 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		input := []byte(test.Input)
 
 		// Convert string-based error labels to int-based
-		errLabels := convertErrLabels(test.ErrLabels, code)
+		errLabels := code.CompileErrorLabels(test.ErrLabels)
 
 		// Notice `showFails` is marked as false because `ClassNode`
 		// and `CharsetNode` will generate different ordered choices.
 		// The `ClassNode` variant generates a slice in the order it
 		// was declared in the grammar.  The `CharsetNode` will use
 		// the ascii table ordering.
-		vm := NewVirtualMachine(code, errLabels, false)
+		vm := NewVirtualMachine(code)
+		vm.SetLabelMessages(errLabels)
 		tree, cur, err := vm.Match(input)
 
 		// The cursor should be right for both error and

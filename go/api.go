@@ -124,7 +124,9 @@ func MatcherFromBytes(input []byte, cfg *Config) (Matcher, error) {
 		return nil, err
 	}
 	code := Encode(asm)
-	return NewVirtualMachine(code, nil, true), nil
+	vm := NewVirtualMachine(code)
+	vm.SetShowFails(cfg.GetBool("vm.show_fails"))
+	return vm, nil
 }
 
 // MatcherFromFile creates a Matcher from a PEG grammar file at the
@@ -149,5 +151,7 @@ func MatcherFromFile(path string, cfg *Config) (Matcher, error) {
 		return nil, err
 	}
 	code := Encode(asm)
-	return NewVirtualMachine(code, nil, true), nil
+	vm := NewVirtualMachine(code)
+	vm.SetShowFails(cfg.GetBool("vm.show_fails"))
+	return vm, nil
 }

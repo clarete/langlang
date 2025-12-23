@@ -203,8 +203,6 @@ func (g *goEvalEmitter) writeParserConstructor() {
 
 	g.parser.writei("vm := NewVirtualMachine(")
 	g.parser.write(fmt.Sprintf("bytecodeFor%s,", g.options.ParserName))
-	g.parser.write(" nil,")
-	g.parser.write(" true")
 	g.parser.writel(")")
 	g.parser.writeil(fmt.Sprintf("return &%s{vm: vm}", g.options.ParserName))
 
@@ -241,8 +239,8 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	g.parser.writel(fmt.Sprintf("func (p *%s) Parse() (Tree, error)                  { return p.parseFn(5) }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) SetInput(input []byte)                 { p.input = input }", g.options.ParserName))
 	g.parser.writel(fmt.Sprintf("func (p *%s) GetInput() []byte                      { return p.input }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[int]int)       { p.vm.SetErrorLabels(el) }", g.options.ParserName))
-	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.vm.showFails = v }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetLabelMessages(el map[int]int)       { p.vm.SetLabelMessages(el) }", g.options.ParserName))
+	g.parser.writel(fmt.Sprintf("func (p *%s) SetShowFails(v bool)                   { p.vm.SetShowFails(v) }", g.options.ParserName))
 	g.parser.writel("")
 
 	if !g.options.RemoveLib {

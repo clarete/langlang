@@ -33,6 +33,9 @@ func NewConfig() *Config {
 	// - And emits back-commit
 	// - Not emits fail-twice
 	m.SetInt("compiler.optimize", 1)
+	// collect and show characters that failed to match the
+	// current input position
+	m.SetBool("vm.show_fails", true)
 	return &m
 }
 

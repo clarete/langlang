@@ -1,6 +1,6 @@
 package langlang
 
-type frameType int
+type frameType int8
 
 const (
 	frameType_Backtracking frameType = iota
@@ -9,28 +9,31 @@ const (
 )
 
 type frame struct {
-	t frameType
+	// cursor is used in `frameType_{Backtracking,Capture}` and
+	// stores the position of the parser cursor
+	cursor int // 8 bytes, offset 0-7
 
 	// pc is used in both `frameType_{Backtracking,Call}` and
 	// stores the program counter index
-	pc int
-
-	// cursor is used in `frameType_{Backtracking,Capture}` and
-	// stores the position of the parser cursor
-	cursor int
-
-	// predicate is a flag that marks the current stack frame as a
-	// frame created within the predicate Not.
-	predicate bool
+	pc uint32 // 4 bytes, offset 8-11
 
 	// capId is used in `frameType_Capture` and stores the string
 	// ID of the capture that is being created
-	capId int
+	capId uint32 // 4 bytes, offset 12-15
 
 	// nodesStart and nodesEnd are indices into the stack's
 	// nodeArena.  This avoids per-frame slice allocations.
-	nodesStart int
-	nodesEnd   int
+	nodesStart uint32 // 4 bytes, offset 16-19
+	nodesEnd   uint32 // 4 bytes, offset 20-23
+
+	// t is the type of the frame
+	t frameType // 1 byte, offset 24
+
+	// predicate is a flag that marks the current stack frame as a
+	// frame created within the predicate Not.
+	predicate bool // 1 byte, offset 25
+
+	// implicitly padding: 6 bytes, offset 26-32
 }
 
 type stack struct {
@@ -43,7 +46,7 @@ type stack struct {
 // push adds a frame to the stack. The frame's node range starts at
 // the current arena position.
 func (s *stack) push(f frame) {
-	f.nodesStart = len(s.nodeArena)
+	f.nodesStart = uint32(len(s.nodeArena))
 	f.nodesEnd = f.nodesStart
 	s.frames = append(s.frames, f)
 }
@@ -57,10 +60,6 @@ func (s *stack) pop() frame {
 
 func (s *stack) top() *frame {
 	return &s.frames[len(s.frames)-1]
-}
-
-func (s *stack) peek(n int) *frame {
-	return &s.frames[len(s.frames)-n-1]
 }
 
 func (s *stack) len() int {
@@ -81,7 +80,7 @@ func (s *stack) capture(nodes ...NodeID) {
 	if n > 0 {
 		// Append to arena and update top frame's end index
 		s.nodeArena = append(s.nodeArena, nodes...)
-		s.frames[n-1].nodesEnd = len(s.nodeArena)
+		s.frames[n-1].nodesEnd = uint32(len(s.nodeArena))
 		return
 	}
 	s.nodes = append(s.nodes, nodes...)
@@ -91,7 +90,7 @@ func (s *stack) capture(nodes ...NodeID) {
 // to its parent by extending the parent's range.  Called AFTER pop,
 // so current top is the parent.  `childStart` and `childEnd` are the
 // arena indices from the popped frame.
-func (s *stack) commitCapturesToParent(childStart, childEnd int) {
+func (s *stack) commitCapturesToParent(childStart, childEnd uint32) {
 	if childStart == childEnd {
 		// No captures to commit
 		return
@@ -127,7 +126,7 @@ func (s *stack) collectCaptures() {
 
 // truncateArena resets the arena to a given position, used when
 // discarding captures on backtrack or fail.
-func (s *stack) truncateArena(pos int) {
+func (s *stack) truncateArena(pos uint32) {
 	s.nodeArena = s.nodeArena[:pos]
 }
 

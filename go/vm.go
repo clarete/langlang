@@ -199,9 +199,10 @@ func NewVirtualMachine(bytecode *Bytecode) *virtualMachine {
 		childRanges: make([]struct{ start, end int32 }, 0, 256),
 	}
 	stk := &stack{
-		frames: make([]frame, 0, 256),
-		nodes:  make([]NodeID, 0, 256),
-		tree:   tr,
+		frames:    make([]frame, 0, 256),
+		nodes:     make([]NodeID, 0, 256),
+		nodeArena: make([]NodeID, 0, 256),
+		tree:      tr,
 	}
 	stk.tree.bindStrings(bytecode.strs)
 	vm := &virtualMachine{stack: stk, bytecode: bytecode, ffp: -1}
@@ -365,7 +366,7 @@ code:
 
 		case opReturn:
 			f := vm.stack.pop()
-			pc = f.pc
+			pc = int(f.pc)
 
 		case opJump:
 			pc = int(decodeU16(code, pc+1))
@@ -442,13 +443,13 @@ code:
 			vm.stack.collectCaptures()
 			// Reset this frame's capture range for the
 			// next iteration
-			top.nodesStart = len(vm.stack.nodeArena)
+			top.nodesStart = uint32(len(vm.stack.nodeArena))
 			top.nodesEnd = top.nodesStart
 
 		case opCapReturn:
 			f := vm.stack.pop()
 			vm.stack.commitCapturesToParent(f.nodesStart, f.nodesEnd)
-			pc = f.pc
+			pc = int(f.pc)
 
 		default:
 			panic("NO ENTIENDO SENOR")
@@ -464,17 +465,15 @@ fail:
 
 	for vm.stack.len() > 0 {
 		f := vm.stack.pop()
+
 		vm.stack.truncateArena(f.nodesStart)
-		switch {
-		case f.t == frameType_Backtracking:
-			pc = f.pc
+
+		if f.t == frameType_Backtracking {
+			pc = int(f.pc)
 			vm.predicate = f.predicate
 			cursor = f.cursor
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", cursor, pc))
 			goto code
-
-		case f.t == frameType_Call:
-			goto fail
 		}
 	}
 
@@ -500,7 +499,7 @@ func (vm *virtualMachine) reset() {
 func mkBacktrackFrame(pc, cursor int) frame {
 	return frame{
 		t:      frameType_Backtracking,
-		pc:     pc,
+		pc:     uint32(pc),
 		cursor: cursor,
 	}
 }
@@ -514,13 +513,13 @@ func mkBacktrackPredFrame(pc, cursor int) frame {
 func (vm *virtualMachine) mkCaptureFrame(id, cursor int) frame {
 	return frame{
 		t:      frameType_Capture,
-		capId:  id,
+		capId:  uint32(id),
 		cursor: cursor,
 	}
 }
 
 func (vm *virtualMachine) mkCallFrame(pc int) frame {
-	return frame{t: frameType_Call, pc: pc}
+	return frame{t: frameType_Call, pc: uint32(pc)}
 }
 
 // Node Capture Helpers
@@ -546,7 +545,7 @@ func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
 	var (
 		nodeID  NodeID
 		hasNode = false
-		isrxp   = vm.bytecode.rxbs.Has(f.capId)
+		isrxp   = vm.bytecode.rxbs.Has(int(f.capId))
 		capId   = int32(f.capId)
 		start   = f.cursor
 		end     = cursor
@@ -574,9 +573,9 @@ func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
 	// need to wrap the captured node (even if it is invalid) around
 	// an Error.
 	if isrxp {
-		msgID, ok := vm.errLabels[f.capId]
+		msgID, ok := vm.errLabels[int(f.capId)]
 		if !ok {
-			msgID = f.capId
+			msgID = int(f.capId)
 		}
 		var errNode NodeID
 		if hasNode {

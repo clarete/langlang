@@ -145,6 +145,22 @@ const XML_UNSTABLE_INPUT = `<?xml version="1.0" encoding="UTF-8"?>
   <body>Don't forget me this weekend!</body>
 </note>`
 
+const PROTO_CIRC_GRAMMAR = `Circ     <- Text* !.
+Text     <- Circuit / Expr
+
+Expr     <- Multi (( '+' / '-' ) Multi)*
+Multi    <- Primary (( '*' / '/' ) Primary)*
+Primary  <- Call / Attr / Port / Id / Num / '(' Expr ')'
+
+Attr     <- Id '.'  (Call / Id / Attr)
+Circuit   <- Id '=' Expr
+Call     <- Id '(' Params ')'
+Params   <- (Expr (',' Expr)*)?
+Port  <- Id '[' Num ']'
+
+Num      <- [1-9][0-9]* / '0'
+Id       <- [a-zA-Z_][a-zA-Z0-9_]*`;
+
 export default {
     demo: {
         grammar: TINY_GRAMMAR,
@@ -169,5 +185,9 @@ export default {
     langlang: {
         grammar: LANGLANG_GRAMMAR,
         input: LANGLANG_GRAMMAR
+    },
+    protoCirc: {
+        grammar: PROTO_CIRC_GRAMMAR,
+        input: '',
     }
 } as const;

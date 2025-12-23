@@ -27,6 +27,7 @@ import {
 import TreeExplorer from "./components/TreeExplorer";
 import SplitView from "./components/SplitView";
 import { Editor, type EditorProps } from "@monaco-editor/react";
+import { compileZig } from "./circ/compiler";
 
 function App() {
 	const [result, setResult] = useState<LangLangValue | null>(null);
@@ -74,7 +75,7 @@ function App() {
 			<>
 				<TopBar>
 					<select
-						defaultValue="json"
+						defaultValue="protoCirc"
 						onChange={(e) =>
 							handleGrammarChange(e.target.value as keyof typeof fixtures)
 						}
@@ -85,6 +86,7 @@ function App() {
 						<option value="csv">CSV</option>
 						<option value="langlang">LangLang</option>
 						<option value="xmlUnstable">XML Unstable</option>
+						<option value="protoCirc">Proto Circ</option>
 					</select>
 					<div style={{ gridColumn: "span 2" }}>
 						<SendButton
@@ -142,10 +144,7 @@ function App() {
 								}
 								bottom={
 									<ResponseContainer>
-										<ResponseArea
-											value={JSON.stringify(result, null, 2)}
-											rows={30}
-										/>
+										<ResponseArea value={compileZig(result)} rows={30} />
 									</ResponseContainer>
 								}
 							/>

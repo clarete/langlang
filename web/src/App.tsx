@@ -32,8 +32,8 @@ import { compileZig } from "./circ/compiler";
 function App() {
 	const [result, setResult] = useState<LangLangValue | null>(null);
 
-	const [grammarText, setGrammarText] = useState<string>(fixtures.json.grammar);
-	const [inputText, setInputText] = useState<string>(fixtures.json.input);
+	const [grammarText, setGrammarText] = useState<string>(fixtures.protoCirc.grammar);
+	const [inputText, setInputText] = useState<string>(fixtures.protoCirc.input);
 
 	if (!wasmUrl) {
 		throw new Error("WASM URL is not set");

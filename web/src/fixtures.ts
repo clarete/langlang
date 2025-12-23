@@ -145,7 +145,7 @@ const XML_UNSTABLE_INPUT = `<?xml version="1.0" encoding="UTF-8"?>
   <body>Don't forget me this weekend!</body>
 </note>`
 
-const PROTO_CIRC_GRAMMAR = `Circ     <- Text* !.
+const PROTO_CIRC_GRAMMAR = `Program     <- Text* !.
 Text     <- Circuit / Expr
 
 Expr     <- Multi (( '+' / '-' ) Multi)*
@@ -160,6 +160,14 @@ Port  <- Id '[' Num ']'
 
 Num      <- [1-9][0-9]* / '0'
 Id       <- [a-zA-Z_][a-zA-Z0-9_]*`;
+
+const PROTO_CIRC_GRAMMAR_INPUT_1 = `pin1 = std.pin
+not1 = std.not
+led1 = std.led
+
+connect(pin1[0], not1[0])
+connect(not1[1], led1[0])
+`
 
 export default {
     demo: {
@@ -188,6 +196,7 @@ export default {
     },
     protoCirc: {
         grammar: PROTO_CIRC_GRAMMAR,
-        input: '',
+        input: PROTO_CIRC_GRAMMAR_INPUT_1,
     }
+    
 } as const;

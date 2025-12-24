@@ -3,6 +3,7 @@ target/
 _/
 *.o
 
+
 # go implementation
 go/examples/tiny/tiny.go
 go/tests/basic/basic.go
@@ -19,3 +20,9 @@ go/tests/langlang/langlang.nocap.go
 go/tests/recovery/recovery.go
 go/*.test
 go/benches/go/**/*.out
+
+# c stuff
+*.o
+go/examples/c/test
+go/examples/c/parser.c
+go/examples/c/parser.h

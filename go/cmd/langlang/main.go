@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/clarete/langlang/go"
+	langlang "github.com/clarete/langlang/go"
 )
 
 type args struct {
@@ -35,6 +35,10 @@ type args struct {
 	goOptPackage   *string
 	goOptParser    *string
 	goOptRemoveLib *bool
+
+	cOptParser     *string
+	cOptRemoveLib  *bool
+	cOptHeaderPath *string
 }
 
 func readArgs() *args {
@@ -71,6 +75,12 @@ func readArgs() *args {
 		goOptPackage:   flag.String("go-package", "parser", "Name of the go package in the generated parser"),
 		goOptParser:    flag.String("go-parser", "Parser", "Name of the go struct of the generated parser"),
 		goOptRemoveLib: flag.Bool("go-remove-lib", false, "Include lib in the output parser"),
+
+		// options specific to the C generator
+
+		cOptParser:     flag.String("c-parser", "Parser", "Name of the generated C parser type/prefix"),
+		cOptRemoveLib:  flag.Bool("c-remove-lib", false, "Remove the embedded runtime from the generated C output (not supported yet)"),
+		cOptHeaderPath: flag.String("c-header-path", "", "Path to write the generated C header (defaults to <output-path>.h)"),
 	}
 
 	flag.Parse()
@@ -186,6 +196,22 @@ func main() {
 			ParserName:  *a.goOptParser,
 			RemoveLib:   *a.goOptRemoveLib,
 		})
+
+	case "c":
+		var headerData string
+		outputData, headerData, err = langlang.GenCEvalWithHeader(asm, langlang.GenCOptions{
+			ParserName: *a.cOptParser,
+			RemoveLib:  *a.cOptRemoveLib,
+		})
+		if err == nil {
+			headerPath := *a.cOptHeaderPath
+			if headerPath == "" {
+				headerPath = *a.outputPath + ".h"
+			}
+			if werr := os.WriteFile(headerPath, []byte(headerData), 0644); werr != nil {
+				log.Fatalf("Can't write C header: %s", werr.Error())
+			}
+		}
 
 	// case "python":
 	// 	outputData, err = langlang.GenParserPython(ast)

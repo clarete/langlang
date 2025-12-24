@@ -24,7 +24,7 @@
         6.  [Import system](#import-system)
 3.  [Roadmap](#roadmap)
 4.  [Changelog](#changelog)
-    1.  [go/v0.0.11 (unreleased)](#gov0011-unreleased)
+    1.  [go/v0.0.11](#gov0011)
     2.  [go/v0.0.10](#gov0010)
     3.  [go/v0.0.9](#gov009)
     4.  [go/v0.0.8](#gov008)
@@ -558,10 +558,12 @@ be used in other grammars using imports.  Behind the scenes, the
 # Changelog
 
 
-<a id="gov0011-unreleased"></a>
+<a id="gov0011"></a>
 
-## go/v0.0.11 (unreleased)
+## go/v0.0.11
 
+-   [PERF: Use replace map with slice for expectedInfo](https://github.com/clarete/langlang/commit/e14c67f6312168595126d8363ce960a167d6b90f)
+-   [PERF[BREAKING]: Pre-compile error labels to make parser creation cheaper](https://github.com/clarete/langlang/commit/0386254902c1d838bf69ac7e59b173755abf1810)
 -   [PERF[BREAKING]: Change Capture Tree design to a Struct of Arrays](https://github.com/clarete/langlang/commit/e2dff9dd8fdab1c380be5c575da95c5b98c9e674)
 -   [FEAT/PERF[BREAKING]: Remove runtime suppression of rule captures](https://github.com/clarete/langlang/commit/16351891a52cc2b7be3265e9e835ff08151d3adb)
 -   [PERF: Replace map lookup with bitset for recovery expr check](https://github.com/clarete/langlang/commit/a660bae4f4f476b2513a56e8818b37f7399e637d)

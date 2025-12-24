@@ -17,3 +17,4 @@ go/tests/langlang/langlang.go
 go/tests/langlang/langlang.nocap.go
 go/tests/recovery/recovery.go
 go/*.test
+go/benches/go/**/*.out

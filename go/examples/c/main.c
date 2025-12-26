@@ -19,6 +19,7 @@ int main() {
   if (!t) {
     fprintf(stderr, "parse error: %s\n", err.message);
     ll_parsing_error_free(&err);
+    Parser_Delete(p);
     return 1;
   }
 

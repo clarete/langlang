@@ -4,10 +4,12 @@ OBJECTS = parser.o main.o
 
 GRAMMAR = ../../../grammars/langlang.peg
 
+CFLAGS = -g
+
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(OBJECTS) -o $@
+	$(CC) -g $(OBJECTS) -o $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -16,10 +18,9 @@ parser.c:
 	go run ../../cmd/langlang	\
 		-grammar $(GRAMMAR)	\
 		-output-language c	\
-		-output-path ./parser.c \
-		-c-header-path ./parser.h
+		-output-path ./parser.c
 
-clean: $(TARGET) $(OBJECTS) parser.c parser.h
-	rm -r $^
+clean:
+	rm -f $(TARGET) $(OBJECTS) parser.c parser.h
 
 .PHONY: clean

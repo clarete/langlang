@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
-	langlang "github.com/clarete/langlang/go"
+	"github.com/clarete/langlang/go"
 )
 
 type args struct {
@@ -198,16 +199,21 @@ func main() {
 		})
 
 	case "c":
-		var headerData string
+		var (
+			headerData string
+			headerPath = *a.cOptHeaderPath
+		)
+		if headerPath == "" {
+			path := *a.outputPath
+			extension := filepath.Ext(path)
+			headerPath = path[:len(path)-len(extension)] + ".h"
+		}
 		outputData, headerData, err = langlang.GenCEvalWithHeader(asm, langlang.GenCOptions{
+			HeaderPath: headerPath,
 			ParserName: *a.cOptParser,
 			RemoveLib:  *a.cOptRemoveLib,
 		})
 		if err == nil {
-			headerPath := *a.cOptHeaderPath
-			if headerPath == "" {
-				headerPath = *a.outputPath + ".h"
-			}
 			if werr := os.WriteFile(headerPath, []byte(headerData), 0644); werr != nil {
 				log.Fatalf("Can't write C header: %s", werr.Error())
 			}

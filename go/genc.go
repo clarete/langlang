@@ -9,18 +9,13 @@ import (
 	"unicode"
 )
 
-//go:embed c/vm.c
+//go:embed c/vm.c c/vm.h c/tree.c c/tree.h
 var cEvalContent embed.FS
 
 type GenCOptions struct {
-	// ParserName is used as the C type/prefix for emitted functions.
-	// Example: "Parser" emits `typedef struct Parser { ... } Parser;`
 	ParserName string
-
-	// RemoveLib controls whether the generated output includes the C VM runtime.
-	// If false (default), the generated file is standalone (it embeds vm.c).
-	// If true, it expects you to provide the runtime separately (NOT implemented yet).
-	RemoveLib bool
+	HeaderPath string
+	RemoveLib  bool
 }
 
 func GenCEval(asm *Program, opt GenCOptions) (string, error) {
@@ -85,26 +80,31 @@ func (g *cEvalEmitter) writePrelude() {
 	g.out.writel("/*")
 	g.out.writel(" * Auto-generated C parser by langlang.")
 	g.out.writel(" *")
-	g.out.writel(" * This file embeds the VM runtime (vm.c) unless RemoveLib=true.")
+	g.out.writel(" * This file embeds the runtime unless RemoveLib=true.")
 	g.out.writel(" */")
+	g.out.writel("")
+	g.out.writel(fmt.Sprintf(`#include "%s"`, g.options.HeaderPath))
+	g.out.writel("")
+	g.out.writel("/* This tells the embedded runtime sources (c/vm.c, c/tree.c) to not include headers. */")
+	g.out.writel("#define LANGLANG_EMBEDDED 1")
 	g.out.writel("")
 }
 
 func (g *cEvalEmitter) writeRuntime() {
 	if g.options.RemoveLib {
-		// We don't have a stable vm.h yet. Keep it explicit so users get a clear error.
-		g.out.writel("#error \"GenCEval(RemoveLib=true) is not supported yet; it needs a vm.h runtime header.\"")
-		g.out.writel("")
 		return
 	}
-	data, err := cEvalContent.ReadFile("c/vm.c")
-	if err != nil {
-		panic(err.Error())
+	for _, file := range []string{"c/vm.c", "c/tree.c"} {
+		data, err := cEvalContent.ReadFile(file)
+		if err != nil {
+			panic(err.Error())
+		}
+		g.out.writel(fmt.Sprintf("/* ---- BEGIN embedded runtime: %s ---- */", file))
+		g.out.writel(string(data))
+		g.out.writel(fmt.Sprintf("/* ---- END embedded runtime: %s ---- */", file))
+		g.out.writel("")
 	}
-	g.out.writel("/* ---- BEGIN embedded runtime: vm.c ---- */")
-	g.out.writel(string(data))
-	g.out.writel("/* ---- END embedded runtime: vm.c ---- */")
-	g.out.writel("")
+
 	g.out.writel("/* ---- BEGIN generated parser ---- */")
 	g.out.writel("")
 }
@@ -115,7 +115,7 @@ func (g *cEvalEmitter) writeParserProgram(bt *Bytecode) {
 	// Bytecode arrays
 	g.out.writel("/* Bytecode for generated parser */")
 
-	g.out.writeil("static const uint8_t bytecode_code[] = {")
+	g.out.writeil(fmt.Sprintf("static const uint8_t %s_bytecode_code[] = {", pn))
 	g.out.indent()
 	g.out.writei("")
 	for i, b := range bt.code {
@@ -131,18 +131,16 @@ func (g *cEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.out.writel("};")
 	g.out.writel("")
 
-	g.out.writeil("static const char *bytecode_strs[] = {")
+	g.out.writeil(fmt.Sprintf("static const char *%s_bytecode_strs[] = {", pn))
 	g.out.indent()
 	for _, s := range bt.strs {
-		// escapeLiteral is close enough for C string literals for our purposes
-		// (\", \\, \n, \r, \t).
 		g.out.writeil(fmt.Sprintf("\"%s\",", escapeLiteral(s)))
 	}
 	g.out.unindent()
 	g.out.writel("};")
 	g.out.writel("")
 
-	g.out.writeil("static const ll_charset bytecode_sets[] = {")
+	g.out.writeil(fmt.Sprintf("static const ll_charset %s_bytecode_sets[] = {", pn))
 	g.out.indent()
 	for _, set := range bt.sets {
 		g.out.writei("{ .bits = {")
@@ -155,32 +153,23 @@ func (g *cEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.out.writel("};")
 	g.out.writel("")
 
+	g.out.writeil(fmt.Sprintf("static const ll_bytecode %s_bytecode = {", pn))
+	g.out.indent()
+	g.out.writeil(fmt.Sprintf(".code = (uint8_t *)&%s_bytecode_code,", pn))
+	g.out.writeil(fmt.Sprintf(".code_len = %d,", len(bt.code)))
+	g.out.writeil(fmt.Sprintf(".strs = (const char **)&%s_bytecode_strs,", pn))
+	g.out.writeil(fmt.Sprintf(".strs_len = %d,", len(bt.strs)))
+	g.out.writeil(fmt.Sprintf(".sets = (ll_charset *)&%s_bytecode_sets,", pn))
+	g.out.writeil(fmt.Sprintf(".sets_len = %d,", len(bt.sets)))
+	g.out.unindent()
+	g.out.writeil("};")
+	g.out.writel("")
+
 	// Init function (heap-owns code/strs pointer-array/sets so ll_bytecode_free is safe)
 	g.out.writeil(fmt.Sprintf("static void init_bytecode_for_%s(ll_bytecode *bc) {", pn))
 	g.out.indent()
-	g.out.writeil("ll_bytecode_init(bc);")
-	g.out.writel("")
-
-	g.out.writeil("/* Own a heap copy of code so ll_bytecode_free() is safe. */")
-	g.out.writeil("bc->code_len = (int)sizeof(bytecode_code);")
-	g.out.writeil("bc->code = (uint8_t *)malloc(sizeof(bytecode_code));")
-	g.out.writeil("if (!bc->code) { fprintf(stderr, \"out of memory\\n\"); abort(); }")
-	g.out.writeil("memcpy(bc->code, bytecode_code, sizeof(bytecode_code));")
-	g.out.writel("")
-
-	g.out.writeil("/* Own a heap copy of the strings pointer table. */")
-	g.out.writeil("bc->strs_len = (int)(sizeof(bytecode_strs)/sizeof(bytecode_strs[0]));")
-	g.out.writeil("bc->strs = (const char **)malloc(sizeof(bytecode_strs));")
-	g.out.writeil("if (!bc->strs) { fprintf(stderr, \"out of memory\\n\"); abort(); }")
-	g.out.writeil("memcpy((void *)bc->strs, (const void *)bytecode_strs, sizeof(bytecode_strs));")
-	g.out.writel("")
-
-	g.out.writeil("/* Own a heap copy of sets. */")
-	g.out.writeil("bc->sets_len = (int)(sizeof(bytecode_sets)/sizeof(bytecode_sets[0]));")
-	g.out.writeil("bc->sets = (ll_charset *)malloc(sizeof(bytecode_sets));")
-	g.out.writeil("if (!bc->sets) { fprintf(stderr, \"out of memory\\n\"); abort(); }")
-	g.out.writeil("memcpy(bc->sets, bytecode_sets, sizeof(bytecode_sets));")
-	g.out.writel("")
+	// g.out.writeil("ll_bytecode_init(bc);")
+	// g.out.writel("")
 
 	// rxps
 	xps := make([]int, 0, len(bt.rxps))
@@ -216,7 +205,7 @@ func (g *cEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.out.writel("")
 
 	g.out.writeil("/* Precompute expected sets for show-fails. */")
-	g.out.writeil("ll_bytecode_build_expected_sets(bc);")
+	g.out.writeil("//ll_bytecode_build_expected_sets(bc);")
 	g.out.unindent()
 	g.out.writel("}")
 	g.out.writel("")
@@ -250,9 +239,12 @@ func (g *cEvalEmitter) writeParserConstructor() {
 
 	g.out.writeil(fmt.Sprintf("void %s_Init(%s *p) {", pn, pn))
 	g.out.indent()
+
+	g.out.writeil(fmt.Sprintf("ll_bytecode *bc = (ll_bytecode *)malloc(sizeof(%s_bytecode));;", pn))
+	g.out.writeil(fmt.Sprintf("memcpy(bc, (ll_bytecode*)&%s_bytecode, sizeof(%s_bytecode));", pn, pn))
+	g.out.writeil(fmt.Sprintf("init_bytecode_for_%s(bc);", pn))
 	g.out.writeil("memset(p, 0, sizeof(*p));")
-	g.out.writeil(fmt.Sprintf("init_bytecode_for_%s(&p->bc);", pn))
-	g.out.writeil("ll_vm_init(&p->vm, &p->bc);")
+	g.out.writeil("ll_vm_init(&p->vm, bc);")
 	g.out.unindent()
 	g.out.writel("}")
 	g.out.writel("")
@@ -272,7 +264,6 @@ func (g *cEvalEmitter) writeParserConstructor() {
 	g.out.writel("}")
 	g.out.writel("")
 
-	// Heap lifecycle helpers (header-friendly).
 	g.out.writeil(fmt.Sprintf("%s *%s_New(void) {", pn, pn))
 	g.out.indent()
 	g.out.writeil(fmt.Sprintf("%s *p = (%s *)malloc(sizeof(%s));", pn, pn, pn))
@@ -404,25 +395,34 @@ func (h *cEvalHeaderEmitter) writeHeader() {
 	h.out.writel("#include <stdint.h>")
 	h.out.writel("")
 
-	// Minimal tree-facing API (opaque type + a few helpers).
-	h.out.writel("typedef int32_t ll_node_id;")
-	h.out.writel("typedef struct ll_tree ll_tree;")
-	h.out.writel("")
-	h.out.writel("bool ll_tree_root(const ll_tree *t, ll_node_id *out_id);")
-	h.out.writel("char *ll_tree_pretty(const ll_tree *t, ll_node_id id);")
-	h.out.writel("char *ll_tree_text(const ll_tree *t, ll_node_id id);")
-	h.out.writel("")
+	h.out.writel("#include <stdint.h>")
 
-	// Mirror vm.c's parsing error struct (so users can consume/free error messages).
-	h.out.writel("typedef struct ll_parsing_error {")
-	h.out.writel("  char *message;")
-	h.out.writel("  char *label;")
-	h.out.writel("  int start;")
-	h.out.writel("  int end;")
-	h.out.writel("} ll_parsing_error;")
-	h.out.writel("")
-	h.out.writel("void ll_parsing_error_free(ll_parsing_error *e);")
-	h.out.writel("")
+	for _, file := range []string{"c/tree.h", "c/vm.h"} {
+		data, err := cEvalContent.ReadFile(file)
+		if err != nil {
+			panic(err.Error())
+		}
+		h.out.writel(fmt.Sprintf("/* ---- BEGIN embedded runtime: %s ---- */", file))
+		h.out.writel(string(data))
+		h.out.writel(fmt.Sprintf("/* ---- END embedded runtime: %s ---- */", file))
+		h.out.writel("")
+	}
+
+	// // Minimal tree-facing API (opaque type + a few helpers).
+	// h.out.writel("typedef int32_t ll_node_id;")
+	// h.out.writel("typedef struct ll_tree ll_tree;")
+	// h.out.writel("")
+	// h.out.writel("void ll_tree_free(ll_tree *t);")
+	// h.out.writel("bool ll_tree_root(const ll_tree *t, ll_node_id *out_id);")
+	// h.out.writel("char *ll_tree_name(const ll_tree *t, ll_node_id id);")
+	// h.out.writel("char *ll_tree_pretty(const ll_tree *t, ll_node_id id);")
+	// h.out.writel("char *ll_tree_highlight(const ll_tree *t, ll_node_id id);")
+	// h.out.writel("char *ll_tree_text(const ll_tree *t, ll_node_id id);")
+	// h.out.writel("ll_range ll_tree_range(const ll_tree *t, ll_node_id id);")
+	// h.out.writel("")
+
+	// // Mirror vm.c's parsing error struct (so users can consume/free error messages).
+	// h.out.writel("")
 
 	// Opaque parser type.
 	h.out.writel(fmt.Sprintf("typedef struct %s %s;", pn, pn))

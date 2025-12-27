@@ -1,6 +1,7 @@
 # rust implementation
 target/
 _/
+*.o
 
 # go implementation
 go/examples/tiny/tiny.go

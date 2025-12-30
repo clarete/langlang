@@ -1,0 +1,11 @@
+{
+  "name": "@langlang/monorepo",
+  "private": true,
+  "workspaces": [
+    "wasm",
+    "web",
+    "react",
+    "cli"
+  ]
+}
+

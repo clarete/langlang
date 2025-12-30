@@ -9,6 +9,11 @@ type Matcher interface {
 	// grammar's start rule, returning a syntax tree (Tree), the
 	// number of bytes consumed, and any error encountered in the
 	// process.
+	//
+	// NOTE: the Tree returned by the matcher is *borrowed* from
+	// the Matcher.  So if you want to mutate it or use it after
+	// calling [Matcher.Match] again, refer to the [Tree.Copy]
+	// method.
 	Match([]byte) (Tree, int, error)
 }
 
@@ -53,6 +58,38 @@ const (
 //	for _, child := range tree.Children(root) {
 //	    fmt.Println(tree.Text(child))
 //	}
+//
+// Note on memory ownership: A [Matcher.Match] call returns a
+// *borrowed* output [Tree] that will be reused on the very next call
+// to [Matcher.Match]. If you want to keep using a tree after another
+// match (or if you want to mutate it), use the [Tree.Copy] method.
+// Here are a couple examples:
+//
+// 1. You don't need to copy because a) you're only reading the tree, and
+// b) you're reading the tree *before* [Matcher.Match] is called
+// again:
+//
+//	matcher := MatcherFromBytes(grammar, config)
+//	for _, input := range inputs {
+//	    tree, _, _ := matcher.Match(input)
+//	    yourFunctionThatOnlyReadsTheTree(tree)
+//	}
+//
+// 2. You do need to copy because you're reading the tree after
+// [Matcher.Match] is called again:
+//
+//	matcher := MatcherFromBytes(grammar, config)
+//	trees := make([]Tree, 0, len(inputs))
+//	for _, input := range inputs {
+//	    tree, _, _ := matcher.Match(input)
+//	    trees = append(trees, tree.Copy())
+//	}
+//	yourFunctionThatReadsTreesAfterMatching(trees)
+//
+// Also, the tree borrows the `input` received by the [Matcher.Match]
+// call that generated it as well as the string table of the
+// [Matcher], so the [Matcher] and the parsed input will always
+// outlive the tree.
 type Tree interface {
 	// Root returns the top-level node of the parse tree. The bool
 	// is false if the tree is empty.
@@ -100,6 +137,11 @@ type Tree interface {
 	// Highlight is like Pretty but adds ANSI color codes for
 	// terminal display.
 	Highlight(NodeID) string
+
+	// Copy allows users of the tree to take their own copy of the
+	// result returned by the Matcher, which is originally
+	// *borrowed* from the matcher.
+	Copy() Tree
 }
 
 // MatcherFromBytes creates a Matcher from a PEG grammar definition

@@ -95,6 +95,38 @@ func (t *tree) Child(id NodeID) (NodeID, bool) {
 	return NodeID(childID), true
 }
 
+func (t *tree) Copy() Tree {
+	// Mostly here to prevent incorrect usage.  User can try to
+	// use the tree without checking for errors, and in that case,
+	// it's better for the panic to come from their code, instead
+	// of the library's.
+	if t == nil {
+		return nil
+	}
+
+	// Clone arena-backed slices so future VM resets/matches can't
+	// mutate the snapshot:
+	var (
+		nodes       = make([]node, len(t.nodes))
+		children    = make([]NodeID, len(t.children))
+		childRanges = make([]struct{ start, end int32 }, len(t.childRanges))
+	)
+	copy(nodes, t.nodes)
+	copy(children, t.children)
+	copy(childRanges, t.childRanges)
+
+	// Forward borrowed objects: strings table is immutable (comes
+	// from the Bytecode), and input is borrowed.
+	return &tree{
+		nodes:       nodes,
+		children:    children,
+		childRanges: childRanges,
+		strs:        t.strs,
+		input:       t.input,
+		root:        t.root,
+	}
+}
+
 func (t *tree) AddString(start, end int) NodeID {
 	id := NodeID(len(t.nodes))
 	t.nodes = append(t.nodes, node{

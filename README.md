@@ -544,6 +544,8 @@ be used in other grammars using imports.  Behind the scenes, the
 
 -   Known optimization Head-Fail (compiler, vm)
 -   Incremental Parsing (compiler, vm)
+-   Left Recursion (compiler, vm)
+-   Parse Data Structures (compiler, vm)
 -   Semantic Actions (compiler, vm)
 -   Display Call Graph for debugging purposes (compiler, tools)
 -   Built-in Indent rule for Python-like grammars (compiler, vm)

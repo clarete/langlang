@@ -63,6 +63,12 @@ export function registerPegLanguage(monaco: Monaco) {
                 // rule name at start of line: `Name <-`
                 [/^\s*[a-zA-Z_][a-zA-Z0-9_]*(?=\s*<-\s*)/, "type.identifier"],
 
+                // rule name on its own line (allow the `<-` to appear on a following line)
+                [
+                    /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*(?=$|\/\/|\/\*)/,
+                    { token: "type.identifier", next: "@afterRuleName" },
+                ],
+
                 // identifiers elsewhere
                 [/[a-zA-Z_][a-zA-Z0-9_]*/, "identifier"],
 
@@ -96,6 +102,12 @@ export function registerPegLanguage(monaco: Monaco) {
                 [/[ \t\r\n]+/, ""],
                 [/\/\/.*$/, "comment"],
                 [/\/\*/, "comment", "@comment"],
+            ],
+            afterRuleName: [
+                { include: "@whitespace" },
+                [/<-/, "keyword.operator", "@pop"],
+                // If anything else happens before `<-`, give up and return to normal lexing.
+                [/./, "", "@pop"],
             ],
             comment: [
                 [/[^/*]+/, "comment"],

@@ -7,6 +7,7 @@ import TreeExplorer from "./components/TreeExplorer";
 import SplitView from "./components/SplitView";
 
 import fixtures from "./fixtures";
+import { registerPegLanguage } from "./monaco/peg";
 
 import {
     EditorContainer,
@@ -21,6 +22,10 @@ const EDITOR_OPTIONS = {
     },
     scrollBeyondLastLine: false,
 } satisfies EditorProps["options"];
+
+const registerMonacoLanguages: EditorProps["beforeMount"] = (monaco) => {
+    registerPegLanguage(monaco);
+};
 
 function App() {
     const [result, setResult] = useState<Value | null>(null);
@@ -102,7 +107,8 @@ function App() {
                                 <EditorContainer>
                                     <Editor
                                         theme="vs-dark"
-                                        language="text"
+                                        beforeMount={registerMonacoLanguages}
+                                        language="peg"
                                         height="100%"
                                         width="100%"
                                         options={EDITOR_OPTIONS}

@@ -1,4 +1,10 @@
-import { AnyActionArg, useCallback, useEffect, useReducer, useRef } from 'react'
+import {
+    AnyActionArg,
+    useCallback,
+    useEffect,
+    useReducer,
+    useRef,
+} from "react";
 
 enum ActionTypes {
     PENDING = "PENDING",
@@ -28,7 +34,10 @@ interface ErrorAction {
 
 type AsyncAction<T> = PendingAction | SuccessAction<T> | ErrorAction;
 
-function asyncReducer<T>(state: AsyncState<T>, action: AsyncAction<T>): AsyncState<T> {
+function asyncReducer<T>(
+    state: AsyncState<T>,
+    action: AsyncAction<T>,
+): AsyncState<T> {
     switch (action.type) {
         case ActionTypes.PENDING:
             return { ...state, status: "pending" };
@@ -48,10 +57,9 @@ export function useAsync<T>(promise: () => Promise<T>, autoExecute = true) {
         error: null,
     } as AsyncState<T>);
 
-    const isMounted = useRef(true)
+    const isMounted = useRef(true);
     const promiseRef = useRef(promise);
     const pendingActionRef = useRef<AsyncAction<T> | null>(null);
-
 
     useEffect(() => {
         promiseRef.current = promise;
@@ -61,13 +69,11 @@ export function useAsync<T>(promise: () => Promise<T>, autoExecute = true) {
         isMounted.current = true;
         return () => {
             isMounted.current = false;
-        }
+        };
     }, []);
-
 
     const execute = useCallback(async () => {
         dispatch({ type: ActionTypes.PENDING });
-
 
         try {
             const data = await promiseRef.current();
@@ -75,7 +81,10 @@ export function useAsync<T>(promise: () => Promise<T>, autoExecute = true) {
             if (isMounted.current) {
                 dispatch({ type: ActionTypes.SUCCESS, payload: data });
             } else {
-                pendingActionRef.current = { type: ActionTypes.SUCCESS, payload: data };
+                pendingActionRef.current = {
+                    type: ActionTypes.SUCCESS,
+                    payload: data,
+                };
             }
 
             return data;
@@ -83,7 +92,10 @@ export function useAsync<T>(promise: () => Promise<T>, autoExecute = true) {
             if (isMounted.current) {
                 dispatch({ type: ActionTypes.ERROR, payload: error as Error });
             } else {
-                pendingActionRef.current = { type: ActionTypes.ERROR, payload: error as Error };
+                pendingActionRef.current = {
+                    type: ActionTypes.ERROR,
+                    payload: error as Error,
+                };
             }
             throw error;
         }
@@ -93,7 +105,6 @@ export function useAsync<T>(promise: () => Promise<T>, autoExecute = true) {
         if (autoExecute) {
             execute();
         }
-
     }, [autoExecute, execute]);
 
     return {

@@ -16,5 +16,5 @@ import wasmUrl from "./langlang.wasm?url";
 import wasmExecUrl from "./wasm_exec.js?url";
 
 export async function initializeLangLangWasmFromAssets() {
-  return initializeLangLangWasm(wasmUrl, wasmExecUrl);
+    return initializeLangLangWasm(wasmUrl, wasmExecUrl);
 }

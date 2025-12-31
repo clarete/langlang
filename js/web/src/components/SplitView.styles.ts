@@ -22,7 +22,10 @@ export const SplitViewRoot = styled("div")<{ horizontal: boolean }>({
     ],
 });
 
-export const SplitViewContainer = styled("div")<{ span: number, horizontal: boolean }>({
+export const SplitViewContainer = styled("div")<{
+    span: number;
+    horizontal: boolean;
+}>({
     flex: ({ span }) => span,
     display: "flex",
     flexDirection: "column",
@@ -44,13 +47,12 @@ export const SplitViewContainer = styled("div")<{ span: number, horizontal: bool
             },
         },
     ],
-
 });
 
 export const SplitViewHandleKnob = styled("div")<{ horizontal: boolean }>({
     width: "0.25rem",
     height: "1.5rem",
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: "0.25rem",
     boxShadow: "0 0 0 1px #000",
     cursor: "grab",
@@ -74,23 +76,24 @@ export const SplitViewHandleKnob = styled("div")<{ horizontal: boolean }>({
             },
         },
     ],
-
 });
 
-export const SplitViewHandle = styled("div")<{ span: number, horizontal: boolean }>({
+export const SplitViewHandle = styled("div")<{
+    span: number;
+    horizontal: boolean;
+}>({
     flex: 0,
     position: "absolute",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     transition: "background-color 0.2s ease-in-out",
-    backgroundColor: 'hsl(0deg 0% 14.12%)',
+    backgroundColor: "hsl(0deg 0% 14.12%)",
     borderRadius: "0.25rem",
     cursor: "grab",
-    
 
-    '&:hover': {
-        backgroundColor: 'hsl(0deg 0% 20%)',
+    "&:hover": {
+        backgroundColor: "hsl(0deg 0% 20%)",
     },
 
     variants: [
@@ -111,7 +114,7 @@ export const SplitViewHandle = styled("div")<{ span: number, horizontal: boolean
         {
             props: { horizontal: true },
             style: {
-                width: '100%',
+                width: "100%",
                 height: "0.5rem",
                 left: 0,
                 right: 0,
@@ -121,7 +124,6 @@ export const SplitViewHandle = styled("div")<{ span: number, horizontal: boolean
                     height: "0.5rem",
                 },
             },
-        }
+        },
     ],
 });
-

@@ -5,6 +5,8 @@
     "wasm",
     "web",
     "react"
-  ]
+  ],
+  "devDependencies": {
+    "prettier": "^3.7.4"
+  }
 }
-

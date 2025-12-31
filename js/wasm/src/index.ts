@@ -48,7 +48,8 @@ async function ensureGoWasmRuntime(wasmExecUrl?: string) {
             script.src = wasmExecUrl;
             script.async = true;
             script.onload = () => resolve();
-            script.onerror = () => reject(new Error(`Failed to load ${wasmExecUrl}`));
+            script.onerror = () =>
+                reject(new Error(`Failed to load ${wasmExecUrl}`));
             doc.head.appendChild(script);
         });
     })();
@@ -71,13 +72,18 @@ async function ensureGoWasmRuntime(wasmExecUrl?: string) {
  *
  * This init is one-shot; repeated calls reuse the same running runtime.
  */
-export async function initializeLangLangWasm(langlangBinUrl: string, wasmExecUrl?: string) {
+export async function initializeLangLangWasm(
+    langlangBinUrl: string,
+    wasmExecUrl?: string,
+) {
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
         await ensureGoWasmRuntime(wasmExecUrl);
         if (typeof (globalThis as any).Go !== "function") {
-            throw new GoLangError("Go WASM runtime not found. Did you load wasm_exec.js first?");
+            throw new GoLangError(
+                "Go WASM runtime not found. Did you load wasm_exec.js first?",
+            );
         }
 
         const go = new (globalThis as any).Go() as Go;
@@ -91,7 +97,10 @@ export async function initializeLangLangWasm(langlangBinUrl: string, wasmExecUrl
             throw new GoLangError("Failed to fetch wasm file");
         }
 
-        const webAssembly = await WebAssembly.instantiateStreaming(wasmRsp, go.importObject);
+        const webAssembly = await WebAssembly.instantiateStreaming(
+            wasmRsp,
+            go.importObject,
+        );
         // NOTE: go.run does not resolve until the Go program exits.
         go.run(webAssembly.instance);
 
@@ -99,13 +108,23 @@ export async function initializeLangLangWasm(langlangBinUrl: string, wasmExecUrl
         await Promise.race([
             ready,
             new Promise((_, reject) =>
-                setTimeout(() => reject(new GoLangError("timeout waiting for langlang wasm init")), 2000),
+                setTimeout(
+                    () =>
+                        reject(
+                            new GoLangError(
+                                "timeout waiting for langlang wasm init",
+                            ),
+                        ),
+                    2000,
+                ),
             ),
         ]);
 
         // Go exports the API under both names, but we prefer the new one.
-        const raw = (globalThis as any).langlang ?? (globalThis as any).langlangWasm;
-        if (!raw) throw new GoLangError("langlang wasm bindings not initialized");
+        const raw =
+            (globalThis as any).langlang ?? (globalThis as any).langlangWasm;
+        if (!raw)
+            throw new GoLangError("langlang wasm bindings not initialized");
 
         return new langlang(raw);
     })();

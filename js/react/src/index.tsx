@@ -5,7 +5,7 @@ import { type AsyncState, useAsync } from "./utils/useAsync";
 import type langlang from "../../wasm/dist/langlang";
 
 export function useWasmTest(): AsyncState<langlang> {
-  return useAsync(() => initializeLangLangWasmFromAssets());
+    return useAsync(() => initializeLangLangWasmFromAssets());
 }
 
 export * from "@langlang/wasm";

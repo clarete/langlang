@@ -1,0 +1,40 @@
+{
+  "name": "@langlang/wasm",
+  "version": "0.0.10",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/browser.js",
+      "types": "./dist/browser.d.ts"
+    },
+    "./langlang.wasm": "./dist/langlang.wasm",
+    "./wasm_exec.js": "./dist/wasm_exec.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && cp src/wasm_exec.js dist/wasm_exec.js && cp src/langlang.wasm dist/langlang.wasm",
+    "dev": "tsc --watch",
+    "wasm:build": "mkdir -p src dist && cd lib && GOWORK=off GOOS=js GOARCH=wasm go build -o ../src/langlang.wasm . && cd .. && cp src/langlang.wasm dist/langlang.wasm",
+    "wasm:clean": "rm -f src/langlang.wasm dist/langlang.wasm",
+    "wasm:tidy": "cd lib && go mod tidy",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "type-fest": "^5.3.1"
+  }
+}

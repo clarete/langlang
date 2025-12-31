@@ -365,18 +365,19 @@ be used in other grammars using imports.  Behind the scenes, the
 
 * Roadmap
 
- * SIM: [compvm] known optimizations: head-fail
- * SIM: [compvm] memoize results to guarantee O(1) parsing time
- * MID: [genall] generator interface to be shared by all targets
- * MID: [gencpy] Python Code Generator
- * MID: [gencjs] Java Script Code Generator
- * MID: [gencrs] Rust Code Generator
- * MID: [featxp] Built-in Indent rule (for Python-like grammars)
- * MID: [devexp] Display Call Graph for debugging purposes
- * BIG: [featxp] Semantic Actions
- * BIG: [featxp] Integration with serde of target language (go, rust)
+ * Known optimization Head-Fail (compiler, vm)
+ * Incremental Parsing (compiler, vm)
+ * Semantic Actions (compiler, vm)
+ * Display Call Graph for debugging purposes (compiler, tools)
+ * Built-in Indent rule for Python-like grammars (compiler, vm)
+ * New targets: C, JavaScript, WASM, Python, Java, Rust, Zig
+ * Integration with serde of target language (like go and rust)
 
 * Changelog
+
+** go/v0.0.12 (unreleased)
+
+ * [[https://github.com/clarete/langlang/commit/40fc6105e21a805d82ee3cdab376893f3b642913][FEAT[api]: Add ~Tree.Copy~ method and document memory ownership]]
 
 ** go/v0.0.11
 

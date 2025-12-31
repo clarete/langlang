@@ -24,13 +24,14 @@
         6.  [Import system](#import-system)
 3.  [Roadmap](#roadmap)
 4.  [Changelog](#changelog)
-    1.  [go/v0.0.11](#gov0011)
-    2.  [go/v0.0.10](#gov0010)
-    3.  [go/v0.0.9](#gov009)
-    4.  [go/v0.0.8](#gov008)
-    5.  [go/v0.0.7](#gov007)
-    6.  [go/v0.0.6](#gov006)
-    7.  [go/v0.0.5](#gov005)
+    1.  [go/v0.0.12 (unreleased)](#gov0012-unreleased)
+    2.  [go/v0.0.11](#gov0011)
+    3.  [go/v0.0.10](#gov0010)
+    4.  [go/v0.0.9](#gov009)
+    5.  [go/v0.0.8](#gov008)
+    6.  [go/v0.0.7](#gov007)
+    7.  [go/v0.0.6](#gov006)
+    8.  [go/v0.0.5](#gov005)
 
 
 <a id="introduction"></a>
@@ -541,21 +542,25 @@ be used in other grammars using imports.  Behind the scenes, the
 
 # Roadmap
 
--   SIM: [compvm] known optimizations: head-fail
--   SIM: [compvm] memoize results to guarantee O(1) parsing time
--   MID: [genall] generator interface to be shared by all targets
--   MID: [gencpy] Python Code Generator
--   MID: [gencjs] Java Script Code Generator
--   MID: [gencrs] Rust Code Generator
--   MID: [featxp] Built-in Indent rule (for Python-like grammars)
--   MID: [devexp] Display Call Graph for debugging purposes
--   BIG: [featxp] Semantic Actions
--   BIG: [featxp] Integration with serde of target language (go, rust)
+-   Known optimization Head-Fail (compiler, vm)
+-   Incremental Parsing (compiler, vm)
+-   Semantic Actions (compiler, vm)
+-   Display Call Graph for debugging purposes (compiler, tools)
+-   Built-in Indent rule for Python-like grammars (compiler, vm)
+-   New targets: C, JavaScript, WASM, Python, Java, Rust, Zig
+-   Integration with serde of target language (like go and rust)
 
 
 <a id="changelog"></a>
 
 # Changelog
+
+
+<a id="gov0012-unreleased"></a>
+
+## go/v0.0.12 (unreleased)
+
+-   [FEAT[api]: Add `Tree.Copy` method and document memory ownership](https://github.com/clarete/langlang/commit/40fc6105e21a805d82ee3cdab376893f3b642913)
 
 
 <a id="gov0011"></a>

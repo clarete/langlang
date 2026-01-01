@@ -17,7 +17,6 @@ import {
     PanelBody,
     PanelContainer,
     PanelHeader,
-    TopBar,
 } from "./App.styles";
 
 const EDITOR_OPTIONS = {
@@ -40,7 +39,7 @@ function App() {
 
     const matcherRef = useRef<Matcher | null>(null);
     const [outputError, setOutputError] = useState<string | null>(null);
-    const [matcherVersion, setMatcherVersion] = useState(0);
+    const [, setMatcherVersion] = useState(0);
 
     // Debounced compile step (grammar -> matcher)
     useEffect(() => {
@@ -103,11 +102,6 @@ function App() {
         };
     }, []);
 
-    const handleGrammarChange = (value: string) => {
-        setGrammarText(fixtures[value as keyof typeof fixtures].grammar);
-        setInputText(fixtures[value as keyof typeof fixtures].input);
-    };
-
     if (status === "pending") {
         return <div>Loading...</div>;
     }
@@ -119,78 +113,77 @@ function App() {
     if (status === "success") {
         return (
             <>
-                <TopBar>
-                    <select
-                        defaultValue="protoCirc"
-                        onChange={(e) =>
-                            handleGrammarChange(
-                                e.target.value as keyof typeof fixtures,
-                            )
-                        }
-                    >
-                        <option value="demo">Demo</option>
-                        <option value="json">JSON</option>
-                        <option value="jsonStripped">JSON Stripped</option>
-                        <option value="csv">CSV</option>
-                        <option value="langlang">LangLang</option>
-                        <option value="xmlUnstable">XML Unstable</option>
-                        <option value="protoCirc">Proto Circ</option>
-                    </select>
-                    <div
-                        title={outputError ?? "Live preview"}
-                        style={{
-                            fontFamily:
-                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                            fontSize: "0.8rem",
-                            color: outputError
-                                ? "rgba(255, 123, 123, 0.9)"
-                                : "rgba(123, 255, 180, 0.9)",
-                            marginLeft: "auto",
-                        }}
-                    >
-                        {outputError ? "Error" : "Live"}
-                    </div>
-                </TopBar>
-
                 <SplitView
                     left={
                         <SplitView
                             top={
                                 <PanelContainer>
-                                    <PanelHeader>Grammar (PEG)</PanelHeader>
                                     <PanelBody>
-                                        <Editor
-                                            theme="vs-dark"
-                                            beforeMount={
-                                                registerMonacoLanguages
+                                        <File
+                                            title="Grammar (PEG)"
+                                            selectUrlFromPair={({
+                                                grammar: url,
+                                                id,
+                                            }) => ({
+                                                type: "url",
+                                                url,
+                                                id,
+                                            })}
+                                            onContentChange={(content) =>
+                                                setGrammarText(content ?? "")
                                             }
-                                            language="peg"
-                                            height="100%"
-                                            width="100%"
-                                            options={EDITOR_OPTIONS}
-                                            value={grammarText}
-                                            onChange={(value) => {
-                                                setGrammarText(value ?? "");
+                                            accept={{
+                                                "text/plain": [".peg"],
                                             }}
-                                        />
+                                        >
+                                            {(content, write) => (
+                                                <Editor
+                                                    theme="vs-dark"
+                                                    beforeMount={
+                                                        registerMonacoLanguages
+                                                    }
+                                                    language="peg"
+                                                    height="100%"
+                                                    width="100%"
+                                                    options={EDITOR_OPTIONS}
+                                                    value={content ?? undefined}
+                                                    onChange={(value) => {
+                                                        write(value ?? "");
+                                                    }}
+                                                />
+                                            )}
+                                        </File>
                                     </PanelBody>
                                 </PanelContainer>
                             }
                             bottom={
                                 <PanelContainer>
-                                    <PanelHeader>Input</PanelHeader>
                                     <PanelBody>
-                                        <Editor
-                                            theme="vs-dark"
-                                            language="text"
-                                            height="100%"
-                                            width="100%"
-                                            options={EDITOR_OPTIONS}
-                                            value={inputText}
-                                            onChange={(value) => {
-                                                setInputText(value ?? "");
-                                            }}
-                                        />
+                                        <File
+                                            title="Input"
+                                            selectUrlFromPair={(pair) => ({
+                                                type: "url",
+                                                url: pair.input,
+                                                id: pair.id,
+                                            })}
+                                            onContentChange={(content) =>
+                                                setInputText(content ?? "")
+                                            }
+                                        >
+                                            {(content, write) => (
+                                                <Editor
+                                                    theme="vs-dark"
+                                                    language="text"
+                                                    height="100%"
+                                                    width="100%"
+                                                    options={EDITOR_OPTIONS}
+                                                    value={content ?? undefined}
+                                                    onChange={(value) =>
+                                                        write(value ?? "")
+                                                    }
+                                                />
+                                            )}
+                                        </File>
                                     </PanelBody>
                                 </PanelContainer>
                             }
@@ -198,7 +191,23 @@ function App() {
                     }
                     right={
                         <PanelContainer>
-                            <PanelHeader>Output</PanelHeader>
+                            <PanelHeader>
+                                Output
+                                <div
+                                    title={outputError ?? "Live preview"}
+                                    style={{
+                                        fontFamily:
+                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                        fontSize: "0.8rem",
+                                        color: outputError
+                                            ? "rgba(255, 123, 123, 0.9)"
+                                            : "rgba(123, 255, 180, 0.9)",
+                                        marginLeft: "auto",
+                                    }}
+                                >
+                                    {outputError ? "Error" : "Live"}
+                                </div>
+                            </PanelHeader>
                             <PanelBody>
                                 <OutputPanelBody>
                                     <OutputViewContainerWrapper>

@@ -217,11 +217,3 @@ export const PanelBody = styled("div")({
     flex: 1,
     minHeight: 0,
 });
-
-export const TopBar = styled("div")({
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0.5rem",
-    borderBottom: "1px solid #fbf0df",
-});

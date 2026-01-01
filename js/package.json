@@ -7,6 +7,10 @@
     "web",
     "react"
   ],
+  "scripts": {
+    "build": "bun run --filter @langlang/wasm wasm:build && bun run --filter '*' build",
+    "playground": "bun run --filter @langlang/web-test dev"
+  },
   "devDependencies": {
     "prettier": "^3.7.4"
   }

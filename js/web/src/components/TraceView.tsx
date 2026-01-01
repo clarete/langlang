@@ -1,43 +1,43 @@
 import type { Value } from "@langlang/react";
-import TreeNode from "./TreeNode";
+import TraceNode from "./TraceNode";
 
 // import { v4 as randomUuid } from "uuid";
 
-interface TreeViewProps {
+interface TraceViewProps {
     tree: Value;
     renderLeafOnly?: boolean;
     parent?: string;
 }
 
-function TreeView({
+function TraceView({
     tree,
     renderLeafOnly = false,
     parent = "ROOT",
-}: TreeViewProps) {
+}: TraceViewProps) {
     switch (tree.type) {
         case "node":
             return (
-                <TreeNode
+                <TraceNode
                     node={tree}
                     renderLeafOnly={renderLeafOnly}
                     parent={parent}
                 >
-                    <TreeView
+                    <TraceView
                         tree={tree.expr}
                         renderLeafOnly={renderLeafOnly}
                         parent={`${parent}-${tree.name}`}
                     />
-                </TreeNode>
+                </TraceNode>
             );
         case "sequence": {
             return (
-                <TreeNode
+                <TraceNode
                     node={tree}
                     renderLeafOnly={renderLeafOnly}
                     parent={parent}
                 >
                     {tree.items.map((item, index) => (
-                        <TreeView
+                        <TraceView
                             tree={item}
                             // biome-ignore lint/suspicious/noArrayIndexKey: idc!
                             key={index}
@@ -45,13 +45,13 @@ function TreeView({
                             parent={`${parent}-${index}`}
                         />
                     ))}
-                </TreeNode>
+                </TraceNode>
             );
         }
 
         case "error":
             return (
-                <TreeNode
+                <TraceNode
                     node={tree}
                     renderLeafOnly={renderLeafOnly}
                     parent={parent}
@@ -59,7 +59,7 @@ function TreeView({
             );
         default:
             return (
-                <TreeNode
+                <TraceNode
                     node={tree}
                     renderLeafOnly={renderLeafOnly}
                     parent={parent}
@@ -68,4 +68,4 @@ function TreeView({
     }
 }
 
-export default TreeView;
+export default TraceView;

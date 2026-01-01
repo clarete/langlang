@@ -1,46 +1,46 @@
-import TreeView from "./TreeView";
+import TraceView from "./TraceView";
 import type { Value } from "@langlang/react";
 import { createContext, useRef, useState } from "react";
-import { SourceLine, TreeViewContainer } from "./TreeExplorer.styles";
+import { SourceLine, TraceViewContainer } from "./TraceExplorer.styles";
 
-interface TreeExplorerProps {
+interface TraceExplorerProps {
     tree: Value;
 }
 
-interface TreeUiContextType {
+interface TraceUiContextType {
     highlight: string | null;
     setHighlight: (highlight: string | null) => void;
     leafNodeSizeMap: Map<string, DOMRect>;
 }
 
-export const TreeUiContext = createContext<TreeUiContextType>({
+export const TraceUiContext = createContext<TraceUiContextType>({
     highlight: null,
     setHighlight: () => {},
     leafNodeSizeMap: new Map(),
 });
 
-function TreeExplorer({ tree }: TreeExplorerProps) {
+function TraceExplorer({ tree }: TraceExplorerProps) {
     const [highlight, setHighlight] = useState<string | null>(null);
     const leafNodeSizeMapRef = useRef<Map<string, DOMRect>>(new Map());
 
     return (
-        <TreeUiContext.Provider
+        <TraceUiContext.Provider
             value={{
                 highlight,
                 setHighlight,
                 leafNodeSizeMap: leafNodeSizeMapRef.current,
             }}
         >
-            <TreeViewContainer onMouseLeave={() => setHighlight(null)}>
+            <TraceViewContainer onMouseLeave={() => setHighlight(null)}>
                 <SourceLine>
-                    <TreeView tree={tree} renderLeafOnly />
+                    <TraceView tree={tree} renderLeafOnly />
                 </SourceLine>
                 <div>
-                    <TreeView tree={tree} />
+                    <TraceView tree={tree} />
                 </div>
-            </TreeViewContainer>
-        </TreeUiContext.Provider>
+            </TraceViewContainer>
+        </TraceUiContext.Provider>
     );
 }
 
-export default TreeExplorer;
+export default TraceExplorer;

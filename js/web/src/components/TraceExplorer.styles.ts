@@ -1,6 +1,6 @@
 import { styled } from "@pigment-css/react";
 
-export const TreeViewContainer = styled("div")({
+export const TraceViewContainer = styled("div")({
     flex: 1,
     display: "flex",
     flexDirection: "column",

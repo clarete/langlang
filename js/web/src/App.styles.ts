@@ -139,7 +139,7 @@ export const PlaygroundContainer = styled("div")({
     gap: "1rem",
 });
 
-export const TreeViewContainerWrapper = styled("div")({
+export const TraceViewContainerWrapper = styled("div")({
     minWidth: "300px",
     flex: 1,
     minHeight: 0,
@@ -166,7 +166,8 @@ export const PanelHeader = styled("div")({
     padding: "0.35rem 0.6rem",
     borderBottom: "1px solid rgba(251, 240, 223, 0.2)",
     color: "rgba(251, 240, 223, 0.85)",
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     fontSize: "0.8rem",
     letterSpacing: "0.02em",
     userSelect: "none",

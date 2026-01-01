@@ -76,11 +76,32 @@ export function registerPegLanguage(monaco: Monaco) {
                 [/\^[a-zA-Z_][a-zA-Z0-9_]*/, "annotation"],
 
                 // char class
-                [/\[/, { token: "delimiter.square", bracket: "@open", next: "@charclass" }],
+                [
+                    /\[/,
+                    {
+                        token: "delimiter.square",
+                        bracket: "@open",
+                        next: "@charclass",
+                    },
+                ],
 
                 // strings
-                [/"/, { token: "string.quote", bracket: "@open", next: "@dstring" }],
-                [/'/, { token: "string.quote", bracket: "@open", next: "@sstring" }],
+                [
+                    /"/,
+                    {
+                        token: "string.quote",
+                        bracket: "@open",
+                        next: "@dstring",
+                    },
+                ],
+                [
+                    /'/,
+                    {
+                        token: "string.quote",
+                        bracket: "@open",
+                        next: "@sstring",
+                    },
+                ],
 
                 // operators / delimiters
                 // NOTE: Monaco's default `vs-dark` theme renders plain `operator`
@@ -89,7 +110,8 @@ export function registerPegLanguage(monaco: Monaco) {
                 [/<-/, "keyword.operator"],
                 [/\/(?!\/)/, "keyword.operator"], // prevent collision with `//` comments
                 [/[?*+]/, "keyword.operator"],
-                [/([&!#]|[.])/,
+                [
+                    /([&!#]|[.])/,
                     {
                         cases: {
                             "@default": "keyword.operator",
@@ -117,17 +139,30 @@ export function registerPegLanguage(monaco: Monaco) {
             dstring: [
                 [/[^\\"]+/, "string"],
                 [/\\./, "string.escape"],
-                [/"/, { token: "string.quote", bracket: "@close", next: "@pop" }],
+                [
+                    /"/,
+                    { token: "string.quote", bracket: "@close", next: "@pop" },
+                ],
             ],
             sstring: [
                 [/[^\\']+/, "string"],
                 [/\\./, "string.escape"],
-                [/'/, { token: "string.quote", bracket: "@close", next: "@pop" }],
+                [
+                    /'/,
+                    { token: "string.quote", bracket: "@close", next: "@pop" },
+                ],
             ],
             charclass: [
                 [/[^\\\]]+/, "string"],
                 [/\\./, "string.escape"],
-                [/\]/, { token: "delimiter.square", bracket: "@close", next: "@pop" }],
+                [
+                    /\]/,
+                    {
+                        token: "delimiter.square",
+                        bracket: "@close",
+                        next: "@pop",
+                    },
+                ],
             ],
         },
     });

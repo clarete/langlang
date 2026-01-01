@@ -1,10 +1,10 @@
 import type { Value } from "@langlang/react";
 import type React from "react";
-import { NodeContainer, NodeName, SequenceContainer } from "./TreeNode.styles";
+import { NodeContainer, NodeName, SequenceContainer } from "./TraceNode.styles";
 import { useContext, useEffect, useRef } from "react";
-import { TreeUiContext } from "./TreeExplorer";
+import { TraceUiContext } from "./TraceExplorer";
 
-interface TreeNodeProps {
+interface TraceNodeProps {
     node: Value;
     children?: React.ReactNode;
     renderLeafOnly?: boolean;
@@ -55,14 +55,14 @@ function getHighlightProps(
     return { highlighted: false, parentHighlighted: false, level: 0 };
 }
 
-function TreeNode({
+function TraceNode({
     node,
     children,
     renderLeafOnly = false,
     parent,
-}: TreeNodeProps) {
+}: TraceNodeProps) {
     const { highlight, setHighlight, leafNodeSizeMap } =
-        useContext(TreeUiContext);
+        useContext(TraceUiContext);
 
     const nodeNameRef = useRef<HTMLDivElement>(null);
 
@@ -161,4 +161,4 @@ function TreeNode({
     }
 }
 
-export default TreeNode;
+export default TraceNode;

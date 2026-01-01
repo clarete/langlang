@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useWasmTest, type Matcher, type Value } from "@langlang/react";
 import { Editor, type EditorProps } from "@monaco-editor/react";
-import TreeExplorer from "./components/TreeExplorer";
+import TraceExplorer from "./components/TraceExplorer";
 import SplitView from "./components/SplitView";
 
 import fixtures from "./fixtures";
@@ -14,7 +14,7 @@ import {
     PanelContainer,
     PanelHeader,
     TopBar,
-    TreeViewContainerWrapper,
+    TraceViewContainerWrapper,
 } from "./App.styles";
 
 const EDITOR_OPTIONS = {
@@ -46,7 +46,7 @@ function App() {
     useEffect(() => {
         if (!langlang) return;
         const handle = window.setTimeout(() => {
-			// dispose the previous matcher
+            // dispose the previous matcher
             try {
                 matcherRef.current?.dispose();
             } catch (_) {
@@ -161,7 +161,9 @@ function App() {
                                     <PanelBody>
                                         <Editor
                                             theme="vs-dark"
-                                            beforeMount={registerMonacoLanguages}
+                                            beforeMount={
+                                                registerMonacoLanguages
+                                            }
                                             language="peg"
                                             height="100%"
                                             width="100%"
@@ -198,9 +200,9 @@ function App() {
                         <PanelContainer>
                             <PanelHeader>Output</PanelHeader>
                             <PanelBody>
-                                <TreeViewContainerWrapper>
+                                <TraceViewContainerWrapper>
                                     {result ? (
-                                        <TreeExplorer tree={result} />
+                                        <TraceExplorer tree={result} />
                                     ) : outputError ? (
                                         <div
                                             style={{
@@ -213,8 +215,10 @@ function App() {
                                         >
                                             {outputError}
                                         </div>
-                                    ) : ""}
-                                </TreeViewContainerWrapper>
+                                    ) : (
+                                        ""
+                                    )}
+                                </TraceViewContainerWrapper>
                             </PanelBody>
                         </PanelContainer>
                     }

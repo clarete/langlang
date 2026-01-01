@@ -87,7 +87,7 @@ function App() {
         }, 50);
 
         return () => window.clearTimeout(handle);
-    }, [inputText, matcherVersion]);
+    }, [inputText]);
 
     // Cleanup on unmount
     useEffect(() => {

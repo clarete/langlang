@@ -3,7 +3,7 @@ import { styled } from "@pigment-css/react";
 export const NodeContainer = styled("div")<{ leaf?: boolean }>({
     display: "flex",
     flexDirection: "column",
-    gap: ".5rem",
+    gap: ".2rem",
     variants: [
         {
             props: ({ leaf }) => leaf === undefined || leaf === false,
@@ -17,7 +17,7 @@ export const NodeContainer = styled("div")<{ leaf?: boolean }>({
 export const SequenceContainer = styled("div")({
     display: "grid",
     gridTemplateColumns: "repeat(var(--count, 1), 1fr)",
-    gap: ".5rem",
+    gap: ".2rem",
 });
 
 export const NodeName = styled("div")<{
@@ -33,7 +33,7 @@ export const NodeName = styled("div")<{
     margin: 0,
     whiteSpace: "nowrap",
     position: "relative",
-    borderRadius: "8px",
+    borderRadius: "2px",
     cursor: "pointer",
     minHeight: "calc(var(--line-height) * 1em)",
     variants: [

@@ -112,22 +112,6 @@ export const UrlInput = styled("input")({
     },
 });
 
-export const SendButton = styled("button")({
-    background: "#fbf0df",
-    color: "#1a1a1a",
-    border: 0,
-    padding: "0.4rem 1.2rem",
-    borderRadius: "8px",
-    fontWeight: 700,
-    transition: "0.1s",
-    cursor: "var(--bun-cursor)",
-    "&:hover": {
-        background: "hsl(38, 77%, 80%)",
-        transform: "translateY(-1px)",
-        cursor: "pointer",
-    },
-});
-
 export const ResponseArea = styled("textarea")({
     width: "100%",
     minHeight: "120px",

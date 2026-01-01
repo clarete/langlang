@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useWasmTest, type Value } from "@langlang/react";
+import { useEffect, useRef, useState } from "react";
+import { useWasmTest, type Matcher, type Value } from "@langlang/react";
 import { Editor, type EditorProps } from "@monaco-editor/react";
 import TreeExplorer from "./components/TreeExplorer";
 import SplitView from "./components/SplitView";
@@ -13,7 +13,6 @@ import {
     PanelBody,
     PanelContainer,
     PanelHeader,
-    SendButton,
     TopBar,
     TreeViewContainerWrapper,
 } from "./App.styles";
@@ -39,21 +38,70 @@ function App() {
     );
     const { status, data: langlang, error } = useWasmTest();
 
-    const handleCompileJson = (grammar: string, input: string) => {
-        if (!langlang) {
-            return;
-        }
-        const matcher = langlang.matcherFromString(grammar);
-        try {
-            const { value } = matcher.match(input);
-            setResult(value);
-        } catch (error) {
-            console.error(error);
-            setResult(null);
-        } finally {
-            matcher.dispose();
-        }
-    };
+    const matcherRef = useRef<Matcher | null>(null);
+    const [outputError, setOutputError] = useState<string | null>(null);
+    const [matcherVersion, setMatcherVersion] = useState(0);
+
+    // Debounced compile step (grammar -> matcher)
+    useEffect(() => {
+        if (!langlang) return;
+        const handle = window.setTimeout(() => {
+			// dispose the previous matcher
+            try {
+                matcherRef.current?.dispose();
+            } catch (_) {
+                // ignore
+            } finally {
+                matcherRef.current = null;
+            }
+            try {
+                matcherRef.current = langlang.matcherFromString(grammarText);
+                setOutputError(null);
+                setMatcherVersion((v) => v + 1);
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                console.error(e);
+                setResult(null);
+                setOutputError(msg);
+            }
+        }, 200);
+
+        return () => window.clearTimeout(handle);
+    }, [langlang, grammarText]);
+
+    // Debounced match step (matcher + input -> result tree)
+    useEffect(() => {
+        const m = matcherRef.current;
+        if (!m) return;
+
+        const handle = window.setTimeout(() => {
+            try {
+                const { value } = m.match(inputText);
+                setResult(value);
+                setOutputError(null);
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                console.error(e);
+                setResult(null);
+                setOutputError(msg);
+            }
+        }, 50);
+
+        return () => window.clearTimeout(handle);
+    }, [inputText, matcherVersion]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            try {
+                matcherRef.current?.dispose();
+            } catch (_) {
+                // ignore
+            } finally {
+                matcherRef.current = null;
+            }
+        };
+    }, []);
 
     const handleGrammarChange = (value: string) => {
         setGrammarText(fixtures[value as keyof typeof fixtures].grammar);
@@ -88,16 +136,19 @@ function App() {
                         <option value="xmlUnstable">XML Unstable</option>
                         <option value="protoCirc">Proto Circ</option>
                     </select>
-                    <div style={{ gridColumn: "span 2" }}>
-                        <SendButton
-                            type="button"
-                            id="compileAndMatch"
-                            onClick={() =>
-                                handleCompileJson(grammarText, inputText)
-                            }
-                        >
-                            Compile {"→"}
-                        </SendButton>
+                    <div
+                        title={outputError ?? "Live preview"}
+                        style={{
+                            fontFamily:
+                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                            fontSize: "0.8rem",
+                            color: outputError
+                                ? "rgba(255, 123, 123, 0.9)"
+                                : "rgba(123, 255, 180, 0.9)",
+                            marginLeft: "auto",
+                        }}
+                    >
+                        {outputError ? "Error" : "Live"}
                     </div>
                 </TopBar>
 
@@ -144,16 +195,28 @@ function App() {
                         />
                     }
                     right={
-                        result ? (
-                            <PanelContainer>
-                                <PanelHeader>Output</PanelHeader>
-                                <PanelBody>
-                                    <TreeViewContainerWrapper>
+                        <PanelContainer>
+                            <PanelHeader>Output</PanelHeader>
+                            <PanelBody>
+                                <TreeViewContainerWrapper>
+                                    {result ? (
                                         <TreeExplorer tree={result} />
-                                    </TreeViewContainerWrapper>
-                                </PanelBody>
-                            </PanelContainer>
-                        ) : null
+                                    ) : outputError ? (
+                                        <div
+                                            style={{
+                                                padding: "0.75rem",
+                                                color: "rgba(255, 123, 123, 0.9)",
+                                                fontFamily:
+                                                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                                whiteSpace: "pre-wrap",
+                                            }}
+                                        >
+                                            {outputError}
+                                        </div>
+                                    ) : ""}
+                                </TreeViewContainerWrapper>
+                            </PanelBody>
+                        </PanelContainer>
                     }
                 />
             </>

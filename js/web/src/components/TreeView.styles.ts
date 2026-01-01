@@ -1,7 +1,8 @@
 import { styled } from "@pigment-css/react";
 
 export const Container = styled("div")({
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     fontSize: "0.8rem",
     lineHeight: 1.35,
     padding: "0.5rem",
@@ -52,5 +53,3 @@ export const Meta = styled("span")({
     marginLeft: "0.35rem",
     whiteSpace: "nowrap",
 });
-
-

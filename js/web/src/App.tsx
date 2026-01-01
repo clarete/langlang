@@ -233,14 +233,18 @@ function App() {
                                         <OutputTab
                                             type="button"
                                             active={outputView === "tree"}
-                                            onClick={() => setOutputView("tree")}
+                                            onClick={() =>
+                                                setOutputView("tree")
+                                            }
                                         >
                                             Tree
                                         </OutputTab>
                                         <OutputTab
                                             type="button"
                                             active={outputView === "trace"}
-                                            onClick={() => setOutputView("trace")}
+                                            onClick={() =>
+                                                setOutputView("trace")
+                                            }
                                         >
                                             Trace
                                         </OutputTab>

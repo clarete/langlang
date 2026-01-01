@@ -169,7 +169,8 @@ export const OutputTab = styled("button")<{ active?: boolean }>({
     background: "transparent",
     color: "rgba(251, 240, 223, 0.75)",
     cursor: "pointer",
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     fontSize: "0.75rem",
     letterSpacing: "0.04em",
     writingMode: "vertical-rl",

@@ -16,7 +16,10 @@ function getChildren(value: Value): Child[] {
         case "node":
             return [{ key: value.name, value: value.expr }];
         case "sequence":
-            return value.items.map((item, i) => ({ key: String(i), value: item }));
+            return value.items.map((item, i) => ({
+                key: String(i),
+                value: item,
+            }));
         default:
             return [];
     }
@@ -29,9 +32,12 @@ function getLabel(value: Value): { label: string; meta?: string } {
         case "sequence":
             return { label: "sequence", meta: `count=${value.count}` };
         case "string":
-            return { label: value.value, meta: "string" };
+            return { label: `"${escapeString(value.value)}"`, meta: "string" };
         case "error":
-            return { label: value.message ?? "error", meta: "error" };
+            return {
+                label: value.message ?? value.label ?? "error",
+                meta: "error",
+            };
         default: {
             // If this ever starts failing, the upstream `Value` union likely changed.
             const _exhaustive: never = value;
@@ -40,27 +46,39 @@ function getLabel(value: Value): { label: string; meta?: string } {
     }
 }
 
+function escapeString(s: string): string {
+    return s.replace(/"/g, '\\"')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t')
+        .replace(/\\/g, '\\\\');
+}
+
 function computeDefaultExpandedPaths(root: Value, maxDepth: number): string[] {
     const expanded: string[] = [];
     const stack: Array<{ value: Value; path: string; depth: number }> = [
         { value: root, path: "ROOT", depth: 0 },
     ];
-
     while (stack.length) {
         const { value, path, depth } = stack.pop()!;
-        if (depth >= maxDepth) continue;
-
+        if (depth >= maxDepth) {
+            continue;
+        }
         const children = getChildren(value);
-        if (children.length === 0) continue;
-
+        if (children.length === 0) {
+            continue;
+        }
         expanded.push(path);
         for (let i = children.length - 1; i >= 0; i--) {
             const child = children[i];
             const childPath = `${path}-${child.key}`;
-            stack.push({ value: child.value, path: childPath, depth: depth + 1 });
+            stack.push({
+                value: child.value,
+                path: childPath,
+                depth: depth + 1,
+            });
         }
     }
-
     return expanded;
 }
 
@@ -77,11 +95,9 @@ export default function TreeView({
         () => computeDefaultExpandedPaths(tree, defaultExpandDepth),
         [tree, defaultExpandDepth],
     );
-
     const [expanded, setExpanded] = useState<Set<string>>(
         () => new Set(defaultExpandedPaths),
     );
-
     useEffect(() => {
         setExpanded(new Set(defaultExpandedPaths));
     }, [defaultExpandedPaths]);
@@ -120,7 +136,11 @@ export default function TreeView({
                 </Row>
                 {isExpandable && isExpanded
                     ? children.map((child) =>
-                          renderNode(child.value, `${path}-${child.key}`, depth + 1),
+                          renderNode(
+                              child.value,
+                              `${path}-${child.key}`,
+                              depth + 1,
+                          ),
                       )
                     : null}
             </div>
@@ -129,5 +149,3 @@ export default function TreeView({
 
     return <Container>{renderNode(tree, "ROOT", 0)}</Container>;
 }
-
-

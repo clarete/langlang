@@ -157,20 +157,40 @@ export const PlaygroundContainer = styled("div")({
 
 export const TreeViewContainerWrapper = styled("div")({
     minWidth: "300px",
-    overflowX: "auto",
     flex: 1,
+    minHeight: 0,
+    height: "100%",
+    overflow: "auto",
 });
 
 export const ResponseContainer = styled("div")({
     flex: 1,
 });
 
-export const EditorContainer = styled("div")({
+export const PanelContainer = styled("div")({
     background: "#1a1a1a",
     height: "100%",
     width: "100%",
     display: "flex",
     flexDirection: "column",
+});
+
+export const PanelHeader = styled("div")({
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0.35rem 0.6rem",
+    borderBottom: "1px solid rgba(251, 240, 223, 0.2)",
+    color: "rgba(251, 240, 223, 0.85)",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: "0.8rem",
+    letterSpacing: "0.02em",
+    userSelect: "none",
+});
+
+export const PanelBody = styled("div")({
+    flex: 1,
+    minHeight: 0,
 });
 
 export const TopBar = styled("div")({

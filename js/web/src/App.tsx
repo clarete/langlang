@@ -10,7 +10,9 @@ import fixtures from "./fixtures";
 import { registerPegLanguage } from "./monaco/peg";
 
 import {
-    EditorContainer,
+    PanelBody,
+    PanelContainer,
+    PanelHeader,
     SendButton,
     TopBar,
     TreeViewContainerWrapper,
@@ -41,7 +43,6 @@ function App() {
         if (!langlang) {
             return;
         }
-
         const matcher = langlang.matcherFromString(grammar);
         try {
             const { value } = matcher.match(input);
@@ -104,43 +105,54 @@ function App() {
                     left={
                         <SplitView
                             top={
-                                <EditorContainer>
-                                    <Editor
-                                        theme="vs-dark"
-                                        beforeMount={registerMonacoLanguages}
-                                        language="peg"
-                                        height="100%"
-                                        width="100%"
-                                        options={EDITOR_OPTIONS}
-                                        value={grammarText}
-                                        onChange={(value) => {
-                                            setGrammarText(value ?? "");
-                                        }}
-                                    />
-                                </EditorContainer>
+                                <PanelContainer>
+                                    <PanelHeader>Grammar (PEG)</PanelHeader>
+                                    <PanelBody>
+                                        <Editor
+                                            theme="vs-dark"
+                                            beforeMount={registerMonacoLanguages}
+                                            language="peg"
+                                            height="100%"
+                                            width="100%"
+                                            options={EDITOR_OPTIONS}
+                                            value={grammarText}
+                                            onChange={(value) => {
+                                                setGrammarText(value ?? "");
+                                            }}
+                                        />
+                                    </PanelBody>
+                                </PanelContainer>
                             }
                             bottom={
-                                <EditorContainer>
-                                    <Editor
-                                        theme="vs-dark"
-                                        language="text"
-                                        height="100%"
-                                        width="100%"
-                                        options={EDITOR_OPTIONS}
-                                        value={inputText}
-                                        onChange={(value) => {
-                                            setInputText(value ?? "");
-                                        }}
-                                    />
-                                </EditorContainer>
+                                <PanelContainer>
+                                    <PanelHeader>Input</PanelHeader>
+                                    <PanelBody>
+                                        <Editor
+                                            theme="vs-dark"
+                                            language="text"
+                                            height="100%"
+                                            width="100%"
+                                            options={EDITOR_OPTIONS}
+                                            value={inputText}
+                                            onChange={(value) => {
+                                                setInputText(value ?? "");
+                                            }}
+                                        />
+                                    </PanelBody>
+                                </PanelContainer>
                             }
                         />
                     }
                     right={
                         result ? (
-                            <TreeViewContainerWrapper>
-                                <TreeExplorer tree={result} />
-                            </TreeViewContainerWrapper>
+                            <PanelContainer>
+                                <PanelHeader>Output</PanelHeader>
+                                <PanelBody>
+                                    <TreeViewContainerWrapper>
+                                        <TreeExplorer tree={result} />
+                                    </TreeViewContainerWrapper>
+                                </PanelBody>
+                            </PanelContainer>
                         ) : null
                     }
                 />

@@ -2,10 +2,11 @@ import { styled } from "@pigment-css/react";
 
 export const SplitViewRoot = styled("div")<{ horizontal: boolean }>({
     display: "flex",
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: "100%",
     position: "relative",
+    flex: "1 1 auto",
+    minWidth: 0,
+    minHeight: 0,
+    overflow: "hidden",
     variants: [
         {
             props: { horizontal: true },
@@ -29,7 +30,9 @@ export const SplitViewContainer = styled("div")<{
     flex: ({ span }) => span,
     display: "flex",
     flexDirection: "column",
-    justifyContent: "center",
+    alignItems: "stretch",
+    minWidth: 0,
+    minHeight: 0,
 
     variants: [
         {
@@ -37,6 +40,7 @@ export const SplitViewContainer = styled("div")<{
             style: {
                 overflowX: "hidden",
                 overflowY: "auto",
+                minHeight: 0,
             },
         },
         {
@@ -44,6 +48,7 @@ export const SplitViewContainer = styled("div")<{
             style: {
                 overflowX: "auto",
                 overflowY: "hidden",
+                minWidth: 0,
             },
         },
     ],

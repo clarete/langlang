@@ -139,12 +139,51 @@ export const PlaygroundContainer = styled("div")({
     gap: "1rem",
 });
 
-export const TraceViewContainerWrapper = styled("div")({
+export const OutputViewContainerWrapper = styled("div")({
     minWidth: "300px",
     flex: 1,
     minHeight: 0,
     height: "100%",
     overflow: "auto",
+});
+
+export const OutputPanelBody = styled("div")({
+    display: "flex",
+    height: "100%",
+    minHeight: 0,
+});
+
+export const OutputTabs = styled("div")({
+    display: "flex",
+    flexDirection: "column",
+    borderLeft: "1px solid rgba(251, 240, 223, 0.2)",
+    background: "rgba(0, 0, 0, 0.12)",
+});
+
+export const OutputTab = styled("button")<{ active?: boolean }>({
+    width: "2.4rem",
+    flex: "0 0 auto",
+    padding: "0.5rem 0.25rem",
+    border: "none",
+    borderBottom: "1px solid rgba(251, 240, 223, 0.15)",
+    background: "transparent",
+    color: "rgba(251, 240, 223, 0.75)",
+    cursor: "pointer",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: "0.75rem",
+    letterSpacing: "0.04em",
+    writingMode: "vertical-rl",
+    transform: "rotate(180deg)",
+    userSelect: "none",
+    variants: [
+        {
+            props: { active: true },
+            style: {
+                background: "rgba(251, 240, 223, 0.12)",
+                color: "rgba(251, 240, 223, 0.95)",
+            },
+        },
+    ],
 });
 
 export const ResponseContainer = styled("div")({

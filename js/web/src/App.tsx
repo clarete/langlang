@@ -5,16 +5,20 @@ import { useWasmTest, type Matcher, type Value } from "@langlang/react";
 import { Editor, type EditorProps } from "@monaco-editor/react";
 import TraceExplorer from "./components/TraceExplorer";
 import SplitView from "./components/SplitView";
+import TreeView from "./components/TreeView";
 
 import fixtures from "./fixtures";
 import { registerPegLanguage } from "./monaco/peg";
 
 import {
+    OutputPanelBody,
+    OutputTab,
+    OutputTabs,
+    OutputViewContainerWrapper,
     PanelBody,
     PanelContainer,
     PanelHeader,
     TopBar,
-    TraceViewContainerWrapper,
 } from "./App.styles";
 
 const EDITOR_OPTIONS = {
@@ -30,6 +34,7 @@ const registerMonacoLanguages: EditorProps["beforeMount"] = (monaco) => {
 
 function App() {
     const [result, setResult] = useState<Value | null>(null);
+    const [outputView, setOutputView] = useState<"tree" | "trace">("tree");
     const [grammarText, setGrammarText] = useState<string>(
         fixtures.protoCirc.grammar,
     );
@@ -200,25 +205,47 @@ function App() {
                         <PanelContainer>
                             <PanelHeader>Output</PanelHeader>
                             <PanelBody>
-                                <TraceViewContainerWrapper>
-                                    {result ? (
-                                        <TraceExplorer tree={result} />
-                                    ) : outputError ? (
-                                        <div
-                                            style={{
-                                                padding: "0.75rem",
-                                                color: "rgba(255, 123, 123, 0.9)",
-                                                fontFamily:
-                                                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                                                whiteSpace: "pre-wrap",
-                                            }}
+                                <OutputPanelBody>
+                                    <OutputViewContainerWrapper>
+                                        {result ? (
+                                            outputView === "tree" ? (
+                                                <TreeView tree={result} />
+                                            ) : (
+                                                <TraceExplorer tree={result} />
+                                            )
+                                        ) : outputError ? (
+                                            <div
+                                                style={{
+                                                    padding: "0.75rem",
+                                                    color: "rgba(255, 123, 123, 0.9)",
+                                                    fontFamily:
+                                                        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                                    whiteSpace: "pre-wrap",
+                                                }}
+                                            >
+                                                {outputError}
+                                            </div>
+                                        ) : (
+                                            ""
+                                        )}
+                                    </OutputViewContainerWrapper>
+                                    <OutputTabs>
+                                        <OutputTab
+                                            type="button"
+                                            active={outputView === "tree"}
+                                            onClick={() => setOutputView("tree")}
                                         >
-                                            {outputError}
-                                        </div>
-                                    ) : (
-                                        ""
-                                    )}
-                                </TraceViewContainerWrapper>
+                                            Tree
+                                        </OutputTab>
+                                        <OutputTab
+                                            type="button"
+                                            active={outputView === "trace"}
+                                            onClick={() => setOutputView("trace")}
+                                        >
+                                            Trace
+                                        </OutputTab>
+                                    </OutputTabs>
+                                </OutputPanelBody>
                             </PanelBody>
                         </PanelContainer>
                     }

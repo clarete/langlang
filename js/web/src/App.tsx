@@ -6,8 +6,7 @@ import { Editor, type EditorProps } from "@monaco-editor/react";
 import TraceExplorer from "./components/TraceExplorer";
 import SplitView from "./components/SplitView";
 import TreeView from "./components/TreeView";
-
-import fixtures from "./fixtures";
+import File from "./components/File";
 import { registerPegLanguage } from "./monaco/peg";
 
 import {
@@ -35,12 +34,8 @@ const registerMonacoLanguages: EditorProps["beforeMount"] = (monaco) => {
 function App() {
     const [result, setResult] = useState<Value | null>(null);
     const [outputView, setOutputView] = useState<"tree" | "trace">("tree");
-    const [grammarText, setGrammarText] = useState<string>(
-        fixtures.protoCirc.grammar,
-    );
-    const [inputText, setInputText] = useState<string>(
-        fixtures.protoCirc.input,
-    );
+    const [grammarText, setGrammarText] = useState<string>("");
+    const [inputText, setInputText] = useState<string>("");
     const { status, data: langlang, error } = useWasmTest();
 
     const matcherRef = useRef<Matcher | null>(null);

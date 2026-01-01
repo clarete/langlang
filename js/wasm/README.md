@@ -14,7 +14,7 @@ bun run src/index.ts
 
 ## Building the Go WASM binary (no Makefile needed)
 
-This package uses `package.json` scripts (shell commands) that replace `make build/clean/tidy`:
+This package uses `package.json` scripts (shell commands) that replace `make build/clean/tidy/copy`:
 
 ```bash
 # Build src/langlang.wasm and copy it into dist/langlang.wasm
@@ -25,6 +25,9 @@ bun run wasm:clean
 
 # Run `go mod tidy` inside ./lib
 bun run wasm:tidy
+
+# Copy wasm_exec.js from Go's GOROOT into src/wasm_exec.js
+bun run wasm:copy
 ```
 
 ## Idiomatic JS API (Matcher / Tree / Node)

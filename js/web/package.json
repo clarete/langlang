@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && bun run copy-assets",
+    "copy-assets": "bun run scripts/copy-assets",
     "preview": "vite preview"
   },
   "dependencies": {

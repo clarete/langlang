@@ -1,10 +1,11 @@
 import TraceView from "./TraceView";
-import type { Value } from "@langlang/react";
+import type { Span, Value } from "@langlang/react";
 import { createContext, useRef, useState } from "react";
 import { SourceLine, TraceViewContainer } from "./TraceExplorer.styles";
 
 interface TraceExplorerProps {
     tree: Value;
+    onHoverRange?: (span: Span | null) => void;
 }
 
 interface TraceUiContextType {
@@ -19,7 +20,7 @@ export const TraceUiContext = createContext<TraceUiContextType>({
     leafNodeSizeMap: new Map(),
 });
 
-function TraceExplorer({ tree }: TraceExplorerProps) {
+function TraceExplorer({ tree, onHoverRange }: TraceExplorerProps) {
     const [highlight, setHighlight] = useState<string | null>(null);
     const leafNodeSizeMapRef = useRef<Map<string, DOMRect>>(new Map());
 
@@ -31,12 +32,21 @@ function TraceExplorer({ tree }: TraceExplorerProps) {
                 leafNodeSizeMap: leafNodeSizeMapRef.current,
             }}
         >
-            <TraceViewContainer onMouseLeave={() => setHighlight(null)}>
+            <TraceViewContainer
+                onMouseLeave={() => {
+                    setHighlight(null);
+                    onHoverRange?.(null);
+                }}
+            >
                 <SourceLine>
-                    <TraceView tree={tree} renderLeafOnly />
+                    <TraceView
+                        tree={tree}
+                        renderLeafOnly
+                        onHoverRange={onHoverRange}
+                    />
                 </SourceLine>
                 <div>
-                    <TraceView tree={tree} />
+                    <TraceView tree={tree} onHoverRange={onHoverRange} />
                 </div>
             </TraceViewContainer>
         </TraceUiContext.Provider>

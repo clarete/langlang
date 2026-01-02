@@ -318,7 +318,10 @@ function App() {
                                                     onHoverRange={setHoverRange}
                                                 />
                                             ) : (
-                                                <TraceExplorer tree={result} />
+                                                <TraceExplorer
+                                                    tree={result}
+                                                    onHoverRange={setHoverRange}
+                                                />
                                             )
                                         ) : outputError ? (
                                             <div

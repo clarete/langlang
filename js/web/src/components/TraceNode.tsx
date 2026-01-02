@@ -1,4 +1,4 @@
-import type { Value } from "@langlang/react";
+import type { Span, Value } from "@langlang/react";
 import type React from "react";
 import { NodeContainer, NodeName, SequenceContainer } from "./TraceNode.styles";
 import { useContext, useEffect, useRef } from "react";
@@ -9,6 +9,7 @@ interface TraceNodeProps {
     children?: React.ReactNode;
     renderLeafOnly?: boolean;
     parent: string;
+    onHoverRange?: (span: Span | null) => void;
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -60,6 +61,7 @@ function TraceNode({
     children,
     renderLeafOnly = false,
     parent,
+    onHoverRange,
 }: TraceNodeProps) {
     const { highlight, setHighlight, leafNodeSizeMap } =
         useContext(TraceUiContext);
@@ -109,7 +111,10 @@ function TraceNode({
                         ref={nodeNameRef}
                         style={style}
                         {...highlightProps}
-                        onMouseEnter={() => setHighlight?.(parent)}
+                        onMouseEnter={() => {
+                            setHighlight?.(parent);
+                            onHoverRange?.(node.span);
+                        }}
                     >
                         {node.value}
                     </NodeName>
@@ -142,7 +147,10 @@ function TraceNode({
                         <NodeName
                             ref={nodeNameRef}
                             {...highlightProps}
-                            onMouseEnter={() => setHighlight?.(parent)}
+                            onMouseEnter={() => {
+                                setHighlight?.(parent);
+                                onHoverRange?.(node.span);
+                            }}
                         >
                             {node.name}
                         </NodeName>

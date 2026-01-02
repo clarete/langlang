@@ -153,8 +153,8 @@ func TestVM(t *testing.T) {
 			Grammar:        "G <- [♡]",
 			Input:          "♡",
 			ExpectedCursor: 3,
-			ExpectedAST: `G (1..4)
-└── "♡" (1..4)`,
+			ExpectedAST: `G (1..2)
+└── "♡" (1..2)`,
 		},
 		{
 			Name: "Var",

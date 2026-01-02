@@ -22,7 +22,7 @@
   "scripts": {
     "build": "tsc && cp src/wasm_exec.js dist/wasm_exec.js && cp src/langlang.wasm dist/langlang.wasm",
     "dev": "tsc --watch",
-    "wasm:build": "mkdir -p src dist && bun run wasm:copy && cd lib && GOWORK=off GOOS=js GOARCH=wasm go build -o ../src/langlang.wasm . && cd .. && cp src/langlang.wasm dist/langlang.wasm",
+    "wasm:build": "mkdir -p src dist && cd lib && GOWORK=off GOOS=js GOARCH=wasm go build -o ../src/langlang.wasm . && cd .. && cp src/langlang.wasm dist/langlang.wasm",
     "wasm:clean": "rm -f src/langlang.wasm dist/langlang.wasm",
     "wasm:tidy": "cd lib && go mod tidy",
     "wasm:copy": "cp \"$(go env GOROOT)/misc/wasm/wasm_exec.js\" src/wasm_exec.js",

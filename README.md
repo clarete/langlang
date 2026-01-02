@@ -296,7 +296,6 @@ Non-Terminals, on top of parenthesized expressions:
 <th scope="col" class="org-left">comment</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td class="org-left"><b>ordered choice</b></td>
@@ -304,13 +303,11 @@ Non-Terminals, on top of parenthesized expressions:
 <td class="org-left">&#xa0;</td>
 </tr>
 
-
 <tr>
 <td class="org-left"><b>not predicate</b></td>
 <td class="org-left"><code>!e</code></td>
 <td class="org-left">&#xa0;</td>
 </tr>
-
 
 <tr>
 <td class="org-left"><b>and predicate</b></td>
@@ -318,13 +315,11 @@ Non-Terminals, on top of parenthesized expressions:
 <td class="org-left">sugar for <code>!!e</code></td>
 </tr>
 
-
 <tr>
 <td class="org-left"><b>zero or more</b></td>
 <td class="org-left"><code>e*</code></td>
 <td class="org-left">&#xa0;</td>
 </tr>
-
 
 <tr>
 <td class="org-left"><b>one or more</b></td>
@@ -332,20 +327,17 @@ Non-Terminals, on top of parenthesized expressions:
 <td class="org-left">sugar for <code>ee*</code></td>
 </tr>
 
-
 <tr>
 <td class="org-left"><b>optional</b></td>
 <td class="org-left"><code>e?</code></td>
 <td class="org-left">sugar for <code>&amp;ee / !e</code></td>
 </tr>
 
-
 <tr>
 <td class="org-left"><b>lexification</b></td>
 <td class="org-left"><code>#e</code></td>
 <td class="org-left">&#xa0;</td>
 </tr>
-
 
 <tr>
 <td class="org-left"><b>label</b></td>
@@ -447,25 +439,21 @@ disabled.  This is what is expected
 <th scope="col" class="org-left">Result</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td class="org-left">" 3rd"</td>
 <td class="org-left">succeeds</td>
 </tr>
 
-
 <tr>
 <td class="org-left">"50th"</td>
 <td class="org-left">succeeds</td>
 </tr>
 
-
 <tr>
 <td class="org-left">"2 0th"</td>
 <td class="org-left">fails</td>
 </tr>
-
 
 <tr>
 <td class="org-left">"2 th"</td>
@@ -562,6 +550,9 @@ be used in other grammars using imports.  Behind the scenes, the
 
 ## go/v0.0.12 (unreleased)
 
+-   [FEAT: Add 32-bit char/range opcodes for non-BMP Unicode](https://github.com/clarete/langlang/commit/6a455fe9d0771ae876cacf62aa5231907ea47deb)
+-   [FEAT[api]: Add Tree.CursorU16 and unify position indexing](https://github.com/clarete/langlang/commit/c613467c46accd3ee2dd8b2a215caa0506ccc47d)
+-   [FEAT[api]: Reintroduce API for retrieving line/column position](https://github.com/clarete/langlang/commit/57660e47906b3c00fc12540eb8e274d58a29adc5)
 -   [FEAT[api]: Add `Tree.Copy` method and document memory ownership](https://github.com/clarete/langlang/commit/40fc6105e21a805d82ee3cdab376893f3b642913)
 
 

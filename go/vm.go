@@ -120,13 +120,17 @@ const (
 	opCapTermBeginOffset
 	opCapNonTermBeginOffset
 	opCapEndOffset
+	opChar32
+	opRange32
 )
 
 var opNames = map[byte]string{
 	opHalt:                  "halt",
 	opAny:                   "any",
 	opChar:                  "char",
+	opChar32:                "char32",
 	opRange:                 "range",
+	opRange32:               "range32",
 	opSet:                   "set",
 	opSpan:                  "span",
 	opFail:                  "fail",
@@ -157,12 +161,15 @@ var (
 	// opAnySizeInBytes: 1 because `Any` has no params
 	opAnySizeInBytes = 1
 	// opCharSizeInBytes: 3, 1 for the opcode and 2 for the
-	// literal char.  TODO: This is too small for certain chars.
+	// literal char.
 	opCharSizeInBytes = 3
+	// opChar32SizeInBytes: 1 for opcode, 4 for uint32 rune
+	opChar32SizeInBytes = 5
 	// opRangeSizeInBytes: 1 for the opcode followed by two runes,
-	// each one 2 bytes long. Note: this is too small for certain
-	// chars.
+	// each one 2 bytes long.
 	opRangeSizeInBytes = 5
+	// opRange32SizeInBytes: 1 for opcode, 8 for two uint32 runes
+	opRange32SizeInBytes = 9
 	// opSetSizeInBytes: 1 for the opcode, followed by the 16bit
 	// set address
 	opSetSizeInBytes  = 3
@@ -286,6 +293,21 @@ code:
 			cursor += s
 			pc += opCharSizeInBytes
 
+		case opChar32:
+			e := rune(decodeU32(code, pc+1))
+			if cursor >= ilen {
+				goto fail
+			}
+			c, s := decodeRune(data, cursor)
+			if c != e {
+				if vm.showFails {
+					vm.updateExpected(cursor, expected{a: e})
+				}
+				goto fail
+			}
+			cursor += s
+			pc += opChar32SizeInBytes
+
 		case opRange:
 			if cursor >= ilen {
 				goto fail
@@ -301,6 +323,22 @@ code:
 			}
 			cursor += s
 			pc += opRangeSizeInBytes
+
+		case opRange32:
+			if cursor >= ilen {
+				goto fail
+			}
+			c, s := decodeRune(data, cursor)
+			a := rune(decodeU32(code, pc+1))
+			b := rune(decodeU32(code, pc+5))
+			if c < a || c > b {
+				if vm.showFails {
+					vm.updateExpected(cursor, expected{a: a, b: b})
+				}
+				goto fail
+			}
+			cursor += s
+			pc += opRange32SizeInBytes
 
 		case opSet:
 			if cursor >= ilen {
@@ -714,6 +752,13 @@ func (vm *virtualMachine) mkErr(data []byte, errLabelID int, cursor, errCursor i
 // https://github.com/golang/go/issues/14808
 func decodeU16(code []byte, offset int) uint16 {
 	return uint16(code[offset]) | uint16(code[offset+1])<<8
+}
+
+func decodeU32(code []byte, offset int) uint32 {
+	return uint32(code[offset]) |
+		uint32(code[offset+1])<<8 |
+		uint32(code[offset+2])<<16 |
+		uint32(code[offset+3])<<24
 }
 
 func decodeRune(data []byte, offset int) (rune, int) {

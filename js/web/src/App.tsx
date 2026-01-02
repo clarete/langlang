@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useWasmTest, type Matcher, type Value } from "@langlang/react";
-import { Editor, type EditorProps } from "@monaco-editor/react";
+import {
+    useWasmTest,
+    type Matcher,
+    type Value,
+    type Span,
+} from "@langlang/react";
+import { Editor, type EditorProps, type Monaco } from "@monaco-editor/react";
 import TraceExplorer from "./components/TraceExplorer";
 import SplitView from "./components/SplitView";
 import TreeView from "./components/TreeView";
@@ -39,7 +44,12 @@ function App() {
 
     const matcherRef = useRef<Matcher | null>(null);
     const [outputError, setOutputError] = useState<string | null>(null);
-    const [, setMatcherVersion] = useState(0);
+    const [matcherVersion, setMatcherVersion] = useState(0);
+    const [hoverRange, setHoverRange] = useState<Span | null>(null);
+
+    const inputEditorRef = useRef<any>(null);
+    const monacoRef = useRef<Monaco | null>(null);
+    const inputDecorationsRef = useRef<string[]>([]);
 
     // Debounced compile step (grammar -> matcher)
     useEffect(() => {
@@ -87,7 +97,52 @@ function App() {
         }, 50);
 
         return () => window.clearTimeout(handle);
-    }, [inputText]);
+    }, [inputText, matcherVersion]);
+
+    // Hover highlight (tree node range -> input editor decoration)
+    useEffect(() => {
+        const editor = inputEditorRef.current;
+        const monaco = monacoRef.current;
+        if (!editor || !monaco) return;
+        const model = editor.getModel?.();
+        if (!model) return;
+
+        // nothing's selected, so we clear whatever decoration is in the selection
+        if (
+            !hoverRange ||
+            hoverRange.end.utf16Cursor <= hoverRange.start.utf16Cursor
+        ) {
+            inputDecorationsRef.current = editor.deltaDecorations(
+                inputDecorationsRef.current,
+                [],
+            );
+            return;
+        }
+
+        const startPos = model.getPositionAt(hoverRange.start.utf16Cursor);
+        const endPos = model.getPositionAt(hoverRange.end.utf16Cursor);
+        const range = new monaco.Range(
+            startPos.lineNumber,
+            startPos.column,
+            endPos.lineNumber,
+            endPos.column,
+        );
+
+        inputDecorationsRef.current = editor.deltaDecorations(
+            inputDecorationsRef.current,
+            [
+                {
+                    range,
+                    options: {
+                        inlineClassName: "ll-hover-highlight",
+                        stickiness:
+                            monaco.editor.TrackedRangeStickiness
+                                .NeverGrowsWhenTypingAtEdges,
+                    },
+                },
+            ],
+        );
+    }, [hoverRange]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -178,6 +233,15 @@ function App() {
                                                     width="100%"
                                                     options={EDITOR_OPTIONS}
                                                     value={content ?? undefined}
+                                                    onMount={(
+                                                        editor,
+                                                        monaco,
+                                                    ) => {
+                                                        inputEditorRef.current =
+                                                            editor;
+                                                        monacoRef.current =
+                                                            monaco;
+                                                    }}
                                                     onChange={(value) =>
                                                         write(value ?? "")
                                                     }
@@ -213,7 +277,10 @@ function App() {
                                     <OutputViewContainerWrapper>
                                         {result ? (
                                             outputView === "tree" ? (
-                                                <TreeView tree={result} />
+                                                <TreeView
+                                                    tree={result}
+                                                    onHoverRange={setHoverRange}
+                                                />
                                             ) : (
                                                 <TraceExplorer tree={result} />
                                             )
@@ -246,9 +313,10 @@ function App() {
                                         <OutputTab
                                             type="button"
                                             active={outputView === "trace"}
-                                            onClick={() =>
-                                                setOutputView("trace")
-                                            }
+                                            onClick={() => {
+                                                setOutputView("trace");
+                                                setHoverRange(null);
+                                            }}
                                         >
                                             Trace
                                         </OutputTab>

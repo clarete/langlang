@@ -34,6 +34,32 @@ const (
 	NodeType_Error
 )
 
+// Location identifies a position in an input source.
+//
+// Cursor is a byte offset into the input (0-based). Line and Column
+// are 1-based and are computed in terms of UTF-8 decoded runes (not
+// bytes).
+//
+// FileID is optional metadata (e.g. an interned filename id). When
+// unavailable, it is set to -1.
+type Location struct {
+	FileID int32
+	Line   int32
+	Column int32
+	Cursor int
+}
+
+// Span represents a half-open interval [Start.Cursor, End.Cursor) in
+// the input.
+type Span struct {
+	Start Location
+	End   Location
+}
+
+// Range takes as little as possible (8 bytes in 64bit systems) to
+// represent a position within the input.
+type Range struct{ Start, End int }
+
 // Tree represents a parse tree produced by matching input against a
 // PEG grammar.  The tree structure is immutable once created. Nodes
 // are accessed by NodeID, an opaque handle returned by Root() and
@@ -108,6 +134,19 @@ type Tree interface {
 	// Range returns the byte offsets (start inclusive, end
 	// exclusive) into the original input that this node spans.
 	Range(NodeID) Range
+
+	// Span returns the node span as a pair of Locations (Start/End) where cursor
+	// offsets are byte-based and line/column are 1-based UTF-8 rune columns.
+	Span(NodeID) Span
+
+	// Location converts an arbitrary cursor byte offset into a Location using the
+	// same indexing as Span. Cursor is a byte offset; Column is rune-based.
+	Location(cursor int) Location
+
+	// CursorU16 converts a cursor byte offset (into the original UTF-8 input) into
+	// an absolute UTF-16 code-unit offset. This is useful for consumers that use
+	// UTF-16 indexing (e.g. Monaco, many LSP clients).
+	CursorU16(cursor int) int
 
 	// Name returns the grammar rule name for NodeType_Node and
 	// the error label for NodeType_Error nodes. Returns an empty

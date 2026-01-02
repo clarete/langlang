@@ -41,24 +41,18 @@ export const FilePickerButton = styled("button")<{ expanded?: boolean, color?: s
     justifyContent: 'center',
     fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    borderRadius: '2px',
+    borderRadius: "2px",
+    background: (props) => props.color ?? "#242424",
+    marginTop: "1xpx",
     fontSize: '0.8rem',
     transition: '150ms',
-    cursor: 'var(--bun-cursor)',
-    border: 'none',
-    background: (props) => props.color ?? '#242424',
-
-    '& svg': {
-        width: '0.8rem',
-        height: '0.8rem',
-        padding: '0.15rem',
-    },
-
-    '&:hover': {
-        background: '#6b6b6b',
-        cursor: 'pointer',
-        gridTemplateColumns: '1fr 1.25rem',
-        gap: '0.5rem',
+    cursor: "var(--bun-cursor)",
+    border: "none",
+    "&:hover": {
+        background: "#6b6b6b",
+        cursor: "pointer",
+        gridTemplateColumns: "1fr 1.25rem",
+        gap: "0.5rem",
     },
 
     variants: [

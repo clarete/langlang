@@ -15,7 +15,7 @@ import (
 	"text/template"
 )
 
-//go:embed api.go vm.go vm_stack.go vm_charset.go tree.go tree_printer.go errors.go range.go
+//go:embed api.go vm.go vm_stack.go vm_charset.go tree.go tree_printer.go errors.go pos.go
 var goEvalContent embed.FS
 
 type GenGoOptions struct {
@@ -63,6 +63,7 @@ func (g *goEvalEmitter) writePrelude() {
 		g.parser.writeil(`"encoding/hex"`)
 		g.parser.writeil(`"fmt"`)
 		g.parser.writeil(`"math/bits"`)
+		g.parser.writeil(`"sort"`)
 		g.parser.writeil(`"strconv"`)
 		g.parser.writeil(`"strings"`)
 		g.parser.writeil(`"unicode/utf8"`)
@@ -265,7 +266,7 @@ func (g *goEvalEmitter) writeDeps() {
 		return
 	}
 	for _, file := range []string{
-		"range.go", "tree.go", "tree_printer.go", "errors.go",
+		"pos.go", "tree.go", "tree_printer.go", "errors.go",
 		"vm_stack.go", "vm_charset.go", "vm.go",
 	} {
 		s, err := cleanGoModule(goEvalContent, file)
@@ -347,6 +348,9 @@ func readAPI(fs embed.FS, fileName string) string {
 	includeTypes := map[string]bool{
 		"NodeID":   true,
 		"NodeType": true,
+		"Location": true,
+		"Span":     true,
+		"Range":    true,
 	}
 
 	ast.Inspect(node, func(n ast.Node) bool {

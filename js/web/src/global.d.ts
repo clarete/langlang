@@ -37,4 +37,3 @@ declare global {
         disconnect(): void;
     }
 }
-

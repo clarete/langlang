@@ -60,6 +60,69 @@ export const ApiTester = styled("div")({
     gap: "1rem",
 });
 
+export const BarRoot = styled("div")({
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    background: "#121212",
+    borderBottom: "1px solid rgba(251, 240, 223, 0.18)",
+});
+
+export const BarHeader = styled("div")({
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    padding: "0.5rem 0.75rem",
+    color: "rgba(251, 240, 223, 0.9)",
+    fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: "0.82rem",
+    userSelect: "none",
+    borderBottom: "1px solid rgba(251, 240, 223, 0.18)",
+});
+
+export const BarTitle = styled("div")({
+    fontWeight: 700,
+    letterSpacing: "0.02em",
+});
+
+export const BarSpacer = styled("div")({
+    flex: 1,
+});
+
+export const Status = styled("div")({
+    fontSize: "0.8rem",
+});
+
+export const SettingsTab = styled("button")<{ active?: boolean }>({
+    fontFamily:
+        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    borderRadius: "8px",
+    background: "#242424",
+    color: "rgba(251, 240, 223, 0.9)",
+    padding: "0.28rem 0.6rem",
+    border: "1px solid rgba(251, 240, 223, 0.18)",
+    transition: "0.12s",
+    cursor: "pointer",
+    position: "relative",
+    marginBottom: "-1px",
+    "&:hover": {
+        background: "#303030",
+        borderColor: "rgba(251, 240, 223, 0.35)",
+    },
+    variants: [
+        {
+            props: { active: true },
+            style: {
+                background: "#242424",
+                borderColor: "rgba(251, 240, 223, 0.28)",
+                borderBottomColor: "#242424",
+                borderRadius: "8px 8px 0 0",
+            },
+        },
+    ],
+});
+
 export const EndpointRow = styled("div")({
     display: "flex",
     alignItems: "center",

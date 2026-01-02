@@ -1,13 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-    useWasmTest,
-    type Matcher,
-    type Value,
-    type Span,
-} from "@langlang/react";
+import { useWasmTest } from "@langlang/react";
+import type { Config, Matcher, Value, Span } from "@langlang/react";
 import { Editor, type EditorProps, type Monaco } from "@monaco-editor/react";
+import MatcherSettingsPanel from "./components/MatcherSettingsPanel";
 import TraceExplorer from "./components/TraceExplorer";
 import SplitView from "./components/SplitView";
 import TreeView from "./components/TreeView";
@@ -15,6 +12,12 @@ import File from "./components/File";
 import { registerPegLanguage } from "./monaco/peg";
 
 import {
+    BarHeader,
+    BarRoot,
+    BarSpacer,
+    BarTitle,
+    SettingsTab,
+    Status,
     OutputPanelBody,
     OutputTab,
     OutputTabs,
@@ -47,6 +50,12 @@ function App() {
     const [matcherVersion, setMatcherVersion] = useState(0);
     const [hoverRange, setHoverRange] = useState<Span | null>(null);
 
+    const [showSettings, setShowSettings] = useState(false);
+    const [settings, setSettings] = useState(() => ({
+        captureSpaces: true,
+        handleSpaces: true,
+    }));
+
     const inputEditorRef = useRef<any>(null);
     const monacoRef = useRef<Monaco | null>(null);
     const inputDecorationsRef = useRef<string[]>([]);
@@ -64,7 +73,14 @@ function App() {
                 matcherRef.current = null;
             }
             try {
-                matcherRef.current = langlang.matcherFromString(grammarText);
+                const matcherCfg: Config = {
+                    "grammar.capture_spaces": settings.captureSpaces,
+                    "grammar.handle_spaces": settings.handleSpaces,
+                };
+                matcherRef.current = langlang.matcherFromString(
+                    grammarText,
+                    matcherCfg,
+                );
                 setOutputError(null);
                 setMatcherVersion((v) => v + 1);
             } catch (e) {
@@ -76,7 +92,7 @@ function App() {
         }, 200);
 
         return () => window.clearTimeout(handle);
-    }, [langlang, grammarText]);
+    }, [langlang, grammarText, settings]);
 
     // Debounced match step (matcher + input -> result tree)
     useEffect(() => {
@@ -168,6 +184,36 @@ function App() {
     if (status === "success") {
         return (
             <>
+                <BarRoot>
+                    <BarHeader>
+                        <BarTitle>langlang</BarTitle>
+                        <BarSpacer />
+                        <SettingsTab
+                            type="button"
+                            active={showSettings}
+                            aria-expanded={showSettings}
+                            onClick={() => setShowSettings((v) => !v)}
+                        >
+                            Settings
+                        </SettingsTab>
+                        <Status
+                            title={outputError ?? "Live preview"}
+                            style={{
+                                color: outputError
+                                    ? "rgba(255, 123, 123, 0.9)"
+                                    : "rgba(123, 255, 180, 0.9)",
+                            }}
+                        >
+                            {outputError ? "Error" : "Live"}
+                        </Status>
+                    </BarHeader>
+                    {showSettings ? (
+                        <MatcherSettingsPanel
+                            value={settings}
+                            onChange={setSettings}
+                        />
+                    ) : null}
+                </BarRoot>
                 <SplitView
                     left={
                         <SplitView
@@ -255,25 +301,15 @@ function App() {
                     }
                     right={
                         <PanelContainer>
-                            <PanelHeader>
-                                Output
-                                <div
-                                    title={outputError ?? "Live preview"}
-                                    style={{
-                                        fontFamily:
-                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                                        fontSize: "0.8rem",
-                                        color: outputError
-                                            ? "rgba(255, 123, 123, 0.9)"
-                                            : "rgba(123, 255, 180, 0.9)",
-                                        marginLeft: "auto",
-                                    }}
-                                >
-                                    {outputError ? "Error" : "Live"}
-                                </div>
-                            </PanelHeader>
-                            <PanelBody>
-                                <OutputPanelBody>
+                            <PanelHeader>Output</PanelHeader>
+                            <PanelBody
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    minHeight: 0,
+                                }}
+                            >
+                                <OutputPanelBody style={{ minHeight: 0 }}>
                                     <OutputViewContainerWrapper>
                                         {result ? (
                                             outputView === "tree" ? (

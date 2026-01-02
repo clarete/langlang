@@ -46,7 +46,7 @@ type tree struct {
 	strs        []string
 	input       []byte
 	root        NodeID
-	lineIndex   *LineIndex
+	posView     *posIndex
 }
 
 func (t *tree) bindInput(input []byte)    { t.input = input }
@@ -55,7 +55,7 @@ func (t *tree) reset() {
 	t.nodes = t.nodes[:0]
 	t.children = t.children[:0]
 	t.childRanges = t.childRanges[:0]
-	t.lineIndex = nil
+	t.posView = nil
 }
 
 func (t *tree) Root() (NodeID, bool)                { return t.root, len(t.nodes) > 0 }
@@ -75,18 +75,23 @@ func (t *tree) Range(id NodeID) Range {
 }
 
 func (t *tree) Location(cursor int) Location {
-	t.ensureLineIndex()
-	return t.lineIndex.LocationAt(cursor)
+	t.ensurePosView()
+	return t.posView.LocationAt(cursor)
 }
 
 func (t *tree) Span(id NodeID) Span {
-	t.ensureLineIndex()
-	return t.lineIndex.Span(t.Range(id))
+	t.ensurePosView()
+	return t.posView.Span(t.Range(id))
 }
 
-func (t *tree) ensureLineIndex() {
-	if t.lineIndex == nil {
-		t.lineIndex = NewLineIndex(t.input)
+func (t *tree) CursorU16(cursor int) int {
+	t.ensurePosView()
+	return t.posView.CursorU16(cursor)
+}
+
+func (t *tree) ensurePosView() {
+	if t.posView == nil {
+		t.posView = newPosIndex(t.input)
 	}
 }
 

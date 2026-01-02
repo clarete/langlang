@@ -143,6 +143,11 @@ type Tree interface {
 	// same indexing as Span. Cursor is a byte offset; Column is rune-based.
 	Location(cursor int) Location
 
+	// CursorU16 converts a cursor byte offset (into the original UTF-8 input) into
+	// an absolute UTF-16 code-unit offset. This is useful for consumers that use
+	// UTF-16 indexing (e.g. Monaco, many LSP clients).
+	CursorU16(cursor int) int
+
 	// Name returns the grammar rule name for NodeType_Node and
 	// the error label for NodeType_Error nodes. Returns an empty
 	// string for other node types.

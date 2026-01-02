@@ -48,20 +48,22 @@ func (s Span) String() string {
 	return fmt.Sprintf("%d:%d..%d:%d", startLine, startCol, endLine, endCol)
 }
 
-// LineIndex allows fast conversion from byte cursor offsets to line/column.
-//
-// It stores the start byte offset of each line (0-based). Given a
-// cursor, it finds the line by binary searching line starts (O(log
-// lines)) and computes the column as (runes since lineStart + 1).
-//
-// Construction is O(n) over the input and is intended to be cached
-// per input.
-type LineIndex struct {
-	input     []byte
+// ---- Position index ----
+
+// posIndex provides Location/Span (rune columns) and CursorU16
+// (UTF-16 code-unit offsets) derived from the same underlying UTF-8
+// input.
+type posIndex struct {
+	input []byte
+
+	// lineStart holds byte 0-based offsets of each line start
 	lineStart []int
+
+	// lazily built checkpointed units indexes
+	runeUnits, u16Units *unitsIndex
 }
 
-func NewLineIndex(input []byte) *LineIndex {
+func newPosIndex(input []byte) *posIndex {
 	// Always include line 1 starting at offset 0.
 	lineStart := make([]int, 1, 64)
 	lineStart[0] = 0
@@ -71,39 +73,184 @@ func NewLineIndex(input []byte) *LineIndex {
 			lineStart = append(lineStart, i+1)
 		}
 	}
-	return &LineIndex{input: input, lineStart: lineStart}
+	return &posIndex{input: input, lineStart: lineStart}
 }
 
-func (li *LineIndex) Span(r Range) Span {
+func (pi *posIndex) Span(r Range) Span {
 	return Span{
-		Start: li.LocationAt(r.Start),
-		End:   li.LocationAt(r.End),
+		Start: pi.LocationAt(r.Start),
+		End:   pi.LocationAt(r.End),
 	}
 }
 
-func (li *LineIndex) LocationAt(cursor int) Location {
+func (pi *posIndex) LocationAt(cursor int) Location {
 	if cursor < 0 {
 		cursor = 0
 	}
-	if cursor > len(li.input) {
-		cursor = len(li.input)
+	if cursor > len(pi.input) {
+		cursor = len(pi.input)
 	}
 
 	// Find first lineStart > cursor, then step back one.
-	lineIdx := sort.Search(len(li.lineStart), func(i int) bool {
-		return li.lineStart[i] > cursor
+	lineIdx := sort.Search(len(pi.lineStart), func(i int) bool {
+		return pi.lineStart[i] > cursor
 	}) - 1
 	if lineIdx < 0 {
 		lineIdx = 0
 	}
 
-	lineStart := li.lineStart[lineIdx]
-	// Column is rune-based and 1-indexed.
-	col := int32(utf8.RuneCount(li.input[lineStart:cursor])) + 1
+	lineStart := pi.lineStart[lineIdx]
+
+	pi.ensureRuneUnits()
+
+	// Column is rune-based and 1-indexed
+	col := int32(pi.runeUnits.UnitsAt(cursor)-pi.runeUnits.UnitsAt(lineStart)) + 1
 
 	return Location{
 		Line:   int32(lineIdx + 1),
 		Column: col,
 		Cursor: cursor,
+	}
+}
+
+func (pi *posIndex) CursorU16(cursor int) int {
+	pi.ensureU16Units()
+	return pi.u16Units.UnitsAt(cursor)
+}
+
+func (pi *posIndex) ensureRuneUnits() {
+	if pi.runeUnits == nil {
+		pi.runeUnits = newUnitsIndex(pi.input, unitsModeRune)
+	}
+}
+
+func (pi *posIndex) ensureU16Units() {
+	if pi.u16Units == nil {
+		pi.u16Units = newUnitsIndex(pi.input, unitsModeUTF16)
+	}
+}
+
+// ---- checkpointed units index (runes or UTF-16 code units) ----
+
+type unitsMode uint8
+
+const (
+	unitsModeRune unitsMode = iota
+	unitsModeUTF16
+)
+
+// unitsIndex maps UTF-8 byte offsets (Go cursors) to absolute "units"
+// offsets.  The meaning of "units" depends on the builder:
+//
+//   - UTF8:  +1 per decoded rune
+//   - UTF16: +1 per BMP rune, +2 for surrogate-pairs (r > 0xFFFF)
+//
+// It is built lazily and uses sparse checkpoints to avoid O(n)
+// memory.  UnitsAt is O(log checkpoints + stride) per call after the
+// initial build.
+type unitsIndex struct {
+	input []byte
+	// checkpoints are byte offsets at UTF-8 rune boundaries.
+	byteOffsets []int
+	// unitOffsets are absolute unit offsets at the corresponding
+	// byteOffsets.
+	unitOffsets []int
+	// mode is either rune or utf16
+	mode unitsMode
+}
+
+func newUnitsIndex(input []byte, mode unitsMode) *unitsIndex {
+	// Chosen to keep per-call scanning bounded while keeping the
+	// index small
+	const strideBytes = 64
+
+	var (
+		unitCount            = 0
+		bytesSinceCheckpoint = 0
+		index                = &unitsIndex{
+			input:       input,
+			byteOffsets: make([]int, 0, 128),
+			unitOffsets: make([]int, 0, 128),
+			mode:        mode,
+		}
+	)
+
+	index.byteOffsets = append(index.byteOffsets, 0)
+	index.unitOffsets = append(index.unitOffsets, 0)
+
+	for i := 0; i < len(input); {
+		r, size := utf8.DecodeRune(input[i:])
+		if size <= 0 {
+			size = 1
+			r = utf8.RuneError
+		}
+
+		// Advance by this rune
+		i += size
+		unitCount += index.unitsForRune(r)
+		bytesSinceCheckpoint += size
+
+		// Emit a checkpoint at the *current* rune boundary:
+		if bytesSinceCheckpoint >= strideBytes {
+			index.byteOffsets = append(index.byteOffsets, i)
+			index.unitOffsets = append(index.unitOffsets, unitCount)
+			bytesSinceCheckpoint = 0
+		}
+	}
+
+	// Ensure checkpoint at EOF
+	if last := index.byteOffsets[len(index.byteOffsets)-1]; last != len(input) {
+		index.byteOffsets = append(index.byteOffsets, len(input))
+		index.unitOffsets = append(index.unitOffsets, unitCount)
+	}
+	return index
+}
+
+func (ix *unitsIndex) UnitsAt(cursor int) int {
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor > len(ix.input) {
+		cursor = len(ix.input)
+	}
+
+	// Find last checkpoint byteOffset <= cursor.
+	i := sort.Search(len(ix.byteOffsets), func(i int) bool {
+		return ix.byteOffsets[i] > cursor
+	}) - 1
+	if i < 0 {
+		i = 0
+	}
+
+	bytePos := ix.byteOffsets[i]
+	unitPos := ix.unitOffsets[i]
+
+	// Scan forward from checkpoint to cursor
+	for bytePos < cursor {
+		r, size := utf8.DecodeRune(ix.input[bytePos:])
+		if size <= 0 {
+			size = 1
+			r = utf8.RuneError
+		}
+		if bytePos+size > cursor {
+			break
+		}
+		unitPos += ix.unitsForRune(r)
+		bytePos += size
+	}
+	return unitPos
+}
+
+func (ix *unitsIndex) unitsForRune(r rune) int {
+	switch ix.mode {
+	case unitsModeRune:
+		return 1
+	case unitsModeUTF16:
+		if r > 0xFFFF {
+			return 2
+		}
+		return 1
+	default:
+		return 1
 	}
 }

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+    FileDirectorySymlinkIcon,
+    MortarBoardIcon,
+} from "@primer/octicons-react";
+import {
+    ExpandContent,
+    ExpandLabel,
+    FileContainer,
     FilePickerButton,
     FilePickerContainer,
+    HoverExpandWithIcon,
     PanelHeader,
     PanelHeaderTitle,
-    Separator,
 } from "./File.styles";
 import {
     type LanguageKey,
@@ -83,25 +90,40 @@ function FilePicker({
         const id = value?.id ?? fallbackPair.id;
         return (
             <FilePickerContainer>
-                <ExampleSelect
-                    value={id}
-                    onChange={(pair) => onChange(selectUrlFromPair(pair))}
-                />
-                <Separator>|</Separator>
-                <FilePickerButton onClick={onFilePickerClick}>
-                    Open File
+                <HoverExpandWithIcon expand={value?.type === "url"}>
+                    <ExpandContent>
+                        <ExampleSelect
+                            value={id}
+                            onChange={(pair) =>
+                                onChange(selectUrlFromPair(pair))
+                            }
+                        />
+                    </ExpandContent>
+                    <MortarBoardIcon verticalAlign="middle" />
+                </HoverExpandWithIcon>
+
+                <FilePickerButton onClick={onFilePickerClick} title="Open File">
+                    <ExpandLabel>Open File</ExpandLabel>
+                    <FileDirectorySymlinkIcon verticalAlign="middle" />
                 </FilePickerButton>
             </FilePickerContainer>
         );
     } else {
         return (
             <FilePickerContainer>
-                <FilePickerButton onClick={onFilePickerClick}>
-                    Replace
+                <FilePickerButton
+                    onClick={handleSwitchToUrl}
+                    title="Switch to Examples"
+                >
+                    <ExpandLabel>Switch to Examples</ExpandLabel>
+                    <MortarBoardIcon verticalAlign="middle" />
                 </FilePickerButton>
-                <Separator>|</Separator>
-                <FilePickerButton onClick={handleSwitchToUrl}>
-                    Examples...
+                <FilePickerButton
+                    onClick={onFilePickerClick}
+                    title="Replace File"
+                >
+                    <ExpandLabel>Replace File</ExpandLabel>
+                    <FileDirectorySymlinkIcon verticalAlign="middle" />
                 </FilePickerButton>
             </FilePickerContainer>
         );
@@ -261,7 +283,7 @@ function File({
     }, [editorFile, handleUrlChange, defaultPair, selectUrlFromPair]);
 
     return (
-        <>
+        <FileContainer>
             <PanelHeader>
                 <PanelHeaderTitle>
                     {editorFile?.type === "system"
@@ -279,7 +301,7 @@ function File({
                 />
             </PanelHeader>
             {children(content, handleContentUpdate)}
-        </>
+        </FileContainer>
     );
 }
 

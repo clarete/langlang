@@ -1,0 +1,7 @@
+pin1 = std.pin
+not1 = std.not
+led1 = std.led
+
+connect(pin1[0], not1[0])
+connect(not1[1], led1[0])
+

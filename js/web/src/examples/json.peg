@@ -1,0 +1,32 @@
+// https://www.rfc-editor.org/rfc/rfc8259
+
+JSON    <- Value^jsonValue EOF^eof
+Value   <- Object / Array / String / Number / 'true' / 'false' / 'null'
+Array   <- '[' (Value (',' Value^itemAfterComma)*)? ']'^arrayClose
+Object  <- '{' (Member (',' Member^memberAfterComma)*)? '}'^objectClose
+Member  <- String ':'^memberColon Value^memberValue
+
+// Whitespaces are not allowed after the MINUS sign
+Number  <- '-'? #(Int Frac? Exp?)
+Int     <- '0' / ([1-9][0-9]*)
+Frac    <- '.' [0-9]+^fracDigits
+Exp     <- [eE][-+]?[0-9]+^expDigits
+
+// Whitespaces are part of the string within quotes
+String  <- '"' #(Char* ('"'^strClose))
+Char    <- #(Escape / Unicode / (!'"' .))
+Escape  <- '\\' ["\\/bfnrt]
+Unicode <- #('\\' 'u' Hex^chrH1 Hex^chrH2 Hex^chrH3 Hex^chrH4)
+Hex     <- [0-9A-Fa-f]
+
+// Recovery Expressions
+eof              <- .*
+itemAfterComma   <- (![,\]] .)*
+memberAfterComma <- (![,}] .)*
+memberValue      <- (![,}] .)*
+memberColon      <-
+arrayClose       <-
+objectClose      <-
+strClose         <-
+jsonValue        <-
+

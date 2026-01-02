@@ -46,6 +46,7 @@ type tree struct {
 	strs        []string
 	input       []byte
 	root        NodeID
+	posView     *posIndex
 }
 
 func (t *tree) bindInput(input []byte)    { t.input = input }
@@ -54,6 +55,7 @@ func (t *tree) reset() {
 	t.nodes = t.nodes[:0]
 	t.children = t.children[:0]
 	t.childRanges = t.childRanges[:0]
+	t.posView = nil
 }
 
 func (t *tree) Root() (NodeID, bool)                { return t.root, len(t.nodes) > 0 }
@@ -70,6 +72,27 @@ func (t *tree) IsNamed(id NodeID, nameID int32) bool {
 func (t *tree) Range(id NodeID) Range {
 	n := &t.nodes[id]
 	return Range{Start: n.start, End: n.end}
+}
+
+func (t *tree) Location(cursor int) Location {
+	t.ensurePosView()
+	return t.posView.LocationAt(cursor)
+}
+
+func (t *tree) Span(id NodeID) Span {
+	t.ensurePosView()
+	return t.posView.Span(t.Range(id))
+}
+
+func (t *tree) CursorU16(cursor int) int {
+	t.ensurePosView()
+	return t.posView.CursorU16(cursor)
+}
+
+func (t *tree) ensurePosView() {
+	if t.posView == nil {
+		t.posView = newPosIndex(t.input)
+	}
 }
 
 func (t *tree) Children(id NodeID) []NodeID {
@@ -285,17 +308,18 @@ func newPrettyPrinter(tree *tree, input []byte, format FormatFunc[FormatToken]) 
 
 func (vi *prettyPrinter) visit(id NodeID) {
 	n := &vi.tree.nodes[id]
+	s := vi.tree.Span(id)
 
 	switch n.typ {
 	case NodeType_String:
 		text := string(vi.input[n.start:n.end])
 		escaped := strconv.Quote(text)
 		vi.write(vi.format(escaped, FormatToken_Literal))
-		vi.write(vi.format(fmt.Sprintf(" (%s)", vi.formatPosition(n.start, n.end)), FormatToken_Range))
+		vi.write(vi.format(fmt.Sprintf(" (%s)", s.String()), FormatToken_Range))
 
 	case NodeType_Sequence:
 		children := vi.tree.Children(id)
-		seq := fmt.Sprintf("Sequence<%d> (%s)", len(children), vi.formatPosition(n.start, n.end))
+		seq := fmt.Sprintf("Sequence<%d> (%s)", len(children), s.String())
 		vi.writel(vi.format(seq, FormatToken_Range))
 		for i, child := range children {
 			switch {
@@ -315,7 +339,7 @@ func (vi *prettyPrinter) visit(id NodeID) {
 
 	case NodeType_Node:
 		name := vi.tree.Name(id)
-		rgst := fmt.Sprintf(" (%s)", vi.formatPosition(n.start, n.end))
+		rgst := fmt.Sprintf(" (%s)", s.String())
 		vi.write(vi.format(name, FormatToken_Literal))
 		vi.writel(vi.format(rgst, FormatToken_Range))
 		vi.pwrite("└── ")
@@ -328,7 +352,7 @@ func (vi *prettyPrinter) visit(id NodeID) {
 	case NodeType_Error:
 		label := vi.tree.Name(id)
 		vi.write(vi.format(fmt.Sprintf("Error<%s>", label), FormatToken_Error))
-		vi.write(vi.format(fmt.Sprintf(" (%s)", vi.formatPosition(n.start, n.end)), FormatToken_Range))
+		vi.write(vi.format(fmt.Sprintf(" (%s)", s.String()), FormatToken_Range))
 
 		if child, ok := vi.tree.Child(id); ok {
 			vi.writel("")
@@ -338,36 +362,4 @@ func (vi *prettyPrinter) visit(id NodeID) {
 			vi.unindent()
 		}
 	}
-}
-
-// formatPosition formats a Range as "startLine:startCol-endLine:endCol"
-func (vi *prettyPrinter) formatPosition(start, end int) string {
-	startLine, startCol := vi.posToLineCol(start)
-	endLine, endCol := vi.posToLineCol(end)
-	if startLine == endLine && startLine == 1 {
-		if startCol == endCol {
-			return fmt.Sprintf("%d", startCol)
-		}
-		return fmt.Sprintf("%d..%d", startCol, endCol)
-	}
-	if startLine == endLine && startCol == endCol {
-		return fmt.Sprintf("%d:%d", startLine, startCol)
-	}
-	return fmt.Sprintf("%d:%d..%d:%d", startLine, startCol, endLine, endCol)
-}
-
-// posToLineCol converts a byte position in the input to line and
-// column numbers (both 1-based)
-func (vi *prettyPrinter) posToLineCol(pos int) (line, column int) {
-	line, column = 1, 1
-	data := vi.input[0:pos]
-	for _, ch := range data {
-		if ch == '\n' {
-			line++
-			column = 1
-		} else {
-			column++
-		}
-	}
-	return line, column
 }

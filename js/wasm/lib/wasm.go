@@ -145,9 +145,11 @@ func matchToValue(t langlang.Tree, err error) js.Value {
 }
 
 func treeNodeToValue(t langlang.Tree, id langlang.NodeID) js.Value {
+	o := js.Global().Get("Object").New()
+	o.Set("span", jsSpan(t, t.Span(id)))
+
 	switch t.Type(id) {
 	case langlang.NodeType_String:
-		o := js.Global().Get("Object").New()
 		o.Set("type", "string")
 		o.Set("value", t.Text(id))
 		return o
@@ -157,13 +159,11 @@ func treeNodeToValue(t langlang.Tree, id langlang.NodeID) js.Value {
 		for i, kid := range kids {
 			arr.SetIndex(i, treeNodeToValue(t, kid))
 		}
-		o := js.Global().Get("Object").New()
 		o.Set("type", "sequence")
 		o.Set("count", len(kids))
 		o.Set("items", arr)
 		return o
 	case langlang.NodeType_Node:
-		o := js.Global().Get("Object").New()
 		o.Set("type", "node")
 		o.Set("name", t.Name(id))
 		if child, ok := t.Child(id); ok {
@@ -173,7 +173,6 @@ func treeNodeToValue(t langlang.Tree, id langlang.NodeID) js.Value {
 		}
 		return o
 	case langlang.NodeType_Error:
-		o := js.Global().Get("Object").New()
 		o.Set("type", "error")
 		o.Set("label", t.Name(id))
 		if child, ok := t.Child(id); ok {
@@ -181,11 +180,26 @@ func treeNodeToValue(t langlang.Tree, id langlang.NodeID) js.Value {
 		}
 		return o
 	default:
-		o := js.Global().Get("Object").New()
 		o.Set("type", "error")
 		o.Set("message", fmt.Sprintf("unknown node type %d", t.Type(id)))
 		return o
 	}
+}
+
+func jsLocation(t langlang.Tree, location langlang.Location) js.Value {
+	o := js.Global().Get("Object").New()
+	o.Set("line", location.Line)
+	o.Set("column", location.Column)
+	o.Set("cursor", location.Cursor)
+	o.Set("utf16Cursor", t.CursorU16(location.Cursor))
+	return o
+}
+
+func jsSpan(t langlang.Tree, span langlang.Span) js.Value {
+	o := js.Global().Get("Object").New()
+	o.Set("start", jsLocation(t, span.Start))
+	o.Set("end", jsLocation(t, span.End))
+	return o
 }
 
 func jsOK(v any) js.Value {

@@ -77,6 +77,12 @@ code {
 	font-family: monospace;
 }
 
+/* Monaco inline decoration used to highlight the input span when hovering tree nodes */
+.ll-hover-highlight {
+	background-color: rgba(255, 230, 140, 0.22);
+	border-bottom: 1px solid rgba(255, 230, 140, 0.55);
+}
+
 @media (prefers-reduced-motion) {
 	*,
 	::before,

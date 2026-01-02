@@ -1,5 +1,11 @@
-
-export type LanguageKey = "json" | "jsonStripped" | "csv" | "xmlUnstable" | "langlang" | "protoCirc" | "tiny"
+export type LanguageKey =
+    | "json"
+    | "jsonStripped"
+    | "csv"
+    | "xmlUnstable"
+    | "langlang"
+    | "protoCirc"
+    | "tiny";
 
 export interface PlaygroundPair {
     id: LanguageKey;
@@ -9,7 +15,6 @@ export interface PlaygroundPair {
 }
 
 function declareLanguage(label: string, key: LanguageKey): PlaygroundPair {
-
     const grammar = new URL(`${key}.peg`, import.meta.url).href;
     const input = new URL(`${key}.${key}`, import.meta.url).href;
 
@@ -31,5 +36,7 @@ export const playgroundPairs = {
     protoCirc: declareLanguage("Proto Circ", "protoCirc"),
 } as const;
 
-export const playgroundPairsKeys = Object.keys(playgroundPairs) as LanguageKey[];
+export const playgroundPairsKeys = Object.keys(
+    playgroundPairs,
+) as LanguageKey[];
 export const playgroundPairsList = Object.values(playgroundPairs);

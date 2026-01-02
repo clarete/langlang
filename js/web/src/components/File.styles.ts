@@ -30,20 +30,20 @@ export const FilePickerContainer = styled("div")({
 export const FilePickerButton = styled("button")({
     fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    borderRadius: '2px',
-    background: '#242424',
-    marginTop: '1xpx',
-    transition: '0.1s',
-    cursor: 'var(--bun-cursor)',
-    border: 'none',
-    '&:hover': {
-        background: '#6b6b6b',
-        cursor: 'pointer',
+    borderRadius: "2px",
+    background: "#242424",
+    marginTop: "1xpx",
+    transition: "0.1s",
+    cursor: "var(--bun-cursor)",
+    border: "none",
+    "&:hover": {
+        background: "#6b6b6b",
+        cursor: "pointer",
     },
 });
 
 export const Separator = styled("span")({
-    color: '#6b6b6b',
+    color: "#6b6b6b",
     fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     fontSize: "0.8rem",

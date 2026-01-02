@@ -1,4 +1,4 @@
-import type { Value } from "@langlang/react";
+import type { Span, Value } from "@langlang/react";
 import { useEffect, useMemo, useState } from "react";
 import {
     CaretButton,
@@ -47,11 +47,12 @@ function getLabel(value: Value): { label: string; meta?: string } {
 }
 
 function escapeString(s: string): string {
-    return s.replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-        .replace(/\t/g, '\\t')
-        .replace(/\\/g, '\\\\');
+    return s
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r")
+        .replace(/\t/g, "\\t")
+        .replace(/\\/g, "\\\\");
 }
 
 function computeDefaultExpandedPaths(root: Value, maxDepth: number): string[] {
@@ -85,11 +86,13 @@ function computeDefaultExpandedPaths(root: Value, maxDepth: number): string[] {
 interface TreeViewProps {
     tree: Value;
     defaultExpandDepth?: number;
+    onHoverRange?: (span: Span | null) => void;
 }
 
 export default function TreeView({
     tree,
     defaultExpandDepth = 8,
+    onHoverRange,
 }: TreeViewProps) {
     const defaultExpandedPaths = useMemo(
         () => computeDefaultExpandedPaths(tree, defaultExpandDepth),
@@ -119,7 +122,10 @@ export default function TreeView({
 
         return (
             <div key={path}>
-                <Row style={{ paddingLeft: `${depth * 14}px` }}>
+                <Row
+                    style={{ paddingLeft: `${depth * 14}px` }}
+                    onMouseEnter={() => onHoverRange?.(value.span)}
+                >
                     {isExpandable ? (
                         <CaretButton
                             type="button"
@@ -147,5 +153,9 @@ export default function TreeView({
         );
     };
 
-    return <Container>{renderNode(tree, "ROOT", 0)}</Container>;
+    return (
+        <Container onMouseLeave={() => onHoverRange?.(null)}>
+            {renderNode(tree, "ROOT", 0)}
+        </Container>
+    );
 }

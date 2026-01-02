@@ -41,8 +41,8 @@ export const SplitViewContainer = styled("div")<{
                 overflowX: "hidden",
                 overflowY: "auto",
                 minHeight: 0,
-                '&:last-child': {
-                    paddingTop: '0.35rem',
+                "&:last-child": {
+                    paddingTop: "0.35rem",
                 },
             },
         },
@@ -52,11 +52,11 @@ export const SplitViewContainer = styled("div")<{
                 overflowX: "auto",
                 overflowY: "hidden",
                 minWidth: 0,
-                '&:first-child': {
-                    paddingRight: '0.35rem',
+                "&:first-child": {
+                    paddingRight: "0.35rem",
                 },
-                '&:last-child': {
-                    paddingLeft: '0.35rem',
+                "&:last-child": {
+                    paddingLeft: "0.35rem",
                 },
             },
         },

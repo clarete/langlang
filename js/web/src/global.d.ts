@@ -1,4 +1,4 @@
-export { };
+export {};
 
 declare global {
     interface FileSystemFileHandle {
@@ -7,7 +7,6 @@ declare global {
         getFile(): Promise<File>;
         createWritable(): Promise<FileSystemWritableFileStream>;
     }
-
 
     interface Window {
         showOpenFilePicker(options?: {
@@ -20,7 +19,9 @@ declare global {
         }): Promise<FileSystemFileHandle[]>;
 
         FileSystemObserver: {
-            new(callback: (records: FileSystemObserverRecord[]) => void): FileSystemObserver;
+            new (
+                callback: (records: FileSystemObserverRecord[]) => void,
+            ): FileSystemObserver;
         };
     }
 
@@ -32,7 +33,10 @@ declare global {
     }
 
     interface FileSystemObserver {
-        observe(handle: FileSystemHandle, options?: { recursive?: boolean }): Promise<void>;
+        observe(
+            handle: FileSystemHandle,
+            options?: { recursive?: boolean },
+        ): Promise<void>;
         unobserve(handle: FileSystemFileHandle): void;
         disconnect(): void;
     }

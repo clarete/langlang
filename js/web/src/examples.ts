@@ -1,6 +1,13 @@
 import { Simplify } from "type-fest";
 
-export type LanguageKey = "json" | "json.stripped" | "csv" | "xml" | "langlang" | "protoCirc" | "tiny"
+export type LanguageKey =
+    | "json"
+    | "json.stripped"
+    | "csv"
+    | "xml"
+    | "langlang"
+    | "protoCirc"
+    | "tiny";
 
 export interface PlaygroundPair {
     id: LanguageKey;
@@ -9,8 +16,11 @@ export interface PlaygroundPair {
     input: string;
 }
 
-function declareLanguage(label: string, key: LanguageKey, cwd = 'grammars'): PlaygroundPair {
-
+function declareLanguage(
+    label: string,
+    key: LanguageKey,
+    cwd = "grammars",
+): PlaygroundPair {
     const grammar = new URL(`${cwd}/${key}.peg`, import.meta.url).href;
     const input = new URL(`${cwd}/${key}.${key}`, import.meta.url).href;
 
@@ -32,5 +42,7 @@ export const playgroundPairs: Simplify<Record<LanguageKey, PlaygroundPair>> = {
     protoCirc: declareLanguage("Proto Circ", "protoCirc", "grammars/jeff"),
 };
 
-export const playgroundPairsKeys = Object.keys(playgroundPairs) as LanguageKey[];
+export const playgroundPairsKeys = Object.keys(
+    playgroundPairs,
+) as LanguageKey[];
 export const playgroundPairsList = Object.values(playgroundPairs);

@@ -46,8 +46,6 @@ function ExampleSelect({
     value: LanguageKey | undefined;
     onChange: (pair: PlaygroundPair) => void;
 }) {
-    console.log(playgroundPairs);
-
     return (
         <select
             value={value}

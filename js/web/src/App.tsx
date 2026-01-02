@@ -52,7 +52,7 @@ function App() {
 
     const [showSettings, setShowSettings] = useState(false);
     const [settings, setSettings] = useState(() => ({
-        captureSpaces: true,
+        captureSpaces: false,
         handleSpaces: true,
     }));
 

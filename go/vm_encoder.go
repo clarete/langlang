@@ -2,6 +2,8 @@ package langlang
 
 import "encoding/binary"
 
+func fitsU16Rune(r rune) bool { return r >= 0 && r <= 0xFFFF }
+
 func Encode(p *Program) *Bytecode {
 	var (
 		code    []byte
@@ -41,12 +43,23 @@ func Encode(p *Program) *Bytecode {
 		case IAny:
 			code = append(code, opAny)
 		case IChar:
-			code = append(code, opChar)
-			code = encodeU16(code, uint16(ii.Char))
+			if fitsU16Rune(ii.Char) {
+				code = append(code, opChar)
+				code = encodeU16(code, uint16(ii.Char))
+			} else {
+				code = append(code, opChar32)
+				code = encodeU32(code, uint32(ii.Char))
+			}
 		case IRange:
-			code = append(code, opRange)
-			code = encodeU16(code, uint16(ii.Lo))
-			code = encodeU16(code, uint16(ii.Hi))
+			if fitsU16Rune(ii.Lo) && fitsU16Rune(ii.Hi) {
+				code = append(code, opRange)
+				code = encodeU16(code, uint16(ii.Lo))
+				code = encodeU16(code, uint16(ii.Hi))
+			} else {
+				code = append(code, opRange32)
+				code = encodeU32(code, uint32(ii.Lo))
+				code = encodeU32(code, uint32(ii.Hi))
+			}
 		case ISet:
 			code = append(code, opSet)
 			code = encodeU16(code, addSet(ii.cs))
@@ -129,3 +142,4 @@ func encodeJmp(code []byte, op byte, label int) []byte {
 }
 
 var encodeU16 = binary.LittleEndian.AppendUint16
+var encodeU32 = binary.LittleEndian.AppendUint32

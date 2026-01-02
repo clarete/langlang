@@ -15,13 +15,33 @@ func (IAny) SizeInBytes() int { return opAnySizeInBytes }
 
 type IChar struct{ Char rune }
 
-func (IChar) Name() string     { return "char" }
-func (IChar) SizeInBytes() int { return opCharSizeInBytes }
+func (i IChar) Name() string {
+	if fitsU16Rune(i.Char) {
+		return "char"
+	}
+	return "char32"
+}
+func (i IChar) SizeInBytes() int {
+	if fitsU16Rune(i.Char) {
+		return opCharSizeInBytes
+	}
+	return opChar32SizeInBytes
+}
 
 type IRange struct{ Hi, Lo rune }
 
-func (IRange) Name() string     { return "range" }
-func (IRange) SizeInBytes() int { return opRangeSizeInBytes }
+func (i IRange) Name() string {
+	if fitsU16Rune(i.Lo) && fitsU16Rune(i.Hi) {
+		return "range"
+	}
+	return "range32"
+}
+func (i IRange) SizeInBytes() int {
+	if fitsU16Rune(i.Lo) && fitsU16Rune(i.Hi) {
+		return opRangeSizeInBytes
+	}
+	return opRange32SizeInBytes
+}
 
 type ISet struct{ cs *charset }
 

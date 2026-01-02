@@ -36,6 +36,27 @@ func TestVM(t *testing.T) {
 		assert.Equal(t, 0, cur)
 	})
 
+	t.Run("Char32 error message should not truncate expected rune", func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.SetInt("compiler.optimize", 0)
+		cfg.SetBool("grammar.add_charsets", true)
+
+		ast, err := GrammarFromBytes([]byte("G <- '🧠'"), cfg)
+		require.NoError(t, err)
+
+		asm, err := Compile(ast, cfg)
+		require.NoError(t, err)
+
+		code := Encode(asm)
+		vm := NewVirtualMachine(code)
+		vm.SetShowFails(true)
+
+		_, cur, err := vm.Match([]byte("a"))
+		require.Error(t, err)
+		assert.Equal(t, 0, cur)
+		assert.Equal(t, "Expected '🧠' but got 'a' @ 1", err.Error())
+	})
+
 	vmTests := []vmTest{
 		{
 			Name:           "Any",
@@ -155,6 +176,22 @@ func TestVM(t *testing.T) {
 			ExpectedCursor: 3,
 			ExpectedAST: `G (1..2)
 └── "♡" (1..2)`,
+		},
+		{
+			Name:           "Unicode Char32 (emoji literal)",
+			Grammar:        "G <- '🧠' 'a'",
+			Input:          "🧠a",
+			ExpectedCursor: 5,
+			ExpectedAST: `G (1..3)
+└── "🧠a" (1..3)`,
+		},
+		{
+			Name:           "Unicode Range32 (emoji range)",
+			Grammar:        "G <- [🧠-🧬]",
+			Input:          "🧪",
+			ExpectedCursor: 4,
+			ExpectedAST: `G (1..2)
+└── "🧪" (1..2)`,
 		},
 		{
 			Name: "Var",

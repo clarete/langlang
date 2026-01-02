@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
     FileDirectorySymlinkIcon,
     MortarBoardIcon,
+    DownloadIcon,
 } from "@primer/octicons-react";
 import {
     ExpandContent,
@@ -69,19 +70,25 @@ function ExampleSelect({
     );
 }
 
-function FilePicker({
-    value,
-    onChange,
-    selectUrlFromPair,
-    fallbackPair,
-    onFilePickerClick,
-}: {
+interface FilePickerProps {
     value: EditorFile | null;
+    dirty: boolean;
+    onSave: () => void;
     fallbackPair: PlaygroundPair;
     onChange: (editorFile: EditorFile) => void;
     selectUrlFromPair: (pair: PlaygroundPair) => UrlFile;
     onFilePickerClick: () => void;
-}) {
+}
+
+function FilePicker({
+    value,
+    dirty,
+    onSave,
+    onChange,
+    selectUrlFromPair,
+    fallbackPair,
+    onFilePickerClick,
+}: FilePickerProps) {
     const handleSwitchToUrl = useCallback(() => {
         onChange(selectUrlFromPair(fallbackPair));
     }, [onChange, selectUrlFromPair, fallbackPair]);
@@ -125,9 +132,24 @@ function FilePicker({
                     <ExpandLabel>Replace File</ExpandLabel>
                     <FileDirectorySymlinkIcon verticalAlign="middle" />
                 </FilePickerButton>
+                <FilePickerButton
+                    expanded={dirty}
+                    onClick={onSave}
+                    title="Save File"
+                    color={dirty ? "#e65100" : undefined}
+                >
+                    <ExpandLabel>Save File</ExpandLabel>
+                    <DownloadIcon verticalAlign="middle" />
+                </FilePickerButton>
             </FilePickerContainer>
         );
     }
+}
+
+interface EditorContent {
+    value: string | null;
+    isDirty: boolean;
+    original: string | null;
 }
 
 function File({
@@ -139,7 +161,11 @@ function File({
     accept,
 }: FileProps) {
     const [editorFile, setEditorFile] = useState<EditorFile | null>(null);
-    const [content, setContent] = useState<string | null>(null);
+    const [content, setContent] = useState<EditorContent>({
+        value: null,
+        isDirty: false,
+        original: null,
+    });
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState<
         "idle" | "loading" | "success" | "error"
@@ -147,7 +173,11 @@ function File({
 
     const handleContentUpdate = useCallback(
         (newContent: string) => {
-            setContent(newContent);
+            setContent((prev) => ({
+                ...prev,
+                value: newContent,
+                isDirty: newContent !== prev.original,
+            }));
             onContentChange?.(newContent);
         },
         [onContentChange],
@@ -163,7 +193,11 @@ function File({
                     );
                 }
                 const text = await response.text();
-                setContent(text);
+                setContent({
+                    value: text,
+                    isDirty: false,
+                    original: text,
+                });
                 onContentChange?.(text);
                 setStatus("success");
                 setError(null);
@@ -187,7 +221,11 @@ function File({
                 try {
                     const file = await editorFile.handler.getFile();
                     const text = await file.text();
-                    setContent(text);
+                    setContent({
+                        value: text,
+                        isDirty: false,
+                        original: text,
+                    });
                     onContentChange?.(text);
                     setStatus("success");
                     setError(null);
@@ -233,6 +271,23 @@ function File({
         }
     }, [handleUrlChange]);
 
+    const handleSave = useCallback(async () => {
+        if (editorFile?.type === "system") {
+            try {
+                const writable = await editorFile.handler.createWritable();
+                await writable.write(content.value ?? "");
+                await writable.close();
+            } catch {}
+
+            setContent((prev) => ({
+                ...prev,
+                isDirty: false,
+                overwritten: false,
+                original: content.value,
+            }));
+        }
+    }, [editorFile, content.value]);
+
     useEffect(() => {
         if (editorFile?.type !== "system") return;
 
@@ -251,7 +306,21 @@ function File({
                                     const file =
                                         await editorFile.handler.getFile();
                                     const text = await file.text();
-                                    setContent(text);
+
+                                    if (
+                                        content.original !== text &&
+                                        content.isDirty
+                                    ) {
+                                        alert(
+                                            "The file has been modified. refreshing content...",
+                                        );
+                                    }
+
+                                    setContent({
+                                        value: text,
+                                        isDirty: false,
+                                        original: text,
+                                    });
                                     onContentChange?.(text);
                                 } catch (e) {
                                     console.error(
@@ -274,7 +343,13 @@ function File({
         return () => {
             observer?.disconnect();
         };
-    }, [editorFile, onContentChange]);
+    }, [
+        editorFile,
+        onContentChange,
+        content.isDirty,
+        content.value,
+        content.original,
+    ]);
 
     useEffect(() => {
         if (editorFile === null) {
@@ -294,13 +369,15 @@ function File({
                 </PanelHeaderTitle>
                 <FilePicker
                     value={editorFile}
+                    dirty={content.isDirty}
+                    onSave={handleSave}
                     fallbackPair={defaultPair}
                     onChange={handleUrlChange}
                     selectUrlFromPair={selectUrlFromPair}
                     onFilePickerClick={handleFilePickerClick}
                 />
             </PanelHeader>
-            {children(content, handleContentUpdate)}
+            {children(content.value, handleContentUpdate)}
         </FileContainer>
     );
 }

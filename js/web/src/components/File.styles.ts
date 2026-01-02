@@ -33,7 +33,7 @@ export const FilePickerContainer = styled("div")({
     gap: "0.5rem",
 });
 
-export const FilePickerButton = styled("button")({
+export const FilePickerButton = styled("button")<{ expanded?: boolean, color?: string }>({
     display: 'grid',
     gridTemplateColumns: '0fr 1.25rem',
     gap: '0rem',
@@ -43,10 +43,10 @@ export const FilePickerButton = styled("button")({
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
     borderRadius: '2px',
     fontSize: '0.8rem',
-    background: '#242424',
-    transition: '300ms',
+    transition: '150ms',
     cursor: 'var(--bun-cursor)',
     border: 'none',
+    background: (props) => props.color ?? '#242424',
 
     '& svg': {
         width: '0.8rem',
@@ -60,6 +60,16 @@ export const FilePickerButton = styled("button")({
         gridTemplateColumns: '1fr 1.25rem',
         gap: '0.5rem',
     },
+
+    variants: [
+        {
+            props: { expanded: true },
+            style: {
+                gridTemplateColumns: '1fr 1.25rem',
+                gap: '0.5rem',
+            }
+        },
+    ]
 });
 
 export const HoverExpandWithIcon = styled("div")<{ expand: boolean }>({
@@ -73,7 +83,7 @@ export const HoverExpandWithIcon = styled("div")<{ expand: boolean }>({
     borderRadius: '2px',
     fontSize: '0.8rem',
     background: '#242424',
-    transition: '300ms',
+    transition: '150ms',
     cursor: 'var(--bun-cursor)',
     border: 'none',
     color: 'buttontext',

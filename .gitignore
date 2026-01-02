@@ -20,3 +20,5 @@ go/tests/recovery/recovery.go
 go/*.test
 go/benches/go/**/*.out
 __pycache__
+.gocache
+.gopath

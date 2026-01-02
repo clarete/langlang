@@ -48,6 +48,14 @@ export const FilePickerButton = styled("button")<{ expanded?: boolean, color?: s
     transition: '150ms',
     cursor: "var(--bun-cursor)",
     border: "none",
+
+    '& svg': {
+        width: '0.8rem',
+        height: '0.8rem',
+        padding: '0.15rem',
+    },
+
+
     "&:hover": {
         background: "#6b6b6b",
         cursor: "pointer",

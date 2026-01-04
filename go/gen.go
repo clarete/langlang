@@ -333,78 +333,29 @@ func readAPI(fs embed.FS, fileName string) string {
 		out  = &strings.Builder{}
 		fset = token.NewFileSet()
 	)
-
 	data, err := fs.ReadFile(fileName)
 	if err != nil {
 		panic(err.Error())
 	}
-
 	node, err := parser.ParseFile(fset, fileName, data, parser.AllErrors)
 	if err != nil {
 		panic(err.Error())
 	}
-
-	// Types that should be included alongside interfaces
-	includeTypes := map[string]bool{
-		"NodeID":   true,
-		"NodeType": true,
-		"Location": true,
-		"Span":     true,
-		"Range":    true,
-	}
-
 	ast.Inspect(node, func(n ast.Node) bool {
 		genDecl, ok := n.(*ast.GenDecl)
 		if !ok {
 			return true
 		}
-
-		// Include type declarations (interfaces and specific named types)
-		if genDecl.Tok == token.TYPE {
-			for _, spec := range genDecl.Specs {
-				typeSpec, ok := spec.(*ast.TypeSpec)
-				if !ok {
-					continue
-				}
-				// Include interfaces and specifically named types
-				if _, ok := typeSpec.Type.(*ast.InterfaceType); ok {
-					if err := printer.Fprint(out, fset, n); err != nil {
-						panic(err.Error())
-					}
-					out.WriteString("\n")
-				} else if includeTypes[typeSpec.Name.Name] {
-					if err := printer.Fprint(out, fset, n); err != nil {
-						panic(err.Error())
-					}
-					out.WriteString("\n")
-				}
-			}
+		if genDecl.Tok != token.TYPE && genDecl.Tok != token.CONST {
+			return true
 		}
-
-		// Include const declarations for NodeType constants
-		if genDecl.Tok == token.CONST {
-			for _, spec := range genDecl.Specs {
-				valueSpec, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				// Check if this is a NodeType constant
-				for _, name := range valueSpec.Names {
-					if strings.HasPrefix(name.Name, "NodeType_") {
-						if err := printer.Fprint(out, fset, n); err != nil {
-							panic(err.Error())
-						}
-						out.WriteString("\n")
-						return true
-					}
-				}
-			}
+		if err := printer.Fprint(out, fset, n); err != nil {
+			panic(err.Error())
 		}
-
+		out.WriteString("\n")
 		return true
 	})
 	return out.String()
-
 }
 
 type outputWriter struct {

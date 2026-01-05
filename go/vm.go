@@ -240,24 +240,18 @@ func (vm *virtualMachine) Match(data []byte) (Tree, int, error) {
 }
 
 func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, error) {
-	// dbg := func(m string) {}
-	// dbg = func(m string) { fmt.Print(m) }
-
-	// we want to reset the VM state every match
 	vm.reset()
-
 	vm.stack.tree.bindInput(data)
 
-	// take a local reference of important data
-	stack := vm.stack
-	code := vm.bytecode.code
-	sets := vm.bytecode.sets
-	ilen := len(data)
-	cursor := 0
-	pc := 0
+	var (
+		pc     = 0
+		cursor = 0
+		stack  = vm.stack
+		code   = vm.bytecode.code
+		sets   = vm.bytecode.sets
+		ilen   = len(data)
+	)
 
-	// if a rule was received, push a call frame for it and set
-	// the program appropriately
 	if ruleAddress > 0 {
 		stack.push(vm.mkCallFrame(opCallSizeInBytes))
 		pc = ruleAddress
@@ -265,11 +259,9 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, er
 code:
 	for {
 		op := code[pc]
-		// dbg(fmt.Sprintf("in[c=%02d, pc=%02d]: 0x%x=%s\n", cursor, pc, op, opNames[op]))
 
 		switch op {
 		case opHalt:
-			// dbg(fmt.Sprintf("nodes: %#v\n", vm.stack.nodes))
 			if len(stack.nodes) > 0 {
 				idx := len(stack.nodes) - 1
 				nid := stack.nodes[idx]
@@ -504,23 +496,16 @@ fail:
 		vm.ffpPC = pc
 	}
 
-	// dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", cursor, pc))
-
 	for stack.len() > 0 {
 		f := stack.pop()
-
 		stack.truncateArena(f.nodesStart)
-
 		if f.t == frameType_Backtracking {
 			pc = int(f.pc)
 			vm.predicate = f.predicate
 			cursor = f.cursor
-			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", cursor, pc))
 			goto code
 		}
 	}
-
-	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", cursor, vm.ffp))
 
 	if len(stack.nodes) > 0 {
 		idx := len(stack.nodes) - 1

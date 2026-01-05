@@ -7,10 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// =============================================================================
-// Core Pipeline Tests
-// =============================================================================
-
 func TestQueryBasicPipeline(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	loader.Add("test.peg", []byte(`G <- "hello"`))
@@ -127,9 +123,7 @@ func TestQueryResolver(t *testing.T) {
 	})
 }
 
-// =============================================================================
 // Caching and Invalidation Tests
-// =============================================================================
 
 func TestQueryCaching(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -248,9 +242,7 @@ func TestCascadingInvalidation(t *testing.T) {
 	assert.Less(t, stats2.CachedCount, stats1.CachedCount)
 }
 
-// =============================================================================
 // Builtins Tests
-// =============================================================================
 
 func TestWithBuiltinsQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -341,9 +333,7 @@ Spacing <- [ \t]*
 		"User-defined Spacing should have same FileID as user grammar")
 }
 
-// =============================================================================
 // Transformation Tests
-// =============================================================================
 
 func TestWithCharsetsQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -414,9 +404,7 @@ func TestWithCapturesQuery(t *testing.T) {
 	assert.True(t, isCapture, "Expected CaptureNode wrapper")
 }
 
-// =============================================================================
 // Recursion Detection Tests
-// =============================================================================
 
 func TestQueryRecursiveDetection(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -444,9 +432,7 @@ C <- "d"
 	assert.False(t, isRecursiveC)
 }
 
-// =============================================================================
 // Analysis Query Tests
-// =============================================================================
 
 func TestErrorLabelsQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()

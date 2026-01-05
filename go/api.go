@@ -186,6 +186,81 @@ type Tree interface {
 	Copy() Tree
 }
 
+// StopReason describes why a debug session stopped
+type StopReason uint8
+
+const (
+	StopNone StopReason = iota
+	StopBreakpoint
+	StopStep
+	StopTerminated
+)
+
+// Stop describes a debugger stop point
+type Stop struct {
+	Reason StopReason
+	PC     int
+	Cursor int
+}
+
+// StackFrameType distinguishes between call, backtracking, and capture frames.
+type StackFrameType int8
+
+const (
+	StackFrameBacktrack StackFrameType = iota
+	StackFrameCall
+	StackFrameCapture
+)
+
+// StackFrame represents a stack frame in the VM.
+// This is a superset of fields needed by both the debugger and oracle:
+//   - Debugger uses: ID, PC, Cursor, CursorU16, Name
+//   - Oracle uses: PC, Cursor, Type, Predicate
+type StackFrame struct {
+	ID        int            // debugger: frame sequence number
+	PC        int            // both: program counter / return address
+	Cursor    int            // both: input byte position
+	CursorU16 int            // debugger: UTF-16 offset for LSP
+	Name      string         // debugger: rule name
+	Type      StackFrameType // oracle: backtrack/call/capture
+	Predicate bool           // oracle: true if inside a Not predicate
+}
+
+// DebugSession provides a stepping interface for the VM.
+type DebugSession interface {
+	// SetBreakpoint sets a breakpoint from a grammar location
+	SetBreakpoint(Location)
+
+	// ClearBreakpoint removes a breakpoint at the given location
+	ClearBreakpoint(Location)
+
+	// ListBreakpoints returns all currently set breakpoints as
+	// locations
+	ListBreakpoints() []Location
+
+	// ClearBreakpoints removes all breakpoints
+	ClearBreakpoints()
+
+	// Continue runs Match until the next breakpoint or
+	// termination.
+	Continue() (Stop, error)
+
+	// StepIn steps into the next Production call.
+	StepIn() (Stop, error)
+
+	// StepOver steps over the next Production call.
+	StepOver() (Stop, error)
+
+	// StepOut steps out of the current Production
+	StepOut() (Stop, error)
+
+	// StackTrace returns the current stack trace.
+	StackTrace(limit int) []StackFrame
+
+	// State returns the current PC and cursor position.
+	State() (pc int, cursor int, terminated bool)
+}
+
 // ImportLoader abstracts how grammars are located and read during
 // import resolution.
 //

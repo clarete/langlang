@@ -21,10 +21,6 @@ func (r Range) String() string {
 	return fmt.Sprintf("%d..%d", r.Start, r.End)
 }
 
-func (r Range) Str(v []byte) string {
-	return string(v[r.Start:r.End])
-}
-
 func (r Range) Contains(other Range) bool {
 	return other.Start >= r.Start && other.End <= r.End
 }
@@ -33,6 +29,10 @@ func (r Range) Contains(other Range) bool {
 
 func NewSpan(start, end Location) Span {
 	return Span{Start: start, End: end}
+}
+
+func (s Span) Contains(other Span) bool {
+	return s.Start.Cursor <= other.Start.Cursor && s.End.Cursor >= other.End.Cursor
 }
 
 func (s Span) String() string {

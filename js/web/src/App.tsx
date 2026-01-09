@@ -54,6 +54,8 @@ function App() {
     const [settings, setSettings] = useState(() => ({
         captureSpaces: false,
         handleSpaces: true,
+        enableInline: true,
+        showFails: true,
     }));
 
     const inputEditorRef = useRef<any>(null);
@@ -76,6 +78,8 @@ function App() {
                 const matcherCfg: Config = {
                     "grammar.capture_spaces": settings.captureSpaces,
                     "grammar.handle_spaces": settings.handleSpaces,
+                    "compiler.inline.enabled": settings.enableInline,
+                    "vm.show_fails": settings.showFails,
                 };
                 matcherRef.current = langlang.matcherFromString(
                     grammarText,

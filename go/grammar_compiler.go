@@ -180,7 +180,7 @@ func (c *compiler) VisitOneOrMoreNode(node *OneOrMoreNode) error {
 	if err := node.Expr.Accept(c); err != nil {
 		return err
 	}
-	return c.VisitZeroOrMoreNode(NewZeroOrMoreNode(node.Expr, node.Range()))
+	return c.VisitZeroOrMoreNode(NewZeroOrMoreNode(node.Expr, node.Span()))
 }
 
 func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
@@ -260,7 +260,7 @@ func (c *compiler) VisitChoiceNode(node *ChoiceNode) error {
 func (c *compiler) VisitAndNode(node *AndNode) error {
 	switch c.config.GetInt("compiler.optimize") {
 	case 0:
-		return c.VisitNotNode(NewNotNode(NewNotNode(node.Expr, node.Range()), node.Range()))
+		return c.VisitNotNode(NewNotNode(NewNotNode(node.Expr, node.Span()), node.Span()))
 
 	default:
 		l1 := NewILabel()
@@ -373,7 +373,7 @@ func (c *compiler) VisitClassNode(node *ClassNode) error {
 	accum := node.Items[len(node.Items)-1]
 
 	for i := len(node.Items) - 2; i >= 0; i-- {
-		span := NewRange(node.Items[i].Range().Start, accum.Range().End)
+		span := Span{Start: node.Items[i].Span().Start, End: accum.Span().End}
 		accum = NewChoiceNode(node.Items[i], accum, span)
 	}
 

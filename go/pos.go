@@ -31,11 +31,21 @@ func (r Range) Contains(other Range) bool {
 
 //  ---- Span ----
 
+func NewSpan(start, end Location) Span {
+	return Span{Start: start, End: end}
+}
+
 func (s Span) String() string {
 	startLoc := s.Start
 	endLoc := s.End
 	startLine, startCol := int(startLoc.Line), int(startLoc.Column)
 	endLine, endCol := int(endLoc.Line), int(endLoc.Column)
+	if startLine == endLine && endLine == startCol && endCol == endLine && startLine == 0 {
+		startLine++
+		endLine++
+		startCol++
+		endCol++
+	}
 	if startLine == endLine && startLine == 1 {
 		if startCol == endCol {
 			return fmt.Sprintf("%d", startCol)

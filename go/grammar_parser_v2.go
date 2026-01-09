@@ -76,7 +76,7 @@ func (p *GrammarParserV2) parseGrammar(id NodeID) (*GrammarNode, error) {
 			defsByName[def.Name] = def
 		}
 	}
-	return NewGrammarNode(imports, defs, defsByName, p.tree.Range(id)), nil
+	return NewGrammarNode(imports, defs, defsByName, p.tree.Span(id)), nil
 }
 
 // Import <- "@import" Identifier ("," Identifier)* "from" Literal
@@ -100,7 +100,7 @@ func (p *GrammarParserV2) parseImport(id NodeID) *ImportNode {
 			childID, _ := p.tree.Child(itemID)
 			if p.tree.Type(childID) == NodeType_String {
 				idx++
-				names = append(names, NewLiteralNode(p.tree.Text(childID), p.tree.Range(childID)))
+				names = append(names, NewLiteralNode(p.tree.Text(childID), p.tree.Span(childID)))
 			}
 			continue
 		}
@@ -108,7 +108,7 @@ func (p *GrammarParserV2) parseImport(id NodeID) *ImportNode {
 	}
 	path, _ := unescape(p.tree.Text(items[idx]))
 	path = path[1 : len(path)-1]
-	return NewImportNode(NewLiteralNode(path, p.tree.Range(items[3])), names, p.tree.Range(id))
+	return NewImportNode(NewLiteralNode(path, p.tree.Span(items[3])), names, p.tree.Span(id))
 }
 
 // Definition <- Identifier LEFTARROW Expression
@@ -129,9 +129,9 @@ func (p *GrammarParserV2) parseDefinition(id NodeID) (*DefinitionNode, error) {
 			return nil, err
 		}
 	} else {
-		expr = NewSequenceNode([]AstNode{}, p.tree.Range(id))
+		expr = NewSequenceNode([]AstNode{}, p.tree.Span(id))
 	}
-	return NewDefinitionNode(name, expr, p.tree.Range(id)), nil
+	return NewDefinitionNode(name, expr, p.tree.Span(id)), nil
 }
 
 // Expression <- Sequence ("/" Sequence)*
@@ -175,7 +175,7 @@ func (p *GrammarParserV2) parseChoice(seqID NodeID) (AstNode, error) {
 	accum := allItems[len(allItems)-1]
 
 	for i := len(allItems) - 2; i >= 0; i-- {
-		rg := NewRange(allItems[i].Range().Start, accum.Range().End)
+		rg := NewSpan(allItems[i].Span().Start, accum.Span().End)
 		accum = NewChoiceNode(allItems[i], accum, rg)
 	}
 
@@ -211,7 +211,7 @@ func (p *GrammarParserV2) parseSequence(id NodeID) (AstNode, error) {
 	default:
 		return nil, fmt.Errorf("unknown node type for parseSequence: %v", childType)
 	}
-	return NewSequenceNode(items, p.tree.Range(id)), nil
+	return NewSequenceNode(items, p.tree.Span(id)), nil
 }
 
 func (p *GrammarParserV2) parsePrefix(id NodeID) (AstNode, error) {
@@ -230,11 +230,11 @@ func (p *GrammarParserV2) parsePrefix(id NodeID) (AstNode, error) {
 		}
 		switch p.tree.Text(items[0]) {
 		case "!":
-			return NewNotNode(labeled, p.tree.Range(childID)), nil
+			return NewNotNode(labeled, p.tree.Span(childID)), nil
 		case "&":
-			return NewAndNode(labeled, p.tree.Range(childID)), nil
+			return NewAndNode(labeled, p.tree.Span(childID)), nil
 		case "#":
-			return NewLexNode(labeled, p.tree.Range(childID)), nil
+			return NewLexNode(labeled, p.tree.Span(childID)), nil
 		}
 	case NodeType_Node:
 		return p.parseLabeled(childID)
@@ -258,7 +258,7 @@ func (p *GrammarParserV2) parseLabeled(id NodeID) (AstNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewLabeledNode(p.tree.Text(items[2]), suffix, p.tree.Range(childID)), nil
+		return NewLabeledNode(p.tree.Text(items[2]), suffix, p.tree.Span(childID)), nil
 	case NodeType_Node:
 		return p.parseSuffix(childID)
 	default:
@@ -283,11 +283,11 @@ func (p *GrammarParserV2) parseSuffix(id NodeID) (AstNode, error) {
 
 		switch p.tree.Text(items[1]) {
 		case "?":
-			return NewOptionalNode(primary, p.tree.Range(childID)), nil
+			return NewOptionalNode(primary, p.tree.Span(childID)), nil
 		case "*":
-			return NewZeroOrMoreNode(primary, p.tree.Range(childID)), nil
+			return NewZeroOrMoreNode(primary, p.tree.Span(childID)), nil
 		case "+":
-			return NewOneOrMoreNode(primary, p.tree.Range(childID)), nil
+			return NewOneOrMoreNode(primary, p.tree.Span(childID)), nil
 		}
 	case NodeType_Node:
 		return p.parsePrimary(childID)
@@ -317,7 +317,7 @@ func (p *GrammarParserV2) parsePrimary(id NodeID) (AstNode, error) {
 		case "Class":
 			return p.parseClass(childID)
 		case "Any":
-			return NewAnyNode(p.tree.Range(childID)), nil
+			return NewAnyNode(p.tree.Span(childID)), nil
 		}
 	default:
 		return nil, fmt.Errorf("unknown node type for parsePrimary: %v", childType)
@@ -326,13 +326,22 @@ func (p *GrammarParserV2) parsePrimary(id NodeID) (AstNode, error) {
 }
 
 func (p *GrammarParserV2) parseLiteral(id NodeID) (*LiteralNode, error) {
-	nodeRange := p.tree.Range(id)
-	rg := NewRange(nodeRange.Start+1, nodeRange.End-1)
-	text, err := unescape(rg.Str(p.input))
+	var (
+		err  error
+		text = p.tree.Text(id)
+		span = p.tree.Span(id)
+	)
+
+	span.Start.Cursor++
+	span.Start.Column++
+	span.End.Cursor--
+	span.End.Column--
+
+	text, err = unescape(text[1 : len(text)-1])
 	if err != nil {
 		return nil, err
 	}
-	return NewLiteralNode(text, rg), nil
+	return NewLiteralNode(text, span), nil
 }
 
 func (p *GrammarParserV2) parseClass(id NodeID) (*ClassNode, error) {
@@ -346,15 +355,15 @@ func (p *GrammarParserV2) parseClass(id NodeID) (*ClassNode, error) {
 	var err error
 
 	for i, itemID := range items {
-		output[i], err = p.parseRange(itemID)
+		output[i], err = p.parseSpan(itemID)
 		if err != nil {
 			return nil, err
 		}
 	}
-	return NewClassNode(output, p.tree.Range(id)), nil
+	return NewClassNode(output, p.tree.Span(id)), nil
 }
 
-func (p *GrammarParserV2) parseRange(id NodeID) (AstNode, error) {
+func (p *GrammarParserV2) parseSpan(id NodeID) (AstNode, error) {
 	childID, ok := p.tree.Child(id)
 	if !ok {
 		return nil, errors.New("parseRange: no child node found")
@@ -372,13 +381,13 @@ func (p *GrammarParserV2) parseRange(id NodeID) (AstNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewRangeNode(r(left), r(right), p.tree.Range(childID)), nil
+		return NewRangeNode(r(left), r(right), p.tree.Span(childID)), nil
 	case NodeType_Node:
 		s, err := p.parseChar(childID)
 		if err != nil {
 			return nil, err
 		}
-		return NewLiteralNode(s, p.tree.Range(childID)), nil
+		return NewLiteralNode(s, p.tree.Span(childID)), nil
 	default:
 		panic(fmt.Sprintf("NO ENTIENDO: %v", childType))
 	}
@@ -391,7 +400,7 @@ func (p *GrammarParserV2) parseIdentifier(id NodeID) (*IdentifierNode, error) {
 		return nil, errors.New("parseIdentifier: no child node found")
 	}
 	idText := p.tree.Text(childID)
-	return NewIdentifierNode(idText, p.tree.Range(id)), nil
+	return NewIdentifierNode(idText, p.tree.Span(id)), nil
 }
 
 func (p *GrammarParserV2) parseChar(id NodeID) (string, error) {

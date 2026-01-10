@@ -25,6 +25,16 @@ func (r Range) Contains(other Range) bool {
 	return other.Start >= r.Start && other.End <= r.End
 }
 
+// ---- Location ----
+
+func NewLocation(line, column, cursor int) Location {
+	return Location{Line: line, Column: column, Cursor: cursor}
+}
+
+func (l Location) String() string {
+	return fmt.Sprintf("%d:%d", l.Line, l.Column)
+}
+
 //  ---- Span ----
 
 func NewSpan(start, end Location) Span {
@@ -114,10 +124,10 @@ func (pi *posIndex) LocationAt(cursor int) Location {
 	pi.ensureRuneUnits()
 
 	// Column is rune-based and 1-indexed
-	col := int32(pi.runeUnits.UnitsAt(cursor)-pi.runeUnits.UnitsAt(lineStart)) + 1
+	col := pi.runeUnits.UnitsAt(cursor) - pi.runeUnits.UnitsAt(lineStart) + 1
 
 	return Location{
-		Line:   int32(lineIdx + 1),
+		Line:   lineIdx + 1,
 		Column: col,
 		Cursor: cursor,
 	}

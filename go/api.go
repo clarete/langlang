@@ -43,9 +43,9 @@ const (
 // FileID is optional metadata (e.g. an interned filename id). When
 // unavailable, it is set to -1.
 type Location struct {
-	FileID int32
-	Line   int32
-	Column int32
+	FileID int
+	Line   int
+	Column int
 	Cursor int
 }
 

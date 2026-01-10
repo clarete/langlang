@@ -69,11 +69,6 @@ func (t *tree) IsNamed(id NodeID, nameID int32) bool {
 	return t.Type(id) == NodeType_Node && t.NameID(id) == nameID
 }
 
-func (t *tree) Range(id NodeID) Range {
-	n := &t.nodes[id]
-	return Range{Start: n.start, End: n.end}
-}
-
 func (t *tree) Location(cursor int) Location {
 	t.ensurePosView()
 	return t.posView.LocationAt(cursor)
@@ -81,7 +76,11 @@ func (t *tree) Location(cursor int) Location {
 
 func (t *tree) Span(id NodeID) Span {
 	t.ensurePosView()
-	return t.posView.Span(t.Range(id))
+	n := &t.nodes[id]
+	return Span{
+		Start: t.posView.LocationAt(n.start),
+		End:   t.posView.LocationAt(n.end),
+	}
 }
 
 func (t *tree) CursorU16(cursor int) int {

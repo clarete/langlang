@@ -8,23 +8,6 @@ import (
 
 const eof = -1
 
-//  ---- Range ----
-
-func NewRange(start, end int) Range {
-	return Range{Start: start, End: end}
-}
-
-func (r Range) String() string {
-	if r.Start == r.End {
-		return fmt.Sprintf("%d", r.Start)
-	}
-	return fmt.Sprintf("%d..%d", r.Start, r.End)
-}
-
-func (r Range) Contains(other Range) bool {
-	return other.Start >= r.Start && other.End <= r.End
-}
-
 // ---- Location ----
 
 func NewLocation(line, column, cursor int) Location {
@@ -94,13 +77,6 @@ func newPosIndex(input []byte) *posIndex {
 		}
 	}
 	return &posIndex{input: input, lineStart: lineStart}
-}
-
-func (pi *posIndex) Span(r Range) Span {
-	return Span{
-		Start: pi.LocationAt(r.Start),
-		End:   pi.LocationAt(r.End),
-	}
 }
 
 func (pi *posIndex) LocationAt(cursor int) Location {

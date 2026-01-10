@@ -43,7 +43,6 @@ const (
 // FileID is optional metadata (e.g. an interned filename id). When
 // unavailable, it is set to -1.
 type Location struct {
-	FileID int
 	Line   int
 	Column int
 	Cursor int
@@ -55,10 +54,6 @@ type Span struct {
 	Start Location
 	End   Location
 }
-
-// Range takes as little as possible (8 bytes in 64bit systems) to
-// represent a position within the input.
-type Range struct{ Start, End int }
 
 // Tree represents a parse tree produced by matching input against a
 // PEG grammar.  The tree structure is immutable once created. Nodes
@@ -72,7 +67,7 @@ type Range struct{ Start, End int }
 //   - NodeType_Node: a named rule match with a single child
 //   - NodeType_Error: a recovery point containing error metadata
 //
-// The tree does not copy matched text. Each node records a Range
+// The tree does not copy matched text.  Each node records a range
 // (start/end byte offsets) referencing the original input.
 //
 // Example usage:
@@ -130,10 +125,6 @@ type Tree interface {
 	// whether it is a string literal, sequence, named node, or
 	// error.
 	Type(NodeID) NodeType
-
-	// Range returns the byte offsets (start inclusive, end
-	// exclusive) into the original input that this node spans.
-	Range(NodeID) Range
 
 	// Span returns the node span as a pair of Locations (Start/End) where cursor
 	// offsets are byte-based and line/column are 1-based UTF-8 rune columns.

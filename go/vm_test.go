@@ -22,7 +22,7 @@ func TestVM(t *testing.T) {
 	t.Run("I guess I will just die", func(t *testing.T) {
 		bytecode := Encode(&Program{code: []Instruction{
 			IHalt{},
-		}})
+		}}, NewConfig())
 		assert.Equal(t, uint8(0), bytecode.code[0])
 
 		vm := NewVirtualMachine(bytecode)
@@ -41,13 +41,13 @@ func TestVM(t *testing.T) {
 		cfg.SetInt("compiler.optimize", 0)
 		cfg.SetBool("grammar.add_charsets", true)
 
-		ast, err := GrammarFromBytes([]byte("G <- '🧠'"), cfg)
+		ast, err := grammarFromBytes([]byte("G <- '🧠'"), cfg)
 		require.NoError(t, err)
 
 		asm, err := Compile(ast, cfg)
 		require.NoError(t, err)
 
-		code := Encode(asm)
+		code := Encode(asm, cfg)
 		vm := NewVirtualMachine(code)
 		vm.SetShowFails(true)
 
@@ -385,7 +385,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		cfg.SetInt("compiler.optimize", optimize)
 		cfg.SetBool("grammar.add_charsets", enableCharsets)
 
-		ast, err := GrammarFromBytes([]byte(test.Grammar), cfg)
+		ast, err := grammarFromBytes([]byte(test.Grammar), cfg)
 		if err != nil {
 			panic(err)
 		}
@@ -399,7 +399,7 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		// 	fmt.Printf("asm\n%s\n", asm.Highlight())
 		// }
 
-		code := Encode(asm)
+		code := Encode(asm, cfg)
 
 		// if test.Name == "Var" && optimize == 0 && enableCharsets {
 		// 	fmt.Printf("strings: %v\n", code.strs)

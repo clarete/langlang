@@ -95,8 +95,10 @@ func main() {
 	cfg.SetBool("grammar.handle_spaces", !*a.disableSpaces)
 	cfg.SetBool("compiler.inline.enabled", !*a.disableInline)
 	cfg.SetBool("compiler.inline.emit.inlined", !*a.disableInlineDefs)
+	cfg.SetBool("vm.show_fails", *a.showFails)
 
-	ast, err := langlang.GrammarFromFile(*a.grammarPath, cfg)
+	resolver := langlang.NewImportResolver(langlang.NewRelativeImportLoader())
+	ast, err := resolver.Resolve(*a.grammarPath, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -121,7 +123,10 @@ func main() {
 	// If it's interactive, it will open a lil REPL shell
 
 	if *a.inputPath == "" && *a.outputPath == "" {
-		code := langlang.Encode(asm)
+		matcher, err := resolver.MatcherFor(*a.grammarPath, cfg)
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		for {
 			reader := bufio.NewReader(os.Stdin)
@@ -138,9 +143,7 @@ func main() {
 			}
 
 			input := []byte(text)
-			vm := langlang.NewVirtualMachine(code)
-			vm.SetShowFails(*a.showFails)
-			tree, _, err := vm.Match(input)
+			tree, _, err := matcher.Match(input)
 			if err != nil {
 				fmt.Println("ERROR: " + err.Error())
 			} else if tree != nil {
@@ -159,10 +162,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("Can't open input file: %s", err.Error())
 		}
-		code := langlang.Encode(asm)
-		vm := langlang.NewVirtualMachine(code)
-		vm.SetShowFails(*a.showFails)
-		tree, _, err := vm.Match(text)
+		matcher, err := resolver.MatcherFor(*a.grammarPath, cfg)
+		if err != nil {
+			log.Fatal(err)
+		}
+		tree, _, err := matcher.Match(text)
 		if err != nil {
 			fmt.Println("ERROR: " + err.Error())
 		} else if tree != nil {
@@ -181,7 +185,7 @@ func main() {
 	var outputData string
 	switch *a.outputLang {
 	case "go":
-		outputData, err = langlang.GenGoEval(asm, langlang.GenGoOptions{
+		outputData, err = langlang.GenGoEval(asm, cfg, langlang.GenGoOptions{
 			PackageName: *a.goOptPackage,
 			ParserName:  *a.goOptParser,
 			RemoveLib:   *a.goOptRemoveLib,

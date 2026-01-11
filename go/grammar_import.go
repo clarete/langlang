@@ -1,25 +1,75 @@
 package langlang
 
-import (
-	"fmt"
-	"os"
-	"path/filepath"
-)
+import "fmt"
+
+const unknownFileID FileID = -1
+
+func NewSourceLocation(f FileID, s Span) SourceLocation {
+	return SourceLocation{FileID: f, Span: s}
+}
 
 type ImportResolver struct {
 	loader ImportLoader
+	nextID FileID
+	intern map[string]FileID
+	paths  map[FileID]string
 }
 
 func NewImportResolver(loader ImportLoader) *ImportResolver {
-	return &ImportResolver{loader: loader}
+	return &ImportResolver{
+		loader: loader,
+		nextID: unknownFileID,
+		intern: map[string]FileID{},
+		paths:  map[FileID]string{},
+	}
 }
 
-func (r *ImportResolver) Resolve(source string) (AstNode, error) {
+func (r *ImportResolver) Resolve(source string, cfg *Config) (AstNode, error) {
 	f, err := r.resolve(source, source)
 	if err != nil {
 		return nil, err
 	}
-	return f.Grammar, nil
+	f.Grammar.SourceFiles = r.grammarFiles()
+	return GrammarTransformations(f.Grammar, cfg)
+}
+
+func (r *ImportResolver) MatcherFor(entry string, cfg *Config) (Matcher, error) {
+	ast, err := r.Resolve(entry, cfg)
+	if err != nil {
+		return nil, err
+	}
+	asm, err := Compile(ast, cfg)
+	if err != nil {
+		return nil, err
+	}
+	code := Encode(asm, cfg)
+	vm := NewVirtualMachine(code)
+	vm.SetShowFails(cfg.GetBool("vm.show_fails"))
+	return vm, nil
+}
+
+func (r *ImportResolver) GetPath(fileID FileID) string {
+	return r.paths[fileID]
+}
+
+func (r *ImportResolver) grammarFiles() []string {
+	if r.nextID < 0 {
+		return nil
+	}
+	out := make([]string, int(r.nextID)+1)
+	for i := 0; i <= int(r.nextID); i++ {
+		out[i] = r.paths[FileID(i)]
+	}
+	return out
+}
+
+func (r *ImportResolver) internFile(path string) FileID {
+	if id, ok := r.intern[path]; ok {
+		return id
+	}
+	r.nextID++
+	r.intern[path] = r.nextID
+	return r.nextID
 }
 
 func (r *ImportResolver) resolve(importPath, parentPath string) (*importerResolverFrame, error) {
@@ -63,7 +113,12 @@ func (r *ImportResolver) createImporterResolverFrame(importPath, parentPath stri
 		return nil, err
 	}
 	p := NewGrammarParser(data)
-	p.SetGrammarFile(importPath)
+
+	id := r.internFile(path)
+	r.paths[id] = path
+	p.SetGrammarFile(path)
+	p.SetGrammarFileID(id)
+
 	node, err := p.Parse()
 	if err != nil {
 		return nil, err
@@ -77,37 +132,6 @@ func (r *ImportResolver) createImporterResolverFrame(importPath, parentPath stri
 		Grammar:    grammar,
 	}
 	return f, nil
-}
-
-type ImportLoader interface {
-	GetPath(importPath, parentPath string) (string, error)
-	GetContent(path string) ([]byte, error)
-}
-
-type RelativeImportLoader struct{}
-
-func NewRelativeImportLoader() *RelativeImportLoader {
-	return &RelativeImportLoader{}
-}
-
-func (ril *RelativeImportLoader) GetPath(importPath, parentPath string) (string, error) {
-	// Root node handling
-	if importPath == parentPath {
-		return importPath, nil
-	}
-	var contents string
-	if len(importPath) < 4 {
-		return contents, fmt.Errorf("path too short, it should start with ./: %s", importPath)
-	}
-	if importPath[:2] != "./" {
-		return contents, fmt.Errorf("path isn't relative to the import site: %s", importPath)
-	}
-	modulePath := importPath[2:]
-	return filepath.Join(filepath.Dir(parentPath), modulePath), nil
-}
-
-func (ril *RelativeImportLoader) GetContent(path string) ([]byte, error) {
-	return os.ReadFile(path)
 }
 
 type importerResolverFrame struct {

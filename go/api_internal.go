@@ -1,29 +1,5 @@
 package langlang
 
-// GrammarFromBytes takes a `grammar` string definition alongside with
-// an instance of a configuration object and returns the Grammar AST
-// transformed according to the configured values.
-func GrammarFromBytes(grammar []byte, cfg *Config) (AstNode, error) {
-	ast, err := NewGrammarParser(grammar).Parse()
-	if err != nil {
-		return nil, err
-	}
-	return GrammarTransformations(ast, cfg)
-}
-
-// GrammarFromFile takes a grammar `path` string alongside with an
-// instance of a configuration object and returns the Grammar AST
-// transformed according to the configured values.
-func GrammarFromFile(path string, cfg *Config) (AstNode, error) {
-	importLoader := NewRelativeImportLoader()
-	importResolver := NewImportResolver(importLoader)
-	ast, err := importResolver.Resolve(path)
-	if err != nil {
-		return nil, err
-	}
-	return GrammarTransformations(ast, cfg)
-}
-
 // GrammarTransformations applies various transformations to the
 // grammar ast node `expr` based on the values set in the
 // configuration object `cfg`.

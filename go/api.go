@@ -90,7 +90,8 @@ type Span struct {
 // b) you're reading the tree *before* [Matcher.Match] is called
 // again:
 //
-//	matcher := MatcherFromBytes(grammar, config)
+//	resolver := NewImportResolver(NewRelativeImportLoader())
+//	matcher := resolver.MatcherFor("main.peg", NewConfig())
 //	for _, input := range inputs {
 //	    tree, _, _ := matcher.Match(input)
 //	    yourFunctionThatOnlyReadsTheTree(tree)
@@ -99,7 +100,8 @@ type Span struct {
 // 2. You do need to copy because you're reading the tree after
 // [Matcher.Match] is called again:
 //
-//	matcher := MatcherFromBytes(grammar, config)
+//	resolver := NewImportResolver(NewRelativeImportLoader())
+//	matcher := resolver.MatcherFor("main.peg", NewConfig())
 //	trees := make([]Tree, 0, len(inputs))
 //	for _, input := range inputs {
 //	    tree, _, _ := matcher.Match(input)
@@ -174,56 +176,56 @@ type Tree interface {
 	Copy() Tree
 }
 
-// MatcherFromBytes creates a Matcher from a PEG grammar definition
-// provided as a byte slice.  The function parses the grammar,
-// compiles it into assembly instructions, encodes it into bytecode,
-// and returns a VirtualMachine ready to match input against the
-// grammar rules.
+// ImportLoader abstracts how grammars are located and read during
+// import resolution.
 //
-// The cfg parameter controls various grammar transformations such as
-// adding built-in rules, character set optimizations, whitespace
-// handling, and capture generation.
+// The import system is where langlang assembles a complete grammar
+// from an entrypoint plus its imports.  We currently have two different
+// implementations of ImportLoader:
 //
-// Returns an error if the grammar cannot be parsed, compiled, or if
-// any transformation fails.
-func MatcherFromBytes(input []byte, cfg *Config) (Matcher, error) {
-	ast, err := GrammarFromBytes(input, cfg)
-	if err != nil {
-		return nil, err
-	}
-	asm, err := Compile(ast, cfg)
-	if err != nil {
-		return nil, err
-	}
-	code := Encode(asm)
-	vm := NewVirtualMachine(code)
-	vm.SetShowFails(cfg.GetBool("vm.show_fails"))
-	return vm, nil
+// - [NewRelativeImportLoader]: loads grammars from the filesystem
+// - [NewInMemoryImportLoader]: loads grammars from memory
+//
+// Example (filesystem loader):
+//
+//	loader := NewRelativeImportLoader()
+//
+// Example (in-memory loader, useful for wasm/tests):
+//
+//	loader := NewInMemoryImportLoader()
+//	loader.Add("value.peg", []byte(`Value <- [0-9]+`))
+//	loader.Add("main.peg", []byte(`
+//	   @import Value from "./value.peg"
+//	   Main <- Value '+' ValueEOF^eof
+//	`))
+//
+// And then we can use the resolver through the import resolver API:
+//
+//	resolver := NewImportResolver(loader)
+//	ast, err := resolver.Resolve("main.peg", NewConfig())
+type ImportLoader interface {
+	// GetPath resolves an import path (as written in the grammar,
+	// e.g.  "./expr.peg") relative to the parent module.  It
+	// should return a stable module identifier that can later be
+	// used to load content and to report spans/locations.
+	GetPath(importPath, parentPath string) (string, error)
+
+	// GetContent returns the bytes for a resolved path
+	GetContent(path string) ([]byte, error)
 }
 
-// MatcherFromFile creates a Matcher from a PEG grammar file at the
-// specified path. The function loads the grammar file (resolving any
-// imports), parses it, compiles it into assembly instructions,
-// encodes it into bytecode, and returns a VirtualMachine ready to
-// match input against the grammar rules.
+// FileID is an interned identifier for a grammar source file
 //
-// The cfg parameter controls various grammar transformations such as
-// adding built-in rules, character set optimizations, whitespace
-// handling, and capture generation.
+// When compiling grammars via the import resolver, paths are assigned
+// a sequence of IDs.  This enables downstream components (compiler,
+// bytecode, VM) to reference source files compactly and optionally
+// map FileID(i) back to a resolved path via a side table.
 //
-// Returns an error if the file cannot be read, the grammar cannot be
-// parsed or compiled, or if any transformation fails.
-func MatcherFromFile(path string, cfg *Config) (Matcher, error) {
-	ast, err := GrammarFromFile(path, cfg)
-	if err != nil {
-		return nil, err
-	}
-	asm, err := Compile(ast, cfg)
-	if err != nil {
-		return nil, err
-	}
-	code := Encode(asm)
-	vm := NewVirtualMachine(code)
-	vm.SetShowFails(cfg.GetBool("vm.show_fails"))
-	return vm, nil
+// A value of -1 means the file is unknown or not applicable.
+type FileID int
+
+// SourceLocation identifies a span within a particular source file
+type SourceLocation struct {
+	FileID FileID
+	Span   Span
 }

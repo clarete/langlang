@@ -20,6 +20,10 @@ func (p *GrammarParser) Parse() (AstNode, error) {
 	return p.ParseGrammar()
 }
 
+func (p *GrammarParser) newSrcLocFrom(start Location) SourceLocation {
+	return NewSourceLocation(unknownFileID, NewSpan(start, p.Location()))
+}
+
 // GR: Grammar <- Import* Definition+ EndOfFile
 func (p *GrammarParser) ParseGrammar() (AstNode, error) {
 	p.ParseSpacing()
@@ -47,7 +51,7 @@ func (p *GrammarParser) ParseGrammar() (AstNode, error) {
 	if _, err := Not(p, p.ExpectRuneFn('.')); err != nil {
 		return nil, err
 	}
-	return NewGrammarNode(imports, defs, defsByName, NewSpan(start, p.Location())), nil
+	return NewGrammarNode(imports, defs, defsByName, p.newSrcLocFrom(start)), nil
 }
 
 // GR: Import <- '@import' Identifier ("," Identifier)* 'from' Literal
@@ -75,9 +79,10 @@ func (p *GrammarParser) ParseImport() (*ImportNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	end := p.Location()
-	pathLiteral := NewLiteralNode(path, NewSpan(pathStart, end))
-	return NewImportNode(pathLiteral, names, NewSpan(start, end)), nil
+	pathSloc := p.newSrcLocFrom(pathStart)
+	importSloc := p.newSrcLocFrom(start)
+	pathLiteral := NewLiteralNode(path, pathSloc)
+	return NewImportNode(pathLiteral, names, importSloc), nil
 }
 
 func (p *GrammarParser) parseImportNames() ([]*LiteralNode, error) {
@@ -87,7 +92,7 @@ func (p *GrammarParser) parseImportNames() ([]*LiteralNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	head := NewLiteralNode(headId, NewSpan(start, p.Location()))
+	head := NewLiteralNode(headId, p.newSrcLocFrom(start))
 	tail, err := ZeroOrMore(p, func(p Backtrackable) (*LiteralNode, error) {
 		p.(*GrammarParser).ParseSpacing()
 		if _, err := p.(*GrammarParser).ExpectRune(','); err != nil {
@@ -100,7 +105,7 @@ func (p *GrammarParser) parseImportNames() ([]*LiteralNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		return NewLiteralNode(id, NewSpan(start, p.Location())), nil
+		return NewLiteralNode(id, p.(*GrammarParser).newSrcLocFrom(start)), nil
 	})
 	if err != nil {
 		return nil, err
@@ -125,7 +130,7 @@ func (p *GrammarParser) ParseDefinition() (*DefinitionNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewDefinitionNode(identifier, expr, NewSpan(start, p.Location())), nil
+	return NewDefinitionNode(identifier, expr, p.newSrcLocFrom(start)), nil
 }
 
 // GR: Expression <- Sequence (SLASH Sequence)*
@@ -156,8 +161,11 @@ func (p *GrammarParser) ParseExpression() (AstNode, error) {
 	accum := items[len(items)-1]
 
 	for i := len(items) - 2; i >= 0; i-- {
-		span := NewSpan(items[i].Span().Start, accum.Span().End)
-		accum = NewChoiceNode(items[i], accum, span)
+		strsl := items[i].SourceLocation()
+		start := strsl.Span.Start
+		end := accum.SourceLocation().Span.End
+		newsl := NewSourceLocation(strsl.FileID, NewSpan(start, end))
+		accum = NewChoiceNode(items[i], accum, newsl)
 	}
 
 	return accum, nil
@@ -177,7 +185,7 @@ func (p *GrammarParser) ParseSequence() (AstNode, error) {
 	// item.  We need a Sequence node with a single item in the
 	// output tree.  That way, the code generator traversal can
 	// properly decide introducing automatic space consumption.
-	return NewSequenceNode(items, NewSpan(start, p.Location())), nil
+	return NewSequenceNode(items, p.newSrcLocFrom(start)), nil
 }
 
 // GR: Prefix <- (AND / NOT / LEX)? Labeled
@@ -199,11 +207,11 @@ func (p *GrammarParser) ParsePrefix() (AstNode, error) {
 	}
 	switch prefix {
 	case '&':
-		return NewAndNode(expr, NewSpan(start, p.Location())), nil
+		return NewAndNode(expr, p.newSrcLocFrom(start)), nil
 	case '!':
-		return NewNotNode(expr, NewSpan(start, p.Location())), nil
+		return NewNotNode(expr, p.newSrcLocFrom(start)), nil
 	case '#':
-		return NewLexNode(expr, NewSpan(start, p.Location())), nil
+		return NewLexNode(expr, p.newSrcLocFrom(start)), nil
 	default:
 		return expr, nil
 	}
@@ -226,7 +234,8 @@ func (p *GrammarParser) ParseLabeled() (AstNode, error) {
 			if err != nil {
 				return nil, err
 			}
-			return NewLabeledNode(label, expr, NewSpan(start, p.Location())), nil
+			sloc := p.(*GrammarParser).newSrcLocFrom(start)
+			return NewLabeledNode(label, expr, sloc), nil
 		},
 		func(p Backtrackable) (AstNode, error) { return expr, nil },
 	})
@@ -254,11 +263,11 @@ func (p *GrammarParser) ParseSuffix() (AstNode, error) {
 
 	switch suffix {
 	case '?':
-		return NewOptionalNode(primary, NewSpan(start, p.Location())), nil
+		return NewOptionalNode(primary, p.newSrcLocFrom(start)), nil
 	case '*':
-		return NewZeroOrMoreNode(primary, NewSpan(start, p.Location())), nil
+		return NewZeroOrMoreNode(primary, p.newSrcLocFrom(start)), nil
 	case '+':
-		return NewOneOrMoreNode(primary, NewSpan(start, p.Location())), nil
+		return NewOneOrMoreNode(primary, p.newSrcLocFrom(start)), nil
 	default:
 		return primary, nil
 	}
@@ -287,15 +296,14 @@ func (p *GrammarParser) ParseIdentifier() (AstNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	end := p.Location()
+	sloc := p.newSrcLocFrom(start)
 
 	if _, err := Not(p, func(p Backtrackable) (AstNode, error) {
 		return nil, p.(*GrammarParser).ParseLeftArrow()
 	}); err != nil {
 		return nil, err
 	}
-
-	return NewIdentifierNode(value, NewSpan(start, end)), nil
+	return NewIdentifierNode(value, sloc), nil
 }
 
 func (p *GrammarParser) parseIdentifier() (string, error) {
@@ -371,7 +379,7 @@ func (p *GrammarParser) ParseClass() (AstNode, error) {
 	if _, err := p.ExpectRune(']'); err != nil {
 		return nil, err
 	}
-	return NewClassNode(ranges, NewSpan(start, p.Location())), nil
+	return NewClassNode(ranges, p.newSrcLocFrom(start)), nil
 }
 
 // GR: Range <- Char '-' Char / Char
@@ -390,7 +398,8 @@ func (p *GrammarParser) ParseRange() (AstNode, error) {
 			if err != nil {
 				return nil, err
 			}
-			return NewRangeNode(left, right, NewSpan(start, p.Location())), nil
+			sloc := p.(*GrammarParser).newSrcLocFrom(start)
+			return NewRangeNode(left, right, sloc), nil
 		},
 		func(p Backtrackable) (AstNode, error) {
 			return p.(*GrammarParser).ParseChar()
@@ -404,7 +413,7 @@ func (p *GrammarParser) ParseDot() (AstNode, error) {
 	if _, err := p.ExpectRune('.'); err != nil {
 		return nil, err
 	}
-	return NewAnyNode(NewSpan(start, p.Location())), nil
+	return NewAnyNode(p.newSrcLocFrom(start)), nil
 }
 
 // GR: Literal <- ['] (!['] Char)* [']
@@ -416,7 +425,7 @@ func (p *GrammarParser) ParseLiteral() (AstNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewLiteralNode(value, NewSpan(start, p.Location())), nil
+	return NewLiteralNode(value, p.newSrcLocFrom(start)), nil
 }
 
 func (p *GrammarParser) parseLiteral() (string, error) {
@@ -473,7 +482,7 @@ func (p *GrammarParser) ParseChar() (AstNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewLiteralNode(string(value), NewSpan(start, p.Location())), nil
+	return NewLiteralNode(string(value), p.newSrcLocFrom(start)), nil
 }
 
 func (p *GrammarParser) parseChr() (rune, error) {

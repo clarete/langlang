@@ -4,7 +4,7 @@ import "encoding/binary"
 
 func fitsU16Rune(r rune) bool { return r >= 0 && r <= 0xFFFF }
 
-func Encode(p *Program) *Bytecode {
+func Encode(p *Program, cfg *Config) *Bytecode {
 	var (
 		code    []byte
 		cursor  int

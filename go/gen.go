@@ -28,11 +28,11 @@ type tmplRenderOpts struct {
 	PackageName string
 }
 
-func GenGoEval(asm *Program, opt GenGoOptions) (string, error) {
+func GenGoEval(asm *Program, cfg *Config, opt GenGoOptions) (string, error) {
 	g := newGoEvalEmitter(opt)
 	g.writePrelude()
 	g.writeInterfaces()
-	g.writeParserProgram(Encode(asm))
+	g.writeParserProgram(Encode(asm, cfg))
 	g.writeParserStruct()
 	g.writeParserConstructor()
 	g.writeParserMethods(asm)

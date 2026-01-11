@@ -8,12 +8,13 @@ import (
 // AstNode is the interface that defines all behavior needed by the
 // values output by the Grammar parser
 type AstNode interface {
-	// Span returns the location in which the node was found
-	// within the input text
-	Span() Span
-
 	// String returns the representation of the node recursively
 	String() string
+
+	// SourceLocation returns where the node was found in a
+	// in a source file.  If the node was not found in a
+	// source file, the FileID is -1.
+	SourceLocation() SourceLocation
 
 	// PrettyString returns the hierarchical structure of the node
 	// recursively
@@ -34,19 +35,19 @@ type AstNode interface {
 
 // Node Type: Any
 
-type AnyNode struct{ span Span }
+type AnyNode struct{ src SourceLocation }
 
-func NewAnyNode(s Span) *AnyNode {
+func NewAnyNode(s SourceLocation) *AnyNode {
 	n := &AnyNode{}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n AnyNode) Span() Span                    { return n.span }
-func (n AnyNode) String() string                { return "." }
-func (n AnyNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n AnyNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n AnyNode) Accept(v AstNodeVisitor) error { return v.VisitAnyNode(&n) }
+func (n AnyNode) SourceLocation() SourceLocation { return n.src }
+func (n AnyNode) String() string                 { return "." }
+func (n AnyNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n AnyNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n AnyNode) Accept(v AstNodeVisitor) error  { return v.VisitAnyNode(&n) }
 
 func (n AnyNode) Equal(o AstNode) bool {
 	switch o.(type) {
@@ -60,21 +61,21 @@ func (n AnyNode) Equal(o AstNode) bool {
 // Node Type: Literal
 
 type LiteralNode struct {
-	span  Span
+	src   SourceLocation
 	Value string
 }
 
-func NewLiteralNode(v string, s Span) *LiteralNode {
+func NewLiteralNode(v string, s SourceLocation) *LiteralNode {
 	n := &LiteralNode{Value: v}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n LiteralNode) Span() Span                    { return n.span }
-func (n LiteralNode) String() string                { return fmt.Sprintf("'%s'", n.Value) }
-func (n LiteralNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n LiteralNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n LiteralNode) Accept(v AstNodeVisitor) error { return v.VisitLiteralNode(&n) }
+func (n LiteralNode) SourceLocation() SourceLocation { return n.src }
+func (n LiteralNode) String() string                 { return fmt.Sprintf("'%s'", n.Value) }
+func (n LiteralNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n LiteralNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n LiteralNode) Accept(v AstNodeVisitor) error  { return v.VisitLiteralNode(&n) }
 
 func (n LiteralNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -88,21 +89,21 @@ func (n LiteralNode) Equal(o AstNode) bool {
 // Node Type: Identifier
 
 type IdentifierNode struct {
-	span  Span
+	src   SourceLocation
 	Value string
 }
 
-func NewIdentifierNode(v string, s Span) *IdentifierNode {
+func NewIdentifierNode(v string, s SourceLocation) *IdentifierNode {
 	n := &IdentifierNode{Value: v}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n IdentifierNode) Span() Span                    { return n.span }
-func (n IdentifierNode) String() string                { return n.Value }
-func (n IdentifierNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n IdentifierNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n IdentifierNode) Accept(v AstNodeVisitor) error { return v.VisitIdentifierNode(&n) }
+func (n IdentifierNode) SourceLocation() SourceLocation { return n.src }
+func (n IdentifierNode) String() string                 { return n.Value }
+func (n IdentifierNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n IdentifierNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n IdentifierNode) Accept(v AstNodeVisitor) error  { return v.VisitIdentifierNode(&n) }
 
 func (n IdentifierNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -116,22 +117,22 @@ func (n IdentifierNode) Equal(o AstNode) bool {
 // Node Type: Range
 
 type RangeNode struct {
-	span  Span
+	src   SourceLocation
 	Left  rune
 	Right rune
 }
 
-func NewRangeNode(left, right rune, s Span) *RangeNode {
+func NewRangeNode(left, right rune, s SourceLocation) *RangeNode {
 	n := &RangeNode{Left: left, Right: right}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n RangeNode) Span() Span                    { return n.span }
-func (n RangeNode) String() string                { return fmt.Sprintf("%c-%c", n.Left, n.Right) }
-func (n RangeNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n RangeNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n RangeNode) Accept(v AstNodeVisitor) error { return v.VisitRangeNode(&n) }
+func (n RangeNode) SourceLocation() SourceLocation { return n.src }
+func (n RangeNode) String() string                 { return fmt.Sprintf("%c-%c", n.Left, n.Right) }
+func (n RangeNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n RangeNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n RangeNode) Accept(v AstNodeVisitor) error  { return v.VisitRangeNode(&n) }
 
 func (n RangeNode) Equal(o AstNode) bool {
 	if other, ok := o.(*RangeNode); ok {
@@ -143,25 +144,25 @@ func (n RangeNode) Equal(o AstNode) bool {
 // Node Type: Charset
 
 type CharsetNode struct {
-	span Span
-	cs   *charset
+	src SourceLocation
+	cs  *charset
 }
 
-func NewCharsetNode(cs *charset, s Span) *CharsetNode {
+func NewCharsetNode(cs *charset, s SourceLocation) *CharsetNode {
 	n := &CharsetNode{cs: cs}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n CharsetNode) Span() Span                    { return n.span }
-func (n CharsetNode) String() string                { return n.cs.String() }
-func (n CharsetNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n CharsetNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n CharsetNode) Accept(v AstNodeVisitor) error { return v.VisitCharsetNode(&n) }
+func (n CharsetNode) SourceLocation() SourceLocation { return n.src }
+func (n CharsetNode) String() string                 { return n.cs.String() }
+func (n CharsetNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n CharsetNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n CharsetNode) Accept(v AstNodeVisitor) error  { return v.VisitCharsetNode(&n) }
 
 func (n CharsetNode) Equal(o AstNode) bool {
 	if other, ok := o.(*CharsetNode); ok {
-		return n.span == other.span && n.cs.eq(other.cs)
+		return n.src == other.src && n.cs.eq(other.cs)
 	}
 	return false
 }
@@ -169,21 +170,21 @@ func (n CharsetNode) Equal(o AstNode) bool {
 // Node Type: Class
 
 type ClassNode struct {
-	span  Span
+	src   SourceLocation
 	Items []AstNode
 }
 
-func NewClassNode(items []AstNode, s Span) *ClassNode {
+func NewClassNode(items []AstNode, s SourceLocation) *ClassNode {
 	n := &ClassNode{Items: items}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n ClassNode) Span() Span                    { return n.span }
-func (n ClassNode) String() string                { return fmt.Sprintf("[%s]", nodesString(n.Items, "")) }
-func (n ClassNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n ClassNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n ClassNode) Accept(v AstNodeVisitor) error { return v.VisitClassNode(&n) }
+func (n ClassNode) SourceLocation() SourceLocation { return n.src }
+func (n ClassNode) String() string                 { return fmt.Sprintf("[%s]", nodesString(n.Items, "")) }
+func (n ClassNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n ClassNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n ClassNode) Accept(v AstNodeVisitor) error  { return v.VisitClassNode(&n) }
 
 func (n ClassNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -205,21 +206,21 @@ func (n ClassNode) Equal(o AstNode) bool {
 // Node Type: Optional
 
 type OptionalNode struct {
-	span Span
+	src  SourceLocation
 	Expr AstNode
 }
 
-func NewOptionalNode(expr AstNode, s Span) *OptionalNode {
+func NewOptionalNode(expr AstNode, s SourceLocation) *OptionalNode {
 	n := &OptionalNode{Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n OptionalNode) Span() Span                    { return n.span }
-func (n OptionalNode) String() string                { return fmt.Sprintf("%s?", n.Expr.String()) }
-func (n OptionalNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n OptionalNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n OptionalNode) Accept(v AstNodeVisitor) error { return v.VisitOptionalNode(&n) }
+func (n OptionalNode) SourceLocation() SourceLocation { return n.src }
+func (n OptionalNode) String() string                 { return fmt.Sprintf("%s?", n.Expr.String()) }
+func (n OptionalNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n OptionalNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n OptionalNode) Accept(v AstNodeVisitor) error  { return v.VisitOptionalNode(&n) }
 
 func (n OptionalNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -233,21 +234,21 @@ func (n OptionalNode) Equal(o AstNode) bool {
 // Node Type: ZeroOrMore
 
 type ZeroOrMoreNode struct {
-	span Span
+	src  SourceLocation
 	Expr AstNode
 }
 
-func NewZeroOrMoreNode(expr AstNode, s Span) *ZeroOrMoreNode {
+func NewZeroOrMoreNode(expr AstNode, s SourceLocation) *ZeroOrMoreNode {
 	n := &ZeroOrMoreNode{Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n ZeroOrMoreNode) Span() Span                    { return n.span }
-func (n ZeroOrMoreNode) String() string                { return fmt.Sprintf("%s*", n.Expr.String()) }
-func (n ZeroOrMoreNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n ZeroOrMoreNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n ZeroOrMoreNode) Accept(v AstNodeVisitor) error { return v.VisitZeroOrMoreNode(&n) }
+func (n ZeroOrMoreNode) SourceLocation() SourceLocation { return n.src }
+func (n ZeroOrMoreNode) String() string                 { return fmt.Sprintf("%s*", n.Expr.String()) }
+func (n ZeroOrMoreNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n ZeroOrMoreNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n ZeroOrMoreNode) Accept(v AstNodeVisitor) error  { return v.VisitZeroOrMoreNode(&n) }
 
 func (n ZeroOrMoreNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -261,21 +262,21 @@ func (n ZeroOrMoreNode) Equal(o AstNode) bool {
 // Node Type: OneOrMore
 
 type OneOrMoreNode struct {
-	span Span
+	src  SourceLocation
 	Expr AstNode
 }
 
-func NewOneOrMoreNode(expr AstNode, s Span) *OneOrMoreNode {
+func NewOneOrMoreNode(expr AstNode, s SourceLocation) *OneOrMoreNode {
 	n := &OneOrMoreNode{Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n OneOrMoreNode) Span() Span                    { return n.span }
-func (n OneOrMoreNode) String() string                { return fmt.Sprintf("%s+", n.Expr.String()) }
-func (n OneOrMoreNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n OneOrMoreNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n OneOrMoreNode) Accept(v AstNodeVisitor) error { return v.VisitOneOrMoreNode(&n) }
+func (n OneOrMoreNode) SourceLocation() SourceLocation { return n.src }
+func (n OneOrMoreNode) String() string                 { return fmt.Sprintf("%s+", n.Expr.String()) }
+func (n OneOrMoreNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n OneOrMoreNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n OneOrMoreNode) Accept(v AstNodeVisitor) error  { return v.VisitOneOrMoreNode(&n) }
 
 func (n OneOrMoreNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -289,21 +290,21 @@ func (n OneOrMoreNode) Equal(o AstNode) bool {
 // Node Type: And
 
 type AndNode struct {
-	span Span
+	src  SourceLocation
 	Expr AstNode
 }
 
-func NewAndNode(expr AstNode, s Span) *AndNode {
+func NewAndNode(expr AstNode, s SourceLocation) *AndNode {
 	n := &AndNode{Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n AndNode) Span() Span                    { return n.span }
-func (n AndNode) String() string                { return fmt.Sprintf("&%s", n.Expr.String()) }
-func (n AndNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n AndNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n AndNode) Accept(v AstNodeVisitor) error { return v.VisitAndNode(&n) }
+func (n AndNode) SourceLocation() SourceLocation { return n.src }
+func (n AndNode) String() string                 { return fmt.Sprintf("&%s", n.Expr.String()) }
+func (n AndNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n AndNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n AndNode) Accept(v AstNodeVisitor) error  { return v.VisitAndNode(&n) }
 
 func (n AndNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -317,21 +318,21 @@ func (n AndNode) Equal(o AstNode) bool {
 // Node Type: Not
 
 type NotNode struct {
-	span Span
+	src  SourceLocation
 	Expr AstNode
 }
 
-func NewNotNode(expr AstNode, s Span) *NotNode {
+func NewNotNode(expr AstNode, s SourceLocation) *NotNode {
 	n := &NotNode{Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n NotNode) Span() Span                    { return n.span }
-func (n NotNode) String() string                { return fmt.Sprintf("!%s", n.Expr.String()) }
-func (n NotNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n NotNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n NotNode) Accept(v AstNodeVisitor) error { return v.VisitNotNode(&n) }
+func (n NotNode) SourceLocation() SourceLocation { return n.src }
+func (n NotNode) String() string                 { return fmt.Sprintf("!%s", n.Expr.String()) }
+func (n NotNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n NotNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n NotNode) Accept(v AstNodeVisitor) error  { return v.VisitNotNode(&n) }
 
 func (n NotNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -345,20 +346,20 @@ func (n NotNode) Equal(o AstNode) bool {
 // Node Type: Lex
 
 type LexNode struct {
-	span Span
+	src  SourceLocation
 	Expr AstNode
 }
 
-func NewLexNode(expr AstNode, s Span) *LexNode {
+func NewLexNode(expr AstNode, s SourceLocation) *LexNode {
 	n := &LexNode{Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n LexNode) Span() Span                    { return n.span }
-func (n LexNode) Accept(v AstNodeVisitor) error { return v.VisitLexNode(&n) }
-func (n LexNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n LexNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
+func (n LexNode) SourceLocation() SourceLocation { return n.src }
+func (n LexNode) Accept(v AstNodeVisitor) error  { return v.VisitLexNode(&n) }
+func (n LexNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n LexNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
 
 func (n LexNode) String() string {
 	if _, ok := n.Expr.(SequenceNode); ok {
@@ -379,22 +380,22 @@ func (n LexNode) Equal(o AstNode) bool {
 // Node Type: Labeled
 
 type LabeledNode struct {
-	span  Span
+	src   SourceLocation
 	Label string
 	Expr  AstNode
 }
 
-func NewLabeledNode(label string, expr AstNode, s Span) *LabeledNode {
+func NewLabeledNode(label string, expr AstNode, s SourceLocation) *LabeledNode {
 	n := &LabeledNode{Label: label, Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n LabeledNode) Span() Span                    { return n.span }
-func (n LabeledNode) String() string                { return fmt.Sprintf("%s^%s", n.Expr.String(), n.Label) }
-func (n LabeledNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n LabeledNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n LabeledNode) Accept(v AstNodeVisitor) error { return v.VisitLabeledNode(&n) }
+func (n LabeledNode) SourceLocation() SourceLocation { return n.src }
+func (n LabeledNode) String() string                 { return fmt.Sprintf("%s^%s", n.Expr.String(), n.Label) }
+func (n LabeledNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n LabeledNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n LabeledNode) Accept(v AstNodeVisitor) error  { return v.VisitLabeledNode(&n) }
 
 func (n LabeledNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -408,21 +409,21 @@ func (n LabeledNode) Equal(o AstNode) bool {
 // Node Type: Sequence
 
 type SequenceNode struct {
-	span  Span
+	src   SourceLocation
 	Items []AstNode
 }
 
-func NewSequenceNode(items []AstNode, s Span) *SequenceNode {
+func NewSequenceNode(items []AstNode, s SourceLocation) *SequenceNode {
 	n := &SequenceNode{Items: items}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n SequenceNode) Span() Span                    { return n.span }
-func (n SequenceNode) Accept(v AstNodeVisitor) error { return v.VisitSequenceNode(&n) }
-func (n SequenceNode) String() string                { return nodesString(n.Items, " ") }
-func (n SequenceNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n SequenceNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
+func (n SequenceNode) SourceLocation() SourceLocation { return n.src }
+func (n SequenceNode) Accept(v AstNodeVisitor) error  { return v.VisitSequenceNode(&n) }
+func (n SequenceNode) String() string                 { return nodesString(n.Items, " ") }
+func (n SequenceNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n SequenceNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
 
 func (n SequenceNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -444,22 +445,22 @@ func (n SequenceNode) Equal(o AstNode) bool {
 // Node Type: Choice
 
 type ChoiceNode struct {
-	span  Span
+	src   SourceLocation
 	Left  AstNode
 	Right AstNode
 }
 
-func NewChoiceNode(left, right AstNode, s Span) *ChoiceNode {
+func NewChoiceNode(left, right AstNode, s SourceLocation) *ChoiceNode {
 	n := &ChoiceNode{Left: left, Right: right}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n ChoiceNode) Span() Span                    { return n.span }
-func (n ChoiceNode) Accept(v AstNodeVisitor) error { return v.VisitChoiceNode(&n) }
-func (n ChoiceNode) String() string                { return fmt.Sprintf("%s / %s", n.Left.String(), n.Right.String()) }
-func (n ChoiceNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n ChoiceNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
+func (n ChoiceNode) SourceLocation() SourceLocation { return n.src }
+func (n ChoiceNode) Accept(v AstNodeVisitor) error  { return v.VisitChoiceNode(&n) }
+func (n ChoiceNode) String() string                 { return fmt.Sprintf("%s / %s", n.Left.String(), n.Right.String()) }
+func (n ChoiceNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n ChoiceNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
 
 func (n ChoiceNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -473,24 +474,24 @@ func (n ChoiceNode) Equal(o AstNode) bool {
 // Node Type: Capture
 
 type CaptureNode struct {
-	span Span
+	src  SourceLocation
 	Name string
 	Expr AstNode
 }
 
-func NewCaptureNode(name string, expr AstNode, s Span) *CaptureNode {
+func NewCaptureNode(name string, expr AstNode, s SourceLocation) *CaptureNode {
 	return &CaptureNode{
-		span: s,
+		src:  s,
 		Name: name,
 		Expr: expr,
 	}
 }
 
-func (n CaptureNode) Span() Span                    { return n.span }
-func (n CaptureNode) Accept(v AstNodeVisitor) error { return v.VisitCaptureNode(&n) }
-func (n CaptureNode) String() string                { return fmt.Sprintf("#%s{{ %s }}", n.Name, n.Expr) }
-func (n CaptureNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n CaptureNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
+func (n CaptureNode) SourceLocation() SourceLocation { return n.src }
+func (n CaptureNode) Accept(v AstNodeVisitor) error  { return v.VisitCaptureNode(&n) }
+func (n CaptureNode) String() string                 { return fmt.Sprintf("#%s{{ %s }}", n.Name, n.Expr) }
+func (n CaptureNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n CaptureNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
 
 func (n CaptureNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -504,22 +505,22 @@ func (n CaptureNode) Equal(o AstNode) bool {
 // Node Type: Definition
 
 type DefinitionNode struct {
-	span Span
+	src  SourceLocation
 	Name string
 	Expr AstNode
 }
 
-func NewDefinitionNode(name string, expr AstNode, s Span) *DefinitionNode {
+func NewDefinitionNode(name string, expr AstNode, s SourceLocation) *DefinitionNode {
 	n := &DefinitionNode{Name: name, Expr: expr}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n DefinitionNode) Span() Span                    { return n.span }
-func (n DefinitionNode) String() string                { return fmt.Sprintf("%s <- %s", n.Name, n.Expr.String()) }
-func (n DefinitionNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n DefinitionNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n DefinitionNode) Accept(v AstNodeVisitor) error { return v.VisitDefinitionNode(&n) }
+func (n DefinitionNode) SourceLocation() SourceLocation { return n.src }
+func (n DefinitionNode) String() string                 { return fmt.Sprintf("%s <- %s", n.Name, n.Expr.String()) }
+func (n DefinitionNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n DefinitionNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n DefinitionNode) Accept(v AstNodeVisitor) error  { return v.VisitDefinitionNode(&n) }
 
 func (n DefinitionNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -533,21 +534,21 @@ func (n DefinitionNode) Equal(o AstNode) bool {
 // Node Type: Import
 
 type ImportNode struct {
-	span  Span
+	src   SourceLocation
 	Path  *LiteralNode
 	Names []*LiteralNode
 }
 
-func NewImportNode(path *LiteralNode, names []*LiteralNode, s Span) *ImportNode {
+func NewImportNode(path *LiteralNode, names []*LiteralNode, s SourceLocation) *ImportNode {
 	n := &ImportNode{Path: path, Names: names}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n ImportNode) Span() Span                    { return n.span }
-func (n ImportNode) Accept(v AstNodeVisitor) error { return v.VisitImportNode(&n) }
-func (n ImportNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n ImportNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
+func (n ImportNode) SourceLocation() SourceLocation { return n.src }
+func (n ImportNode) Accept(v AstNodeVisitor) error  { return v.VisitImportNode(&n) }
+func (n ImportNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n ImportNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
 
 func (n ImportNode) Equal(o AstNode) bool {
 	switch other := o.(type) {
@@ -586,28 +587,29 @@ func (n ImportNode) GetNames() []string {
 // Node Type: Grammar
 
 type GrammarNode struct {
-	span        Span
+	src         SourceLocation
 	Imports     []*ImportNode
 	Definitions []*DefinitionNode
 	DefsByName  map[string]*DefinitionNode
+	SourceFiles []string
 }
 
 func NewGrammarNode(
 	imps []*ImportNode,
 	defs []*DefinitionNode,
 	defsByName map[string]*DefinitionNode,
-	s Span,
+	s SourceLocation,
 ) *GrammarNode {
 	n := &GrammarNode{Imports: imps, Definitions: defs, DefsByName: defsByName}
-	n.span = s
+	n.src = s
 	return n
 }
 
-func (n GrammarNode) Span() Span                    { return n.span }
-func (n GrammarNode) String() string                { return nodesString(n.GetItems(), "\n") }
-func (n GrammarNode) PrettyString() string          { return ppAstNode(&n, formatNodePlain) }
-func (n GrammarNode) HighlightPrettyString() string { return ppAstNode(&n, formatNodeThemed) }
-func (n GrammarNode) Accept(v AstNodeVisitor) error { return v.VisitGrammarNode(&n) }
+func (n GrammarNode) SourceLocation() SourceLocation { return n.src }
+func (n GrammarNode) String() string                 { return nodesString(n.GetItems(), "\n") }
+func (n GrammarNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n GrammarNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n GrammarNode) Accept(v AstNodeVisitor) error  { return v.VisitGrammarNode(&n) }
 
 func (n GrammarNode) GetItems() []AstNode {
 	var items []AstNode

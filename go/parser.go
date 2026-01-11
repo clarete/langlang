@@ -24,7 +24,6 @@ type Parser struct {
 	column int
 	input  []rune
 
-	inputFile   string
 	grammarFile string
 
 	lastErr    error
@@ -115,16 +114,14 @@ type Backtrackable interface {
 	ExpectLiteral(l string) (string, error)
 }
 
-// SetFile allows users of the base parser to define the path of the
-// input file.  That is used in error messages.
-func (p *Parser) SetInputFile(file string) {
-	p.inputFile = file
-}
-
 // SetGrammarFile allows users of the base parser to define the path
 // of the grammar file.  That might be used in error messages.
 func (p *Parser) SetGrammarFile(f string) {
 	p.grammarFile = f
+}
+
+func (p *Parser) GetGrammarFile() string {
+	return p.grammarFile
 }
 
 // SetInput associates an input to the parser struct.  The state of

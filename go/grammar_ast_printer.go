@@ -287,5 +287,5 @@ func (gp *grammarPrinter) writeSpanl(n AstNode) {
 }
 
 func (gp *grammarPrinter) writeSpan(n AstNode) {
-	gp.write(gp.format(fmt.Sprintf(" (%s)", n.Span()), AstFormatToken_Span))
+	gp.write(gp.format(fmt.Sprintf(" (%s)", n.SourceLocation().Span), AstFormatToken_Span))
 }

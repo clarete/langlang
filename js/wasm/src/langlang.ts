@@ -11,6 +11,9 @@ export type NodeTypeTable = {
     Error: number;
 };
 
+export type SourceFile = { path: string; content: string };
+export type SourceFiles = SourceFile[];
+
 export type RawResult<T> =
     | { ok: true; value: T }
     | { ok: false; error: string };
@@ -44,6 +47,13 @@ export default class langlang {
         return new Matcher(this.raw, mid);
     }
 
+    matcherFromFiles(entry: string, files: SourceFiles, cfg?: Config): Matcher {
+        const mid = unwrap<{ id: number }>(
+            this.raw.matcherFromFiles(String(entry), files, cfg ?? undefined),
+        ).id;
+        return new Matcher(this.raw, mid);
+    }
+
     compileJson(grammar: string, input: string, cfg?: Config): Value {
         const m = this.matcherFromString(grammar, cfg);
         try {
@@ -59,6 +69,11 @@ export default class langlang {
 interface Raw {
     NodeType: NodeTypeTable;
     matcherFromString(grammar: string, cfg?: Config): RawResult<{ id: number }>;
+    matcherFromFiles(
+        entry: string,
+        files: SourceFiles,
+        cfg?: Config,
+    ): RawResult<{ id: number }>;
     freeMatcher(id: number): RawResult<void>;
     match(
         id: number,

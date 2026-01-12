@@ -102,11 +102,25 @@ export async function initializeLangLangWasm(
             go.importObject,
         );
         // NOTE: go.run does not resolve until the Go program exits.
-        go.run(webAssembly.instance);
+        const runPromise = go.run(webAssembly.instance);
+        // If the Go program ever exits (panic, navigation teardown, etc), allow re-init.
+        runPromise
+            .catch((e) => {
+                console.error("langlang wasm: Go runtime crashed/exited", e);
+            })
+            .finally(() => {
+                // Only clear if we're still the active init promise (avoid races).
+                if (initPromise) initPromise = null;
+            });
 
         // Wait for Go to signal readiness (see viz/wasm/lib/langlang_js.go).
         await Promise.race([
             ready,
+            runPromise.then(() => {
+                throw new GoLangError(
+                    "langlang wasm runtime exited before ready",
+                );
+            }),
             new Promise((_, reject) =>
                 setTimeout(
                     () =>

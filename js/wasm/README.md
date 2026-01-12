@@ -42,14 +42,33 @@ import wasmExecUrl from "@langlang/wasm/wasm_exec.js?url";
 
 const ll = await initializeLangLangWasm(wasmUrl, wasmExecUrl);
 
-const matcher = ll.matcherFromBytes("Start <- 'a'+");
-const { tree, error } = matcher.match("aaa");
+const matcher = ll.matcherFromString("Start <- 'a'+");
+const { consumed, value } = matcher.match("aaa");
 matcher.dispose();
 
-if (!error && tree) {
-  console.log(tree.pretty());
-  tree.dispose();
-}
+console.log({ consumed, value });
+```
+
+## Multi-file grammars (imports) from memory
+
+```ts
+const matcher = ll.matcherFromFiles(
+  "main.peg",
+  [
+    {
+      path: "value.peg",
+      content: `Value <- [0-9]+`,
+    },
+    {
+      path: "main.peg",
+      content: `@import Value from "./value.peg"
+Main <- Value`,
+    },
+  ],
+);
+
+console.log(matcher.match("123").value);
+matcher.dispose();
 ```
 
 ## Even simpler (browser / Vite): no URLs
@@ -57,9 +76,9 @@ if (!error && tree) {
 If your bundler supports `?url` asset imports (Vite does), you can avoid passing URLs:
 
 ```ts
-import { initializeLangLangWasmFromPackageAssets } from "@langlang/wasm/browser";
+import { initializeLangLangWasmFromAssets } from "@langlang/wasm/browser";
 
-const ll = await initializeLangLangWasmFromPackageAssets();
+const ll = await initializeLangLangWasmFromAssets();
 ```
 
 This project was created using `bun init` in bun v1.2.10. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.

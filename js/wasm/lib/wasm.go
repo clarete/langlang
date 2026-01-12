@@ -38,8 +38,65 @@ func register() {
 				return jsErr(err.Error())
 			}
 		}
+		loader := langlang.NewInMemoryImportLoader()
+		entry := "grammar.peg"
+		loader.Add(entry, []byte(grammar))
+		resolver := langlang.NewImportResolver(loader)
+		m, err := resolver.MatcherFor(entry, cfg)
+		if err != nil {
+			return jsErr(err.Error())
+		}
+		id := nextMatcherID
+		nextMatcherID++
+		matchers[id] = m
+		r := js.Global().Get("Object").New()
+		r.Set("id", int(id))
+		return jsOK(r)
+	})))
 
-		m, err := langlang.MatcherFromBytes([]byte(grammar), cfg)
+	// matcherFromFiles compiles a grammar from an in-memory "filesystem".
+	//
+	// JS signature:
+	//   matcherFromFiles(entry: string, files: Array<{path:string, content:string}> | Record<string,string>, cfg?: object)
+	obj.Set("matcherFromFiles", keep(js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) < 2 {
+			return jsErr("matcherFromFiles(entry: string, files: Array<{path:string, content:string}> | Record<string,string>, cfg?: object): missing args")
+		}
+		entry := args[0].String()
+		files := args[1]
+
+		cfg := langlang.NewConfig()
+		if len(args) >= 3 && args[2].Type() == js.TypeObject {
+			if err := applyConfig(cfg, args[2]); err != nil {
+				return jsErr(err.Error())
+			}
+		}
+
+		loader := langlang.NewInMemoryImportLoader()
+
+		// Accept either:
+		// - Array<{path, content}>
+		// - Record<string, string>
+		arrCtor := js.Global().Get("Array")
+		if files.Type() == js.TypeObject && files.InstanceOf(arrCtor) {
+			for i := 0; i < files.Length(); i++ {
+				item := files.Index(i)
+				if item.Type() != js.TypeObject {
+					return jsErr("matcherFromFiles: files array items must be objects {path, content}")
+				}
+				pathVal := item.Get("path")
+				contentVal := item.Get("content")
+				if pathVal.Type() != js.TypeString || contentVal.Type() != js.TypeString {
+					return jsErr("matcherFromFiles: files array items must have string {path, content}")
+				}
+				loader.Add(pathVal.String(), []byte(contentVal.String()))
+			}
+		} else {
+			return jsErr("matcherFromFiles: files must be an array of SourceFile objects")
+		}
+
+		resolver := langlang.NewImportResolver(loader)
+		m, err := resolver.MatcherFor(entry, cfg)
 		if err != nil {
 			return jsErr(err.Error())
 		}

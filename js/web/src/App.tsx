@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useWasmTest } from "@langlang/react";
 import type { Config, Matcher, Value, Span } from "@langlang/react";
-import { Editor, type EditorProps, type Monaco } from "@monaco-editor/react";
+import type { EditorProps, Monaco } from "@monaco-editor/react";
 import MatcherSettingsPanel from "./components/MatcherSettingsPanel";
 import TraceExplorer from "./components/TraceExplorer";
 import SplitView from "./components/SplitView";
 import TreeView from "./components/TreeView";
-import File from "./components/File";
 import { registerPegLanguage } from "./monaco/peg";
+import WorkspaceSidebar from "./components/WorkspaceSidebar";
+import EditorPanel from "./components/EditorPanel";
+import ProjectPanel from "./components/ProjectPanel";
+import { useWorkspacePlayground } from "./workspace/useWorkspacePlayground";
 
 import {
     BarHeader,
@@ -19,13 +22,15 @@ import {
     SettingsTab,
     Status,
     OutputPanelBody,
-    OutputTab,
-    OutputTabs,
     OutputViewContainerWrapper,
+    OutputView,
+} from "./App.styles";
+import {
     PanelBody,
     PanelContainer,
     PanelHeader,
-} from "./App.styles";
+} from "./components/Panel.styles";
+import { Tabs, Tab } from "./components/Tabs.styles";
 
 const EDITOR_OPTIONS = {
     minimap: {
@@ -41,14 +46,14 @@ const registerMonacoLanguages: EditorProps["beforeMount"] = (monaco) => {
 function App() {
     const [result, setResult] = useState<Value | null>(null);
     const [outputView, setOutputView] = useState<"tree" | "trace">("tree");
-    const [grammarText, setGrammarText] = useState<string>("");
-    const [inputText, setInputText] = useState<string>("");
     const { status, data: langlang, error } = useWasmTest();
 
     const matcherRef = useRef<Matcher | null>(null);
     const [outputError, setOutputError] = useState<string | null>(null);
     const [matcherVersion, setMatcherVersion] = useState(0);
     const [hoverRange, setHoverRange] = useState<Span | null>(null);
+    const [isCompiling, setIsCompiling] = useState(false);
+    const compileSeqRef = useRef(0);
 
     const [showSettings, setShowSettings] = useState(false);
     const [settings, setSettings] = useState(() => ({
@@ -62,9 +67,34 @@ function App() {
     const monacoRef = useRef<Monaco | null>(null);
     const inputDecorationsRef = useRef<string[]>([]);
 
+    const {
+        workspace,
+        selection,
+        setSelection,
+        project,
+        activeGrammarPath,
+        setActiveGrammarPath,
+        activeGrammarContent,
+        setActiveGrammarContent,
+        inputs,
+        activeInputPath,
+        setActiveInputPath,
+        activeInputContent,
+        setActiveInputContent,
+        createDir,
+        createExample,
+        rename,
+        delete: deleteWsNode,
+        selectGrammarFile,
+    } = useWorkspacePlayground();
+
     // Debounced compile step (grammar -> matcher)
     useEffect(() => {
         if (!langlang) return;
+        compileSeqRef.current += 1;
+        const seq = compileSeqRef.current;
+        setIsCompiling(true);
+        setOutputError(null);
         const handle = window.setTimeout(() => {
             // dispose the previous matcher
             try {
@@ -81,8 +111,9 @@ function App() {
                     "compiler.inline.enabled": settings.enableInline,
                     "vm.show_fails": settings.showFails,
                 };
-                matcherRef.current = langlang.matcherFromString(
-                    grammarText,
+                matcherRef.current = langlang.matcherFromFiles(
+                    project.entry,
+                    project.files,
                     matcherCfg,
                 );
                 setOutputError(null);
@@ -92,20 +123,28 @@ function App() {
                 console.error(e);
                 setResult(null);
                 setOutputError(msg);
+            } finally {
+                if (compileSeqRef.current === seq) {
+                    setIsCompiling(false);
+                }
             }
         }, 200);
 
         return () => window.clearTimeout(handle);
-    }, [langlang, grammarText, settings]);
+    }, [langlang, project, settings]);
 
     // Debounced match step (matcher + input -> result tree)
     useEffect(() => {
+        if (isCompiling) {
+            setOutputError(null);
+            return;
+        }
         const m = matcherRef.current;
         if (!m) return;
 
         const handle = window.setTimeout(() => {
             try {
-                const { value } = m.match(inputText);
+                const { value } = m.match(activeInputContent);
                 setResult(value);
                 setOutputError(null);
             } catch (e) {
@@ -117,7 +156,7 @@ function App() {
         }, 50);
 
         return () => window.clearTimeout(handle);
-    }, [inputText, matcherVersion]);
+    }, [activeInputContent, matcherVersion, isCompiling]);
 
     // Hover highlight (tree node range -> input editor decoration)
     useEffect(() => {
@@ -127,7 +166,8 @@ function App() {
         const model = editor.getModel?.();
         if (!model) return;
 
-        // nothing's selected, so we clear whatever decoration is in the selection
+        // nothing's selected, so we clear whatever decoration is in
+        // the selection
         if (
             !hoverRange ||
             hoverRange.end.utf16Cursor <= hoverRange.start.utf16Cursor
@@ -219,93 +259,105 @@ function App() {
                     ) : null}
                 </BarRoot>
                 <SplitView
+                    initialRatio={0.65}
                     left={
                         <SplitView
-                            top={
-                                <PanelContainer>
-                                    <PanelBody>
-                                        <File
-                                            title="Grammar (PEG)"
-                                            selectUrlFromPair={({
-                                                grammar: url,
-                                                id,
-                                            }) => ({
-                                                type: "url",
-                                                url,
-                                                id,
-                                            })}
-                                            onContentChange={(content) =>
-                                                setGrammarText(content ?? "")
-                                            }
-                                            accept={{
-                                                "text/plain": [".peg"],
-                                            }}
-                                        >
-                                            {(content, write) => (
-                                                <Editor
-                                                    theme="vs-dark"
-                                                    beforeMount={
-                                                        registerMonacoLanguages
-                                                    }
-                                                    language="peg"
-                                                    height="100%"
-                                                    width="100%"
-                                                    options={EDITOR_OPTIONS}
-                                                    value={content ?? undefined}
-                                                    onChange={(value) => {
-                                                        write(value ?? "");
-                                                    }}
-                                                />
-                                            )}
-                                        </File>
-                                    </PanelBody>
-                                </PanelContainer>
+                            initialRatio={0.25}
+                            left={
+                                workspace ? (
+                                    <WorkspaceSidebar
+                                        workspace={workspace}
+                                        selection={selection}
+                                        onSelect={setSelection}
+                                        onSelectGrammarFile={selectGrammarFile}
+                                        onCreateDir={createDir}
+                                        onCreateExample={createExample}
+                                        onRenameNode={rename}
+                                        onDeleteNode={deleteWsNode}
+                                    />
+                                ) : (
+                                    <div />
+                                )
                             }
-                            bottom={
-                                <PanelContainer>
-                                    <PanelBody>
-                                        <File
-                                            title="Input"
-                                            selectUrlFromPair={(pair) => ({
-                                                type: "url",
-                                                url: pair.input,
-                                                id: pair.id,
-                                            })}
-                                            onContentChange={(content) =>
-                                                setInputText(content ?? "")
+                            right={
+                                <SplitView
+                                    initialRatio={0.6}
+                                    top={
+                                        <ProjectPanel
+                                            project={project}
+                                            activePath={activeGrammarPath}
+                                            onActivePathChange={
+                                                setActiveGrammarPath
                                             }
-                                        >
-                                            {(content, write) => (
-                                                <Editor
-                                                    theme="vs-dark"
-                                                    language="text"
-                                                    height="100%"
-                                                    width="100%"
-                                                    options={EDITOR_OPTIONS}
-                                                    value={content ?? undefined}
-                                                    onMount={(
-                                                        editor,
-                                                        monaco,
-                                                    ) => {
-                                                        inputEditorRef.current =
-                                                            editor;
-                                                        monacoRef.current =
-                                                            monaco;
-                                                    }}
-                                                    onChange={(value) =>
-                                                        write(value ?? "")
-                                                    }
-                                                />
-                                            )}
-                                        </File>
-                                    </PanelBody>
-                                </PanelContainer>
+                                            value={activeGrammarContent}
+                                            onChange={setActiveGrammarContent}
+                                            options={EDITOR_OPTIONS}
+                                            beforeMount={
+                                                registerMonacoLanguages
+                                            }
+                                        />
+                                    }
+                                    bottom={
+                                        <EditorPanel
+                                            title="Input"
+                                            language="text"
+                                            value={activeInputContent}
+                                            options={EDITOR_OPTIONS}
+                                            onMount={(editor, monaco) => {
+                                                inputEditorRef.current = editor;
+                                                monacoRef.current = monaco;
+                                            }}
+                                            onChange={setActiveInputContent}
+                                            headerRight={
+                                                inputs.length > 1 ? (
+                                                    <select
+                                                        value={activeInputPath}
+                                                        onChange={(e) =>
+                                                            setActiveInputPath(
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                    >
+                                                        {inputs.map((f) => (
+                                                            <option
+                                                                key={f.path}
+                                                                value={f.path}
+                                                            >
+                                                                {f.path}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                ) : null
+                                            }
+                                        />
+                                    }
+                                />
                             }
                         />
                     }
                     right={
                         <PanelContainer>
-                            <PanelHeader>Output</PanelHeader>
+                            <PanelHeader>
+                                <Tabs>
+                                    <Tab
+                                        type="button"
+                                        active={outputView === "tree"}
+                                        onClick={() => setOutputView("tree")}
+                                    >
+                                        Tree
+                                    </Tab>
+                                    <Tab
+                                        type="button"
+                                        active={outputView === "trace"}
+                                        onClick={() => {
+                                            setOutputView("trace");
+                                            setHoverRange(null);
+                                        }}
+                                    >
+                                        Trace
+                                    </Tab>
+                                </Tabs>
+                            </PanelHeader>
                             <PanelBody
                                 style={{
                                     display: "flex",
@@ -314,56 +366,41 @@ function App() {
                                 }}
                             >
                                 <OutputPanelBody style={{ minHeight: 0 }}>
-                                    <OutputViewContainerWrapper>
-                                        {result ? (
-                                            outputView === "tree" ? (
-                                                <TreeView
-                                                    tree={result}
-                                                    onHoverRange={setHoverRange}
-                                                />
+                                    <OutputView>
+                                        <OutputViewContainerWrapper>
+                                            {result ? (
+                                                outputView === "tree" ? (
+                                                    <TreeView
+                                                        tree={result}
+                                                        onHoverRange={
+                                                            setHoverRange
+                                                        }
+                                                    />
+                                                ) : (
+                                                    <TraceExplorer
+                                                        tree={result}
+                                                        onHoverRange={
+                                                            setHoverRange
+                                                        }
+                                                    />
+                                                )
+                                            ) : outputError ? (
+                                                <div
+                                                    style={{
+                                                        padding: "0.75rem",
+                                                        color: "rgba(255, 123, 123, 0.9)",
+                                                        fontFamily:
+                                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                                        whiteSpace: "pre-wrap",
+                                                    }}
+                                                >
+                                                    {outputError}
+                                                </div>
                                             ) : (
-                                                <TraceExplorer
-                                                    tree={result}
-                                                    onHoverRange={setHoverRange}
-                                                />
-                                            )
-                                        ) : outputError ? (
-                                            <div
-                                                style={{
-                                                    padding: "0.75rem",
-                                                    color: "rgba(255, 123, 123, 0.9)",
-                                                    fontFamily:
-                                                        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                                                    whiteSpace: "pre-wrap",
-                                                }}
-                                            >
-                                                {outputError}
-                                            </div>
-                                        ) : (
-                                            ""
-                                        )}
-                                    </OutputViewContainerWrapper>
-                                    <OutputTabs>
-                                        <OutputTab
-                                            type="button"
-                                            active={outputView === "tree"}
-                                            onClick={() =>
-                                                setOutputView("tree")
-                                            }
-                                        >
-                                            Tree
-                                        </OutputTab>
-                                        <OutputTab
-                                            type="button"
-                                            active={outputView === "trace"}
-                                            onClick={() => {
-                                                setOutputView("trace");
-                                                setHoverRange(null);
-                                            }}
-                                        >
-                                            Trace
-                                        </OutputTab>
-                                    </OutputTabs>
+                                                ""
+                                            )}
+                                        </OutputViewContainerWrapper>
+                                    </OutputView>
                                 </OutputPanelBody>
                             </PanelBody>
                         </PanelContainer>

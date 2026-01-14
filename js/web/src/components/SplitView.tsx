@@ -1,4 +1,4 @@
-import { createRef, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     SplitViewContainer,
     SplitViewHandle,
@@ -9,17 +9,24 @@ import {
 interface HorizontalSplitViewProps {
     left: React.ReactNode;
     right: React.ReactNode;
+    initialRatio?: number;
 }
 
 interface VerticalSplitViewProps {
     top: React.ReactNode;
     bottom: React.ReactNode;
+    initialRatio?: number;
 }
 
 function SplitView(props: HorizontalSplitViewProps | VerticalSplitViewProps) {
-    const [ratio, setRatio] = useState(0.5);
+    const [ratio, setRatio] = useState(() => {
+        const v = props.initialRatio;
+        if (typeof v !== "number") return 0.5;
+        if (Number.isNaN(v)) return 0.5;
+        return Math.min(0.9, Math.max(0.1, v));
+    });
 
-    const handleRef = createRef<HTMLDivElement>();
+    const rootRef = useRef<HTMLDivElement>(null);
 
     const [isDragging, setIsDragging] = useState(false);
 
@@ -33,12 +40,15 @@ function SplitView(props: HorizontalSplitViewProps | VerticalSplitViewProps) {
             e.preventDefault();
             e.stopPropagation();
             if (isDragging) {
+                const root = rootRef.current;
+                if (!root) return;
+                const rect = root.getBoundingClientRect();
                 const client = isHorizontal ? e.clientY : e.clientX;
-                const inner = isHorizontal
-                    ? window.innerHeight
-                    : window.innerWidth;
-
-                setRatio(client / inner);
+                const start = isHorizontal ? rect.top : rect.left;
+                const size = isHorizontal ? rect.height : rect.width;
+                if (size <= 0) return;
+                const next = (client - start) / size;
+                setRatio(Math.min(0.9, Math.max(0.1, next)));
             }
         },
         [isDragging, isHorizontal],
@@ -64,12 +74,11 @@ function SplitView(props: HorizontalSplitViewProps | VerticalSplitViewProps) {
     }, [handleMouseMove, handleMouseUp]);
 
     return (
-        <SplitViewRoot horizontal={isHorizontal}>
+        <SplitViewRoot ref={rootRef} horizontal={isHorizontal}>
             <SplitViewContainer horizontal={isHorizontal} span={ratio}>
                 {left}
             </SplitViewContainer>
             <SplitViewHandle
-                ref={handleRef}
                 span={ratio}
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}

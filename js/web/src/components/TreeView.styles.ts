@@ -1,8 +1,8 @@
 import { styled } from "@pigment-css/react";
+import { theme } from "../theme";
 
 export const Container = styled("div")({
-    fontFamily:
-        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontFamily: theme.fonts.mono,
     fontSize: "0.8rem",
     lineHeight: 1.35,
     padding: "0.5rem",
@@ -17,7 +17,7 @@ export const Row = styled("div")({
     borderRadius: 4,
     cursor: "default",
     "&:hover": {
-        background: "rgba(255, 255, 255, 0.06)",
+        background: theme.colors.hover.row,
     },
 });
 
@@ -29,12 +29,12 @@ export const CaretButton = styled("button")({
     alignItems: "center",
     justifyContent: "center",
     background: "transparent",
-    color: "rgba(251, 240, 223, 0.9)",
+    color: theme.colors.text.strong,
     border: "none",
     cursor: "pointer",
     borderRadius: 4,
     "&:hover": {
-        background: "rgba(255, 255, 255, 0.08)",
+        background: theme.colors.hover.control,
     },
 });
 
@@ -44,12 +44,12 @@ export const PlaceholderCaret = styled("div")({
 });
 
 export const Label = styled("span")({
-    color: "rgba(251, 240, 223, 0.92)",
+    color: theme.colors.text.stronger,
     whiteSpace: "nowrap",
 });
 
 export const Meta = styled("span")({
-    color: "rgba(251, 240, 223, 0.55)",
+    color: theme.colors.text.muted,
     marginLeft: "0.35rem",
     whiteSpace: "nowrap",
 });

@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const sourceDir = path.resolve(__dirname, '../../../grammars');
-const destDir = path.resolve(__dirname, '../dist/assets/grammars');
+const sourceDir = path.resolve(__dirname, '../../web/src/examples');
+const destDir = path.resolve(__dirname, '../dist/assets/examples');
 
 console.log(`Copying grammars from ${sourceDir} to ${destDir}...`);
 
@@ -21,9 +21,29 @@ if (!fs.existsSync(distParent)) {
   fs.mkdirSync(distParent, { recursive: true });
 }
 
-// Copy recursively
 try {
-  fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
+  const copyTree = (src: string, dst: string) => {
+    const st = fs.lstatSync(src);
+    if (st.isDirectory()) {
+      fs.mkdirSync(dst, { recursive: true });
+      for (const ent of fs.readdirSync(src)) {
+        copyTree(path.join(src, ent), path.join(dst, ent));
+      }
+      return;
+    }
+    if (st.isSymbolicLink()) {
+      const link = fs.readlinkSync(src);
+      const target = path.resolve(path.dirname(src), link);
+      const buf = fs.readFileSync(target);
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      fs.writeFileSync(dst, buf);
+      return;
+    }
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.copyFileSync(src, dst);
+  };
+
+  copyTree(sourceDir, destDir);
   console.log('Grammars copied successfully.');
 } catch (error) {
   console.error('Failed to copy grammars:', error);

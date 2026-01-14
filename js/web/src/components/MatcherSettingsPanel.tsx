@@ -29,8 +29,7 @@ export default function MatcherSettingsPanel({ value, onChange }: Props) {
                     />
                     Capture spaces
                 </SettingsRow>
-                <SettingsRow
-                    title="When off, the parser will not show what characters it attempted to match but failed.">
+                <SettingsRow title="When off, the parser will not show what characters it attempted to match but failed.">
                     <input
                         type="checkbox"
                         checked={value.showFails}
@@ -43,8 +42,7 @@ export default function MatcherSettingsPanel({ value, onChange }: Props) {
                     />
                     Show fails
                 </SettingsRow>
-                <SettingsRow
-                    title="When off, inlining of definitions is disabled.  Enabling this increases performance at the cost of a larger parser bytecode.">
+                <SettingsRow title="When off, inlining of definitions is disabled.  Enabling this increases performance at the cost of a larger parser bytecode.">
                     <input
                         type="checkbox"
                         checked={value.enableInline}

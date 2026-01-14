@@ -1,7 +1,16 @@
-// The package `langlang_syntax` aims to implement the following
-// syntax that is based on Parsing Expression Grammars with additional
-// conservative extensions, such as an import system and automatic
-// white space handling.
+// PEG grammar for langlang's grammar language (self-hosting).
+//
+// Defines the concrete syntax for langlang's PEG superset: `@import`,
+// rule definitions, and expression operators (sequence/choice,
+// predicates, lexification `#`, labels `^`, suffixes, classes,
+// literals), plus the lexical tokens and an overridden `Spacing` rule
+// (comments/whitespace).
+//
+// The `Missing*` productions are recovery rules used to generate
+// friendlier parse errors when input is incomplete or malformed.
+//
+// For the input language specifics (operator meanings, design notes,
+// examples), see `README.md` under the "Input Language" section.
 
 // Hierarchical syntax
 Grammar     <- Import* Definition* EOF^eof

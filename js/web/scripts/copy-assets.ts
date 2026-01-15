@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const sourceDir = path.resolve(__dirname, '../../web/src/examples');
-const destDir = path.resolve(__dirname, '../dist/assets/examples');
+const outDir = process.env.LANGLANG_WEB_OUTDIR
+  ? path.resolve(process.env.LANGLANG_WEB_OUTDIR)
+  : path.resolve(__dirname, '../dist');
+const destDir = path.resolve(outDir, 'assets/examples');
 
 console.log(`Copying grammars from ${sourceDir} to ${destDir}...`);
 

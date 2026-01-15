@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "build": "bun run --filter @langlang/wasm wasm:build && bun run --filter '*' build",
+    "build:pages": "bun run scripts/build-pages.ts",
     "playground": "bun run --filter @langlang/web-test dev"
   },
   "devDependencies": {

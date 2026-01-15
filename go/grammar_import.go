@@ -90,7 +90,10 @@ func (r *ImportResolver) resolve(importPath, parentPath string) (*importerResolv
 
 			parentFrame.Grammar.AddDefinition(importedDefinition)
 
-			deps := childFrame.findDefinitionDeps(importedDefinition)
+			deps, err := childFrame.findDefinitionDeps(importedDefinition)
+			if err != nil {
+				return nil, err
+			}
 
 			for _, depName := range deps.names {
 				parentFrame.Grammar.AddDefinition(deps.nodes[depName])
@@ -152,53 +155,70 @@ func newSortedDeps() *sortedDeps {
 // identifiers within it.  If the identifier hasn't been seen yet, it
 // will add it to the dependency list, and traverse into the
 // definition that points into that identifier.
-func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) *sortedDeps {
+func (f *importerResolverFrame) findDefinitionDeps(node *DefinitionNode) (*sortedDeps, error) {
 	deps := newSortedDeps()
-	findDefinitionDeps(f.Grammar, node.Expr, deps)
-	return deps
+	if err := findDefinitionDeps(f.Grammar, node.Expr, deps); err != nil {
+		return nil, err
+	}
+	return deps, nil
 }
 
-func findDefinitionDeps(g *GrammarNode, node AstNode, deps *sortedDeps) {
+func findDefinitionDeps(g *GrammarNode, node AstNode, deps *sortedDeps) error {
 	switch n := node.(type) {
 	case *DefinitionNode:
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
 	case *IdentifierNode:
 		// Let's not recurse if this dep has been seen already
 		if _, ok := deps.nodes[n.Value]; ok {
-			return
+			return nil
 		}
 
 		// save definition as a dependency and recurse into it
-		def := g.DefsByName[n.Value]
+		def, ok := g.DefsByName[n.Value]
+		if !ok {
+			return fmt.Errorf("definition %s not found", n.Value)
+		}
 		deps.nodes[n.Value] = def
 		deps.names = append(deps.names, n.Value)
-		findDefinitionDeps(g, def.Expr, deps)
+		return findDefinitionDeps(g, def.Expr, deps)
 	case *SequenceNode:
 		for _, item := range n.Items {
-			findDefinitionDeps(g, item, deps)
+			if err := findDefinitionDeps(g, item, deps); err != nil {
+				return err
+			}
 		}
+		return nil
 	case *ChoiceNode:
-		findDefinitionDeps(g, n.Left, deps)
-		findDefinitionDeps(g, n.Right, deps)
+		if err := findDefinitionDeps(g, n.Left, deps); err != nil {
+			return err
+		}
+		if err := findDefinitionDeps(g, n.Right, deps); err != nil {
+			return err
+		}
+		return nil
 	case *OptionalNode:
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
 	case *ZeroOrMoreNode:
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
 	case *OneOrMoreNode:
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
 	case *AndNode:
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
 	case *NotNode:
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
 	case *LexNode:
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
 	case *LabeledNode:
 		// save definition as a dependency and recurse into it
 		if def, ok := g.DefsByName[n.Label]; ok {
 			deps.nodes[n.Label] = def
 			deps.names = append(deps.names, n.Label)
-			findDefinitionDeps(g, def.Expr, deps)
+			if err := findDefinitionDeps(g, def.Expr, deps); err != nil {
+				return err
+			}
 		}
-		findDefinitionDeps(g, n.Expr, deps)
+		return findDefinitionDeps(g, n.Expr, deps)
+	default:
+		return nil
 	}
 }

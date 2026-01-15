@@ -13,7 +13,6 @@ export const PanelHeader = styled("div")({
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-//    borderBottom: `1px solid ${theme.colors.border.normal2}`,
     color: theme.colors.text.primary,
     fontFamily: theme.fonts.mono,
     fontSize: "0.8rem",

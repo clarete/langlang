@@ -33,13 +33,14 @@ export function useWorkspacePlayground() {
         files: [{ path: "grammar.peg", content: "" }],
         activePath: "grammar.peg",
     }));
-    const [inputs, setInputs] = useState<Array<{ path: string; content: string }>>(
-        () => [{ path: "input.txt", content: "" }],
-    );
+    const [inputs, setInputs] = useState<
+        Array<{ path: string; content: string }>
+    >(() => [{ path: "input.txt", content: "" }]);
     const [activeInputPath, setActiveInputPath] = useState("input.txt");
-    const pendingGrammarFileRef = useRef<{ grammarId: string; path: string } | null>(
-        null,
-    );
+    const pendingGrammarFileRef = useRef<{
+        grammarId: string;
+        path: string;
+    } | null>(null);
 
     const activeGrammarPath =
         project.activePath ?? project.files[0]?.path ?? project.entry;
@@ -67,7 +68,9 @@ export function useWorkspacePlayground() {
 
     const setActiveInputContent = (content: string) => {
         setInputs((prev) =>
-            prev.map((f) => (f.path === activeInputPath ? { ...f, content } : f)),
+            prev.map((f) =>
+                f.path === activeInputPath ? { ...f, content } : f,
+            ),
         );
     };
 
@@ -82,10 +85,14 @@ export function useWorkspacePlayground() {
                 try {
                     const ws = loadWorkspace();
                     // If old/stale data contained bad hydration paths, reset.
-                    const hasBadPaths = JSON.stringify(ws).includes("undefined");
-                    if (hasBadPaths) throw new Error("workspace contains invalid paths");
+                    const hasBadPaths =
+                        JSON.stringify(ws).includes("undefined");
+                    if (hasBadPaths)
+                        throw new Error("workspace contains invalid paths");
                     setWorkspace(ws);
-                    setSelection(ws.lastSelection ?? { kind: "dir", id: "root" });
+                    setSelection(
+                        ws.lastSelection ?? { kind: "dir", id: "root" },
+                    );
                     return;
                 } catch (e) {
                     console.warn("Resetting workspace:", e);
@@ -107,7 +114,8 @@ export function useWorkspacePlayground() {
                         })),
                     );
                     return {
-                        id: p.label.trim()
+                        id: p.label
+                            .trim()
                             .toLowerCase()
                             .replace(/[^a-z0-9]+/g, "-")
                             .replace(/^-+|-+$/g, ""),
@@ -132,7 +140,8 @@ export function useWorkspacePlayground() {
                             files: x.grammarFiles.length
                                 ? x.grammarFiles
                                 : [{ path: "grammar.peg", content: "" }],
-                            activePath: x.grammarFiles[0]?.path ?? "grammar.peg",
+                            activePath:
+                                x.grammarFiles[0]?.path ?? "grammar.peg",
                         },
                         inputs: x.inputFiles.length
                             ? x.inputFiles

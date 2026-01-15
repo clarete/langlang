@@ -41,5 +41,3 @@ export const Tab = styled("button")<{ active?: boolean }>({
         },
     ],
 });
-
-

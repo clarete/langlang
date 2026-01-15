@@ -62,7 +62,8 @@ function listAllExpandableIds(root: WorkspaceDirNode): Set<WorkspaceNodeId> {
             out.add(n.id);
         }
         if (n.type === "dir") {
-            for (let i = 0; i < n.children.length; i++) stack.push(n.children[i]);
+            for (let i = 0; i < n.children.length; i++)
+                stack.push(n.children[i]);
         }
     }
     return out;
@@ -335,7 +336,9 @@ export default function WorkspaceSidebar({
                               }
                               onClick={() => {
                                   // Keep this "project folder" expanded when selecting a file.
-                                  setExpanded((prev) => new Set(prev).add(node.id));
+                                  setExpanded((prev) =>
+                                      new Set(prev).add(node.id),
+                                  );
                                   onSelect({ kind: "user", id: node.id });
                                   onSelectGrammarFile(node.id, f.path);
                               }}

@@ -48,7 +48,7 @@ export function saveWorkspace(_ws: WorkspaceStateV1) {
 }
 
 export function hasWorkspace(): boolean {
-    return false;//window.localStorage.getItem(STORAGE_KEY) !== null;
+    return false; //window.localStorage.getItem(STORAGE_KEY) !== null;
 }
 
 export function clearWorkspace() {

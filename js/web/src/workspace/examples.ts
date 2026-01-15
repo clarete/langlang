@@ -31,24 +31,13 @@ export const defaultProjects = [
         ["json/json.stripped.peg"],
         ["json/small.json"],
     ),
-    declareProject(
-        "JSON",
-        ["json/json.peg"],
-        ["json/small.json"],
-    ),
+    declareProject("JSON", ["json/json.peg"], ["json/small.json"]),
     declareProject(
         "CSV",
         ["csv/csv.peg"],
-        [
-            "csv/missions.csv",
-            "csv/cities.csv",
-        ]
+        ["csv/missions.csv", "csv/cities.csv"],
     ),
-    declareProject(
-        "XML",
-        ["xml/xml.peg"],
-        ["xml/small.xml"]
-    ),
+    declareProject("XML", ["xml/xml.peg"], ["xml/small.xml"]),
     declareProject(
         "Arithmetic Expressions",
         [
@@ -67,10 +56,7 @@ export const defaultProjects = [
     declareProject(
         "PEG",
         ["peg/peg.peg"],
-        [
-            "json/json.stripped.peg",
-            "peg/peg.peg"
-        ],
+        ["json/json.stripped.peg", "peg/peg.peg"],
     ),
     declareProject(
         "langlang",

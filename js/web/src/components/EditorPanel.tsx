@@ -28,7 +28,14 @@ export default function EditorPanel({
     return (
         <PanelContainer>
             <PanelHeader>
-                <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div
+                    style={{
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}
+                >
                     {title}
                 </div>
                 {headerRight ? <div>{headerRight}</div> : null}

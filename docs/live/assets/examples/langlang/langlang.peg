@@ -1,0 +1,64 @@
+// PEG grammar for langlang's grammar language (self-hosting).
+//
+// Defines the concrete syntax for langlang's PEG superset: `@import`,
+// rule definitions, and expression operators (sequence/choice,
+// predicates, lexification `#`, labels `^`, suffixes, classes,
+// literals), plus the lexical tokens and an overridden `Spacing` rule
+// (comments/whitespace).
+//
+// The `Missing*` productions are recovery rules used to generate
+// friendlier parse errors when input is incomplete or malformed.
+//
+// For the input language specifics (operator meanings, design notes,
+// examples), see `README.md` under the "Input Language" section.
+
+// Hierarchical syntax
+Grammar     <- Import* Definition* EOF^eof
+Import      <- "@import" Identifier^MissingImportName ("," Identifier)* "from"^MissingImportFrom Literal^MissingImportSrc
+Definition  <- Identifier LEFTARROW Expression // this always succeeds, there's no point in labeling
+
+Expression  <- Sequence (SLASH Sequence)*
+Sequence    <- Prefix*
+Prefix      <- ("#" / "&" / "!")? Labeled
+Labeled     <- Suffix #(([^⇑] Identifier^MissingLabel)?)
+Suffix      <- Primary ("?" / "*" / "+" / Superscript)?
+Primary     <- Identifier !LEFTARROW
+             / "(" Expression ")"^MissingClosingParen
+             / List / Literal / Class / Any
+List        <- "{" (!"}" Expression)* "}"^MissingClosingCurly
+
+// Lexical syntax
+Identifier  <- [a-zA-Z_][a-zA-Z0-9_]*
+Literal     <- ['] #((!['] Char)* [']^MissingClosingSQuote)
+             / ["] #((!["] Char)* ["]^MissingClosingDQuote)
+Class       <- '[' #((!']' Range)* ']'^MissingClosingBracket)
+Range       <- #(Char '-' !']' Char^MissingRightRange) / Char
+Char        <- #(Escape / Unicode / .)
+Escape      <- '\\' [nrt'"\-\[\]\\]
+Unicode     <- #('\\' 'u' Hex^chrH1 Hex^chrH2 Hex^chrH3 Hex^chrH4)
+Hex         <- [0-9A-Fa-f]
+Any         <- "."
+Superscript <- [¹²³⁴⁵⁶⁷⁸⁹]
+LEFTARROW   <- '<-'
+SLASH       <- '/' !'/'   // negation prevents collision with comments
+
+// Override the builtin spacing rule. Notice, it *must* be a lexical
+// rule, otherwise it becomes an unbounded recursion
+Spacing <- #(Comment / Space / EOL)*
+Comment <- #('//' (!EOL .)* EOL?)
+Space   <- [\t\u000C ]
+EOL     <- [\n\r]
+EOF     <- !.
+
+// Recovery expressions
+
+MissingClosingParen    <-
+MissingClosingCurly    <-
+MissingClosingBracket  <-
+MissingClosingSQuote   <-
+MissingClosingDQuote   <-
+MissingLabel           <- (!Primary .)*
+
+MissingImportName <- (!("from" / Literal) .)*
+MissingImportFrom <- (!Literal .)*
+MissingImportSrc  <- (!"\n" .)*

@@ -1,0 +1,9 @@
+@import Value from "./value.peg"
+
+// Entry point
+Expr     <- Term EOF^eof
+
+// Basic expression grammar
+Term     <- Multi   (( '+' / '-' ) Multi^TermRightOperand   )*
+Multi    <- Primary (( '*' / '/' ) Primary^MultiRightOperand)*
+Primary  <- Value / '(' Expr ')'

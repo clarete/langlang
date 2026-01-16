@@ -3,17 +3,22 @@ package langlang
 import "fmt"
 
 func AddCharsets(n AstNode) (*GrammarNode, error) {
+	var err error
 	grammar, ok := n.(*GrammarNode)
 	if !ok {
 		return nil, fmt.Errorf("grammar expected, but got %#v", n)
 	}
 	for _, def := range grammar.Definitions {
-		def.Expr = addCharset(def.Expr)
+		def.Expr, err = addCharset(def.Expr)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return grammar, nil
 }
 
-func addCharset(expr AstNode) AstNode {
+func addCharset(expr AstNode) (AstNode, error) {
+	var err error
 	switch e := expr.(type) {
 	case *SequenceNode:
 		// Seq([Item]) -> Item; this essentially drops
@@ -46,7 +51,10 @@ func addCharset(expr AstNode) AstNode {
 
 		// Recurse into the sequence normally
 		for i, item := range e.Items {
-			e.Items[i] = addCharset(item)
+			e.Items[i], err = addCharset(item)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// Seq(Not(Lit(l0) Any)); this replaces ll that with
@@ -59,11 +67,11 @@ func addCharset(expr AstNode) AstNode {
 			if fstIsNot && sndIsAny {
 				switch ee := not.Expr.(type) {
 				case *CharsetNode:
-					return NewCharsetNode(ee.cs.complement(), e.SourceLocation())
+					return NewCharsetNode(ee.cs.complement(), e.SourceLocation()), nil
 				case *LiteralNode:
 					if len(ee.Value) == 1 && fitcs(r(ee.Value)) {
 						cs := newCharsetForRune(r(ee.Value))
-						return NewCharsetNode(cs.complement(), e.SourceLocation())
+						return NewCharsetNode(cs.complement(), e.SourceLocation()), nil
 					}
 				}
 			}
@@ -76,12 +84,15 @@ func addCharset(expr AstNode) AstNode {
 			switch it := item.(type) {
 			case *RangeNode:
 				if !fitcs(it.Left) || !fitcs(it.Right) {
-					return e
+					return e, nil
+				}
+				if it.Left > it.Right {
+					return nil, fmt.Errorf("range out of bounds, did you mean `%c-%c`?", it.Right, it.Left)
 				}
 				cs = newCharsetForRange(it.Left, it.Right)
 			case *LiteralNode:
 				if !fitcs(r(it.Value)) {
-					return e
+					return e, nil
 				}
 				cs = newCharsetForRune(r(it.Value))
 			}
@@ -91,16 +102,22 @@ func addCharset(expr AstNode) AstNode {
 			}
 			classCharset = charsetMerge(classCharset, cs)
 		}
-		return NewCharsetNode(classCharset, e.SourceLocation())
+		return NewCharsetNode(classCharset, e.SourceLocation()), nil
 
 	case *ChoiceNode:
-		lh := addCharset(e.Left)
-		rh := addCharset(e.Right)
+		lh, err := addCharset(e.Left)
+		if err != nil {
+			return nil, err
+		}
+		rh, err := addCharset(e.Right)
+		if err != nil {
+			return nil, err
+		}
 		sl, slOk := lh.(*CharsetNode)
 		sr, srOk := rh.(*CharsetNode)
 		if slOk && srOk {
 			cs := charsetMerge(sl.cs, sr.cs)
-			return NewCharsetNode(cs, e.SourceLocation())
+			return NewCharsetNode(cs, e.SourceLocation()), nil
 		}
 
 		e.Left = lh
@@ -109,32 +126,35 @@ func addCharset(expr AstNode) AstNode {
 	case *LiteralNode:
 		if len(e.Value) == 1 && fitcs(r(e.Value)) {
 			cs := newCharsetForRune(r(e.Value))
-			return NewCharsetNode(cs, e.SourceLocation())
+			return NewCharsetNode(cs, e.SourceLocation()), nil
 		}
 
 	case *OptionalNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 
 	case *ZeroOrMoreNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 
 	case *OneOrMoreNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 
 	case *LexNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 
 	case *LabeledNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 
 	case *NotNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 
 	case *AndNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 
 	case *CaptureNode:
-		e.Expr = addCharset(e.Expr)
+		e.Expr, err = addCharset(e.Expr)
 	}
-	return expr
+	if err != nil {
+		return nil, err
+	}
+	return expr, nil
 }

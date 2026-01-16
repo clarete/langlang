@@ -98,6 +98,16 @@ func TestGrammarTransformations(t *testing.T) {
 	}
 }
 
+func TestGrammarTransformationsWithErrors(t *testing.T) {
+	t.Run("Range where end > start", func(t *testing.T) {
+		_, err := grammarFromBytes([]byte(`
+                           Letter <- [z-a]
+		`), NewConfig())
+		require.Error(t, err)
+		require.Equal(t, "range out of bounds, did you mean `a-z`?", err.Error())
+	})
+}
+
 func TestMatcherFromLoader(t *testing.T) {
 	t.Run("Success - resolves @import via in-memory loader", func(t *testing.T) {
 		loader := NewInMemoryImportLoader()

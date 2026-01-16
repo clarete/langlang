@@ -6,7 +6,8 @@ import { spawnSync } from "node:child_process"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, "../..")
 
-const base = `live/`
+// it's hosted in `clarete.li/langlang/live` right now
+const base = `langlang/live/`
 const outDir = path.resolve(path.join(repoRoot, "docs", "live"))
 
 const env = {

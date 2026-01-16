@@ -146,6 +146,10 @@ type Tree interface {
 	// string for other node types.
 	Name(NodeID) string
 
+	// Message returns the message for NodeType_Error nodes. Returns an empty
+	// string for other node types.
+	Message(NodeID) string
+
 	// Child returns the single child of a NodeType_Node or
 	// NodeType_Error. The bool is false for other node types or
 	// if the node has no child.

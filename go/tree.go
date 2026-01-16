@@ -62,6 +62,7 @@ func (t *tree) Root() (NodeID, bool)                { return t.root, len(t.nodes
 func (t *tree) SetRoot(id NodeID)                   { t.root = id }
 func (t *tree) Type(id NodeID) NodeType             { return t.nodes[id].typ }
 func (t *tree) MessageID(id NodeID) int32           { return t.nodes[id].messageID }
+func (t *tree) Message(id NodeID) string            { return t.strs[t.MessageID(id)] }
 func (t *tree) NameID(id NodeID) int32              { return t.nodes[id].nameID }
 func (t *tree) Name(id NodeID) string               { return t.strs[t.NameID(id)] }
 func (t *tree) IsType(id NodeID, typ NodeType) bool { return t.Type(id) == typ }

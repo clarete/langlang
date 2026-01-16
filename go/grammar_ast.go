@@ -33,6 +33,55 @@ type AstNode interface {
 	Equal(AstNode) bool
 }
 
+// Node Type: Error
+
+type ErrorNode struct {
+	src SourceLocation
+
+	// Code is a stable, machine-usable category good for code
+	// actions / filtering. "parse", "missing-closing-paren",
+	// "missing-import-src", etc.
+	Code string
+
+	// Message is a human readable summary of what happened
+	Message string
+
+	// Optional recovery payload: "best-effort" subtree that was
+	// parsed anyway
+	Child AstNode
+
+	// Expected is a human readable summary of what was expected
+	Expected []ErrHint
+}
+
+func (n ErrorNode) SourceLocation() SourceLocation { return n.src }
+func (n ErrorNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n ErrorNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n ErrorNode) Accept(v AstNodeVisitor) error  { return v.VisitErrorNode(&n) }
+
+func (n ErrorNode) String() string {
+	return fmt.Sprintf("Error(%s): %s", n.Code, n.Message)
+}
+
+func (n ErrorNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case *ErrorNode:
+		if len(n.Expected) != len(other.Expected) {
+			return false
+		}
+		for i, item := range n.Expected {
+			if !item.eq(&other.Expected[i]) {
+				return false
+			}
+		}
+		return n.Code == other.Code &&
+			n.Message == other.Message &&
+			n.Child.Equal(other.Child)
+	default:
+		return false
+	}
+}
+
 // Node Type: Any
 
 type AnyNode struct{ src SourceLocation }

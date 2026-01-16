@@ -106,6 +106,10 @@ func (c *compiler) VisitImportNode(node *ImportNode) error {
 	return fmt.Errorf("import isn't translatable")
 }
 
+func (c *compiler) VisitErrorNode(node *ErrorNode) error {
+	return fmt.Errorf("error isn't translatable")
+}
+
 func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 	if inline, err := c.shouldInline(node); err != nil || inline && !c.config.GetBool("compiler.inline.emit.inlined") {
 		return err

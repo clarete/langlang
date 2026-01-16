@@ -22,6 +22,7 @@ type AstNodeVisitor interface {
 	VisitCharsetNode(*CharsetNode) error
 	VisitAnyNode(*AnyNode) error
 	VisitIdentifierNode(*IdentifierNode) error
+	VisitErrorNode(*ErrorNode) error
 }
 
 func WalkGrammarNode(g AstNodeVisitor, n *GrammarNode) error {
@@ -86,6 +87,9 @@ func inspect(node AstNode, f func(AstNode) bool, visited map[AstNode]bool) {
 
 	// Traverse children based on node type
 	switch n := node.(type) {
+	case *ErrorNode:
+		inspect(n.Child, f, visited)
+
 	case *ClassNode:
 		for _, item := range n.Items {
 			inspect(item, f, visited)

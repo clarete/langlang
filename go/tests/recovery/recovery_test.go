@@ -146,3 +146,39 @@ func TestRecovery(t *testing.T) {
 		})
 	}
 }
+
+func TestShowFailsCollectsExpectedHints(t *testing.T) {
+	p := NewParser()
+	p.SetShowFails(true)
+	p.SetInput([]byte("@"))
+
+	_, err := p.ParseP()
+	require.Error(t, err)
+
+	pe, ok := err.(ParsingError)
+	require.True(t, ok, "expected ParsingError, got %T", err)
+	require.NotEmpty(t, pe.Expected, "expected at least one hint when showFails=true")
+
+	// This is a slightly brittle test because it depends quite a
+	// lot on the structure of the recovery.peg grammar. going
+	// through its structure P/Stm/{If,While,Assign,Syn}stm/** so
+	// right now, this is what it currently looks like:
+	//
+	//   Expected 'i', 'w', 'A-Z', '_', 'a-z', '%' but got '@' @ 1
+
+	assert.True(t, pe.Expected[0].Type == ErrHintType_Char)
+	assert.True(t, pe.Expected[0].Char == 'i')
+	assert.True(t, pe.Expected[1].Type == ErrHintType_Char)
+	assert.True(t, pe.Expected[1].Char == 'w')
+	assert.True(t, pe.Expected[2].Type == ErrHintType_Range)
+	assert.True(t, pe.Expected[2].Range[0] == 'A')
+	assert.True(t, pe.Expected[2].Range[1] == 'Z')
+	assert.True(t, pe.Expected[3].Type == ErrHintType_Char)
+	assert.True(t, pe.Expected[3].Char == '_')
+
+	assert.True(t, pe.Expected[4].Type == ErrHintType_Range)
+	assert.True(t, pe.Expected[4].Range[0] == 'a')
+	assert.True(t, pe.Expected[4].Range[1] == 'z')
+	assert.True(t, pe.Expected[5].Type == ErrHintType_Char)
+	assert.True(t, pe.Expected[5].Char == '%')
+}

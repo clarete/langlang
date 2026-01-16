@@ -7,6 +7,37 @@ type ParsingError struct {
 	Message    string
 	Label      string
 	Start, End int
+	Expected   []ErrHint
+}
+
+type ErrHintType uint8
+
+const (
+	ErrHintType_Unknown ErrHintType = iota
+	ErrHintType_EOF
+	ErrHintType_Char
+	ErrHintType_Range
+)
+
+type ErrHint struct {
+	Type  ErrHintType
+	Char  rune
+	Range [2]rune
+}
+
+func (eh *ErrHint) eq(oh *ErrHint) bool {
+	if eh.Type != oh.Type {
+		return false
+	}
+	switch eh.Type {
+	case ErrHintType_Char:
+		return eh.Char == oh.Char
+	case ErrHintType_Range:
+		return eh.Range[0] == oh.Range[0] && eh.Range[1] == oh.Range[1]
+	case ErrHintType_EOF:
+		return true
+	}
+	return false
 }
 
 // String returns the human readable representation of a parsing error

@@ -266,6 +266,16 @@ func (gp *grammarPrinter) VisitIdentifierNode(n *IdentifierNode) error {
 	return nil
 }
 
+func (gp *grammarPrinter) VisitErrorNode(n *ErrorNode) error {
+	gp.writeOperator("Error")
+	gp.writeSpanl(n)
+	gp.pwrite("└── ")
+	gp.indent("    ")
+	n.Child.Accept(gp)
+	gp.unindent()
+	return nil
+}
+
 func (gp *grammarPrinter) writeOperator(op string) {
 	gp.write(gp.format(op, AstFormatToken_Operator))
 }

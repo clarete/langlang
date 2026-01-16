@@ -517,7 +517,12 @@ fail:
 
 	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", cursor, vm.ffp))
 
-	return nil, cursor, vm.mkErr(data, 0, cursor, vm.ffp)
+	if len(vm.stack.nodes) > 0 {
+		idx := len(vm.stack.nodes) - 1
+		nid := vm.stack.nodes[idx]
+		vm.stack.tree.SetRoot(nid)
+	}
+	return vm.stack.tree, cursor, vm.mkErr(data, 0, cursor, vm.ffp)
 }
 
 // Helpers
@@ -740,11 +745,35 @@ func (vm *virtualMachine) mkErr(data []byte, errLabelID int, cursor, errCursor i
 	if errLabelID > 0 {
 		errLabel = vm.bytecode.strs[errLabelID]
 	}
+	var expected []ErrHint
+	if vm.expected != nil && vm.expected.cur > 0 {
+		expected = make([]ErrHint, vm.expected.cur)
+		for i := 0; i < vm.expected.cur; i++ {
+			ex := vm.expected.arr[i]
+			switch {
+			case ex.a == 0:
+				expected[i] = ErrHint{Type: ErrHintType_EOF}
+			case ex.a != 0 && ex.b == 0:
+				expected[i] = ErrHint{
+					Type: ErrHintType_Char,
+					Char: ex.a,
+				}
+			case ex.a != 0 && ex.b != 0:
+				expected[i] = ErrHint{
+					Type:  ErrHintType_Range,
+					Range: [2]rune{ex.a, ex.b},
+				}
+			default:
+				expected[i] = ErrHint{Type: ErrHintType_Unknown}
+			}
+		}
+	}
 	return ParsingError{
-		Message: message.String(),
-		Label:   errLabel,
-		Start:   cursor,
-		End:     errCursor,
+		Message:  message.String(),
+		Label:    errLabel,
+		Start:    cursor,
+		End:      errCursor,
+		Expected: expected,
 	}
 }
 

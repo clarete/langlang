@@ -641,6 +641,7 @@ type GrammarNode struct {
 	Definitions []*DefinitionNode
 	DefsByName  map[string]*DefinitionNode
 	SourceFiles []string
+	Errors      []*ErrorNode // Parse errors found during AST construction
 }
 
 func NewGrammarNode(

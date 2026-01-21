@@ -10,10 +10,13 @@ import (
 //go:generate go run ./cmd/langlang -grammar ../grammars/langlang.peg -output-language go -output-path ./grammar_parser_bootstrap.go -go-remove-lib -go-package langlang -go-parser GrammarParserBootstrap --disable-capture-spaces
 
 type GrammarParserV2 struct {
-	input  []byte
-	file   string
-	fileID FileID
-	tree   Tree
+	input     []byte
+	file      string
+	fileID    FileID
+	tree      Tree
+	showFails bool
+	errors    []*ErrorNode
+	parseErr  error
 }
 
 func NewGrammarParserV2(grammar []byte) *GrammarParserV2 {
@@ -28,25 +31,140 @@ func (p *GrammarParserV2) SetGrammarFileID(fileID FileID) {
 	p.fileID = fileID
 }
 
+func (p *GrammarParserV2) SetShowFails(showFails bool) {
+	p.showFails = showFails
+}
+
 func (p *GrammarParserV2) sloc(n NodeID) SourceLocation {
 	return NewSourceLocation(p.fileID, p.tree.Span(n))
 }
 
+// parseErrorToNode converts a ParsingError to an ErrorNode AST node.
+func (p *GrammarParserV2) parseErrorToNode(err error) *ErrorNode {
+	var parsingErr ParsingError
+	if errors.As(err, &parsingErr) {
+		message := parsingErr.Message
+		if len(parsingErr.Expected) > 0 {
+			message = FormatExpectedMessage(parsingErr.Expected, p.input, parsingErr.Start)
+		}
+		// Convert byte offsets to line/column positions
+		pi := newPosIndex(p.input)
+		startLoc := pi.LocationAt(parsingErr.Start)
+		endLoc := pi.LocationAt(parsingErr.End)
+		return &ErrorNode{
+			src: SourceLocation{
+				FileID: p.fileID,
+				Span:   Span{Start: startLoc, End: endLoc},
+			},
+			Code:     "syntax-error",
+			Message:  message,
+			Expected: parsingErr.Expected,
+		}
+	}
+	// Generic error
+	return &ErrorNode{
+		Code:    "parse-error",
+		Message: err.Error(),
+	}
+}
+
+// parseErrorNode converts a NodeType_Error in the tree to an ErrorNode AST node.
+func (p *GrammarParserV2) parseErrorNode(id NodeID) *ErrorNode {
+	label := p.tree.Name(id)
+	span := p.tree.Span(id)
+	// Try to parse child if any as the recovered content
+	var child AstNode
+	if childID, ok := p.tree.Child(id); ok {
+		child = p.parseAnyNode(childID)
+	}
+	return &ErrorNode{
+		src:     NewSourceLocation(p.fileID, span),
+		Code:    labelToErrorCode(label),
+		Message: p.tree.Message(id),
+		Child:   child,
+	}
+}
+
+// parseAnyNode attempts to parse any node type, used for error recovery children.
+func (p *GrammarParserV2) parseAnyNode(id NodeID) AstNode {
+	switch p.tree.Type(id) {
+	case NodeType_Node:
+		name := p.tree.Name(id)
+		switch name {
+		case "Import":
+			return p.parseImport(id)
+		case "Definition":
+			def, _ := p.parseDefinition(id)
+			return def
+		default:
+			expr, _ := p.parseExpression(id)
+			return expr
+		}
+	case NodeType_Error:
+		return p.parseErrorNode(id)
+	default:
+		return nil
+	}
+}
+
 // Parse kicks off parsing the input string and generates an AST
-// describing a grammar
+// describing a grammar.  Even if parsing fails, it attempts to build
+// a partial AST from the recovered tree and collects errors as
+// ErrorNode instances in the grammar.
 func (p *GrammarParserV2) Parse() (AstNode, error) {
 	parser := NewGrammarParserBootstrap()
 	parser.SetInput(p.input)
+	parser.SetShowFails(p.showFails)
 	tree, err := parser.Parse()
-	if err != nil {
-		return nil, errors.New("Parse: " + err.Error())
+	p.parseErr = err
+
+	// Even on error, the VM now returns a partial tree use it!
+	// But the tree could be nil if no parsing happened at all
+	if tree == nil {
+		if err != nil {
+			errNode := p.parseErrorToNode(err)
+			return &GrammarNode{Errors: []*ErrorNode{errNode}}, nil
+		}
+		return nil, errors.New("Parse: no tree returned")
 	}
 	p.tree = tree
 	root, ok := tree.Root()
 	if !ok {
+		if err != nil {
+			errNode := p.parseErrorToNode(err)
+			return &GrammarNode{Errors: []*ErrorNode{errNode}}, nil
+		}
 		return nil, errors.New("Parse: no root node found")
 	}
-	return p.parseGrammar(root)
+
+	p.collectErrorNodes(root)
+
+	grammar, astErr := p.parseGrammar(root)
+	if astErr != nil {
+		if grammar == nil {
+			grammar = &GrammarNode{}
+		}
+		grammar.Errors = append(grammar.Errors, &ErrorNode{
+			Code:    "ast-error",
+			Message: astErr.Error(),
+		})
+	}
+	if p.parseErr != nil {
+		grammar.Errors = append(grammar.Errors, p.parseErrorToNode(p.parseErr))
+	}
+	grammar.Errors = append(grammar.Errors, p.errors...)
+	return grammar, nil
+}
+
+// collectErrorNodes walks the tree and converts all NodeType_Error nodes
+// to ErrorNode AST nodes, storing them in p.errors.
+func (p *GrammarParserV2) collectErrorNodes(root NodeID) {
+	p.tree.Visit(root, func(id NodeID) bool {
+		if p.tree.Type(id) == NodeType_Error {
+			p.errors = append(p.errors, p.parseErrorNode(id))
+		}
+		return true
+	})
 }
 
 // Grammar <- Import* Definition* EOF
@@ -70,7 +188,15 @@ func (p *GrammarParserV2) parseGrammar(id NodeID) (*GrammarNode, error) {
 	}
 
 	for _, itemID := range items {
-		if p.tree.Type(itemID) != NodeType_Node {
+		nodeType := p.tree.Type(itemID)
+
+		// Handle error nodes - convert to ErrorNode and collect
+		if nodeType == NodeType_Error {
+			p.errors = append(p.errors, p.parseErrorNode(itemID))
+			continue
+		}
+
+		if nodeType != NodeType_Node {
 			continue
 		}
 		switch p.tree.Name(itemID) {
@@ -79,13 +205,18 @@ func (p *GrammarParserV2) parseGrammar(id NodeID) (*GrammarNode, error) {
 		case "Definition":
 			def, err := p.parseDefinition(itemID)
 			if err != nil {
-				return nil, err
+				// Don't fail completely, collect the error and continue
+				p.errors = append(p.errors, &ErrorNode{
+					src:     p.sloc(itemID),
+					Code:    "definition-error",
+					Message: err.Error(),
+				})
+				continue
 			}
 			defs = append(defs, def)
 			defsByName[def.Name] = def
 		}
 	}
-	//sloc :=
 	return NewGrammarNode(imports, defs, defsByName, p.sloc(id)), nil
 }
 

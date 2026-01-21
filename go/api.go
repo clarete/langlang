@@ -233,3 +233,23 @@ type SourceLocation struct {
 	FileID FileID
 	Span   Span
 }
+
+// DiagnosticSeverity indicates the severity of a diagnostic.
+type DiagnosticSeverity int
+
+const (
+	DiagnosticError DiagnosticSeverity = iota
+	DiagnosticWarning
+	DiagnosticInfo
+	DiagnosticHint
+)
+
+// Diagnostic represents an error, warning, or informational message.
+type Diagnostic struct {
+	Location SourceLocation
+	Severity DiagnosticSeverity
+	Message  string
+	Code     string    // e.g., "undefined-rule", "unused-rule"
+	FilePath string    // the file path where the diagnostic occurred
+	Expected []ErrHint // optional: what the parser expected (for syntax errors)
+}

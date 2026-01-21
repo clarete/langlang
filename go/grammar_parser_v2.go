@@ -19,6 +19,21 @@ type GrammarParserV2 struct {
 	parseErr  error
 }
 
+// Human readable messages for recovery labels from langlang.peg
+var langlangLabelMsgs = bytecodeForGrammarParserBootstrap.CompileErrorLabels(map[string]string{
+	"eof":                   "Expected EOF",
+	"MissingImportName":     "Missing import name",
+	"MissingImportFrom":     "Missing `from` in import statement",
+	"MissingImportSrc":      "Missing import source string",
+	"MissingLabel":          "Missing label after `^`",
+	"MissingClosingParen":   "Missing closing `)`",
+	"MissingClosingCurly":   "Missing closing `}`",
+	"MissingClosingSQuote":  "Missing closing `'`",
+	"MissingClosingDQuote":  "Missing closing `\"`",
+	"MissingClosingBracket": "Missing closing `]`",
+	"MissingRightRange":     "Missing right side of range",
+})
+
 func NewGrammarParserV2(grammar []byte) *GrammarParserV2 {
 	return &GrammarParserV2{input: grammar}
 }
@@ -115,6 +130,7 @@ func (p *GrammarParserV2) Parse() (AstNode, error) {
 	parser := NewGrammarParserBootstrap()
 	parser.SetInput(p.input)
 	parser.SetShowFails(p.showFails)
+	parser.SetLabelMessages(langlangLabelMsgs)
 	tree, err := parser.Parse()
 	p.parseErr = err
 

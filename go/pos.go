@@ -109,6 +109,59 @@ func (pi *posIndex) LocationAt(cursor int) Location {
 	}
 }
 
+// CursorAt converts a 0-based line/column position to a byte offset
+// (cursor). This is the reverse of LocationAt. Column is interpreted
+// as rune-based (like LSP with UTF-8 encoding).
+func (pi *posIndex) CursorAt(line0, col0 int) int {
+	// Convert to 1-based for internal use
+	line := line0 + 1
+	col := col0 + 1
+
+	if line < 1 {
+		line = 1
+	}
+	if col < 1 {
+		col = 1
+	}
+
+	// Get the byte offset of the line start
+	lineIdx := line - 1
+	if lineIdx >= len(pi.lineStart) {
+		// Line beyond end of file: return end of input
+		return len(pi.input)
+	}
+
+	lineStart := pi.lineStart[lineIdx]
+
+	// Find the end of this line (start of next line or EOF)
+	var lineEnd int
+	if lineIdx+1 < len(pi.lineStart) {
+		lineEnd = pi.lineStart[lineIdx+1]
+	} else {
+		lineEnd = len(pi.input)
+	}
+
+	pi.ensureRuneUnits()
+
+	// Calculate target rune count: runes at line start + (col - 1)
+	// (col-1 because column 1 means 0 additional runes from line start)
+	startRunes := pi.runeUnits.UnitsAt(lineStart)
+	targetRunes := startRunes + col - 1
+
+	// Binary search for the cursor where runeUnits.UnitsAt(cursor) == targetRunes
+	// We search in the range [lineStart, lineEnd]
+	cursor := sort.Search(lineEnd-lineStart, func(i int) bool {
+		return pi.runeUnits.UnitsAt(lineStart+i) >= targetRunes
+	}) + lineStart
+
+	// Clamp to line bounds
+	if cursor > lineEnd {
+		cursor = lineEnd
+	}
+
+	return cursor
+}
+
 func (pi *posIndex) CursorU16(cursor int) int {
 	pi.ensureU16Units()
 	return pi.u16Units.UnitsAt(cursor)

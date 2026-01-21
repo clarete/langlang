@@ -137,8 +137,8 @@ const (
 	CompletionKindLabel
 )
 
-// PositionKey is a query key for position-based queries.
-type PositionKey struct {
+// CursorKey is a query key for cursor-based (byte offset) queries.
+type CursorKey struct {
 	File   string
 	Cursor int // byte offset
 }
@@ -147,6 +147,49 @@ type PositionKey struct {
 type ReferencesKey struct {
 	File       string
 	SymbolName string
+}
+
+// LocationKey is a query key for location-based (line/column) queries.
+// Line and Column are 0-based; Column is rune-based (like LSP with UTF-8).
+type LocationKey struct {
+	File   string
+	Line   int // 0-based
+	Column int // 0-based, rune-based
+}
+
+// Position Index Query
+
+// PosIndexQuery returns a position index for a file, which allows
+// efficient bidirectional conversion between byte offsets and
+// line/column positions.
+// Used for: LSP position conversions
+var PosIndexQuery = &Query[FilePath, *posIndex]{
+	Name:    "PosIndex",
+	Compute: computePosIndex,
+}
+
+func computePosIndex(db *Database, key FilePath) (*posIndex, error) {
+	content, err := db.Loader().GetContent(string(key))
+	if err != nil {
+		return nil, err
+	}
+	return newPosIndex(content), nil
+}
+
+// CursorAtLocationQuery converts a location (0-based line/column)
+// to a byte offset (cursor) for a file.
+// Used for: LSP Go to Definition, Hover, etc.
+var CursorAtLocationQuery = &Query[LocationKey, int]{
+	Name:    "CursorAtLocation",
+	Compute: computeCursorAtLocation,
+}
+
+func computeCursorAtLocation(db *Database, key LocationKey) (int, error) {
+	posIdx, err := Get(db, PosIndexQuery, FilePath(key.File))
+	if err != nil {
+		return 0, err
+	}
+	return posIdx.CursorAt(key.Line, key.Column), nil
 }
 
 // Symbol Queries
@@ -355,14 +398,14 @@ func summarizeExpression(expr AstNode) string {
 
 // Position-based Queries
 
-// SymbolAtPositionQuery returns the symbol at a given cursor
+// SymbolAtCursorQuery returns the symbol at a given cursor
 // position.  Used for: Go to Definition, Hover, Find References
-var SymbolAtPositionQuery = &Query[PositionKey, *SymbolInfo]{
+var SymbolAtCursorQuery = &Query[CursorKey, *SymbolInfo]{
 	Name:    "SymbolAtPosition",
 	Compute: computeSymbolAtPosition,
 }
 
-func computeSymbolAtPosition(db *Database, key PositionKey) (*SymbolInfo, error) {
+func computeSymbolAtPosition(db *Database, key CursorKey) (*SymbolInfo, error) {
 	grammar, err := Get(db, ResolvedImportsQuery, FilePath(key.File))
 	if err != nil {
 		return nil, err
@@ -474,13 +517,13 @@ func containsCursor(loc SourceLocation, cursor int) bool {
 
 // HoverInfoQuery returns documentation/info for hover.
 // Used for: textDocument/hover
-var HoverInfoQuery = &Query[PositionKey, *HoverInfo]{
+var HoverInfoQuery = &Query[CursorKey, *HoverInfo]{
 	Name:    "HoverInfo",
 	Compute: computeHoverInfo,
 }
 
-func computeHoverInfo(db *Database, key PositionKey) (*HoverInfo, error) {
-	symbol, err := Get(db, SymbolAtPositionQuery, key)
+func computeHoverInfo(db *Database, key CursorKey) (*HoverInfo, error) {
+	symbol, err := Get(db, SymbolAtCursorQuery, key)
 	if err != nil {
 		return nil, err
 	}
@@ -548,12 +591,12 @@ func computeHoverInfo(db *Database, key PositionKey) (*HoverInfo, error) {
 
 // CompletionItemsQuery returns completion suggestions at a position.
 // Used for: textDocument/completion
-var CompletionItemsQuery = &Query[PositionKey, []CompletionItem]{
+var CompletionItemsQuery = &Query[CursorKey, []CompletionItem]{
 	Name:    "CompletionItems",
 	Compute: computeCompletionItems,
 }
 
-func computeCompletionItems(db *Database, key PositionKey) ([]CompletionItem, error) {
+func computeCompletionItems(db *Database, key CursorKey) ([]CompletionItem, error) {
 	grammar, err := Get(db, ResolvedImportsQuery, FilePath(key.File))
 	if err != nil {
 		return nil, err

@@ -252,7 +252,7 @@ B <- A
 	assert.Equal(t, 1, labelCount) // ErrorLabel
 }
 
-func TestSymbolAtPositionQuery(t *testing.T) {
+func TestSymbolAtCursorQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	loader.Add("test.peg", []byte(`A <- B "hello"
 B <- "b"
@@ -263,7 +263,7 @@ B <- "b"
 	db := NewDatabase(cfg, loader)
 
 	t.Run("On definition name", func(t *testing.T) {
-		symbol, err := Get(db, SymbolAtPositionQuery, PositionKey{File: "test.peg", Cursor: 0})
+		symbol, err := Get(db, SymbolAtCursorQuery, CursorKey{File: "test.peg", Cursor: 0})
 		require.NoError(t, err)
 		require.NotNil(t, symbol)
 		assert.Equal(t, "A", symbol.Name)
@@ -271,7 +271,7 @@ B <- "b"
 	})
 
 	t.Run("On identifier reference", func(t *testing.T) {
-		symbol, err := Get(db, SymbolAtPositionQuery, PositionKey{File: "test.peg", Cursor: 5})
+		symbol, err := Get(db, SymbolAtCursorQuery, CursorKey{File: "test.peg", Cursor: 5})
 		require.NoError(t, err)
 		require.NotNil(t, symbol)
 		assert.Equal(t, "B", symbol.Name)
@@ -280,7 +280,7 @@ B <- "b"
 	})
 
 	t.Run("On literal", func(t *testing.T) {
-		symbol, err := Get(db, SymbolAtPositionQuery, PositionKey{File: "test.peg", Cursor: 8})
+		symbol, err := Get(db, SymbolAtCursorQuery, CursorKey{File: "test.peg", Cursor: 8})
 		require.NoError(t, err)
 		require.NotNil(t, symbol)
 		assert.Equal(t, SymbolKindLiteral, symbol.Kind)
@@ -298,7 +298,7 @@ B <- A
 	db := NewDatabase(cfg, loader)
 
 	t.Run("On definition", func(t *testing.T) {
-		hover, err := Get(db, HoverInfoQuery, PositionKey{File: "test.peg", Cursor: 0})
+		hover, err := Get(db, HoverInfoQuery, CursorKey{File: "test.peg", Cursor: 0})
 		require.NoError(t, err)
 		require.NotNil(t, hover)
 		assert.Contains(t, hover.Contents, "**A**")
@@ -306,7 +306,7 @@ B <- A
 	})
 
 	t.Run("On identifier", func(t *testing.T) {
-		hover, err := Get(db, HoverInfoQuery, PositionKey{File: "test.peg", Cursor: 18})
+		hover, err := Get(db, HoverInfoQuery, CursorKey{File: "test.peg", Cursor: 18})
 		require.NoError(t, err)
 		require.NotNil(t, hover)
 		assert.Contains(t, hover.Contents, "**A**")
@@ -325,7 +325,7 @@ B <- "b"
 	cfg.SetBool("grammar.add_builtins", false)
 	db := NewDatabase(cfg, loader)
 
-	items, err := Get(db, CompletionItemsQuery, PositionKey{File: "test.peg", Cursor: 0})
+	items, err := Get(db, CompletionItemsQuery, CursorKey{File: "test.peg", Cursor: 0})
 	require.NoError(t, err)
 
 	// Should have rules
@@ -435,7 +435,7 @@ Missing <- "recovery"
 
 	// Find the position of ^Missing (after "a")
 	// "A <- \"a\"^Missing" - cursor should be around position 9-10
-	symbol, err := Get(db, SymbolAtPositionQuery, PositionKey{File: "test.peg", Cursor: 10})
+	symbol, err := Get(db, SymbolAtCursorQuery, CursorKey{File: "test.peg", Cursor: 10})
 	require.NoError(t, err)
 
 	// If we're on the label, it should link to the recovery rule
@@ -463,4 +463,110 @@ ErrA <- "recovery"
 
 	// Should have: definition + 2 label usages
 	assert.Len(t, refs, 3)
+}
+
+func TestPosIndexQuery(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("test.peg", []byte("A <- \"hello\"\nB <- \"world\"\n"))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	posIdx, err := Get(db, PosIndexQuery, FilePath("test.peg"))
+	require.NoError(t, err)
+	require.NotNil(t, posIdx)
+
+	// Test LocationAt: cursor 0 should be line 1, column 1
+	loc := posIdx.LocationAt(0)
+	assert.Equal(t, 1, loc.Line)
+	assert.Equal(t, 1, loc.Column)
+
+	// Cursor at start of second line (after "A <- \"hello\"\n" = 13 bytes)
+	loc = posIdx.LocationAt(13)
+	assert.Equal(t, 2, loc.Line)
+	assert.Equal(t, 1, loc.Column)
+}
+
+func TestCursorAtLocationQuery(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	// "A <- \"hello\"\nB <- \"world\"\n"
+	// Line 0: A <- "hello"\n  (13 bytes: 0-12, newline at 12)
+	// Line 1: B <- "world"\n  (13 bytes: 13-25, newline at 25)
+	loader.Add("test.peg", []byte("A <- \"hello\"\nB <- \"world\"\n"))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	t.Run("Line 0, Column 0", func(t *testing.T) {
+		cursor, err := Get(db, CursorAtLocationQuery, LocationKey{
+			File:   "test.peg",
+			Line:   0,
+			Column: 0,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 0, cursor)
+	})
+
+	t.Run("Line 0, Column 5", func(t *testing.T) {
+		cursor, err := Get(db, CursorAtLocationQuery, LocationKey{
+			File:   "test.peg",
+			Line:   0,
+			Column: 5,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 5, cursor) // "A <- " = 5 bytes
+	})
+
+	t.Run("Line 1, Column 0", func(t *testing.T) {
+		cursor, err := Get(db, CursorAtLocationQuery, LocationKey{
+			File:   "test.peg",
+			Line:   1,
+			Column: 0,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 13, cursor) // Start of second line
+	})
+
+	t.Run("Line 1, Column 5", func(t *testing.T) {
+		cursor, err := Get(db, CursorAtLocationQuery, LocationKey{
+			File:   "test.peg",
+			Line:   1,
+			Column: 5,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 18, cursor) // 13 + 5
+	})
+}
+
+func TestCursorAtLocationQuery_UTF8(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	// Test with UTF-8 content: "A <- \"日本\"\n" (each CJK char is 3 bytes)
+	// "A <- \"" = 6 bytes, "日" = 3 bytes, "本" = 3 bytes, "\"\n" = 2 bytes = 14 bytes total
+	loader.Add("test.peg", []byte("A <- \"日本\"\n"))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	t.Run("Column 6 should be at first CJK char", func(t *testing.T) {
+		cursor, err := Get(db, CursorAtLocationQuery, LocationKey{
+			File:   "test.peg",
+			Line:   0,
+			Column: 6, // After 'A <- "'
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 6, cursor) // Byte position of first CJK char
+	})
+
+	t.Run("Column 7 should be at second CJK char", func(t *testing.T) {
+		cursor, err := Get(db, CursorAtLocationQuery, LocationKey{
+			File:   "test.peg",
+			Line:   0,
+			Column: 7, // After first CJK char (rune-based column)
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 9, cursor) // 6 + 3 (bytes for 日)
+	})
 }

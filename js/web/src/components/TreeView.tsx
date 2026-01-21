@@ -1,4 +1,4 @@
-import type { Span, Value } from "@langlang/react";
+import type { Span, Value } from "@langlang/wasm";
 import { useEffect, useMemo, useState } from "react";
 import {
     CaretButton,

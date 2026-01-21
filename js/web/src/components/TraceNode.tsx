@@ -1,4 +1,4 @@
-import type { Span, Value } from "@langlang/react";
+import type { Span, Value } from "@langlang/wasm";
 import type React from "react";
 import { NodeContainer, NodeName, SequenceContainer } from "./TraceNode.styles";
 import { useContext, useEffect, useRef } from "react";

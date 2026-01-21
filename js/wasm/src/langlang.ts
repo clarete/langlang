@@ -18,21 +18,6 @@ export type RawResult<T> =
     | { ok: true; value: T }
     | { ok: false; error: string };
 
-// LSP Types
-
-/** JSON-RPC message for LSP communication */
-export type LspMessage = {
-    jsonrpc: "2.0";
-    id?: number | string;
-    method?: string;
-    params?: unknown;
-    result?: unknown;
-    error?: { code: number; message: string };
-};
-
-/** LSP handle function type - accepts JSON-RPC message string, returns array of response messages */
-export type LspHandle = (message: string) => RawResult<string>;
-
 /**
  * createLanglang wraps the low-level Go/WASM bindings exposed at globalThis.langlang
  * into a more idiomatic OO API (Matcher/Tree/Node) with explicit dispose().
@@ -79,37 +64,6 @@ export default class langlang {
             } catch (_) {}
         }
     }
-
-    /**
-     * Returns the raw LSP handle function for JSON-RPC communication.
-     * The handle accepts a JSON-RPC message string and returns a JSON array
-     * string of outgoing messages (responses and/or notifications).
-     */
-    get lspHandle(): LspHandle | undefined {
-        return this.raw.lspHandle;
-    }
-
-    /**
-     * Send a JSON-RPC message to the LSP engine and get the response messages.
-     * @param message - A single JSON-RPC request/notification
-     * @returns Array of JSON-RPC response/notification messages
-     */
-    lspSend(message: LspMessage): LspMessage[] {
-        const handle = this.raw.lspHandle;
-        if (!handle) {
-            throw new Error("LSP not available in this WASM build");
-        }
-        const result = handle(JSON.stringify(message));
-        if (!result.ok) {
-            throw new Error(result.error);
-        }
-        try {
-            const parsed = JSON.parse(result.value);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch {
-            throw new Error("Invalid JSON response from LSP");
-        }
-    }
 }
 
 interface Raw {
@@ -125,8 +79,6 @@ interface Raw {
         id: number,
         input: string,
     ): RawResult<{ consumed: number; value: Value }>;
-    /** LSP JSON-RPC handle - may not be available in all builds */
-    lspHandle?: LspHandle;
 }
 
 const unwrap = <T>(res: any): T => {

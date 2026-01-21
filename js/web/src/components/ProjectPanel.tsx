@@ -3,6 +3,7 @@ import type { Project } from "../workspace/types";
 import { PanelBody, PanelContainer, PanelHeader } from "./Panel.styles";
 import { HeaderInner } from "./ProjectPanel.styles";
 import { Tab, Tabs } from "./Tabs.styles";
+import { toDocUri } from "../monaco/lsp";
 
 export interface ProjectPanelProps {
     project: Project;
@@ -12,6 +13,7 @@ export interface ProjectPanelProps {
     onChange: (next: string) => void;
     options: EditorProps["options"];
     beforeMount?: EditorProps["beforeMount"];
+    onMount?: EditorProps["onMount"];
 }
 
 function basename(path: string) {
@@ -27,6 +29,7 @@ export default function ProjectPanel({
     onChange,
     options,
     beforeMount,
+    onMount,
 }: ProjectPanelProps) {
     return (
         <PanelContainer>
@@ -52,10 +55,12 @@ export default function ProjectPanel({
                     theme="vs-dark"
                     beforeMount={beforeMount}
                     language="peg"
+                    path={toDocUri(activePath)}
                     height="100%"
                     width="100%"
                     options={options}
                     value={value}
+                    onMount={onMount}
                     onChange={(v) => onChange(v ?? "")}
                 />
             </PanelBody>

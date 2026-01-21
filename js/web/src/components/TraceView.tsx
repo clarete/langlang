@@ -1,4 +1,4 @@
-import type { Span, Value } from "@langlang/react";
+import type { Span, Value } from "@langlang/wasm";
 import TraceNode from "./TraceNode";
 
 // import { v4 as randomUuid } from "uuid";

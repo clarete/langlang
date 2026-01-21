@@ -1,5 +1,5 @@
 import TraceView from "./TraceView";
-import type { Span, Value } from "@langlang/react";
+import type { Span, Value } from "@langlang/wasm";
 import { createContext, useRef, useState } from "react";
 import { SourceLine, TraceViewContainer } from "./TraceExplorer.styles";
 

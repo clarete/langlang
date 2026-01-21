@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"syscall/js"
 
-	langlang "github.com/clarete/langlang/go"
+	"github.com/clarete/langlang/go"
+	"github.com/clarete/langlang/go/lsp"
 )
 
 var (
 	nextMatcherID uint32 = 1
 
-	matchers = map[uint32]langlang.Matcher{}
+	matchers  = map[uint32]langlang.Matcher{}
+	lspEngine = lsp.NewEngine(langlang.NewInMemoryImportLoader())
 )
 
 func register() {
@@ -38,11 +40,11 @@ func register() {
 				return jsErr(err.Error())
 			}
 		}
-		loader := langlang.NewInMemoryImportLoader()
 		entry := "grammar.peg"
+		loader := langlang.NewInMemoryImportLoader()
 		loader.Add(entry, []byte(grammar))
-		resolver := langlang.NewImportResolver(loader)
-		m, err := resolver.MatcherFor(entry, cfg)
+		db := langlang.NewDatabase(cfg, loader)
+		m, err := langlang.QueryMatcher(db, entry)
 		if err != nil {
 			return jsErr(err.Error())
 		}
@@ -95,8 +97,8 @@ func register() {
 			return jsErr("matcherFromFiles: files must be an array of SourceFile objects")
 		}
 
-		resolver := langlang.NewImportResolver(loader)
-		m, err := resolver.MatcherFor(entry, cfg)
+		db := langlang.NewDatabase(cfg, loader)
+		m, err := langlang.QueryMatcher(db, entry)
 		if err != nil {
 			return jsErr(err.Error())
 		}
@@ -136,10 +138,29 @@ func register() {
 		return jsOK(resp)
 	})))
 
+	// lspHandle accepts a single JSON-RPC message (as a string)
+	// and returns a JSON array (string) with all outgoing
+	// JSON-RPC messages (responses and/or notifications) produced
+	// by handling it.
+	//
+	// JS signature:
+	//   lspHandle(message: string): {ok:true,value:string} | {ok:false,error:string}
+	obj.Set("lspHandle", keep(js.FuncOf(func(_ js.Value, args []js.Value) any {
+		if len(args) < 1 {
+			return jsErr("lspHandle(message: string): missing message")
+		}
+		out, err := lspEngine.HandleJSONRPC(args[0].String())
+		if err != nil {
+			return jsErr(err.Error())
+		}
+		return jsOK(out)
+	})))
+
 	js.Global().Set("langlang", obj)
 
-	// If JS installed a readiness resolver, notify it now that the API is registered.
-	// This avoids polling for globalThis.langlang.
+	// If JS installed a readiness resolver, notify it now that
+	// the API is registered.  This avoids polling for
+	// globalThis.langlang.
 	if ready := js.Global().Get("__langlangReadyResolve"); ready.Type() == js.TypeFunction {
 		ready.Invoke()
 		js.Global().Set("__langlangReadyResolve", js.Undefined())

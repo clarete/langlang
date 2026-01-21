@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	langlang "github.com/clarete/langlang/go"
+	"github.com/clarete/langlang/go"
 )
 
 // ANSI color codes for terminal output
@@ -92,15 +92,13 @@ func readArgs() *args {
 }
 
 func main() {
-	var (
-		a   = readArgs()
-		cfg = langlang.NewConfig()
-	)
+	a := readArgs()
 
 	if *a.grammarPath == "" {
 		fatal("Grammar not informed")
 	}
 
+	cfg := langlang.NewConfig()
 	cfg.SetBool("grammar.add_builtins", !*a.disableBuiltins)
 	cfg.SetBool("grammar.add_charsets", !*a.disableCharsets)
 	cfg.SetBool("grammar.captures", !*a.disableCaptures)

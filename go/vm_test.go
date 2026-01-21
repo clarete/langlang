@@ -41,13 +41,13 @@ func TestVM(t *testing.T) {
 		cfg.SetInt("compiler.optimize", 0)
 		cfg.SetBool("grammar.add_charsets", true)
 
-		ast, err := grammarFromBytes([]byte("G <- '🧠'"), cfg)
+		loader := NewInMemoryImportLoader()
+		loader.Add("test.peg", []byte("G <- '🧠'"))
+		db := NewDatabase(cfg, loader)
+
+		code, err := QueryBytecode(db, "test.peg")
 		require.NoError(t, err)
 
-		asm, err := Compile(ast, cfg)
-		require.NoError(t, err)
-
-		code := Encode(asm, cfg)
 		vm := NewVirtualMachine(code)
 		vm.SetShowFails(true)
 
@@ -385,26 +385,14 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		cfg.SetInt("compiler.optimize", optimize)
 		cfg.SetBool("grammar.add_charsets", enableCharsets)
 
-		ast, err := grammarFromBytes([]byte(test.Grammar), cfg)
+		loader := NewInMemoryImportLoader()
+		loader.Add("test.peg", []byte(test.Grammar))
+		db := NewDatabase(cfg, loader)
+
+		code, err := QueryBytecode(db, "test.peg")
 		if err != nil {
 			panic(err)
 		}
-		// fmt.Printf("ast\n%s\n", ast.Highlight())
-
-		asm, err := Compile(ast, cfg)
-		if err != nil {
-			panic(err)
-		}
-		// if test.Name == "Var" && optimize == 0 && enableCharsets {
-		// 	fmt.Printf("asm\n%s\n", asm.Highlight())
-		// }
-
-		code := Encode(asm, cfg)
-
-		// if test.Name == "Var" && optimize == 0 && enableCharsets {
-		// 	fmt.Printf("strings: %v\n", code.strs)
-		// }
-		// fmt.Printf("code\n%#v\n", code.code)
 
 		input := []byte(test.Input)
 

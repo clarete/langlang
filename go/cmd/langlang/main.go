@@ -4,10 +4,19 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"os"
+	"strings"
 
-	"github.com/clarete/langlang/go"
+	langlang "github.com/clarete/langlang/go"
+)
+
+// ANSI color codes for terminal output
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[1;31m"
+	colorYellow = "\033[1;33m"
+	colorCyan   = "\033[1;36m"
+	colorGray   = "\033[0;37m"
 )
 
 type args struct {
@@ -35,6 +44,8 @@ type args struct {
 	goOptPackage   *string
 	goOptParser    *string
 	goOptRemoveLib *bool
+
+	diagnosticLevel *string
 }
 
 func readArgs() *args {
@@ -71,6 +82,8 @@ func readArgs() *args {
 		goOptPackage:   flag.String("go-package", "parser", "Name of the go package in the generated parser"),
 		goOptParser:    flag.String("go-parser", "Parser", "Name of the go struct of the generated parser"),
 		goOptRemoveLib: flag.Bool("go-remove-lib", false, "Include lib in the output parser"),
+
+		diagnosticLevel: flag.String("diagnostics", "error", "Minimum diagnostic level to display: error, warning, info, hint, or all"),
 	}
 
 	flag.Parse()
@@ -85,7 +98,7 @@ func main() {
 	)
 
 	if *a.grammarPath == "" {
-		log.Fatal("Grammar not informed")
+		fatal("Grammar not informed")
 	}
 
 	cfg.SetBool("grammar.add_builtins", !*a.disableBuiltins)
@@ -97,10 +110,33 @@ func main() {
 	cfg.SetBool("compiler.inline.emit.inlined", !*a.disableInlineDefs)
 	cfg.SetBool("vm.show_fails", *a.showFails)
 
-	resolver := langlang.NewImportResolver(langlang.NewRelativeImportLoader())
-	ast, err := resolver.Resolve(*a.grammarPath, cfg)
+	// Create a query-based database for caching and diagnostics
+	loader := langlang.NewRelativeImportLoader()
+	db := langlang.NewDatabase(cfg, loader)
+
+	// Parse the diagnostic level
+	minLevel := parseDiagnosticLevel(*a.diagnosticLevel)
+
+	// Check for diagnostics (parse errors, semantic errors) first
+	diagnostics, err := langlang.QueryDiagnostics(db, *a.grammarPath)
 	if err != nil {
-		log.Fatal(err)
+		// Check if it's a GrammarError with diagnostics we can display
+		if grammarErr, ok := err.(*langlang.GrammarError); ok {
+			printDiagnosticsAndCheckForErrors(grammarErr.Diagnostics, minLevel)
+			os.Exit(1)
+		}
+		fatal("Failed to analyze grammar: %s", err.Error())
+	}
+
+	// If there are errors, exit early (warnings/info are okay)
+	if printDiagnosticsAndCheckForErrors(diagnostics, minLevel) {
+		os.Exit(1)
+	}
+
+	// Get the AST using the query system
+	ast, err := langlang.QueryAST(db, *a.grammarPath)
+	if err != nil {
+		fatal("Failed to parse grammar: %s", err.Error())
 	}
 
 	if *a.grammarAST {
@@ -108,24 +144,22 @@ func main() {
 		return
 	}
 
-	// Translate the AST into bytecode
-
-	asm, err := langlang.Compile(ast, cfg)
+	// Get the compiled program using the query system
+	program, err := langlang.QueryProgram(db, *a.grammarPath)
 	if err != nil {
-		log.Fatal(err)
+		fatal("Failed to compile grammar: %s", err.Error())
 	}
 
 	if *a.grammarASM {
-		fmt.Println(asm.HighlightPrettyString())
+		fmt.Println(program.HighlightPrettyString())
 		return
 	}
 
 	// If it's interactive, it will open a lil REPL shell
-
 	if *a.inputPath == "" && *a.outputPath == "" {
-		matcher, err := resolver.MatcherFor(*a.grammarPath, cfg)
+		matcher, err := langlang.QueryMatcher(db, *a.grammarPath)
 		if err != nil {
-			log.Fatal(err)
+			fatal("Failed to create matcher: %s", err.Error())
 		}
 
 		for {
@@ -145,7 +179,7 @@ func main() {
 			input := []byte(text)
 			tree, _, err := matcher.Match(input)
 			if err != nil {
-				fmt.Println("ERROR: " + err.Error())
+				fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, err.Error())
 			} else if tree != nil {
 				root, _ := tree.Root()
 				fmt.Println(tree.Highlight(root))
@@ -156,19 +190,18 @@ func main() {
 
 	// if there's an input path but no output path, run the match
 	// and output the results to the standard output
-
 	if *a.inputPath != "" && *a.outputPath == "" {
 		text, err := os.ReadFile(*a.inputPath)
 		if err != nil {
-			log.Fatalf("Can't open input file: %s", err.Error())
+			fatal("Can't open input file: %s", err.Error())
 		}
-		matcher, err := resolver.MatcherFor(*a.grammarPath, cfg)
+		matcher, err := langlang.QueryMatcher(db, *a.grammarPath)
 		if err != nil {
-			log.Fatal(err)
+			fatal("Failed to create matcher: %s", err.Error())
 		}
 		tree, _, err := matcher.Match(text)
 		if err != nil {
-			fmt.Println("ERROR: " + err.Error())
+			fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, err.Error())
 		} else if tree != nil {
 			root, _ := tree.Root()
 			fmt.Println(tree.Highlight(root))
@@ -177,15 +210,14 @@ func main() {
 	}
 
 	// Configure output options
-
 	if *a.outputLang == "" {
-		log.Fatalf("Expected `-output-language`")
+		fatal("Expected `-output-language`")
 	}
 
 	var outputData string
 	switch *a.outputLang {
 	case "go":
-		outputData, err = langlang.GenGoEval(asm, cfg, langlang.GenGoOptions{
+		outputData, err = langlang.GenGoEval(program, cfg, langlang.GenGoOptions{
 			PackageName: *a.goOptPackage,
 			ParserName:  *a.goOptParser,
 			RemoveLib:   *a.goOptRemoveLib,
@@ -194,13 +226,116 @@ func main() {
 	// case "python":
 	// 	outputData, err = langlang.GenParserPython(ast)
 	default:
-		log.Fatalf("Output language `%s` not supported", *a.outputLang)
+		fatal("Output language `%s` not supported", *a.outputLang)
 	}
 	if err != nil {
-		log.Fatalf("Can't emit code: %s", err.Error())
+		fatal("Can't emit code: %s", err.Error())
 	}
 
 	if err = os.WriteFile(*a.outputPath, []byte(outputData), 0644); err != nil {
-		log.Fatalf("Can't write output: %s", err.Error())
+		fatal("Can't write output: %s", err.Error())
 	}
+}
+
+// parseDiagnosticLevel converts a string level to DiagnosticSeverity.
+// Returns the severity and whether to include all levels below it.
+func parseDiagnosticLevel(level string) langlang.DiagnosticSeverity {
+	switch level {
+	case "error":
+		return langlang.DiagnosticError
+	case "warning":
+		return langlang.DiagnosticWarning
+	case "info":
+		return langlang.DiagnosticInfo
+	case "hint", "all":
+		return langlang.DiagnosticHint
+	default:
+		return langlang.DiagnosticError
+	}
+}
+
+func printDiagnosticsAndCheckForErrors(diagnostics []langlang.Diagnostic, minLevel langlang.DiagnosticSeverity) bool {
+	hasErrors := false
+	errorCount := 0
+	warningCount := 0
+	infoCount := 0
+	hintCount := 0
+
+	for _, d := range diagnostics {
+		// Count all diagnostics regardless of filter
+		switch d.Severity {
+		case langlang.DiagnosticError:
+			errorCount++
+		case langlang.DiagnosticWarning:
+			warningCount++
+		case langlang.DiagnosticInfo:
+			infoCount++
+		case langlang.DiagnosticHint:
+			hintCount++
+		}
+
+		// Filter based on minimum level (lower value = higher severity)
+		if d.Severity > minLevel {
+			continue
+		}
+
+		loc := d.Location.Span.Start
+
+		// Choose color based on severity
+		var severityColor string
+		switch d.Severity {
+		case langlang.DiagnosticError:
+			severityColor = colorRed
+			hasErrors = true
+		case langlang.DiagnosticWarning:
+			severityColor = colorYellow
+		case langlang.DiagnosticInfo:
+			severityColor = colorCyan
+		case langlang.DiagnosticHint:
+			severityColor = colorGray
+		}
+
+		fmt.Printf("%s%s:%d:%d:%s %s%s:%s %s %s[%s]%s\n",
+			colorGray, d.FilePath, loc.Line, loc.Column, colorReset,
+			severityColor, d.Severity, colorReset, d.Message,
+			colorGray, d.Code, colorReset)
+	}
+
+	// Print summary if there are any diagnostics at or above the filter level
+	printedCount := 0
+	for _, d := range diagnostics {
+		if d.Severity <= minLevel {
+			printedCount++
+		}
+	}
+
+	if printedCount > 0 {
+		fmt.Printf("\n")
+		parts := []string{}
+		if errorCount > 0 && minLevel >= langlang.DiagnosticError {
+			parts = append(parts, fmt.Sprintf("%s%d error(s)%s", colorRed, errorCount, colorReset))
+		}
+		if warningCount > 0 && minLevel >= langlang.DiagnosticWarning {
+			parts = append(parts, fmt.Sprintf("%s%d warning(s)%s", colorYellow, warningCount, colorReset))
+		}
+		if infoCount > 0 && minLevel >= langlang.DiagnosticInfo {
+			parts = append(parts, fmt.Sprintf("%s%d info%s", colorCyan, infoCount, colorReset))
+		}
+		if hintCount > 0 && minLevel >= langlang.DiagnosticHint {
+			parts = append(parts, fmt.Sprintf("%s%d hint(s)%s", colorGray, hintCount, colorReset))
+		}
+		if len(parts) > 0 {
+			fmt.Printf("%s generated\n", strings.Join(parts, ", "))
+		}
+	}
+
+	return hasErrors
+}
+
+// fatal prints an error message and exits with code 1.
+func fatal(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "%serror:%s ", colorRed, colorReset)
+	fmt.Fprintf(os.Stderr, format, args...)
+	fmt.Fprintf(os.Stderr, "\n")
+	os.Exit(1)
 }

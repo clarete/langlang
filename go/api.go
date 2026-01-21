@@ -90,8 +90,8 @@ type Span struct {
 // b) you're reading the tree *before* [Matcher.Match] is called
 // again:
 //
-//	resolver := NewImportResolver(NewRelativeImportLoader())
-//	matcher := resolver.MatcherFor("main.peg", NewConfig())
+//	db := NewDatabase(NewConfig(), NewRelativeImportLoader())
+//	matcher, _ := QueryMatcher(db, "main.peg")
 //	for _, input := range inputs {
 //	    tree, _, _ := matcher.Match(input)
 //	    yourFunctionThatOnlyReadsTheTree(tree)
@@ -100,8 +100,8 @@ type Span struct {
 // 2. You do need to copy because you're reading the tree after
 // [Matcher.Match] is called again:
 //
-//	resolver := NewImportResolver(NewRelativeImportLoader())
-//	matcher := resolver.MatcherFor("main.peg", NewConfig())
+//	db := NewDatabase(NewConfig(), NewRelativeImportLoader())
+//	matcher, _ := QueryMatcher(db, "main.peg")
 //	trees := make([]Tree, 0, len(inputs))
 //	for _, input := range inputs {
 //	    tree, _, _ := matcher.Match(input)
@@ -203,10 +203,10 @@ type Tree interface {
 //	   Main <- Value '+' ValueEOF^eof
 //	`))
 //
-// And then we can use the resolver through the import resolver API:
+// And then we can use the query system:
 //
-//	resolver := NewImportResolver(loader)
-//	ast, err := resolver.Resolve("main.peg", NewConfig())
+//	db := NewDatabase(NewConfig(), loader)
+//	ast, err := QueryAST(db, "main.peg")
 type ImportLoader interface {
 	// GetPath resolves an import path (as written in the grammar,
 	// e.g.  "./expr.peg") relative to the parent module.  It

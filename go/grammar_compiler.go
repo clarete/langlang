@@ -8,6 +8,15 @@ import (
 type compiler struct {
 	config *Config
 
+	// db is an optional query database for query-based compilation.
+	// When set, the compiler will use queries for recursive checks
+	// and definition size calculations.
+	db *Database
+
+	// filePath is the path of the grammar file being compiled,
+	// used as a key for queries when db is set.
+	filePath string
+
 	// cursor is the index of the last instruction written the
 	// `code` vector
 	cursor int
@@ -44,10 +53,6 @@ type compiler struct {
 
 	recovery map[int]recoveryEntry
 
-	defRecursiveMap map[string]struct{}
-
-	defSizeMap map[string]int
-
 	grammarNode *GrammarNode
 
 	dryRun bool
@@ -58,9 +63,32 @@ type compiler struct {
 	withinPredicate bool
 }
 
-func Compile(expr AstNode, config *Config) (*Program, error) {
+func newCompiler(config *Config) *compiler {
+	return &compiler{
+		config:           config,
+		identifiers:      map[int]int{},
+		definitionLabels: map[int]ILabel{},
+		openAddrs:        map[int]int{},
+		stringsMap:       map[string]int{},
+		strings:          []string{""}, // Reserve index 0 for "no name" sentinel
+		errorLabelIDs:    map[int]struct{}{},
+		recovery:         map[int]recoveryEntry{},
+	}
+}
+
+// newCompilerWithDB creates a compiler that uses the query database
+// for recursive checks and definition size calculations.
+func newCompilerWithDB(db *Database, filePath string) *compiler {
+	c := newCompiler(db.Config())
+	c.db = db
+	c.filePath = filePath
+	return c
+}
+
+// CompileWithDB compiles an AST using the query database for caching.
+func CompileWithDB(db *Database, filePath string, expr AstNode) (*Program, error) {
 	var err error
-	c := newCompiler(config)
+	c := newCompilerWithDB(db, filePath)
 	if err = expr.Accept(c); err != nil {
 		return nil, err
 	}
@@ -79,25 +107,10 @@ func Compile(expr AstNode, config *Config) (*Program, error) {
 	}, nil
 }
 
-func newCompiler(config *Config) *compiler {
-	return &compiler{
-		config:           config,
-		identifiers:      map[int]int{},
-		definitionLabels: map[int]ILabel{},
-		defSizeMap:       map[string]int{},
-		openAddrs:        map[int]int{},
-		stringsMap:       map[string]int{},
-		strings:          []string{""}, // Reserve index 0 for "no name" sentinel
-		errorLabelIDs:    map[int]struct{}{},
-		recovery:         map[int]recoveryEntry{},
-	}
-}
-
 func (c *compiler) VisitGrammarNode(node *GrammarNode) error {
 	c.emit(ICall{})
 	c.emit(IHalt{})
 	c.grammarNode = node
-	c.defRecursiveMap = getIsRecursiveFromGrammar(node)
 	c.collectErrorLabels(node)
 	return WalkGrammarNode(c, node)
 }
@@ -522,9 +535,17 @@ func (c *compiler) shouldInline(def *DefinitionNode) (bool, error) {
 	if _, isRecovery := c.errorLabelIDs[id]; isRecovery {
 		return false, nil
 	}
-	if _, isRecursive := c.defRecursiveMap[def.Name]; isRecursive {
+
+	// Check if definition is recursive
+	isRecursive, err := c.isDefRecursive(def.Name)
+	if err != nil {
+		return false, err
+	}
+	if isRecursive {
 		return false, nil
 	}
+
+	// Get definition size
 	size, err := c.getDefSize(def)
 	if err != nil {
 		return false, err
@@ -535,24 +556,14 @@ func (c *compiler) shouldInline(def *DefinitionNode) (bool, error) {
 	return true, nil
 }
 
+// isDefRecursive checks if a definition is recursive using the query system.
+func (c *compiler) isDefRecursive(name string) (bool, error) {
+	return Get(c.db, IsRecursiveQuery, DefKey{File: c.filePath, Name: name})
+}
+
+// getDefSize returns the compiled size of a definition using the query system.
 func (c *compiler) getDefSize(def *DefinitionNode) (int, error) {
-	if s, ok := c.defSizeMap[def.Name]; ok {
-		return s, nil
-	}
-
-	tmpc := newCompiler(c.config)
-	tmpc.dryRun = true
-	tmpc.grammarNode = c.grammarNode
-
-	if err := def.Accept(tmpc); err != nil {
-		return 0, err
-	}
-
-	size := tmpc.cursor
-
-	c.defSizeMap[def.Name] = size
-
-	return size, nil
+	return Get(c.db, DefSizeQuery, DefKey{File: c.filePath, Name: def.Name})
 }
 
 func (c *compiler) shouldUseCapOffset(cap *CaptureNode) bool {

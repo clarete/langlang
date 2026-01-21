@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGrammarTransformations(t *testing.T) {
+func TestTransformedGrammarQuery(t *testing.T) {
 	tests := []vmTest{
 		{
 			Name:    "Capture Any",
@@ -98,7 +98,7 @@ func TestGrammarTransformations(t *testing.T) {
 	}
 }
 
-func TestGrammarTransformationsWithErrors(t *testing.T) {
+func TestTransformedGrammarQueryWithErrors(t *testing.T) {
 	t.Run("Range where end > start", func(t *testing.T) {
 		_, err := grammarFromBytes([]byte(`
                            Letter <- [z-a]
@@ -122,8 +122,9 @@ Value <- Number
 		loader.Add("number.peg", []byte(`Number <- [0-9]+`))
 
 		cfg := NewConfig()
-		resolver := NewImportResolver(loader)
-		matcher, err := resolver.MatcherFor("expr.peg", cfg)
+		db := NewDatabase(cfg, loader)
+		resolver := NewQueryResolver(db)
+		matcher, err := resolver.MatcherFor("expr.peg")
 		require.NoError(t, err)
 		require.NotNil(t, matcher)
 
@@ -137,5 +138,6 @@ func grammarFromBytes(input []byte, cfg *Config) (AstNode, error) {
 	name := "grammar.peg"
 	loader := NewInMemoryImportLoader()
 	loader.Add(name, input)
-	return NewImportResolver(loader).Resolve(name, cfg)
+	db := NewDatabase(cfg, loader)
+	return QueryAST(db, name)
 }

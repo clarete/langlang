@@ -2,7 +2,21 @@ package langlang
 
 import "fmt"
 
-// ParsingError is the error thrown when the parser can't finish successfuly
+// FileLoadError is returned if a grammar cant be loaded from disk.
+type FileLoadError struct {
+	Path string
+	Err  error
+}
+
+func (e *FileLoadError) Error() string {
+	return fmt.Sprintf("failed to load grammar file %s: %v", e.Path, e.Err)
+}
+
+func (e *FileLoadError) Unwrap() error {
+	return e.Err
+}
+
+// ParsingError is the error thrown when parsing ends with a failure.
 type ParsingError struct {
 	Message    string
 	Label      string
@@ -137,4 +151,36 @@ func (e ParsingError) Error() string {
 func isthrown(err error) bool {
 	_, ok := err.(ParsingError)
 	return ok
+}
+
+func (s DiagnosticSeverity) String() string {
+	switch s {
+	case DiagnosticError:
+		return "error"
+	case DiagnosticWarning:
+		return "warning"
+	case DiagnosticInfo:
+		return "info"
+	case DiagnosticHint:
+		return "hint"
+	default:
+		return "unknown"
+	}
+}
+
+func (d Diagnostic) String() string {
+	return fmt.Sprintf("[%s] %s: %s", d.Severity, d.Code, d.Message)
+}
+
+func (d Diagnostic) FormatCLI() string {
+	loc := d.Location.Span.Start
+	return fmt.Sprintf(
+		"%s:%d:%d: %s: %s [%s]",
+		d.FilePath,
+		loc.Line,
+		loc.Column,
+		d.Severity,
+		d.Message,
+		d.Code,
+	)
 }

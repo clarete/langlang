@@ -360,21 +360,6 @@ func computeDiagnostics(db *Database, key FilePath) ([]Diagnostic, error) {
 			}
 		}
 	}
-	recursiveSet, err := Get(db, RecursiveSetQuery, key)
-	if err != nil {
-		return nil, err
-	}
-	for ruleName := range recursiveSet {
-		if loc, ok := defLocs[ruleName]; ok {
-			diagnostics = append(diagnostics, Diagnostic{
-				Location: loc,
-				Severity: DiagnosticInfo,
-				Message:  fmt.Sprintf("Rule '%s' is recursive", ruleName),
-				Code:     "recursive-rule",
-				FilePath: resolvePath(loc),
-			})
-		}
-	}
 	return diagnostics, nil
 }
 

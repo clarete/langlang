@@ -570,3 +570,71 @@ func TestCursorAtLocationQuery_UTF8(t *testing.T) {
 		assert.Equal(t, 9, cursor) // 6 + 3 (bytes for 日)
 	})
 }
+
+// TestSymbolAtCursorQuery_WithImports verifies that hover/symbol lookup
+// only matches symbols from the requested file, not from imported files.
+// This is a regression test for a bug where cursor offsets from the main
+// file could accidentally match spans from imported definitions.
+func TestSymbolAtCursorQuery_WithImports(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+
+	// Main file imports from value.peg
+	loader.Add("main.peg", []byte(`@import Value from "./value.peg"
+
+Main <- Value
+`))
+
+	// Imported file has a charset at some position that could
+	// match a cursor offset in the main file if FileID checking
+	// is wrong.  The charset [a-z] is at byte ~20 in this file.
+	loader.Add("value.peg", []byte(`Value <- [a-z]+
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	// Query for a position in main.peg that doesn't have a
+	// symbol.  Without the FileID fix, this might match the
+	// charset from value.peg because the cursor offsets could
+	// overlap.
+	t.Run("Empty position should not match imported symbols", func(t *testing.T) {
+		// Position in the empty line (line 1, which is just a newline)
+		// This is byte offset 33 (after "@import Value from \"./value.peg\"\n")
+		symbol, err := Get(db, SymbolAtCursorQuery, CursorKey{
+			File:   "main.peg",
+			Cursor: 33,
+		})
+		require.NoError(t, err)
+		// Should not find any symbol at an empty line
+		assert.Nil(t, symbol)
+	})
+
+	t.Run("Symbol in main file is found", func(t *testing.T) {
+		// Position on "Main" definition (line 2, column 0)
+		// Byte offset is 34 (after "@import Value from \"./value.peg\"\n\n")
+		symbol, err := Get(db, SymbolAtCursorQuery, CursorKey{
+			File:   "main.peg",
+			Cursor: 34,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, symbol)
+		assert.Equal(t, "Main", symbol.Name)
+		assert.Equal(t, SymbolKindDefinition, symbol.Kind)
+	})
+
+	t.Run("Reference to imported symbol resolves correctly", func(t *testing.T) {
+		// Position on "Value" reference (line 2, after "Main <- ")
+		// "Main <- " is 8 chars, so byte offset is 34 + 8 = 42
+		symbol, err := Get(db, SymbolAtCursorQuery, CursorKey{
+			File:   "main.peg",
+			Cursor: 42,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, symbol)
+		assert.Equal(t, "Value", symbol.Name)
+		assert.Equal(t, SymbolKindIdentifier, symbol.Kind)
+		// DefinitionLoc should point to value.peg, not main.peg
+		require.NotNil(t, symbol.DefinitionLoc)
+	})
+}

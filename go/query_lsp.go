@@ -416,12 +416,25 @@ func computeSymbolAtPosition(db *Database, key CursorKey) (*SymbolInfo, error) {
 		return nil, err
 	}
 
+	// Get the FileID for the requested file. We only search for
+	// symbols in this file since the cursor offset is only valid
+	// for its content.
+	requestedFileID := db.InternFileID(key.File)
+
 	var result *SymbolInfo
 	var resultSpecificity int // smaller span = more specific
 
 	for _, def := range grammar.Definitions {
 		// Check if cursor is on the definition name
 		defLoc := def.SourceLocation()
+
+		// Skip definitions from other files (imports). The
+		// cursor offset is only meaningful for the requested
+		// file's content.
+		if defLoc.FileID != requestedFileID {
+			continue
+		}
+
 		if containsCursor(defLoc, key.Cursor) {
 			// Check if we're specifically on the name
 			// part (the name comes before " <- ")

@@ -56,9 +56,10 @@ func (t *tree) reset() {
 	t.children = t.children[:0]
 	t.childRanges = t.childRanges[:0]
 	t.posView = nil
+	t.root = 0
 }
 
-func (t *tree) Root() (NodeID, bool)                { return t.root, len(t.nodes) > 0 }
+func (t *tree) Root() (NodeID, bool)                { return t.root, int(t.root) < len(t.nodes) }
 func (t *tree) SetRoot(id NodeID)                   { t.root = id }
 func (t *tree) Type(id NodeID) NodeType             { return t.nodes[id].typ }
 func (t *tree) MessageID(id NodeID) int32           { return t.nodes[id].messageID }

@@ -3,6 +3,7 @@ package langlang
 import (
 	_ "embed"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -69,15 +70,26 @@ func getRelativePath(importPath, parentPath string) (string, error) {
 	if importPath == parentPath {
 		return importPath, nil
 	}
-	var contents string
-	if len(importPath) < 4 {
-		return contents, fmt.Errorf("path too short, it should start with ./: %s", importPath)
+	base, err := url.Parse(parentPath)
+	if err != nil {
+		return "", err
 	}
-	if importPath[:2] != "./" {
-		return contents, fmt.Errorf("path isn't relative to the import site: %s", importPath)
+	if base.Scheme == "" {
+		var contents string
+		if len(importPath) < 4 {
+			return contents, fmt.Errorf("path too short, it should start with ./: %s", importPath)
+		}
+		if importPath[:2] != "./" {
+			return contents, fmt.Errorf("path isn't relative to the import site: %s", importPath)
+		}
+		modulePath := importPath[2:]
+		return filepath.Join(filepath.Dir(parentPath), modulePath), nil
 	}
-	modulePath := importPath[2:]
-	return filepath.Join(filepath.Dir(parentPath), modulePath), nil
+	ref, err := url.Parse(importPath)
+	if err != nil {
+		return "", err
+	}
+	return base.ResolveReference(ref).String(), nil
 }
 
 // isBuiltinsPath checks if a path refers to the builtins grammar

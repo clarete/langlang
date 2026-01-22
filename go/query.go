@@ -292,6 +292,10 @@ func (db *Database) InvalidateFile(path string) {
 	parsedID := queryID{queryName: "ParsedGrammar", key: FilePath(path)}
 	db.invalidateWithDependents(parsedID)
 
+	// Invalidate PosIndex for this file (reads raw content directly)
+	posIndexID := queryID{queryName: "PosIndex", key: FilePath(path)}
+	db.invalidateWithDependents(posIndexID)
+
 	// Also invalidate any DefKey queries for this file
 	for id := range db.cache {
 		if defKey, ok := id.key.(DefKey); ok && defKey.File == path {

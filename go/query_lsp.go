@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // SymbolKind enumerates the different kinds of symbols in a grammar.
@@ -781,14 +782,6 @@ func computeSemanticTokens(db *Database, key FilePath) ([]SemanticToken, error) 
 	if err != nil {
 		return nil, err
 	}
-	undefinedRefs, err := Get(db, UndefinedReferencesQuery, key)
-	if err != nil {
-		return nil, err
-	}
-	undefinedSet := make(map[string]bool)
-	for _, ref := range undefinedRefs {
-		undefinedSet[ref.Name] = true
-	}
 
 	var tokens []SemanticToken
 
@@ -799,7 +792,7 @@ func computeSemanticTokens(db *Database, key FilePath) ([]SemanticToken, error) 
 			Start: defLoc.Span.Start,
 			End: Location{
 				Line:   defLoc.Span.Start.Line,
-				Column: defLoc.Span.Start.Column + len(def.Name),
+				Column: defLoc.Span.Start.Column + utf8.RuneCountInString(def.Name),
 				Cursor: defLoc.Span.Start.Cursor + len(def.Name),
 			},
 		}
@@ -823,7 +816,7 @@ func computeSemanticTokens(db *Database, key FilePath) ([]SemanticToken, error) 
 		})
 
 		// Tokens in the expression
-		collectExpressionTokens(def.Expr, defLocs, recursiveSet, undefinedSet, recoveryRules, &tokens)
+		collectExpressionTokens(def.Expr, defLocs, recursiveSet, recoveryRules, &tokens)
 	}
 
 	// Sort tokens by position
@@ -840,7 +833,6 @@ func collectExpressionTokens(
 	expr AstNode,
 	defLocs map[string]SourceLocation,
 	recursiveSet map[string]struct{},
-	undefinedSet map[string]bool,
 	recoveryRules map[string]*RecoveryRuleInfo,
 	tokens *[]SemanticToken,
 ) {
@@ -888,7 +880,7 @@ func collectExpressionTokens(
 			}
 			labelEnd := Location{
 				Line:   labelStart.Line,
-				Column: labelStart.Column + len(node.Label),
+				Column: labelStart.Column + utf8.RuneCountInString(node.Label),
 				Cursor: labelStart.Cursor + len(node.Label),
 			}
 			labelLoc := SourceLocation{
@@ -910,7 +902,7 @@ func collectExpressionTokens(
 			})
 
 			// Recurse into the labeled expression
-			collectExpressionTokens(node.Expr, defLocs, recursiveSet, undefinedSet, recoveryRules, tokens)
+			collectExpressionTokens(node.Expr, defLocs, recursiveSet, recoveryRules, tokens)
 			return false
 
 		case *LiteralNode:

@@ -86,24 +86,22 @@ func (s *stack) capture(nodes ...NodeID) {
 	s.nodes = append(s.nodes, nodes...)
 }
 
-// commitCapturesToParent transfers the popped child frame's captures
-// to its parent by extending the parent's range.  Called AFTER pop,
-// so current top is the parent.  `childStart` and `childEnd` are the
-// arena indices from the popped frame.
-func (s *stack) commitCapturesToParent(childStart, childEnd uint32) {
-	if childStart == childEnd {
-		// No captures to commit
-		return
+func (s *stack) popAndCapture() frame {
+	idx := len(s.frames) - 1
+	f := s.frames[idx]
+	s.frames = s.frames[:idx]
+
+	if f.nodesStart != f.nodesEnd {
+		if idx > 0 {
+			// Extend current parent's range to include
+			// child's captures
+			s.frames[idx-1].nodesEnd = f.nodesEnd
+		} else {
+			// Stack is empty, copy to top-level nodes
+			s.nodes = append(s.nodes, s.nodeArena[f.nodesStart:f.nodesEnd]...)
+		}
 	}
-	n := len(s.frames)
-	if n == 0 {
-		// Stack is empty, copy to top-level nodes
-		s.nodes = append(s.nodes, s.nodeArena[childStart:childEnd]...)
-	} else {
-		// Extend current parent's range to include child's
-		// captures
-		s.frames[n-1].nodesEnd = childEnd
-	}
+	return f
 }
 
 // collectCaptures moves captures from the top frame to its parent (or

@@ -464,13 +464,11 @@ code:
 			vm.newNonTermNode(vm.capOffsetId, cursor, offset)
 
 		case opCapCommit:
-			f := vm.stack.pop()
-			vm.stack.commitCapturesToParent(f.nodesStart, f.nodesEnd)
+			vm.stack.popAndCapture()
 			pc = int(decodeU16(code, pc+1))
 
 		case opCapBackCommit:
-			f := vm.stack.pop()
-			vm.stack.commitCapturesToParent(f.nodesStart, f.nodesEnd)
+			f := vm.stack.popAndCapture()
 			cursor = f.cursor
 			pc = int(decodeU16(code, pc+1))
 
@@ -485,8 +483,7 @@ code:
 			top.nodesEnd = top.nodesStart
 
 		case opCapReturn:
-			f := vm.stack.pop()
-			vm.stack.commitCapturesToParent(f.nodesStart, f.nodesEnd)
+			f := vm.stack.popAndCapture()
 			pc = int(f.pc)
 
 		default:

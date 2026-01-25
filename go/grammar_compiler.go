@@ -61,6 +61,11 @@ type compiler struct {
 	// where captures are not needed, allowing us to emit
 	// IPartialCommit instead of IPartialCommitCap
 	withinPredicate bool
+
+	// srcStack tracks source locations as we recurse into the
+	// AST, allowing instructions to reference their originating
+	// grammar location
+	srcStack []SourceLocation
 }
 
 func newCompiler(config *Config) *compiler {
@@ -104,12 +109,15 @@ func CompileWithDB(db *Database, filePath string, expr AstNode) (*Program, error
 		strings:     c.strings,
 		stringsMap:  c.stringsMap,
 		code:        c.code,
+		sourceFiles: db.AllFilePaths(),
 	}, nil
 }
 
 func (c *compiler) VisitGrammarNode(node *GrammarNode) error {
-	c.emit(ICall{})
-	c.emit(IHalt{})
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+	c.emit(ICall{sl: c.currentSrc()})
+	c.emit(IHalt{sl: c.currentSrc()})
 	c.grammarNode = node
 	c.collectErrorLabels(node)
 	return WalkGrammarNode(c, node)
@@ -127,9 +135,12 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 	if inline, err := c.shouldInline(node); err != nil || inline && !c.config.GetBool("compiler.inline.emit.inlined") {
 		return err
 	}
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+
 	var (
 		id = c.intern(node.Name)
-		l0 = NewILabel()
+		l0 = NewILabelWithSourceLocation(c.currentSrc())
 	)
 
 	c.identifiers[c.cursor] = id
@@ -151,6 +162,8 @@ func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
 		return node.Expr.Accept(c)
 	}
 
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
 	id := c.intern(node.Name)
 
 	if sz, ok := c.capExprSize(node.Expr); ok {
@@ -159,33 +172,33 @@ func (c *compiler) VisitCaptureNode(node *CaptureNode) error {
 		}
 
 		if node.Name == "" {
-			c.emit(ICapTerm{Offset: sz})
+			c.emit(ICapTerm{Offset: sz, sl: c.currentSrc()})
 			return nil
 		}
 
-		c.emit(ICapNonTerm{ID: id, Offset: sz})
+		c.emit(ICapNonTerm{ID: id, Offset: sz, sl: c.currentSrc()})
 		return nil
 	}
 	if c.shouldUseCapOffset(node) {
 		if node.Name == "" {
-			c.emit(ICapTermBeginOffset{})
+			c.emit(ICapTermBeginOffset{sl: c.currentSrc()})
 		} else {
-			c.emit(ICapNonTermBeginOffset{ID: id})
+			c.emit(ICapNonTermBeginOffset{ID: id, sl: c.currentSrc()})
 		}
 		if err := node.Expr.Accept(c); err != nil {
 			return err
 		}
-		c.emit(ICapEndOffset{})
+		c.emit(ICapEndOffset{sl: c.currentSrc()})
 		return nil
 	}
 
-	c.emit(ICapBegin{ID: id})
+	c.emit(ICapBegin{ID: id, sl: c.currentSrc()})
 
 	if err := node.Expr.Accept(c); err != nil {
 		return err
 	}
 
-	c.emit(ICapEnd{})
+	c.emit(ICapEnd{sl: c.currentSrc()})
 	return nil
 }
 
@@ -201,21 +214,23 @@ func (c *compiler) VisitOneOrMoreNode(node *OneOrMoreNode) error {
 }
 
 func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
 	if csn, ok := node.Expr.(*CharsetNode); ok {
-		c.emit(ISpan{cs: csn.cs})
+		c.emit(ISpan{cs: csn.cs, sl: c.currentSrc()})
 		return nil
 	}
 
-	l0 := NewILabel()
-	l1 := NewILabel()
-	l2 := NewILabel()
+	l0 := NewILabelWithSourceLocation(c.currentSrc())
+	l1 := NewILabelWithSourceLocation(c.currentSrc())
+	l2 := NewILabelWithSourceLocation(c.currentSrc())
 
 	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		c.emit(l0)
 	}
 
-	c.emit(IChoice{Label: l2})
+	c.emit(IChoice{Label: l2, sl: c.currentSrc()})
 	c.emit(l1)
 
 	if err := node.Expr.Accept(c); err != nil {
@@ -227,9 +242,9 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 		c.emitCommit(l0)
 	default:
 		if c.shouldCapture() {
-			c.emit(ICapPartialCommit{Label: l1})
+			c.emit(ICapPartialCommit{Label: l1, sl: c.currentSrc()})
 		} else {
-			c.emit(IPartialCommit{Label: l1})
+			c.emit(IPartialCommit{Label: l1, sl: c.currentSrc()})
 		}
 	}
 
@@ -239,9 +254,11 @@ func (c *compiler) VisitZeroOrMoreNode(node *ZeroOrMoreNode) error {
 }
 
 func (c *compiler) VisitOptionalNode(node *OptionalNode) error {
-	lb := NewILabel()
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+	lb := NewILabelWithSourceLocation(c.currentSrc())
 
-	c.emit(IChoice{Label: lb})
+	c.emit(IChoice{Label: lb, sl: c.currentSrc()})
 
 	if err := node.Expr.Accept(c); err != nil {
 		return err
@@ -253,10 +270,12 @@ func (c *compiler) VisitOptionalNode(node *OptionalNode) error {
 }
 
 func (c *compiler) VisitChoiceNode(node *ChoiceNode) error {
-	l1 := NewILabel()
-	l2 := NewILabel()
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+	l1 := NewILabelWithSourceLocation(c.currentSrc())
+	l2 := NewILabelWithSourceLocation(c.currentSrc())
 
-	c.emit(IChoice{Label: l1})
+	c.emit(IChoice{Label: l1, sl: c.currentSrc()})
 
 	if err := node.Left.Accept(c); err != nil {
 		return err
@@ -275,15 +294,17 @@ func (c *compiler) VisitChoiceNode(node *ChoiceNode) error {
 }
 
 func (c *compiler) VisitAndNode(node *AndNode) error {
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
 	switch c.config.GetInt("compiler.optimize") {
 	case 0:
 		return c.VisitNotNode(NewNotNode(NewNotNode(node.Expr, node.SourceLocation()), node.SourceLocation()))
 
 	default:
-		l1 := NewILabel()
-		l2 := NewILabel()
+		l1 := NewILabelWithSourceLocation(c.currentSrc())
+		l2 := NewILabelWithSourceLocation(c.currentSrc())
 
-		c.emit(IChoicePred{Label: l1})
+		c.emit(IChoicePred{Label: l1, sl: c.currentSrc()})
 
 		old := c.withinPredicate
 		c.withinPredicate = true
@@ -295,16 +316,18 @@ func (c *compiler) VisitAndNode(node *AndNode) error {
 
 		c.emitBackCommit(l2)
 		c.emit(l1)
-		c.emit(IFail{})
+		c.emit(IFail{sl: c.currentSrc()})
 		c.emit(l2)
 	}
 	return nil
 }
 
 func (c *compiler) VisitNotNode(node *NotNode) error {
-	l1 := NewILabel()
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+	l1 := NewILabelWithSourceLocation(c.currentSrc())
 
-	c.emit(IChoicePred{Label: l1})
+	c.emit(IChoicePred{Label: l1, sl: c.currentSrc()})
 
 	old := c.withinPredicate
 	c.withinPredicate = true
@@ -316,12 +339,12 @@ func (c *compiler) VisitNotNode(node *NotNode) error {
 
 	switch c.config.GetInt("compiler.optimize") {
 	case 0:
-		l2 := NewILabel()
+		l2 := NewILabelWithSourceLocation(c.currentSrc())
 		c.emitCommit(l2)
 		c.emit(l2)
-		c.emit(IFail{})
+		c.emit(IFail{sl: c.currentSrc()})
 	default:
-		c.emit(IFailTwice{})
+		c.emit(IFailTwice{sl: c.currentSrc()})
 	}
 
 	c.emit(l1)
@@ -333,12 +356,14 @@ func (c *compiler) VisitLexNode(node *LexNode) error {
 }
 
 func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
-	l1 := NewILabel()
-	l2 := NewILabel()
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+	l1 := NewILabelWithSourceLocation(c.currentSrc())
+	l2 := NewILabelWithSourceLocation(c.currentSrc())
 	id := c.intern(node.Label)
 
 	c.errorLabelIDs[id] = struct{}{}
-	c.emit(IChoice{Label: l1})
+	c.emit(IChoice{Label: l1, sl: c.currentSrc()})
 
 	if err := node.Expr.Accept(c); err != nil {
 		return nil
@@ -346,12 +371,14 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 
 	c.emitCommit(l2)
 	c.emit(l1)
-	c.emit(IThrow{ErrorLabel: id})
+	c.emit(IThrow{ErrorLabel: id, sl: c.currentSrc()})
 	c.emit(l2)
 	return nil
 }
 
 func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
 	id := c.intern(node.Value)
 	def := c.grammarNode.DefsByName[node.Value]
 	inline, err := c.shouldInline(def)
@@ -370,10 +397,10 @@ func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
 	// combination (cursor, id) are saved within the `openAddrs`
 	// map so the backpatching can fix this later.
 	if label, ok := c.definitionLabels[id]; ok {
-		c.emit(ICall{Label: label, Precedence: precedence})
+		c.emit(ICall{Label: label, Precedence: precedence, sl: c.currentSrc()})
 	} else {
 		c.saveOpenAddr(id)
-		c.emit(ICall{Precedence: precedence})
+		c.emit(ICall{Precedence: precedence, sl: c.currentSrc()})
 	}
 
 	return nil
@@ -401,24 +428,32 @@ func (c *compiler) VisitClassNode(node *ClassNode) error {
 }
 
 func (c *compiler) VisitRangeNode(node *RangeNode) error {
-	c.emit(IRange{Lo: node.Left, Hi: node.Right})
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+	c.emit(IRange{Lo: node.Left, Hi: node.Right, sl: c.currentSrc()})
 	return nil
 }
 
 func (c *compiler) VisitCharsetNode(n *CharsetNode) error {
-	c.emit(ISet{cs: n.cs})
+	c.pushSrc(n.SourceLocation())
+	defer c.popSrc()
+	c.emit(ISet{cs: n.cs, sl: c.currentSrc()})
 	return nil
 }
 
 func (c *compiler) VisitLiteralNode(node *LiteralNode) error {
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
 	for _, r := range node.Value {
-		c.emit(IChar{Char: r})
+		c.emit(IChar{Char: r, sl: c.currentSrc()})
 	}
 	return nil
 }
 
 func (c *compiler) VisitAnyNode(node *AnyNode) error {
-	c.emit(IAny{})
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+	c.emit(IAny{sl: c.currentSrc()})
 	return nil
 }
 
@@ -430,18 +465,20 @@ func (c *compiler) backpatchCallSites() error {
 		// found we're just going to need to adjust for
 		// forward and backward jumping.
 		if label, ok := c.definitionLabels[id]; ok {
-			// TODO: precedence
-			c.code[callAddr] = ICall{Label: label}
+			// Preserve the source location from the original instruction
+			origCall := c.code[callAddr].(ICall)
+			c.code[callAddr] = ICall{Label: label, Precedence: origCall.Precedence, sl: origCall.sl}
 			continue
 		}
 		return fmt.Errorf("production `%s` does not exist", c.strings[id])
 	}
 
-	// Patch main call
+	// Patch main call - use grammar node's source location
 	def := c.grammarNode.FirstDefinition()
 	id := c.intern(def.Name)
 	label := c.definitionLabels[id]
-	c.emitAt(0, ICall{Label: label})
+	origCall := c.code[0].(ICall)
+	c.emitAt(0, ICall{Label: label, sl: origCall.sl})
 
 	return nil
 }
@@ -462,25 +499,25 @@ func (c *compiler) shouldCapture() bool {
 
 func (c *compiler) emitCommit(label ILabel) {
 	if c.shouldCapture() {
-		c.emit(ICapCommit{Label: label})
+		c.emit(ICapCommit{Label: label, sl: c.currentSrc()})
 	} else {
-		c.emit(ICommit{Label: label})
+		c.emit(ICommit{Label: label, sl: c.currentSrc()})
 	}
 }
 
 func (c *compiler) emitBackCommit(label ILabel) {
 	if c.shouldCapture() {
-		c.emit(ICapBackCommit{Label: label})
+		c.emit(ICapBackCommit{Label: label, sl: c.currentSrc()})
 	} else {
-		c.emit(IBackCommit{Label: label})
+		c.emit(IBackCommit{Label: label, sl: c.currentSrc()})
 	}
 }
 
 func (c *compiler) emitReturn() {
 	if c.shouldCapture() {
-		c.emit(ICapReturn{})
+		c.emit(ICapReturn{sl: c.currentSrc()})
 	} else {
-		c.emit(IReturn{})
+		c.emit(IReturn{sl: c.currentSrc()})
 	}
 }
 
@@ -491,6 +528,23 @@ func (c *compiler) saveOpenAddr(addr int) {
 func (c *compiler) emit(i Instruction) {
 	c.code = append(c.code, i)
 	c.cursor++
+}
+
+func (c *compiler) pushSrc(src SourceLocation) {
+	c.srcStack = append(c.srcStack, src)
+}
+
+func (c *compiler) popSrc() {
+	if len(c.srcStack) > 0 {
+		c.srcStack = c.srcStack[:len(c.srcStack)-1]
+	}
+}
+
+func (c *compiler) currentSrc() SourceLocation {
+	if len(c.srcStack) == 0 {
+		return SourceLocation{}
+	}
+	return c.srcStack[len(c.srcStack)-1]
 }
 
 func (c *compiler) emitAt(cursor int, i Instruction) {

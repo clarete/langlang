@@ -55,6 +55,9 @@ type Program struct {
 	// code is an array of instructions that get executed by the
 	// virtual machine
 	code []Instruction
+
+	// sourceFiles maps FileID to file paths for source mapping
+	sourceFiles []string
 }
 
 func (p Program) StringID(n string) int {
@@ -117,7 +120,12 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 
 	for cursor, instruction := range p.code {
 		if idx, ok := p.identifiers[cursor]; ok {
-			writeComment(fmt.Sprintf("\n;; %s\n", p.strings[idx]))
+			var (
+				iloc = instruction.SourceLocation()
+				file = p.sourceFiles[iloc.FileID]
+				msg  = file + ":" + iloc.Span.String()
+			)
+			writeComment(fmt.Sprintf("\n;; %s @ %s\n", p.strings[idx], msg))
 		}
 
 		switch ii := instruction.(type) {

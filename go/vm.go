@@ -575,8 +575,7 @@ func (vm *virtualMachine) newTermNode(cursor, offset int) {
 func (vm *virtualMachine) newNonTermNode(capId, cursor, offset int) {
 	if offset > 0 {
 		begin := cursor - offset
-		stringNode := vm.stack.tree.AddString(begin, cursor)
-		named := vm.stack.tree.AddNode(int32(capId), stringNode, begin, cursor)
+		named := vm.stack.tree.AddNamedString(int32(capId), begin, cursor)
 		vm.stack.capture(named)
 	}
 }

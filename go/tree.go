@@ -198,6 +198,29 @@ func (t *tree) AddNode(nameID int32, child NodeID, start, end int) NodeID {
 	return id
 }
 
+// AddNamedString creates a string node wrapped in a named node in one
+// call to reduce overhead when capturing non-terminal nodes that
+// contain only a string.
+func (t *tree) AddNamedString(nameID int32, start, end int) NodeID {
+	stringID := NodeID(len(t.nodes))
+	t.nodes = append(t.nodes, node{
+		typ:       NodeType_String,
+		start:     start,
+		end:       end,
+		nameID:    -1,
+		childID:   -1,
+		messageID: -1,
+	}, node{
+		typ:       NodeType_Node,
+		start:     start,
+		end:       end,
+		nameID:    nameID,
+		childID:   int32(stringID),
+		messageID: -1,
+	})
+	return stringID + 1
+}
+
 func (t *tree) AddError(labelID, messageID int32, start, end int) NodeID {
 	id := NodeID(len(t.nodes))
 	t.nodes = append(t.nodes, node{

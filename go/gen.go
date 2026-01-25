@@ -175,9 +175,9 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 		g.parser.writei("{")
 		for _, sub := range item {
 			if sub.b == 0 {
-				g.parser.write(fmt.Sprintf("expected{a: %s},", strconv.QuoteRune(sub.a)))
+				g.parser.write(fmt.Sprintf(" {a: %s},", strconv.QuoteRune(sub.a)))
 			} else {
-				g.parser.write(fmt.Sprintf("expected{a: %s, b: %s},", strconv.QuoteRune(sub.a), strconv.QuoteRune(sub.b)))
+				g.parser.write(fmt.Sprintf(" {a: %s, b: %s},", strconv.QuoteRune(sub.a), strconv.QuoteRune(sub.b)))
 			}
 		}
 		g.parser.writel("},")

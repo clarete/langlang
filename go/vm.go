@@ -243,6 +243,7 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, er
 	vm.stack.tree.bindInput(data)
 
 	// take a local reference of important data
+	stack := vm.stack
 	code := vm.bytecode.code
 	sets := vm.bytecode.sets
 	ilen := len(data)
@@ -252,7 +253,7 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, er
 	// if a rule was received, push a call frame for it and set
 	// the program appropriately
 	if ruleAddress > 0 {
-		vm.stack.push(vm.mkCallFrame(opCallSizeInBytes))
+		stack.push(vm.mkCallFrame(opCallSizeInBytes))
 		pc = ruleAddress
 	}
 code:
@@ -263,12 +264,12 @@ code:
 		switch op {
 		case opHalt:
 			// dbg(fmt.Sprintf("nodes: %#v\n", vm.stack.nodes))
-			if len(vm.stack.nodes) > 0 {
-				idx := len(vm.stack.nodes) - 1
-				nid := vm.stack.nodes[idx]
-				vm.stack.tree.SetRoot(nid)
+			if len(stack.nodes) > 0 {
+				idx := len(stack.nodes) - 1
+				nid := stack.nodes[idx]
+				stack.tree.SetRoot(nid)
 			}
-			return vm.stack.tree, cursor, nil
+			return stack.tree, cursor, nil
 
 		case opAny:
 			if cursor >= ilen {
@@ -372,38 +373,38 @@ code:
 			goto fail
 
 		case opFailTwice:
-			vm.stack.pop()
+			stack.pop()
 			goto fail
 
 		case opChoice:
 			lb := int(decodeU16(code, pc+1))
-			vm.stack.push(mkBacktrackFrame(lb, cursor))
+			stack.push(mkBacktrackFrame(lb, cursor))
 			pc += opChoiceSizeInBytes
 
 		case opChoicePred:
 			lb := int(decodeU16(code, pc+1))
-			vm.stack.push(mkBacktrackPredFrame(lb, cursor))
+			stack.push(mkBacktrackPredFrame(lb, cursor))
 			pc += opChoiceSizeInBytes
 			vm.predicate = true
 
 		case opCommit:
-			vm.stack.pop()
+			stack.pop()
 			pc = int(decodeU16(code, pc+1))
 
 		case opBackCommit:
-			cursor = vm.stack.pop().cursor
+			cursor = stack.pop().cursor
 			pc = int(decodeU16(code, pc+1))
 
 		case opPartialCommit:
 			pc = int(decodeU16(code, pc+1))
-			vm.stack.top().cursor = cursor
+			stack.top().cursor = cursor
 
 		case opCall:
-			vm.stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
+			stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
 			pc = int(decodeU16(code, pc+1))
 
 		case opReturn:
-			f := vm.stack.pop()
+			f := stack.pop()
 			pc = int(f.pc)
 
 		case opJump:
@@ -416,7 +417,7 @@ code:
 			}
 			lb := int(decodeU16(code, pc+1))
 			if addr, ok := vm.bytecode.rxps[lb]; ok {
-				vm.stack.push(vm.mkCallFrame(pc + opThrowSizeInBytes))
+				stack.push(vm.mkCallFrame(pc + opThrowSizeInBytes))
 				pc = addr
 				continue
 			}
@@ -424,13 +425,13 @@ code:
 
 		case opCapBegin:
 			id := int(decodeU16(code, pc+1))
-			vm.stack.push(vm.mkCaptureFrame(id, cursor))
+			stack.push(vm.mkCaptureFrame(id, cursor))
 			pc += opCapBeginSizeInBytes
 
 		case opCapEnd:
-			f := vm.stack.pop()
-			nodes := vm.stack.frameNodes(&f)
-			vm.stack.truncateArena(f.nodesStart)
+			f := stack.pop()
+			nodes := stack.frameNodes(&f)
+			stack.truncateArena(f.nodesStart)
 			vm.newNode(cursor, f, nodes)
 			pc += opCapEndSizeInBytes
 
@@ -464,26 +465,26 @@ code:
 			vm.newNonTermNode(vm.capOffsetId, cursor, offset)
 
 		case opCapCommit:
-			vm.stack.popAndCapture()
+			stack.popAndCapture()
 			pc = int(decodeU16(code, pc+1))
 
 		case opCapBackCommit:
-			f := vm.stack.popAndCapture()
+			f := stack.popAndCapture()
 			cursor = f.cursor
 			pc = int(decodeU16(code, pc+1))
 
 		case opCapPartialCommit:
 			pc = int(decodeU16(code, pc+1))
-			top := vm.stack.top()
+			top := stack.top()
 			top.cursor = cursor
-			vm.stack.collectCaptures()
+			stack.collectCaptures()
 			// Reset this frame's capture range for the
 			// next iteration
-			top.nodesStart = uint32(len(vm.stack.nodeArena))
+			top.nodesStart = uint32(len(stack.nodeArena))
 			top.nodesEnd = top.nodesStart
 
 		case opCapReturn:
-			f := vm.stack.popAndCapture()
+			f := stack.popAndCapture()
 			pc = int(f.pc)
 
 		default:
@@ -498,10 +499,10 @@ fail:
 
 	// dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", cursor, pc))
 
-	for vm.stack.len() > 0 {
-		f := vm.stack.pop()
+	for stack.len() > 0 {
+		f := stack.pop()
 
-		vm.stack.truncateArena(f.nodesStart)
+		stack.truncateArena(f.nodesStart)
 
 		if f.t == frameType_Backtracking {
 			pc = int(f.pc)
@@ -514,12 +515,12 @@ fail:
 
 	// dbg(fmt.Sprintf(" -> boom: %d, %d\n", cursor, vm.ffp))
 
-	if len(vm.stack.nodes) > 0 {
-		idx := len(vm.stack.nodes) - 1
-		nid := vm.stack.nodes[idx]
-		vm.stack.tree.SetRoot(nid)
+	if len(stack.nodes) > 0 {
+		idx := len(stack.nodes) - 1
+		nid := stack.nodes[idx]
+		stack.tree.SetRoot(nid)
 	}
-	return vm.stack.tree, cursor, vm.mkErr(data, 0, cursor, vm.ffp)
+	return stack.tree, cursor, vm.mkErr(data, 0, cursor, vm.ffp)
 }
 
 // Helpers

@@ -24,6 +24,7 @@ type args struct {
 
 	grammarAST *bool
 	grammarASM *bool
+	grammarMAP *bool
 
 	outputLang *string
 	outputPath *string
@@ -56,6 +57,7 @@ func readArgs() *args {
 
 		grammarAST: flag.Bool("grammar-ast", false, "Output the AST of the grammar"),
 		grammarASM: flag.Bool("grammar-asm", false, "Output the ASM of the grammar"),
+		grammarMAP: flag.Bool("grammar-source-map", false, "Include the source map of the grammar in the output parser"),
 
 		// Output Options
 
@@ -107,6 +109,7 @@ func main() {
 	cfg.SetBool("compiler.inline.enabled", !*a.disableInline)
 	cfg.SetBool("compiler.inline.emit.inlined", !*a.disableInlineDefs)
 	cfg.SetBool("vm.show_fails", *a.showFails)
+	cfg.SetBool("vm.debug.source_map", *a.grammarMAP)
 
 	// Create a query-based database for caching and diagnostics
 	loader := langlang.NewRelativeImportLoader()
@@ -177,7 +180,7 @@ func main() {
 			input := []byte(text)
 			tree, _, err := matcher.Match(input)
 			if err != nil {
-				fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, err.Error())
+				printParsingError(err, matcher)
 			} else if tree != nil {
 				root, _ := tree.Root()
 				fmt.Println(tree.Highlight(root))
@@ -199,7 +202,7 @@ func main() {
 		}
 		tree, _, err := matcher.Match(text)
 		if err != nil {
-			fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, err.Error())
+			printParsingError(err, matcher)
 		} else if tree != nil {
 			root, _ := tree.Root()
 			fmt.Println(tree.Highlight(root))
@@ -328,6 +331,31 @@ func printDiagnosticsAndCheckForErrors(diagnostics []langlang.Diagnostic, minLev
 	}
 
 	return hasErrors
+}
+
+// printParsingError prints a parsing error with grammar location if available.
+func printParsingError(err error, matcher langlang.Matcher) {
+	perr, ok := err.(langlang.ParsingError)
+	if !ok {
+		fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, err.Error())
+		return
+	}
+
+	fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, perr.Message)
+
+	// Show grammar location if source map is available
+	if srcm := matcher.SourceMap(); srcm != nil {
+		if loc, ok := srcm.LocationAt(perr.FFPPC); ok {
+			file := srcm.FileAt(loc.FileID)
+			fmt.Printf(" %s at %s:%d:%d%s\n",
+				colorGray,
+				file,
+				loc.Span.Start.Line,
+				loc.Span.Start.Column,
+				colorReset,
+			)
+		}
+	}
 }
 
 // fatal prints an error message and exits with code 1.

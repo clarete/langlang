@@ -36,6 +36,8 @@ func NewConfig() *Config {
 	// collect and show characters that failed to match the
 	// current input position
 	m.SetBool("vm.show_fails", true)
+	// enable source map generation for debugging
+	m.SetBool("vm.debug.source_map", false)
 	return &m
 }
 

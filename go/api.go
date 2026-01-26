@@ -15,6 +15,12 @@ type Matcher interface {
 	// calling [Matcher.Match] again, refer to the [Tree.Copy]
 	// method.
 	Match([]byte) (Tree, int, error)
+
+	// SourceMap returns the optional mapping between the
+	// matcher's bytecode and its original text source.  Among
+	// other features, this enables tracking what expression
+	// within the grammar failed causing the parser to stop.
+	SourceMap() *SourceMap
 }
 
 // NodeID is an opaque handle identifying a node within a Tree.
@@ -252,4 +258,20 @@ type Diagnostic struct {
 	Code     string    // e.g., "undefined-rule", "unused-rule"
 	FilePath string    // the file path where the diagnostic occurred
 	Expected []ErrHint // optional: what the parser expected (for syntax errors)
+}
+
+// SourceMap provides a mapping from bytecode offsets to grammar
+// source locations. Data is stored in a delta + varint encoded binary
+// format for compact storage. The data is decoded on first access and
+// cached for subsequent lookups.
+//
+// Encoding format:
+//   - First entry: absolute values using unsigned varints
+//   - Subsequent entries: signed varints (zigzag) for deltas
+//   - Fields per entry: Offset, FileID, StartLine, StartCol,
+//     StartCursor, EndLine, EndCol, EndCursor
+type SourceMap struct {
+	Data    []byte        // Delta + varint encoded entries
+	Files   []string      // FileID to Path/URI
+	entries []srcMapEntry // cached decoded entries (lazily initialized)
 }

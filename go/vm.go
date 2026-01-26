@@ -13,6 +13,7 @@ type Bytecode struct {
 	smap map[string]int
 	rxps map[int]int
 	rxbs bitset512
+	srcm *SourceMap
 }
 
 func (b *Bytecode) CompileErrorLabels(labels map[string]string) map[int]int {
@@ -80,6 +81,7 @@ func (e *expectedInfo) clear() {
 
 type virtualMachine struct {
 	ffp            int
+	ffpPC          int // bytecode PC at furthest failure point
 	stack          *stack
 	bytecode       *Bytecode
 	predicate      bool
@@ -227,6 +229,10 @@ func (vm *virtualMachine) SetShowFails(showFails bool) {
 
 func (vm *virtualMachine) SetLabelMessages(labels map[int]int) {
 	vm.errLabels = labels
+}
+
+func (vm *virtualMachine) SourceMap() *SourceMap {
+	return vm.bytecode.srcm
 }
 
 func (vm *virtualMachine) Match(data []byte) (Tree, int, error) {
@@ -495,6 +501,7 @@ code:
 fail:
 	if cursor > vm.ffp {
 		vm.ffp = cursor
+		vm.ffpPC = pc
 	}
 
 	// dbg(fmt.Sprintf("fl[c=%02d, pc=%02d]", cursor, pc))
@@ -529,6 +536,7 @@ func (vm *virtualMachine) reset() {
 	vm.stack.reset()
 	vm.stack.tree.reset()
 	vm.ffp = -1
+	vm.ffpPC = 0
 
 	if vm.showFails {
 		vm.expected.clear()
@@ -771,6 +779,7 @@ func (vm *virtualMachine) mkErr(data []byte, errLabelID int, cursor, errCursor i
 		Start:    cursor,
 		End:      errCursor,
 		Expected: expected,
+		FFPPC:    vm.ffpPC,
 	}
 }
 

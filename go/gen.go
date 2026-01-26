@@ -185,6 +185,43 @@ func (g *goEvalEmitter) writeParserProgram(bt *Bytecode) {
 	g.parser.unindent()
 	g.parser.writeil("},")
 
+	if bt.srcm != nil {
+		g.parser.writeil("srcm: &SourceMap{")
+		g.parser.indent()
+
+		g.parser.writeil("Data: []byte{")
+		g.parser.indent()
+		g.parser.writei("")
+		for i, b := range bt.srcm.Data {
+			g.parser.write(fmt.Sprintf("%d,", b))
+			if (i+1)%48 == 0 {
+				g.parser.writel("")
+				if i+1 < len(bt.srcm.Data) {
+					g.parser.writei("")
+				}
+			}
+		}
+		if len(bt.srcm.Data)%48 != 0 {
+			g.parser.writel("")
+		}
+		g.parser.unindent()
+		g.parser.writeil("},")
+
+		// Files
+		g.parser.writeil("Files: []string{")
+		g.parser.indent()
+		g.parser.writei("")
+		for _, f := range bt.srcm.Files {
+			g.parser.write(fmt.Sprintf(`"%s", `, escapeLiteral(f)))
+		}
+		g.parser.writel("")
+		g.parser.unindent()
+		g.parser.writeil("},")
+
+		g.parser.unindent()
+		g.parser.writeil("},")
+	}
+
 	g.parser.unindent()
 	g.parser.writel("}")
 }

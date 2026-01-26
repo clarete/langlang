@@ -22,6 +22,7 @@ type ParsingError struct {
 	Label      string
 	Start, End int
 	Expected   []ErrHint
+	FFPPC      int
 }
 
 type ErrHintType uint8

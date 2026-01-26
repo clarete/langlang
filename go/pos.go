@@ -51,6 +51,14 @@ func (s Span) String() string {
 	return fmt.Sprintf("%d:%d..%d:%d", startLine, startCol, endLine, endCol)
 }
 
+// srcMapEntry is the decoded form of a source map entry.
+type srcMapEntry struct {
+	offset                           int
+	fileID                           int
+	startLine, startCol, startCursor int
+	endLine, endCol, endCursor       int
+}
+
 // ---- Position index ----
 
 // posIndex provides Location/Span (rune columns) and CursorU16

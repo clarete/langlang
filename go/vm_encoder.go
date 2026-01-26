@@ -14,6 +14,7 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 		setsMap = map[string]int{}
 		sets    []charset
 		sexp    [][]expected
+		srcm    *SourceMap
 		addSet  = func(cs *charset) uint16 {
 			s := cs.encoded()
 			if pos, ok := setsMap[s]; ok {
@@ -34,10 +35,12 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 			cursor += instruction.SizeInBytes()
 		}
 	}
+	cursor = 0 // Reset for second pass
 	for _, instruction := range p.code {
 		switch ii := instruction.(type) {
 		case ILabel:
 			// doesn't translate to anything
+			continue
 		case IHalt:
 			code = append(code, opHalt)
 		case IAny:
@@ -118,12 +121,17 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 		case ICapEndOffset:
 			code = append(code, opCapEndOffset)
 		}
+
+		// This doesn't happen for ILabel
+		cursor += instruction.SizeInBytes()
 	}
 	for id, entry := range p.recovery {
 		rxps[id] = labels[entry.label]
 		rxbs.Set(id)
 	}
-
+	if cfg.GetBool("vm.debug.source_map") {
+		srcm = BuildSourceMapFromProgram(p)
+	}
 	return &Bytecode{
 		code: code,
 		strs: p.strings,
@@ -132,6 +140,7 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 		rxbs: rxbs,
 		sets: sets,
 		sexp: sexp,
+		srcm: srcm,
 	}
 }
 

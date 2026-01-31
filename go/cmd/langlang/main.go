@@ -231,6 +231,7 @@ func main() {
 			PackageName: *a.goOptPackage,
 			ParserName:  *a.goOptParser,
 			RemoveLib:   *a.goOptRemoveLib,
+			SourceFile:  *a.grammarPath,
 		})
 
 	// case "python":

@@ -379,6 +379,14 @@ be used in other grammars using imports.  Behind the scenes, the
 
 ** go/v0.0.12 (unreleased)
 
+ * [[https://github.com/clarete/langlang/commit/1de748ccf5b9b0c7dea4f6a705c7ec9b0264cde1][FEAT: New transport independent LSP engine]]
+ * [[https://github.com/clarete/langlang/commit/1a76a7741e429b335574ee74da1f6880064887b3][FEAT: Introduce query-based compiler architecture]]
+ * [[https://github.com/clarete/langlang/commit/3a2c6fba30d4240d8509598aa51d005c08eadc5b][FEAT: Error recovery and partial AST for grammar parser]]
+ * [[https://github.com/clarete/langlang/commit/5259b1c7308ac944168866ca0800fa413bc4eb83][FEAT: CLI now shows vcs info when -version flag is passed]]
+ * [[https://github.com/clarete/langlang/commit/78521caef46f48940059af5dc4959a073240a0d9][FEAT: Source Code mapping between Grammar and Bytecode]]
+ * [[https://github.com/clarete/langlang/commit/f3dae1ad080e8bd360c24ed2f0dcd111714f1e17][PERF[vm]: Merge pop and commitCapturesToParent into popAndCapture]]
+ * [[https://github.com/clarete/langlang/commit/806f04d219a6dd9cfe5f2a2b03401cc6d8e4c7a4][BUG FIX: Nil panic graphing deps of unknown identifier]]
+ * [[https://github.com/clarete/langlang/commit/b94ba45e5d74a3a8f34090d251f58e28aca00799][FEAT[BREAKING]: Reshape API around import load/resolution]]
  * [[https://github.com/clarete/langlang/commit/6a455fe9d0771ae876cacf62aa5231907ea47deb][FEAT: Add 32-bit char/range opcodes for non-BMP Unicode]]
  * [[https://github.com/clarete/langlang/commit/c613467c46accd3ee2dd8b2a215caa0506ccc47d][FEAT[api]: Add Tree.CursorU16 and unify position indexing]]
  * [[https://github.com/clarete/langlang/commit/57660e47906b3c00fc12540eb8e274d58a29adc5][FEAT[api]: Reintroduce API for retrieving line/column position]]

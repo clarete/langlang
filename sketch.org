@@ -23,12 +23,13 @@ implemented.
    * [X] Full support for left recursive productions
    * [X] Operator precedence and associativity definition
    * [X] Non-left recursive rules are compiled with zero precedence
+   * [X] Relative import system with disk and in-memory abstractions
    * [ ] Indentation based syntax matching (Relative spaces)
    * [ ] Transform matched values (Semantic action expressions)
    * [-] Error reporting
      * [X] Report correct error position (Farthest failure position)
-     * [ ] Position tracking and reporting (location spans)
-     * [ ] Option tracking on choice operations
+     * [X] Position tracking and reporting (location spans)
+     * [X] Option tracking on choice operations
      * [X] Throw custom error labels
      * [ ] Automatic label insertion
    * [-] Error recovery
@@ -38,7 +39,7 @@ implemented.
    * [ ] Pipe multiple grammars through the command line
    * [ ] parameterized rules?
    * [ ] higher-order rules?
-   * [ ] packages and import system?
+   * [ ] packages?
 ** Standard Library
    * [X] ABNF (RFC-5234)
    * [ ] C
@@ -58,119 +59,451 @@ implemented.
    * [ ] Rust
    * [ ] TypeScript
    * [ ] XML
-** Chores
-   * [ ] Allocate values produced from a match within an arena
-   * [ ] Decode values into the host language's types
-
 * Implemented Design
 ** Capturing Values
 
-Matches of an input against a grammar will produce an output tree.
-Currently, the Virtual Machine captures all values successfully
-matched by default and store them in a stack that is separate from the
-stack used in the **Production Call** and **Backtracking** mechanisms.
+Matches of an input against a grammar produce an output tree.  The
+Virtual Machine uses a unified stack with three frame types:
+~Backtracking~, ~Call~, and ~Capture~.  Captured nodes are stored in a
+shared arena (~nodeArena~) rather than a separate capture stack.
 
-The machine pushes a frame onto the capture stack before it starts
-looping through the bytecode.  Opcodes that implement matching of
-terminals (~Any~, ~Char~, ~Span~) push matched values onto the current
-capture stack frame.  A capture stack frame contains a vector of
-captured values and an index that tracks which capture values have
-been committed.
+#+begin_example
+  Stack frame types            nodeArena, shared, grows as frames are pushed
+  ┌─────────────────────┐             ┌───┬───┬───┬───┬───┐
+  │ Capture(id=Expr)    │         ───▶│ 0 │ 1 │ 2 │   │   │───▶
+  │ nodesStart=0        │             └───┴───┴───┴───┴───┘
+  │ nodesEnd=3          │
+  ├─────────────────────┤
+  │ Backtracking        │
+  │ cursor=5, pc=42     │      and shrinks as frames are popped off the stack
+  ├─────────────────────┤             ┌───┬───┐
+  │ Call                │         ◀───│   │   │───◀
+  │ pc=100              │             └───┴───┘
+  └─────────────────────┘
+#+end_example
 
-When popping a backtrack frame from the stack, the ~Fail~ instruction
-will drain the values not committed from the frame on top of the
-capture stack.  That's how backtracking the *values* captured within
-the same frame is implemented.  Notice that the ~Fail~ instruction
-also pops frames off the capture stack when it pops a call frame from
-the main stack to keep it ballanced with the capture frame pushed by
-the opcode ~Call~ that's popped by ~Return~ when there's no failure.
+*** Tree Node Types
 
-The ~Return~ instruction will pop the frame on top of the capture
-stack, wrap all its captures in a ~Value::Node~ with the name of the
-production and its captured values.
+The output tree contains four node types:
 
-In order to support left recursive calls, the ~Call~ instruction will
-commit all captured values before trying to increment the left
-recursive bound (rule ~inc.1~).  And ~Call~ that has successfully
-incremented the left recursive bound will also pop all currently
-commited values of the frame on the top of the capture stack and wrap
-them in a ~Value::Node~ to be pushed onto the same frame (rule
-~lvar.4~).
+- ~NodeType_String~: a terminal match storing a byte range (start/end
+  offsets into the input)
+- ~NodeType_Sequence~: an ordered list of child nodes
+- ~NodeType_Node~: a named rule match with a single child
+- ~NodeType_Error~: a recovery point containing error metadata
 
-Code for both ~Optional~ (~?~) and ~ZeroOrMore~ (~*~) operators is
-emitted surrounded by a pair of ~CapPush~ and ~CapPop~ instructions,
-and have a ~CapCommit~ instruction that executes after the whole
-operation is done, upon (handled) failure or success.
+Example: parsing ~"hello"~ with grammar ~Greeting <- 'hello'~:
 
-As mentioned, by default all matched values are captured. Notice that
-predicates ~NOT~ and ~AND~ don't consume any input, so there are no
-values to be captured from their successful match.  There are two
-operations that might not move the cursor, the ~STAR~ (~*~) and the
-~OPTIONAL~ (~?~) operators, as they never fail even when the input
-doesn't match.
+#+begin_example
+  NodeType_Node (name="Greeting", start=0, end=5)
+  └── NodeType_String (start=0, end=5)
+#+end_example
+
+The string node has the offset within the input:
+
+#+begin_example
+  input: "hello"
+          ▲───▲
+          0   5
+#+end_example
+
+Example: parsing ~"ab"~ with grammar ~Pair <- 'a' 'b'~:
+
+#+begin_example
+  NodeType_Node (name="Pair")
+  └── NodeType_Sequence
+      ├── NodeType_String "a" (0,1)
+      └── NodeType_String "b" (1,2)
+#+end_example
+
+*** Grammar Compilation and Capture Insertion
+
+The ~AddCaptures~ step of the grammar compiler wraps each definition's
+expression in a ~CaptureNode~ named after the definition.  For
+non-syntactic rules (those containing calls to other rules via
+identifiers), inner terminal expressions are also wrapped with unnamed
+captures so that terminal matches are grouped appropriately.  Purely
+syntactic rules (containing only terminals like literals, charsets,
+ranges, and ~.~) don't need inner captures since the entire match is
+captured as one unit.  Certain rules like ~Spacing~, ~Space~, ~EOF~,
+and ~EOL~ (and their dependencies) can be skipped to avoid capturing
+whitespace through the `--disable-capture-spaces` CLI flag.
+
+*** Capture Instructions
+
+The VM provides several capture-related instructions:
+
+- ~CapBegin~: pushes a ~Capture~ frame onto the stack with an ID and
+  the current cursor position.  The frame tracks a range
+  (~nodesStart~/~nodesEnd~) into the shared node arena.
+
+- ~CapEnd~: pops the capture frame and creates a node from its
+  captured children.  If no children were captured but the cursor
+  moved, it creates a ~NodeType_String~.  With one child, it reuses
+  that node.  With multiple children, it creates a ~NodeType_Sequence~.
+  If the capture has a name (non-zero ID), the result is wrapped in a
+  ~NodeType_Node~.
+
+#+begin_example
+  Matching "ab" against: Pair <- 'a' 'b'
+
+  1. CapBegin(Pair)
+     Stack:
+     ┌──────────────┐
+     │Cap(Pair)     │
+     │start=0,end=0 │
+     └──────────────┘
+     nodeArena: []
+
+  2. match 'a', CapTerm
+     Stack:
+     ┌──────────────┐
+     │Cap(Pair)     │
+     │start=0,end=1 │
+     └──────────────┘
+     nodeArena: [S0]
+
+  3. match 'b', CapTerm
+     Stack:
+     ┌──────────────┐
+     │Cap(Pair)     │
+     │start=0,end=2 │
+     └──────────────┘
+     nodeArena: [S0, S1]
+
+  4. CapEnd(Pair)
+     - pops frame, sees 2 children, forms a Sequence
+     - wraps in Node(Pair)
+     - pushes result to parent (or nodes[])
+
+     Output:
+     Node(Pair)
+     └── Seq[S0, S1]
+         ├── String(0,1) "a"
+         └── String(1,2) "b"
+#+end_example
+
+- ~CapTerm~: creates a terminal string node when the matched size is
+  known at compile time.
+
+- ~CapNonTerm~: creates a named terminal node when the matched size is
+  known at compile time.
+
+- ~CapTermBeginOffset~ / ~CapNonTermBeginOffset~ / ~CapEndOffset~:
+  used when the matched size isn't known at compile time (e.g., for
+  ~Span~ operations).  These track the start cursor and compute the
+  offset dynamically.
+
+- ~CapCommit~: pops the top frame and propagates its captures to the
+  parent frame (or to the top-level ~nodes~ list).  Used for ordered
+  choice (~/~) on success.
+
+- ~CapBackCommit~: like ~CapCommit~ but also restores the cursor.
+  Used for predicates.
+
+- ~CapPartialCommit~: collects captures from the current frame into
+  its parent without popping, then resets the frame's capture range.
+  Used within ~ZeroOrMore~ (~*~) loops to accumulate iterations.
+
+- ~CapReturn~: pops the capture frame and propagates captures.  Emitted
+  instead of ~Return~ when captures are enabled.
+
+*** Backtracking and Capture Cleanup
+
+When the ~Fail~ path is taken, the VM pops frames from the stack.  For
+each popped frame, it truncates the node arena back to that frame's
+starting position (~nodesStart~), effectively discarding any captures
+made within that frame.  This ensures that backtracking properly
+undoes captured values.
+
+#+begin_example
+  Matching "ac" against: Pair <- 'a' 'b' / 'a' 'c'
+
+  1. Try first choice
+     Choice(L2)
+     ┌──────────────┐
+     │Backtrack     │
+     │cursor=0,pc=L2│
+     └──────────────┘
+     nodeArena: []
+
+
+
+  2. match 'a' ok
+     CapTerm
+     ┌──────────────┐
+     │Backtrack     │
+     │cursor=0,pc=L2│
+     └──────────────┘
+     nodeArena: [S0] (captured)
+
+  3. match 'b' FAIL!
+     Backtrack
+     ┌──────────────┐
+     │(popped)      │
+     └──────────────┘
+     nodeArena: [] (truncated!)
+
+  4. jump to L2 (2nd choice)
+     cursor restored to 0
+     ┌──────────────┐
+     │Cap(Pair)     │
+     │start=0,end=0 │
+     └──────────────┘
+     nodeArena: []
+
+  5. match 'a','c' ok
+     CapTerm, CapTerm
+     ┌──────────────┐
+     │Cap(Pair)     │
+     │start=0,end=2 │
+     └──────────────┘
+     nodeArena: [S0,S1]
+
+  6. CapEnd
+     Output:
+     Node(Pair)
+     └── Seq["a","c"]
+#+end_example
+
+*** Predicates
+
+The ~NOT~ (~!~) and ~AND~ (~&~) predicates don't produce captures
+since they don't consume input.  When entering a ~NOT~ predicate, the
+VM sets a ~predicate~ flag that suppresses capture operations.
+
+*** Optional and ZeroOrMore
+
+The ~Optional~ (~?~) operator emits code wrapped with ~Choice~/~CapCommit~
+so that on success, captures are propagated.
+
+The ~ZeroOrMore~ (~*~) operator uses ~CapPartialCommit~ to accumulate
+captures across iterations without creating a new frame per iteration.
+
+#+begin_example
+  Matching "aaa" against: As <- 'a'*
+
+  1. CapBegin(As)            2. match 'a', CapTerm   3. CapPartialCommit
+     Choice(L1)                                      (collect to parent)
+     ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
+     │Backtrack     │        │Backtrack     │        │Backtrack     │
+     │start=0,end=0 │        │start=0,end=1 │        │start=1,end=1 │◀─reset
+     └──────────────┘        └──────────────┘        └──────────────┘
+     ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
+     │Cap(As)       │        │Cap(As)       │        │Cap(As)       │
+     │start=0,end=0 │        │start=0,end=0 │        │start=0,end=1 │◀─extended
+     └──────────────┘        └──────────────┘        └──────────────┘
+     nodeArena: []           nodeArena: [S0]         nodeArena: [S0]
+
+  4. repeat 2-3 twice        5. match 'a' FAIL       6. CapCommit, CapEnd
+                                (no more input)
+     ┌──────────────┐        ┌──────────────┐        Output:
+     │Backtrack     │        │(popped)      │        Node(As)
+     │start=3,end=3 │        └──────────────┘        └── Seq["a","a","a"]
+     └──────────────┘
+     ┌──────────────┐        ┌──────────────┐
+     │Cap(As)       │        │Cap(As)       │
+     │start=0,end=3 │        │start=0,end=3 │
+     └──────────────┘        └──────────────┘
+     nodeArena:[S0,S1,S2]    nodeArena:[S0,S1,S2]
+#+end_example
+
+*** Error Recovery
+
+Error recovery expressions (defined by error labels in the grammar)
+produce ~NodeType_Error~ nodes instead of regular nodes.  These
+contain an error label ID, message ID, and optionally a child node
+with the recovered content.
 
 Read along to see how one can also transform captured values after
 they match and before they're returned.
 
 ** Error Handling
 
+*** Farthest Failure Position (FFP)
+
 In the original definition of Parsing Expression Grammars,
-backtracking is used to reset the input cursor to where it was before
-trying a different parsing expression.  If there is no match, the
-backtracking fails and the cursor is left at the position it was at
-the beginning of the last *Ordered Choice*.
+backtracking resets the input cursor to where it was before trying a
+different parsing expression.  If there is no match, backtracking
+fails and the cursor is left at the position it was at the beginning
+of the last *Ordered Choice*.
 
-To improve error reporting, there's a heuristic called the *Farther
-Failure Position* that introduces a new register in the Virtual
-Machine to keep track of the cursor up to the last successful match
-that is immune to backtracking.  With that, a more accurate position
-is picked when reporting an error.
+To improve error reporting, a heuristic called the *Farthest Failure
+Position* introduces a new register to the Virtual Machine:
 
-Still in error reporting, the *Throw Operator* is also provided, so
-grammar authors can control how a matching error will be reported in
-certain places.  It comes with the burden of having to annotate the
-grammar, and to pay attention to the fact that overly annotating a
-grammar is to take less advantage of some PEG features provided by its
-unlimited look ahead.
+The ~ffp~ is the farthest cursor position reached before any failure
 
-The general place where a *Throw Operator* would be desired is the
-earlier position on an expression where it's known that a following
-match wouldn't move the cursor. e.g.:
+Every time the ~fail~ path is taken, if the current cursor exceeds
+~ffp~, both registers are updated.  This value is immune to
+backtracking and provides a more accurate error position.
 
-Consider the following piece of a grammar:
+For example, consider the following grammar:
+
+#+begin_src peg
+Pair <- 'a' 'b' 'c'
+#+end_src
+
+Let's match the input ~"ab"~ against it, we expect to observe the
+following steps:
+
+  1. match 'a' ok, cursor=1, ffp=-1
+  2. match 'b' ok, cursor=2, ffp=-1
+  3. match 'c' er, cursor=2, ffp=2  <- updated on failure
+
+When the VM returns an error, it uses ~ffp~ to report where parsing
+actually got stuck, rather than where backtracking left the cursor:
+
+#+begin_example
+  Input: "ab"
+          12  <---- ffp points to the last index, not at the start
+#+end_example
+
+*** Expected Values
+
+When ~showFails~ is enabled, the VM collects "expected" values at the
+FFP.  These are the characters or ranges that would have allowed
+parsing to continue:
+
+Let's consider the grammar
+
+#+begin_src peg
+Pair <- 'a' ('b' / 'c')
+#+end_src
+
+When matching ~"ax"~ against it, we expect the following steps to
+happen:
+
+ 1. match 'a' ok
+ 2. match 'b', fail (collect 'b')
+ 3. backtrack
+ 4. match 'c', fail (collect 'c')
+ 5. fail
+
+When parsing finally fails, it displays the characters it
+unsuccessfully attempted to match;
+
+#+begin_example
+Error: "Expected 'b', 'c' but got 'x'"
+#+end_example
+
+*** The Throw Operator
+
+The *Throw Operator* (~^~) allows grammar authors to signal that no
+more alternatives should be attempted and parsing should fail
+immediately.  This is useful when you know that after matching certain
+tokens, no other choice could possibly succeed.
+
+The ~opThrow~ instruction works as follows:
+
+#+begin_example
+  opThrow(labelID):
+    if predicate:
+      goto fail              ◀── within !/& predicates, just backtrack
+    if recovery[labelID] exists:
+      call recovery[labelID] ◀── try to recover and continue
+    else:
+      return error           ◀── stop parsing immediately
+#+end_example
+
+*** When to Use Throw
+
+The general place where a *Throw Operator* is useful is right after
+matching tokens that uniquely identify a construct.  Consider:
 
 #+begin_src peg
   IfStatement <- IF LEFTP Expression RIGHTP Body
   AllStatements <- IfStatement / ForStatement / WhileStatement ...
 #+end_src
 
-The following inputs are examples of inputs that would unnecessarily
-trigger the backtrack mechanism in the *Ordered Choice* of
+These inputs would unnecessarily trigger all alternatives in
 ~AllStatements~:
 
 #+begin_src text
   'if x', 'if (', 'if (x'
 #+end_src
 
-Even though there is no path to a successful match with the above
-inputs, and the *Ordered Choice* will still try all the alternatives.
-With the *Throw Operator*, one can signal that no more matches should
-be attempted and interrupt parsing right away if that one expression
-fails.  e.g.:
+With the *Throw Operator*, parsing stops early on failure:
 
 #+begin_src peg
   IfStatement <- IF LEFTP^ Expression^ RIGHTP^ Body
 #+end_src
 
-The *Throw Operator* can also take an optional parameter with a custom
-error message. e.g.:
+#+begin_example
+  Matching "if x" against: IfStatement
+
+  1. match 'if' ok          2. match '(' with ^
+     cursor=2                  cursor=3
+
+     Without ^:               With ^:
+     → backtrack              → throw error
+     → try ForStatement       → "Expected '(' at position 3"
+     → try WhileStatement
+     → ... (wasteful)
+#+end_example
+
+*** Custom Error Messages
+
+The *Throw Operator* accepts an optional custom message:
 
 #+begin_src peg
-  IfStatement <- IF LEFTP^ Expression^"Missing Expression" RIGHTP^ Body
+  IfStatement <- IF LEFTP^ Expression^"missing expression" RIGHTP^ Body
 #+end_src
 
-Note: the *Throw Operator* in the input language ~expr^l~ is syntax
-sugar for ~(expr / ⇑l)~.
+*** Compilation of Throw
+
+The syntax ~expr^label~ is compiled as ~(expr / ⇑label)~:
+
+#+begin_example
+      choice L1     <-- try expr first
+      <expr code>
+      commit L2     <-- expr succeeded, skip throw
+  L1: throw label   <-- expr failed, throw error
+  L2: ...
+#+end_example
+
+*** Error Recovery Expressions
+
+When a label has an associated *Recovery Expression*, the ~throw~
+instruction calls it instead of returning an error.  This enables
+incremental parsing where errors are captured as ~NodeType_Error~
+nodes in the output tree.
+
+Consider the following grammar:
+
+#+begin_src peg
+Expr        <- Term ('+' Term^MissingTerm)*
+Term        <- [0-9]+
+MissingTerm <- (!Term .)* Term?
+#+end_src
+
+Let's try to match the input ~"1++2+3"~ against it:
+
+  1. match '1' ok
+  2. match '+' ok
+  3. match ~Term~ FAIL: throw ~MissingTerm~
+  4. call ~MissingTerm~ recovery expr
+  5. skip past '+' Term (also captures ~Error~ node)
+  6. match '+' ok
+  7. match '3' ok
+
+And this is the expected output:
+
+#+begin_example
+Expr (1..7)
+└── Sequence<5> (1..7)
+    ├── Term (1..2)
+    │   └── "1" (1..2)
+    ├── "+" (2..3)
+    ├── Error<MissingTerm> (3..5)
+    │   └── Sequence<2> (3..5)
+    │       ├──  (3..4)
+    │       │   └── "+" (3..4)
+    │       └── Term (4..5)
+    │           └── "2" (4..5)
+    ├── "+" (5..6)
+    └── Term (6..7)
+        └── "3" (6..7)
+#+end_example
 
 * Rambling
 ** Incremental Parsing
@@ -192,9 +525,9 @@ sugar for ~(expr / ⇑l)~.
    *Throw Operator* is the following:
 
    #+begin_src peg
-   #+end_src   
+   #+end_src
 
-   Annotation costs come from the 
+   Annotation costs come from the
 
 ** Self Hosting
 
@@ -232,7 +565,7 @@ sugar for ~(expr / ⇑l)~.
    The initial format of the output stream can be text based, and the
    proof that it'd work is the ability to compile grammars into their
    correct text representation of the bytecode that the virtual
-   machine can interpret.  There's some 
+   machine can interpret.  There's some
 
 ** Tools
 *** Pretty Print / Minifier
@@ -462,7 +795,7 @@ sugar for ~(expr / ⇑l)~.
      #+begin_src text
       !(p / throw(label))
      #+end_src
-     
+
      when ~p~ succeeds:
          -> return label ~fail~
      when ~p~ fails:
@@ -500,4 +833,3 @@ sugar for ~(expr / ⇑l)~.
 
       The ~FOLLOW~ set of ~E~ in this case is ~x, y, z, k~, since any
       of these symbols could appear right after parsing ~E~.
-

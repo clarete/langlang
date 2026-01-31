@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/clarete/langlang/go/ascii"
 )
 
 type AsmFormatToken int
@@ -21,12 +23,12 @@ const (
 // printing the ASM grammar to an ASCII color.  These colors are
 // supposed to fair well on both dark and light terminal settings
 var asmPrinterTheme = map[AsmFormatToken]string{
-	AsmFormatToken_None:     "\033[0m",          // reset
-	AsmFormatToken_Comment:  "\033[1;38;5;245m", // gray
-	AsmFormatToken_Label:    "\033[1;31m",       // red
-	AsmFormatToken_Literal:  "\033[1;34m",       // blue
-	AsmFormatToken_Operator: "\033[1;38;5;99m",  // purple
-	AsmFormatToken_Operand:  "\033[1;38;5;127m", // pink
+	AsmFormatToken_None:     ascii.Reset,
+	AsmFormatToken_Comment:  ascii.DefaultTheme.Comment,
+	AsmFormatToken_Label:    ascii.DefaultTheme.Label,
+	AsmFormatToken_Literal:  ascii.DefaultTheme.Literal,
+	AsmFormatToken_Operator: ascii.DefaultTheme.Operator,
+	AsmFormatToken_Operand:  ascii.DefaultTheme.Operand,
 }
 
 type recoveryEntry struct {

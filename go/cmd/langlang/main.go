@@ -10,16 +10,10 @@ import (
 	"time"
 
 	"github.com/clarete/langlang/go"
+	"github.com/clarete/langlang/go/ascii"
 )
 
-// ANSI color codes for terminal output
-const (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[1;31m"
-	colorYellow = "\033[1;33m"
-	colorCyan   = "\033[1;36m"
-	colorGray   = "\033[0;37m"
-)
+var theme = ascii.DefaultTheme
 
 type args struct {
 	grammarPath *string
@@ -315,20 +309,20 @@ func printDiagnosticsAndCheckForErrors(diagnostics []langlang.Diagnostic, minLev
 		var severityColor string
 		switch d.Severity {
 		case langlang.DiagnosticError:
-			severityColor = colorRed
+			severityColor = theme.Error
 			hasErrors = true
 		case langlang.DiagnosticWarning:
-			severityColor = colorYellow
+			severityColor = theme.Warning
 		case langlang.DiagnosticInfo:
-			severityColor = colorCyan
+			severityColor = theme.Info
 		case langlang.DiagnosticHint:
-			severityColor = colorGray
+			severityColor = theme.Hint
 		}
 
 		fmt.Printf("%s%s:%d:%d:%s %s%s:%s %s %s[%s]%s\n",
-			colorGray, d.FilePath, loc.Line, loc.Column, colorReset,
-			severityColor, d.Severity, colorReset, d.Message,
-			colorGray, d.Code, colorReset)
+			theme.Muted, d.FilePath, loc.Line, loc.Column, ascii.Reset,
+			severityColor, d.Severity, ascii.Reset, d.Message,
+			theme.Muted, d.Code, ascii.Reset)
 	}
 
 	// Print summary if there are any diagnostics at or above the filter level
@@ -343,16 +337,16 @@ func printDiagnosticsAndCheckForErrors(diagnostics []langlang.Diagnostic, minLev
 		fmt.Printf("\n")
 		parts := []string{}
 		if errorCount > 0 && minLevel >= langlang.DiagnosticError {
-			parts = append(parts, fmt.Sprintf("%s%d error(s)%s", colorRed, errorCount, colorReset))
+			parts = append(parts, ascii.Color(theme.Error, "%d error(s)", errorCount))
 		}
 		if warningCount > 0 && minLevel >= langlang.DiagnosticWarning {
-			parts = append(parts, fmt.Sprintf("%s%d warning(s)%s", colorYellow, warningCount, colorReset))
+			parts = append(parts, ascii.Color(theme.Warning, "%d warning(s)", warningCount))
 		}
 		if infoCount > 0 && minLevel >= langlang.DiagnosticInfo {
-			parts = append(parts, fmt.Sprintf("%s%d info%s", colorCyan, infoCount, colorReset))
+			parts = append(parts, ascii.Color(theme.Info, "%d info(s)", infoCount))
 		}
 		if hintCount > 0 && minLevel >= langlang.DiagnosticHint {
-			parts = append(parts, fmt.Sprintf("%s%d hint(s)%s", colorGray, hintCount, colorReset))
+			parts = append(parts, ascii.Color(theme.Hint, "%d hint(s)", hintCount))
 		}
 		if len(parts) > 0 {
 			fmt.Printf("%s generated\n", strings.Join(parts, ", "))
@@ -366,30 +360,30 @@ func printDiagnosticsAndCheckForErrors(diagnostics []langlang.Diagnostic, minLev
 func printParsingError(err error, matcher langlang.Matcher) {
 	perr, ok := err.(langlang.ParsingError)
 	if !ok {
-		fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, err.Error())
+		fmt.Print(ascii.Color(theme.Error, "error: "))
+		fmt.Println(err.Error())
 		return
 	}
 
-	fmt.Printf("%sERROR:%s %s\n", colorRed, colorReset, perr.Message)
+	fmt.Print(ascii.Color(theme.Error, "ERROR: "))
+	fmt.Println(perr.Message)
 
 	// Show grammar location if source map is available
 	if srcm := matcher.SourceMap(); srcm != nil {
 		if loc, ok := srcm.LocationAt(perr.FFPPC); ok {
 			file := srcm.FileAt(loc.FileID)
-			fmt.Printf(" %s at %s:%d:%d%s\n",
-				colorGray,
+			fmt.Println(ascii.Color(theme.Muted, "  at %s:%d:%d",
 				file,
 				loc.Span.Start.Line,
 				loc.Span.Start.Column,
-				colorReset,
-			)
+			))
 		}
 	}
 }
 
 // fatal prints an error message and exits with code 1.
-func fatal(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "%serror:%s ", colorRed, colorReset)
+func fatal(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, ascii.Color(theme.Error, "error: "))
 	fmt.Fprintf(os.Stderr, format, args...)
 	fmt.Fprintf(os.Stderr, "\n")
 	os.Exit(1)

@@ -2,6 +2,8 @@ package langlang
 
 import (
 	"fmt"
+
+	"github.com/clarete/langlang/go/ascii"
 )
 
 type AstFormatToken int
@@ -18,11 +20,11 @@ const (
 // printing a grammar to an ASCII color.  These colors are supposed to
 // fair well on both dark and light terminal settings
 var astPrinterTheme = map[AstFormatToken]string{
-	AstFormatToken_None:     "\033[0m",          // reset
-	AstFormatToken_Span:     "\033[1;31;5;228m", // orange
-	AstFormatToken_Literal:  "\033[1;38;5;245m", // gray
-	AstFormatToken_Operator: "\033[1;38;5;99m",  // purple
-	AstFormatToken_Operand:  "\033[1;38;5;127m", // pink
+	AstFormatToken_None:     ascii.Reset,
+	AstFormatToken_Span:     ascii.DefaultTheme.Span,
+	AstFormatToken_Literal:  ascii.DefaultTheme.Literal,
+	AstFormatToken_Operator: ascii.DefaultTheme.Operator,
+	AstFormatToken_Operand:  ascii.DefaultTheme.Operand,
 }
 
 func formatNodeThemed(input string, token AstFormatToken) string {

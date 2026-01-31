@@ -193,6 +193,142 @@ func TestVM(t *testing.T) {
 			ExpectedAST: `G (1..2)
 └── "🧪" (1..2)`,
 		},
+		// Japanese Unicode tests
+		{
+			Name:           "Unicode Japanese Hiragana literal",
+			Grammar:        "G <- 'こんにちは'",
+			Input:          "こんにちは",
+			ExpectedCursor: 15, // 5 chars × 3 bytes each
+			ExpectedAST: `G (1..6)
+└── "こんにちは" (1..6)`,
+		},
+		{
+			Name:           "Unicode Hiragana range",
+			Grammar:        "G <- [ぁ-ん]+",
+			Input:          "あいうえお",
+			ExpectedCursor: 15, // 5 chars × 3 bytes each
+			ExpectedAST: `G (1..6)
+└── "あいうえお" (1..6)`,
+		},
+		{
+			Name:           "Unicode Katakana range",
+			Grammar:        "G <- [ァ-ン]+",
+			Input:          "アイウエオ",
+			ExpectedCursor: 15, // 5 chars × 3 bytes each
+			ExpectedAST: `G (1..6)
+└── "アイウエオ" (1..6)`,
+		},
+		{
+			Name:           "Unicode Kanji range",
+			Grammar:        "G <- [一-龯]+",
+			Input:          "日本語",
+			ExpectedCursor: 9, // 3 chars × 3 bytes each
+			ExpectedAST: `G (1..4)
+└── "日本語" (1..4)`,
+		},
+		// Korean Unicode tests
+		{
+			Name:           "Unicode Korean Hangul literal",
+			Grammar:        "G <- '안녕하세요'",
+			Input:          "안녕하세요",
+			ExpectedCursor: 15, // 5 chars × 3 bytes each
+			ExpectedAST: `G (1..6)
+└── "안녕하세요" (1..6)`,
+		},
+		{
+			Name:           "Unicode Hangul range",
+			Grammar:        "G <- [가-힣]+",
+			Input:          "한글",
+			ExpectedCursor: 6, // 2 chars × 3 bytes each
+			ExpectedAST: `G (1..3)
+└── "한글" (1..3)`,
+		},
+		// Arabic Unicode tests
+		{
+			Name:           "Unicode Arabic literal",
+			Grammar:        "G <- 'مرحبا'",
+			Input:          "مرحبا",
+			ExpectedCursor: 10, // 5 chars × 2 bytes each
+			ExpectedAST: `G (1..6)
+└── "مرحبا" (1..6)`,
+		},
+		{
+			Name:           "Unicode Arabic range",
+			Grammar:        "G <- [ء-ي]+",
+			Input:          "عربي",
+			ExpectedCursor: 8, // 4 chars × 2 bytes each
+			ExpectedAST: `G (1..5)
+└── "عربي" (1..5)`,
+		},
+		// Cyrillic/Russian Unicode tests
+		{
+			Name:           "Unicode Russian literal",
+			Grammar:        "G <- 'привет'",
+			Input:          "привет",
+			ExpectedCursor: 12, // 6 chars × 2 bytes each
+			ExpectedAST: `G (1..7)
+└── "привет" (1..7)`,
+		},
+		{
+			Name:           "Unicode Cyrillic range",
+			Grammar:        "G <- [а-я]+",
+			Input:          "мир",
+			ExpectedCursor: 6, // 3 chars × 2 bytes each
+			ExpectedAST: `G (1..4)
+└── "мир" (1..4)`,
+		},
+		// Greek Unicode tests
+		{
+			Name:           "Unicode Greek range",
+			Grammar:        "G <- [α-ω]+",
+			Input:          "αβγ",
+			ExpectedCursor: 6, // 3 chars × 2 bytes each
+			ExpectedAST: `G (1..4)
+└── "αβγ" (1..4)`,
+		},
+		// Mixed Unicode tests
+		{
+			Name:           "Unicode mixed ASCII and Japanese",
+			Grammar:        "G <- [a-zA-Zあ-ん]+",
+			Input:          "helloこんにちは",
+			ExpectedCursor: 20, // 5 ASCII + 5 Hiragana × 3 bytes
+			ExpectedAST: `G (1..11)
+└── "helloこんにちは" (1..11)`,
+		},
+		{
+			Name:           "Unicode multilingual identifier",
+			Grammar:        "G <- [a-zA-Z_α-ωа-я]+",
+			Input:          "hello_αβγмир",
+			ExpectedCursor: 18, // 6 ASCII + 3 Greek × 2 + 3 Cyrillic × 2
+			ExpectedAST: `G (1..13)
+└── "hello_αβγмир" (1..13)`,
+		},
+		// More emoji tests
+		{
+			Name:           "Unicode emoji sequence",
+			Grammar:        "G <- ('👍' / '👎' / '❤' / '😂')+",
+			Input:          "👍👎❤",
+			ExpectedCursor: 11, // 4 + 4 + 3 bytes
+			ExpectedAST: `G (1..4)
+└── "👍👎❤" (1..4)`,
+		},
+		{
+			Name:           "Unicode emoji with text",
+			Grammar:        "G <- 'I' ' ' '❤' ' ' 'Go'",
+			Input:          "I ❤ Go",
+			ExpectedCursor: 8, // 1 + 1 + 3 + 1 + 2 bytes
+			ExpectedAST: `G (1..7)
+└── "I ❤ Go" (1..7)`,
+		},
+		// Unicode escape sequence test
+		{
+			Name:           "Unicode escape sequence",
+			Grammar:        "G <- '\\u2661'", // ♡
+			Input:          "♡",
+			ExpectedCursor: 3,
+			ExpectedAST: `G (1..2)
+└── "♡" (1..2)`,
+		},
 		{
 			Name: "Var",
 			Grammar: `G <- D

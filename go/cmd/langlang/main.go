@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/clarete/langlang/go"
 )
@@ -47,6 +49,7 @@ type args struct {
 	goOptRemoveLib *bool
 
 	diagnosticLevel *string
+	showVersion     *bool
 }
 
 func readArgs() *args {
@@ -86,6 +89,7 @@ func readArgs() *args {
 		goOptRemoveLib: flag.Bool("go-remove-lib", false, "Include lib in the output parser"),
 
 		diagnosticLevel: flag.String("diagnostics", "error", "Minimum diagnostic level to display: error, warning, info, hint, or all"),
+		showVersion:     flag.Bool("version", false, "Print the version and exit"),
 	}
 
 	flag.Parse()
@@ -95,6 +99,11 @@ func readArgs() *args {
 
 func main() {
 	a := readArgs()
+
+	if *a.showVersion {
+		version()
+		os.Exit(0)
+	}
 
 	if *a.grammarPath == "" {
 		fatal("Grammar not informed")
@@ -235,6 +244,25 @@ func main() {
 
 	if err = os.WriteFile(*a.outputPath, []byte(outputData), 0644); err != nil {
 		fatal("Can't write output: %s", err.Error())
+	}
+}
+
+func version() {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				fmt.Printf("Commit Hash: %s\n", setting.Value)
+			case "vcs.time":
+				fmt.Printf("Build Time: %s\n", setting.Value)
+			case "vcs.modified":
+				fmt.Printf("Modified: %s\n", setting.Value)
+			}
+		}
+	} else {
+		fmt.Printf("No build info found. Build time: %s\n",
+			time.Now().Format(time.RFC3339),
+		)
 	}
 }
 

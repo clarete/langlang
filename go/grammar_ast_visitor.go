@@ -11,6 +11,7 @@ type AstNodeVisitor interface {
 	VisitOneOrMoreNode(*OneOrMoreNode) error
 	VisitZeroOrMoreNode(*ZeroOrMoreNode) error
 	VisitOptionalNode(*OptionalNode) error
+	VisitPrecedenceNode(*PrecedenceNode) error
 	VisitChoiceNode(*ChoiceNode) error
 	VisitAndNode(*AndNode) error
 	VisitNotNode(*NotNode) error
@@ -102,6 +103,9 @@ func inspect(node AstNode, f func(AstNode) bool, visited map[AstNode]bool) {
 		inspect(n.Expr, f, visited)
 
 	case *OneOrMoreNode:
+		inspect(n.Expr, f, visited)
+
+	case *PrecedenceNode:
 		inspect(n.Expr, f, visited)
 
 	case *AndNode:

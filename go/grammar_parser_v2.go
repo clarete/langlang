@@ -441,13 +441,18 @@ func (p *GrammarParserV2) parseSuffix(id NodeID) (AstNode, error) {
 			return nil, err
 		}
 
-		switch p.tree.Text(items[1]) {
+		suffix := p.tree.Text(items[1])
+		switch suffix {
 		case "?":
 			return NewOptionalNode(primary, p.sloc(childID)), nil
 		case "*":
 			return NewZeroOrMoreNode(primary, p.sloc(childID)), nil
 		case "+":
 			return NewOneOrMoreNode(primary, p.sloc(childID)), nil
+		default:
+			if level := superscriptToPrecedence[suffix]; level > 0 {
+				return NewPrecedenceNode(primary, level, p.sloc(childID)), nil
+			}
 		}
 	case NodeType_Node:
 		return p.parsePrimary(childID)
@@ -455,6 +460,18 @@ func (p *GrammarParserV2) parseSuffix(id NodeID) (AstNode, error) {
 		return nil, fmt.Errorf("unknown node type for parseSuffix: %v", childType)
 	}
 	panic("unreachable")
+}
+
+var superscriptToPrecedence = map[string]int{
+	"¹": 1,
+	"²": 2,
+	"³": 3,
+	"⁴": 4,
+	"⁵": 5,
+	"⁶": 6,
+	"⁷": 7,
+	"⁸": 8,
+	"⁹": 9,
 }
 
 func (p *GrammarParserV2) parsePrimary(id NodeID) (AstNode, error) {

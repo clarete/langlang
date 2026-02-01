@@ -59,6 +59,9 @@ func isSyntactic(expr AstNode, isCapture bool) bool {
 	case *NotNode:
 		return true
 
+	case *PrecedenceNode:
+		return isSyntactic(e.Expr, isCapture)
+
 	case *GrammarNode:
 		return false
 

@@ -134,6 +134,16 @@ func (gp *grammarPrinter) VisitOneOrMoreNode(n *OneOrMoreNode) error {
 	return nil
 }
 
+func (gp *grammarPrinter) VisitPrecedenceNode(n *PrecedenceNode) error {
+	gp.writeOperator(fmt.Sprintf("Precedence(%d)", n.Level))
+	gp.writeSpanl(n)
+	gp.pwrite("└── ")
+	gp.indent("    ")
+	n.Expr.Accept(gp)
+	gp.unindent()
+	return nil
+}
+
 func (gp *grammarPrinter) VisitZeroOrMoreNode(n *ZeroOrMoreNode) error {
 	gp.writeOperator("ZeroOrMore")
 	gp.writeSpanl(n)

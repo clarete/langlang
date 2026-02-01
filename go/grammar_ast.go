@@ -336,6 +336,37 @@ func (n OneOrMoreNode) Equal(o AstNode) bool {
 	}
 }
 
+// Node Type: Precedence
+
+type PrecedenceNode struct {
+	src   SourceLocation
+	Expr  AstNode
+	Level int
+}
+
+func NewPrecedenceNode(expr AstNode, level int, s SourceLocation) *PrecedenceNode {
+	n := &PrecedenceNode{Expr: expr, Level: level}
+	n.src = s
+	return n
+}
+
+var superscriptChars = []string{"¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"}
+
+func (n PrecedenceNode) SourceLocation() SourceLocation { return n.src }
+func (n PrecedenceNode) String() string                 { return n.Expr.String() + superscriptChars[n.Level-1] }
+func (n PrecedenceNode) PrettyString() string           { return ppAstNode(&n, formatNodePlain) }
+func (n PrecedenceNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
+func (n PrecedenceNode) Accept(v AstNodeVisitor) error  { return v.VisitPrecedenceNode(&n) }
+
+func (n PrecedenceNode) Equal(o AstNode) bool {
+	switch other := o.(type) {
+	case *PrecedenceNode:
+		return n.Level == other.Level && n.Expr.Equal(other.Expr)
+	default:
+		return false
+	}
+}
+
 // Node Type: And
 
 type AndNode struct {

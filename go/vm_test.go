@@ -505,6 +505,557 @@ Digit  <- [0-9]
         │       └── "c" (6..7)
         └── ")" (7..8)`,
 		},
+		// Left Recursion tests
+		{
+			Name:           "Left Recursion Basic",
+			Grammar:        "E <- E '+' 'n' / 'n'",
+			Input:          "n+n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Chain of 3",
+			Grammar:        "E <- E '+' 'n' / 'n'",
+			Input:          "n+n+n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..4)
+    │   └── Sequence<3> (1..4)
+    │       ├── E (1..2)
+    │       │   └── "n" (1..2)
+    │       ├── "+" (2..3)
+    │       └── "n" (3..4)
+    ├── "+" (4..5)
+    └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Single Element",
+			Grammar:        "E <- E '+' 'n' / 'n'",
+			Input:          "n",
+			ExpectedCursor: 1,
+			ExpectedAST: `E (1..2)
+└── "n" (1..2)`,
+		},
+		{
+			Name:           "Left Recursion Explicit Precedence",
+			Grammar:        "E <- E¹ '+' 'n' / 'n'",
+			Input:          "n+n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion - Two E Calls",
+			Grammar:        "E <- E '+' E / 'n'",
+			Input:          "n+n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── E (3..4)
+        └── "n" (3..4)`,
+		},
+		{
+			Name: "Left Recursion With Separate Digit Rule",
+			Grammar: `E <- E '+' D / D
+D <- '0' / '1' / '2'`,
+			Input:          "1+2",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── D (1..2)
+    │       └── "1" (1..2)
+    ├── "+" (2..3)
+    └── D (3..4)
+        └── "2" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion With Operator Precedence",
+			Grammar:        opPrecedenceGrammar,
+			Input:          "n+n*n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── E (3..6)
+        └── Sequence<3> (3..6)
+            ├── E (3..4)
+            │   └── "n" (3..4)
+            ├── "*" (4..5)
+            └── E (5..6)
+                └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Chain of 5",
+			Grammar:        "E <- E '+' 'n' / 'n'",
+			Input:          "n+n+n+n+n",
+			ExpectedCursor: 9,
+			ExpectedAST: `E (1..10)
+└── Sequence<3> (1..10)
+    ├── E (1..8)
+    │   └── Sequence<3> (1..8)
+    │       ├── E (1..6)
+    │       │   └── Sequence<3> (1..6)
+    │       │       ├── E (1..4)
+    │       │       │   └── Sequence<3> (1..4)
+    │       │       │       ├── E (1..2)
+    │       │       │       │   └── "n" (1..2)
+    │       │       │       ├── "+" (2..3)
+    │       │       │       └── "n" (3..4)
+    │       │       ├── "+" (4..5)
+    │       │       └── "n" (5..6)
+    │       ├── "+" (6..7)
+    │       └── "n" (7..8)
+    ├── "+" (8..9)
+    └── "n" (9..10)`,
+		},
+		{
+			Name:           "Left Recursion Error Non-matching",
+			Grammar:        "E <- E '+' 'n' / 'n'",
+			Input:          "xyz",
+			ExpectedCursor: 0,
+			ExpectedError:  "Unexpected 'x' @ 1",
+		},
+		{
+			Name:           "Left Recursion Partial Match",
+			Grammar:        "E <- E '+' 'n' / 'n'",
+			Input:          "n+n+x",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Two Ops Multiplication",
+			Grammar:        "E <- E '+' E / E '*' E / 'n'",
+			Input:          "n*n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "*" (2..3)
+    └── E (3..4)
+        └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Two Ops Mixed n+n*n",
+			Grammar:        "E <- E '+' E / E '*' E / 'n'",
+			Input:          "n+n*n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── E (3..6)
+        └── Sequence<3> (3..6)
+            ├── E (3..4)
+            │   └── "n" (3..4)
+            ├── "*" (4..5)
+            └── E (5..6)
+                └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Two Ops Mixed n*n+n",
+			Grammar:        "E <- E '+' E / E '*' E / 'n'",
+			Input:          "n*n+n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "*" (2..3)
+    └── E (3..6)
+        └── Sequence<3> (3..6)
+            ├── E (3..4)
+            │   └── "n" (3..4)
+            ├── "+" (4..5)
+            └── E (5..6)
+                └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Two Ops Longer Chain",
+			Grammar:        "E <- E '+' E / E '*' E / 'n'",
+			Input:          "n+n*n+n*n",
+			ExpectedCursor: 9,
+			ExpectedAST: `E (1..10)
+└── Sequence<3> (1..10)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── E (3..10)
+        └── Sequence<3> (3..10)
+            ├── E (3..4)
+            │   └── "n" (3..4)
+            ├── "*" (4..5)
+            └── E (5..10)
+                └── Sequence<3> (5..10)
+                    ├── E (5..6)
+                    │   └── "n" (5..6)
+                    ├── "+" (6..7)
+                    └── E (7..10)
+                        └── Sequence<3> (7..10)
+                            ├── E (7..8)
+                            │   └── "n" (7..8)
+                            ├── "*" (8..9)
+                            └── E (9..10)
+                                └── "n" (9..10)`,
+		},
+		{
+			Name:           "Left Recursion Explicit Prec n+n*n",
+			Grammar:        "E <- E¹ '+' E² / E² '*' E³ / 'n'",
+			Input:          "n+n*n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── E (3..6)
+        └── Sequence<3> (3..6)
+            ├── E (3..4)
+            │   └── "n" (3..4)
+            ├── "*" (4..5)
+            └── E (5..6)
+                └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Explicit Precedence n*n+n",
+			Grammar:        "E <- E¹ '+' E² / E² '*' E³ / 'n'",
+			Input:          "n*n+n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..4)
+    │   └── Sequence<3> (1..4)
+    │       ├── E (1..2)
+    │       │   └── "n" (1..2)
+    │       ├── "*" (2..3)
+    │       └── E (3..4)
+    │           └── "n" (3..4)
+    ├── "+" (4..5)
+    └── E (5..6)
+        └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Arith Single Digit",
+			Grammar:        arithmeticGrammar,
+			Input:          "5",
+			ExpectedCursor: 1,
+			ExpectedAST: `Expr (1..2)
+└── Term (1..2)
+    └── Factor (1..2)
+        └── "5" (1..2)`,
+		},
+		{
+			Name:           "Left Recursion Arith Addition",
+			Grammar:        arithmeticGrammar,
+			Input:          "1+2",
+			ExpectedCursor: 3,
+			ExpectedAST: `Expr (1..4)
+└── Sequence<3> (1..4)
+    ├── Expr (1..2)
+    │   └── Term (1..2)
+    │       └── Factor (1..2)
+    │           └── "1" (1..2)
+    ├── "+" (2..3)
+    └── Term (3..4)
+        └── Factor (3..4)
+            └── "2" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Arith Multiplication",
+			Grammar:        arithmeticGrammar,
+			Input:          "3*4",
+			ExpectedCursor: 3,
+			ExpectedAST: `Expr (1..4)
+└── Term (1..4)
+    └── Sequence<3> (1..4)
+        ├── Term (1..2)
+        │   └── Factor (1..2)
+        │       └── "3" (1..2)
+        ├── "*" (2..3)
+        └── Factor (3..4)
+            └── "4" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Arith Mixed Precedence",
+			Grammar:        arithmeticGrammar,
+			Input:          "1+2*3",
+			ExpectedCursor: 5,
+			ExpectedAST: `Expr (1..6)
+└── Sequence<3> (1..6)
+    ├── Expr (1..2)
+    │   └── Term (1..2)
+    │       └── Factor (1..2)
+    │           └── "1" (1..2)
+    ├── "+" (2..3)
+    └── Term (3..6)
+        └── Sequence<3> (3..6)
+            ├── Term (3..4)
+            │   └── Factor (3..4)
+            │       └── "2" (3..4)
+            ├── "*" (4..5)
+            └── Factor (5..6)
+                └── "3" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Arith Parentheses",
+			Grammar:        arithmeticGrammar,
+			Input:          "(1+2)*3",
+			ExpectedCursor: 7,
+			ExpectedAST: `Expr (1..8)
+└── Term (1..8)
+    └── Sequence<3> (1..8)
+        ├── Term (1..6)
+        │   └── Factor (1..6)
+        │       └── Sequence<3> (1..6)
+        │           ├── "(" (1..2)
+        │           ├── Expr (2..5)
+        │           │   └── Sequence<3> (2..5)
+        │           │       ├── Expr (2..3)
+        │           │       │   └── Term (2..3)
+        │           │       │       └── Factor (2..3)
+        │           │       │           └── "1" (2..3)
+        │           │       ├── "+" (3..4)
+        │           │       └── Term (4..5)
+        │           │           └── Factor (4..5)
+        │           │               └── "2" (4..5)
+        │           └── ")" (5..6)
+        ├── "*" (6..7)
+        └── Factor (7..8)
+            └── "3" (7..8)`,
+		},
+		{
+			Name:           "Left Recursion Arith Complex",
+			Grammar:        arithmeticGrammar,
+			Input:          "1+2*3+4",
+			ExpectedCursor: 7,
+			ExpectedAST: `Expr (1..8)
+└── Sequence<3> (1..8)
+    ├── Expr (1..6)
+    │   └── Sequence<3> (1..6)
+    │       ├── Expr (1..2)
+    │       │   └── Term (1..2)
+    │       │       └── Factor (1..2)
+    │       │           └── "1" (1..2)
+    │       ├── "+" (2..3)
+    │       └── Term (3..6)
+    │           └── Sequence<3> (3..6)
+    │               ├── Term (3..4)
+    │               │   └── Factor (3..4)
+    │               │       └── "2" (3..4)
+    │               ├── "*" (4..5)
+    │               └── Factor (5..6)
+    │                   └── "3" (5..6)
+    ├── "+" (6..7)
+    └── Term (7..8)
+        └── Factor (7..8)
+            └── "4" (7..8)`,
+		},
+		// Edge cases from arxiv 1207.0443
+		{
+			Name:           "Left Recursion Multiple Base Cases",
+			Grammar:        "E <- E '+' E / '(' E ')' / 'n' / 'm'",
+			Input:          "n+m",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── E (3..4)
+        └── "m" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Parenthesized Base",
+			Grammar:        "E <- E '+' E / '(' E ')' / 'n'",
+			Input:          "(n)+n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..4)
+    │   └── Sequence<3> (1..4)
+    │       ├── "(" (1..2)
+    │       ├── E (2..3)
+    │       │   └── "n" (2..3)
+    │       └── ")" (3..4)
+    ├── "+" (4..5)
+    └── E (5..6)
+        └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion With And Predicate",
+			Grammar:        "E <- E '+' &'n' 'n' / 'n'",
+			Input:          "n+n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion With Not Predicate",
+			Grammar:        "E <- E '+' !'*' 'n' / 'n'",
+			Input:          "n+n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Not Predicate Blocks",
+			Grammar:        "E <- E '+' !'n' 'n' / 'n'",
+			Input:          "n+n",
+			ExpectedCursor: 1,
+			ExpectedAST: `E (1..2)
+└── "n" (1..2)`,
+		},
+		{
+			Name:           "Left Recursion With Lexification",
+			Grammar:        "E <- E #('+' 'n') / 'n'",
+			Input:          "n+n+n",
+			ExpectedCursor: 5,
+			ExpectedAST: `E (1..6)
+└── Sequence<3> (1..6)
+    ├── E (1..4)
+    │   └── Sequence<3> (1..4)
+    │       ├── E (1..2)
+    │       │   └── "n" (1..2)
+    │       ├── "+" (2..3)
+    │       └── "n" (3..4)
+    ├── "+" (4..5)
+    └── "n" (5..6)`,
+		},
+		{
+			Name:           "Left Recursion Base Only Matches",
+			Grammar:        "E <- E '+' 'n' / 'n'",
+			Input:          "n",
+			ExpectedCursor: 1,
+			ExpectedAST: `E (1..2)
+└── "n" (1..2)`,
+		},
+		{
+			Name: "Left Recursion Unary Prefix With Binary",
+			Grammar: `E <- E¹ '+' E²
+   / E¹ '-' E²
+   / '-' E³
+   / 'n'`,
+			Input:          "-n+n",
+			ExpectedCursor: 4,
+			ExpectedAST: `E (1..5)
+└── Sequence<3> (1..5)
+    ├── E (1..3)
+    │   └── Sequence<2> (1..3)
+    │       ├── "-" (1..2)
+    │       └── E (2..3)
+    │           └── "n" (2..3)
+    ├── "+" (3..4)
+    └── E (4..5)
+        └── "n" (4..5)`,
+		},
+		{
+			Name: "Left Recursion Double Unary Prefix",
+			Grammar: `E <- E '+' E
+   / '-' E
+   / 'n'`,
+			Input:          "--n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<2> (1..4)
+    ├── "-" (1..2)
+    └── E (2..4)
+        └── Sequence<2> (2..4)
+            ├── "-" (2..3)
+            └── E (3..4)
+                └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Longest Match",
+			Grammar:        "E <- E '+' 'n' / E '+' / 'n'",
+			Input:          "n+n",
+			ExpectedCursor: 3,
+			ExpectedAST: `E (1..4)
+└── Sequence<3> (1..4)
+    ├── E (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── "n" (3..4)`,
+		},
+		{
+			Name:           "Left Recursion Repetition After LR",
+			Grammar:        "E <- E '+' 'n'+ / 'n'+",
+			Input:          "nn+nnn",
+			ExpectedCursor: 6,
+			ExpectedAST: `E (1..7)
+└── Sequence<5> (1..7)
+    ├── E (1..3)
+    │   └── Sequence<2> (1..3)
+    │       ├── "n" (1..2)
+    │       └── "n" (2..3)
+    ├── "+" (3..4)
+    ├── "n" (4..5)
+    ├── "n" (5..6)
+    └── "n" (6..7)`,
+		},
+		{
+			Name: "Indirect Left Recursion",
+			Grammar: `A <- B
+B <- A '+' 'n' / 'n'`,
+			Input:          "n+n+n",
+			ExpectedCursor: 5,
+			ExpectedAST: `A (1..6)
+└── B (1..6)
+    └── Sequence<3> (1..6)
+        ├── A (1..4)
+        │   └── B (1..4)
+        │       └── Sequence<3> (1..4)
+        │           ├── A (1..2)
+        │           │   └── B (1..2)
+        │           │       └── "n" (1..2)
+        │           ├── "+" (2..3)
+        │           └── "n" (3..4)
+        ├── "+" (4..5)
+        └── "n" (5..6)`,
+		},
+		// B? is nullable, so A effectively starts with itself when B fails to match
+		{
+			Name: "Hidden Left Recursion via Optional",
+			Grammar: `A <- B? A '+' 'n' / 'n'
+B <- 'x'`,
+			Input:          "n+n",
+			ExpectedCursor: 3,
+			ExpectedAST: `A (1..4)
+└── Sequence<3> (1..4)
+    ├── A (1..2)
+    │   └── "n" (1..2)
+    ├── "+" (2..3)
+    └── "n" (3..4)`,
+		},
 	}
 
 	for _, test := range vmTests {
@@ -573,3 +1124,19 @@ func mkVmTestFn(test vmTest, optimize int, enableCharsets bool) func(t *testing.
 		}
 	}
 }
+
+var arithmeticGrammar = `
+Expr   <- Expr '+' Term / Term
+Term   <- Term '*' Factor / Factor
+Factor <- '(' Expr ')' / [0-9]
+`
+
+var opPrecedenceGrammar = `
+E <- E¹ '+' E²
+   / E¹ '-' E²
+   / E² '*' E³
+   / E² '/' E³
+   / '-' E⁴
+   / '(' E¹ ')'
+   / 'n'
+`

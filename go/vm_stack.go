@@ -6,14 +6,17 @@ const (
 	frameType_Backtracking frameType = iota
 	frameType_Call
 	frameType_Capture
+	frameType_LRCall
 )
 
+const lrResultLeftRec = -1 // Initial state - left recursive call in progress
+
 type frame struct {
-	// cursor is used in `frameType_{Backtracking,Capture}` and
+	// cursor is used in `frameType_{Backtracking,Capture,LRCall}` and
 	// stores the position of the parser cursor
 	cursor int // 8 bytes, offset 0-7
 
-	// pc is used in both `frameType_{Backtracking,Call}` and
+	// pc is used in both `frameType_{Backtracking,Call,LRCall}` and
 	// stores the program counter index
 	pc uint32 // 4 bytes, offset 8-11
 
@@ -33,7 +36,19 @@ type frame struct {
 	// frame created within the predicate Not.
 	predicate bool // 1 byte, offset 25
 
-	// implicitly padding: 6 bytes, offset 26-32
+	// lrAddress is the bytecode address of the left-recursive production
+	lrAddress int
+
+	// lrPrecedence is the precedence level of this LR call
+	lrPrecedence int
+
+	// lrResult is the cursor position from the previous successful
+	// iteration, or lrResultLeftRec if in initial state
+	lrResult int
+
+	// lrCommittedEnd marks the end of committed captures in nodeArena
+	// (captures from successful iterations that survive backtracking)
+	lrCommittedEnd uint32
 }
 
 type stack struct {

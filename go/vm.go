@@ -16,6 +16,27 @@ type Bytecode struct {
 	srcm *SourceMap
 }
 
+// lrMemoKey is the key for the left recursion memoization table.
+// It uniquely identifies a left-recursive call by production address
+// and input position.
+type lrMemoKey struct {
+	address int
+	cursor  int
+}
+
+// lrMemoEntry stores the memoized result of a left-recursive call.
+type lrMemoEntry struct {
+	// cursor is the result cursor position after matching,
+	// or lrResultLeftRec if in initial left-recursive state
+	cursor int
+	// bound counts how many times we've grown the left-recursive match
+	bound int
+	// precedence is the precedence level of the successful match
+	precedence int
+	// captures holds the NodeIDs captured during the last successful iteration
+	captures []NodeID
+}
+
 func (b *Bytecode) CompileErrorLabels(labels map[string]string) map[int]int {
 	if len(labels) == 0 {
 		return nil
@@ -90,6 +111,8 @@ type virtualMachine struct {
 	errLabels      map[int]int
 	capOffsetId    int
 	capOffsetStart int
+	// lrmemo is the memoization table for left-recursive calls
+	lrmemo map[lrMemoKey]*lrMemoEntry
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -214,7 +237,12 @@ func NewVirtualMachine(bytecode *Bytecode) *virtualMachine {
 		tree:      tr,
 	}
 	stk.tree.bindStrings(bytecode.strs)
-	vm := &virtualMachine{stack: stk, bytecode: bytecode, ffp: -1}
+	vm := &virtualMachine{
+		stack:    stk,
+		bytecode: bytecode,
+		ffp:      -1,
+		lrmemo:   make(map[lrMemoKey]*lrMemoEntry),
+	}
 	return vm
 }
 
@@ -406,12 +434,88 @@ code:
 			stack.top().cursor = cursor
 
 		case opCall:
-			stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
-			pc = int(decodeU16(code, pc+1))
+			addr := int(decodeU16(code, pc+1))
+			prec := int(code[pc+3])
+
+			if prec == 0 {
+				// Regular non-left-recursive call
+				stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
+				pc = addr
+				continue
+			}
+
+			// Left-recursive call handling
+			key := lrMemoKey{address: addr, cursor: cursor}
+			entry := vm.lrmemo[key]
+
+			if entry == nil {
+				// (lvar.1, lvar.2) First LR call at this position
+				vm.lrmemo[key] = &lrMemoEntry{
+					cursor:     lrResultLeftRec,
+					bound:      0,
+					precedence: prec,
+					captures:   nil,
+				}
+				captureStart := uint32(len(stack.nodeArena))
+				stack.push(frame{
+					t:              frameType_LRCall,
+					pc:             uint32(pc + opCallSizeInBytes),
+					cursor:         cursor, // Starting cursor for this LR call
+					lrAddress:      addr,
+					lrPrecedence:   prec,
+					lrResult:       lrResultLeftRec,
+					lrCommittedEnd: captureStart,
+					nodesStart:     captureStart,
+					nodesEnd:       captureStart,
+				})
+				pc = addr
+				continue
+			}
+
+			if entry.cursor == lrResultLeftRec || prec < entry.precedence {
+				// (lvar.3, lvar.5) In LR loop or precedence too low - fail
+				goto fail
+			}
+
+			// (lvar.4) Use memoized result - inject captures
+			for _, nodeID := range entry.captures {
+				stack.capture(nodeID)
+			}
+			cursor = entry.cursor
+			pc += opCallSizeInBytes
 
 		case opReturn:
-			f := stack.pop()
+			f := stack.top()
+
+			if f.t != frameType_LRCall {
+				stack.pop()
+				pc = int(f.pc)
+				continue
+			}
+
+			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
+			entry := vm.lrmemo[key]
+
+			if f.lrResult == lrResultLeftRec || cursor > f.lrResult {
+				// (inc.1) We grew the match, try again
+				entry.cursor = cursor
+				entry.bound++
+				entry.precedence = f.lrPrecedence
+
+				// Update frame state for next iteration
+				f.lrResult = cursor
+
+				// Reset cursor and retry
+				cursor = f.cursor
+				pc = f.lrAddress
+				continue
+			}
+
+			// (inc.3) No more progress - finalize
+			stack.pop()
+			cursor = f.lrResult
 			pc = int(f.pc)
+			delete(vm.lrmemo, key)
 
 		case opJump:
 			pc = int(decodeU16(code, pc+1))
@@ -490,8 +594,62 @@ code:
 			top.nodesEnd = top.nodesStart
 
 		case opCapReturn:
-			f := stack.popAndCapture()
+			f := stack.top()
+
+			if f.t != frameType_LRCall {
+				stack.popAndCapture()
+				pc = int(f.pc)
+				continue
+			}
+
+			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
+			entry := vm.lrmemo[key]
+
+			if f.lrResult == lrResultLeftRec || cursor > f.lrResult {
+				// (inc.1) We grew the match - try again
+				// Collect only the nodes captured TO this LR frame
+				currentCaptures := make([]NodeID, f.nodesEnd-f.nodesStart)
+				copy(currentCaptures, stack.nodeArena[f.nodesStart:f.nodesEnd])
+
+				// Store in memo for next lvar.4 to use
+				entry.captures = currentCaptures
+				entry.cursor = cursor
+				entry.bound++
+				entry.precedence = f.lrPrecedence
+
+				// Truncate arena to remove committed captures (they're saved in memo)
+				// This prevents duplicates when inc.3 injects them
+				stack.truncateArena(f.nodesStart)
+
+				// Update frame state for next iteration
+				f.lrResult = cursor
+				f.lrCommittedEnd = f.nodesStart // Arena position after truncation
+
+				// Reset frame's capture range for next iteration
+				// (stays at same position since we truncated)
+				f.nodesEnd = f.nodesStart
+
+				// Reset cursor and retry
+				cursor = f.cursor
+				pc = f.lrAddress
+				continue
+			}
+
+			// (inc.3) No more progress - finalize
+			// Pop the LR frame
+			stack.pop()
+
+			// Truncate arena to discard captures from the failed iteration
+			stack.truncateArena(f.nodesStart)
+
+			// Inject the final captures from the last successful iteration (stored in memo)
+			for _, nodeID := range entry.captures {
+				stack.capture(nodeID)
+			}
+
+			cursor = f.lrResult
 			pc = int(f.pc)
+			delete(vm.lrmemo, key)
 
 		default:
 			panic("NO ENTIENDO SENOR")
@@ -509,14 +667,49 @@ fail:
 	for stack.len() > 0 {
 		f := stack.pop()
 
-		stack.truncateArena(f.nodesStart)
-
-		if f.t == frameType_Backtracking {
+		switch f.t {
+		case frameType_Backtracking:
+			stack.truncateArena(f.nodesStart)
 			pc = int(f.pc)
 			vm.predicate = f.predicate
 			cursor = f.cursor
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", cursor, pc))
 			goto code
+
+		case frameType_LRCall:
+			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
+			entry := vm.lrmemo[key]
+
+			if f.lrResult == lrResultLeftRec {
+				// (lvar.2) First iteration failed, clean up memo
+				delete(vm.lrmemo, key)
+				stack.truncateArena(f.nodesStart)
+				continue
+			}
+
+			if f.lrResult > 0 && entry != nil {
+				// (inc.2) Backtrack to previous successful iteration
+				// Truncate to start of this LR frame's captures
+				stack.truncateArena(f.nodesStart)
+
+				// Readd the captures from the last successful iteration
+				for _, nodeID := range entry.captures {
+					stack.capture(nodeID)
+				}
+
+				cursor = f.lrResult
+				pc = int(f.pc)
+				delete(vm.lrmemo, key)
+				goto code
+			}
+
+			// Clean up and continue popping
+			delete(vm.lrmemo, key)
+			stack.truncateArena(f.nodesStart)
+
+		default:
+			// frameType_Call, frameType_Capture
+			stack.truncateArena(f.nodesStart)
 		}
 	}
 
@@ -540,6 +733,11 @@ func (vm *virtualMachine) reset() {
 
 	if vm.showFails {
 		vm.expected.clear()
+	}
+
+	// Clear the left recursion memo table
+	for k := range vm.lrmemo {
+		delete(vm.lrmemo, k)
 	}
 }
 

@@ -193,7 +193,169 @@ func computeIsRecursive(db *Database, key DefKey) (bool, error) {
 	return isRecursive, nil
 }
 
-// Left Recursion Analysis Query
+// Left Recursion Analysis Queries
+
+// LeftRecursiveSetQuery computes the set of all left-recursive
+// definitions in a grammar file, including indirect left recursion.
+// A rule is left-recursive if it (directly or through other rules)
+// can call itself as the first element of some alternative.
+var LeftRecursiveSetQuery = &Query[FilePath, map[string]struct{}]{
+	Name:    "LeftRecursiveSet",
+	Compute: computeLeftRecursiveSet,
+}
+
+func computeLeftRecursiveSet(db *Database, key FilePath) (map[string]struct{}, error) {
+	grammar, err := Get(db, ResolvedImportsQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	return getLeftRecursiveFromGrammar(grammar), nil
+}
+
+// getLeftRecursiveFromGrammar builds a "left-call graph" where an
+// edge from A to B means A can start with a call to B in at least one
+// alternative (considering nullable prefixes). Then finds all cycles
+// in this graph - any rule in a cycle is left-recursive.
+func getLeftRecursiveFromGrammar(g *GrammarNode) map[string]struct{} {
+	lcg := make(callGraph, len(g.Definitions))
+	for _, d := range g.Definitions {
+		if _, ok := lcg[d.Name]; !ok {
+			lcg[d.Name] = make(map[string]struct{})
+		}
+		// For each alternative, find ALL potential left-calls
+		// (including those after nullable prefixes)
+		for _, alt := range flattenChoices(d.Expr) {
+			for _, call := range getLeftCalls(alt, g) {
+				lcg[d.Name][call] = struct{}{}
+			}
+		}
+	}
+	// Reuse the same cycle detection algorithm used for RecursiveSetQuery
+	return lcg.getIsRecursive()
+}
+
+// getLeftCalls returns all rule names that could be "first" in an
+// expression, considering nullable prefixes. For example, in "B? A",
+// both B and A are potential left-calls because B? can match empty.
+func getLeftCalls(node AstNode, g *GrammarNode) []string {
+	var calls []string
+	collectLeftCalls(node, g, &calls)
+	return calls
+}
+
+// collectLeftCalls recursively collects all potential left-calls.
+func collectLeftCalls(node AstNode, g *GrammarNode, calls *[]string) {
+	switch n := node.(type) {
+	case *SequenceNode:
+		// For sequences, collect calls from each item until we hit
+		// a non-nullable item
+		for _, item := range n.Items {
+			collectLeftCalls(item, g, calls)
+			if !isNullable(item, g) {
+				break
+			}
+		}
+	case *IdentifierNode:
+		*calls = append(*calls, n.Value)
+	case *PrecedenceNode:
+		if id, ok := n.Expr.(*IdentifierNode); ok {
+			*calls = append(*calls, id.Value)
+		}
+	case *LexNode:
+		collectLeftCalls(n.Expr, g, calls)
+	case *CaptureNode:
+		collectLeftCalls(n.Expr, g, calls)
+	case *LabeledNode:
+		collectLeftCalls(n.Expr, g, calls)
+	case *ZeroOrMoreNode:
+		collectLeftCalls(n.Expr, g, calls)
+	case *OneOrMoreNode:
+		collectLeftCalls(n.Expr, g, calls)
+	case *OptionalNode:
+		collectLeftCalls(n.Expr, g, calls)
+	case *AndNode:
+		// Lookahead doesn't consume input but we should still
+		// check what's after it
+	case *NotNode:
+		// Not doesn't consume input either
+	}
+}
+
+// isNullable returns true if the expression can match the empty string.
+func isNullable(node AstNode, g *GrammarNode) bool {
+	switch n := node.(type) {
+	case *ZeroOrMoreNode:
+		return true // * always nullable
+	case *OptionalNode:
+		return true // ? always nullable
+	case *AndNode:
+		return true // & doesn't consume input
+	case *NotNode:
+		return true // ! doesn't consume input
+	case *SequenceNode:
+		// Sequence is nullable if ALL items are nullable
+		for _, item := range n.Items {
+			if !isNullable(item, g) {
+				return false
+			}
+		}
+		return true
+	case *ChoiceNode:
+		// Choice is nullable if ANY alternative is nullable
+		return isNullable(n.Left, g) || isNullable(n.Right, g)
+	case *LexNode:
+		return isNullable(n.Expr, g)
+	case *CaptureNode:
+		return isNullable(n.Expr, g)
+	case *LabeledNode:
+		return isNullable(n.Expr, g)
+	case *IdentifierNode:
+		// Rule reference - check if the referenced rule is nullable
+		// To avoid infinite recursion, we use a simple heuristic:
+		// assume rules are NOT nullable unless trivially so
+		if def, ok := g.DefsByName[n.Value]; ok {
+			return isNullableSimple(def.Expr)
+		}
+		return false
+	case *OneOrMoreNode:
+		return false // + requires at least one match
+	default:
+		// Terminals (Literal, Char, Range, Any, etc.) are not nullable
+		return false
+	}
+}
+
+// isNullableSimple checks nullability without following rule references
+// to avoid infinite recursion. Used as a simple heuristic.
+func isNullableSimple(node AstNode) bool {
+	switch n := node.(type) {
+	case *ZeroOrMoreNode:
+		return true
+	case *OptionalNode:
+		return true
+	case *AndNode:
+		return true
+	case *NotNode:
+		return true
+	case *SequenceNode:
+		for _, item := range n.Items {
+			if !isNullableSimple(item) {
+				return false
+			}
+		}
+		return true
+	case *ChoiceNode:
+		return isNullableSimple(n.Left) || isNullableSimple(n.Right)
+	case *LexNode:
+		return isNullableSimple(n.Expr)
+	case *CaptureNode:
+		return isNullableSimple(n.Expr)
+	case *LabeledNode:
+		return isNullableSimple(n.Expr)
+	default:
+		return false
+	}
+}
 
 var IsLeftRecursiveQuery = &Query[DefKey, bool]{
 	Name:    "IsLeftRecursive",
@@ -201,20 +363,12 @@ var IsLeftRecursiveQuery = &Query[DefKey, bool]{
 }
 
 func computeIsLeftRecursive(db *Database, key DefKey) (bool, error) {
-	grammar, err := Get(db, ResolvedImportsQuery, FilePath(key.File))
+	leftRecursiveSet, err := Get(db, LeftRecursiveSetQuery, FilePath(key.File))
 	if err != nil {
 		return false, err
 	}
-	def, ok := grammar.DefsByName[key.Name]
-	if !ok {
-		return false, nil
-	}
-	for _, alt := range flattenChoices(def.Expr) {
-		if isLeftRecursiveAlternative(alt, key.Name) {
-			return true, nil
-		}
-	}
-	return false, nil
+	_, isLeftRecursive := leftRecursiveSet[key.Name]
+	return isLeftRecursive, nil
 }
 
 func flattenChoices(node AstNode) []AstNode {
@@ -237,21 +391,6 @@ func flattenChoices(node AstNode) []AstNode {
 	}
 	flatten(node)
 	return alternatives
-}
-
-// isLeftRecursiveAlternative checks if an alternative starts with a
-// call to the given rule name (direct left recursion).
-func isLeftRecursiveAlternative(alt AstNode, ruleName string) bool {
-	first := getFirstExpr(alt)
-	if id, ok := first.(*IdentifierNode); ok {
-		return id.Value == ruleName
-	}
-	if prec, ok := first.(*PrecedenceNode); ok {
-		if id, ok := prec.Expr.(*IdentifierNode); ok {
-			return id.Value == ruleName
-		}
-	}
-	return false
 }
 
 // getFirstExpr returns the first "terminal" or identifier in an

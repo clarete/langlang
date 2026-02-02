@@ -7,9 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// =============================================================================
 // Core Pipeline Tests
-// =============================================================================
 
 func TestQueryBasicPipeline(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -127,9 +125,7 @@ func TestQueryResolver(t *testing.T) {
 	})
 }
 
-// =============================================================================
 // Caching and Invalidation Tests
-// =============================================================================
 
 func TestQueryCaching(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -248,9 +244,7 @@ func TestCascadingInvalidation(t *testing.T) {
 	assert.Less(t, stats2.CachedCount, stats1.CachedCount)
 }
 
-// =============================================================================
 // Builtins Tests
-// =============================================================================
 
 func TestWithBuiltinsQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -341,9 +335,7 @@ Spacing <- [ \t]*
 		"User-defined Spacing should have same FileID as user grammar")
 }
 
-// =============================================================================
 // Transformation Tests
-// =============================================================================
 
 func TestWithCharsetsQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -414,39 +406,50 @@ func TestWithCapturesQuery(t *testing.T) {
 	assert.True(t, isCapture, "Expected CaptureNode wrapper")
 }
 
-// =============================================================================
 // Recursion Detection Tests
-// =============================================================================
 
-func TestQueryRecursiveDetection(t *testing.T) {
-	loader := NewInMemoryImportLoader()
-	loader.Add("test.peg", []byte(`
-A <- B "a"
-B <- A "b" / "c"
-C <- "d"
-`))
-
-	cfg := NewConfig()
-	db := NewDatabase(cfg, loader)
-
-	// A and B are mutually recursive
-	isRecursiveA, err := Get(db, IsRecursiveQuery, DefKey{File: "test.peg", Name: "A"})
-	require.NoError(t, err)
-	assert.True(t, isRecursiveA)
-
-	isRecursiveB, err := Get(db, IsRecursiveQuery, DefKey{File: "test.peg", Name: "B"})
-	require.NoError(t, err)
-	assert.True(t, isRecursiveB)
-
-	// C is not recursive
-	isRecursiveC, err := Get(db, IsRecursiveQuery, DefKey{File: "test.peg", Name: "C"})
-	require.NoError(t, err)
-	assert.False(t, isRecursiveC)
+func TestIsRecursiveQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		grammar  string
+		expected map[string]bool
+	}{
+		{"direct recursion",
+			`E <- E '+' 'n' / 'n'`,
+			map[string]bool{"E": true}},
+		{"right recursion",
+			`E <- 'n' '+' E / 'n'`,
+			map[string]bool{"E": true}},
+		{"no recursion",
+			`D <- '0' / '1'`,
+			map[string]bool{"D": false}},
+		{"mutual recursion",
+			`A <- B 'a'
+			 B <- A 'b' / 'c'
+			 C <- 'd'`,
+			map[string]bool{"A": true, "B": true, "C": false}},
+		{"mixed direct and non-recursive",
+			`E <- E '+' E / D
+			 D <- '0' / '1'`,
+			map[string]bool{"E": true, "D": false}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := NewInMemoryImportLoader()
+			loader.Add("test.peg", []byte(tt.grammar))
+			cfg := NewConfig()
+			cfg.SetBool("grammar.add_builtins", false)
+			db := NewDatabase(cfg, loader)
+			for name, expected := range tt.expected {
+				isRecursive, err := Get(db, IsRecursiveQuery, DefKey{File: "test.peg", Name: name})
+				require.NoError(t, err)
+				assert.Equal(t, expected, isRecursive, "definition %s", name)
+			}
+		})
+	}
 }
 
-// =============================================================================
 // Analysis Query Tests
-// =============================================================================
 
 func TestErrorLabelsQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
@@ -632,4 +635,56 @@ B <- "b"
 
 	// First string should be empty sentinel
 	assert.Equal(t, "", st.Strings[0])
+}
+
+func TestIsLeftRecursiveQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		grammar  string
+		expected map[string]bool
+	}{
+		{"simple left recursion",
+			`E <- E '+' 'n' / 'n'`,
+			map[string]bool{"E": true}},
+		{"non left recursive",
+			`D <- '0' / '1'`,
+			map[string]bool{"D": false}},
+		{"multiple lr alternatives",
+			`E <- E '+' E / E '*' E / 'n'`,
+			map[string]bool{"E": true}},
+		{"lr with non lr dep e",
+			`E <- E '+' E / D
+    			 D <- '0' / '1'`,
+			map[string]bool{"E": true, "D": false}},
+		{"lr with non lr dep d",
+			`E <- E '+' E / D
+			 D <- '0' / '1'`,
+			map[string]bool{"E": true, "D": false}},
+		{"right recursive not lr",
+			`E <- 'n' '+' E / 'n'`,
+			map[string]bool{"E": false}},
+		{"indirect left recursion",
+			`A <- B 'x'
+			 B <- A 'y' / 'z'`,
+			map[string]bool{"A": true, "B": true}},
+		{"indirect left recursion chain",
+			`A <- B 'x'
+			 B <- C 'y'
+			 C <- A 'z' / 'w'`,
+			map[string]bool{"A": true, "B": true, "C": true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := NewInMemoryImportLoader()
+			loader.Add("test.peg", []byte(tt.grammar))
+			cfg := NewConfig()
+			cfg.SetBool("grammar.add_builtins", false)
+			db := NewDatabase(cfg, loader)
+			for name, expected := range tt.expected {
+				isLR, err := Get(db, IsLeftRecursiveQuery, DefKey{File: "test.peg", Name: name})
+				require.NoError(t, err)
+				assert.Equal(t, expected, isLR)
+			}
+		})
+	}
 }

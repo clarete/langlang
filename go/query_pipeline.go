@@ -1,5 +1,7 @@
 package langlang
 
+import "sort"
+
 // TransformedGrammarQuery applies all grammar transformations
 // (builtins, charsets, whitespace, captures) to a resolved grammar.
 //
@@ -94,6 +96,87 @@ func computeRecursiveSet(db *Database, key FilePath) (map[string]struct{}, error
 	return getIsRecursiveFromGrammar(grammar), nil
 }
 
+type callGraph map[string]map[string]struct{}
+
+func getIsRecursiveFromGrammar(g *GrammarNode) map[string]struct{} {
+	cg := make(callGraph, len(g.Definitions))
+	for _, d := range g.Definitions {
+		if _, ok := cg[d.Name]; !ok {
+			cg[d.Name] = make(map[string]struct{})
+		}
+		for _, id := range findIdentifiers(d.Expr) {
+			cg[d.Name][id] = struct{}{}
+		}
+	}
+	return cg.getIsRecursive()
+}
+
+func findIdentifiers(node AstNode) []string {
+	var ids []string
+	Inspect(node, func(n AstNode) bool {
+		if id, ok := n.(*IdentifierNode); ok {
+			ids = append(ids, id.Value)
+		}
+		return true
+	})
+	return ids
+}
+
+func (g callGraph) getIsRecursive() map[string]struct{} {
+	var (
+		stack   = []string{}
+		onStack = map[string]bool{}
+		visited = map[string]bool{}
+		recurse = map[string]struct{}{}
+		pos     = map[string]int{}
+		dfs     func(string)
+	)
+	dfs = func(v string) {
+		visited[v] = true
+		pos[v] = len(stack)
+		stack = append(stack, v)
+		onStack[v] = true
+
+		// Sort edges for deterministic traversal
+		edges := make([]string, 0, len(g[v]))
+		for w := range g[v] {
+			edges = append(edges, w)
+		}
+		sort.Strings(edges)
+
+		for _, w := range edges {
+			if !visited[w] {
+				dfs(w)
+				continue
+			}
+			if onStack[w] {
+				// back edge v -> w: mark the cycle path w..v
+				for i := pos[w]; i < len(stack); i++ {
+					recurse[stack[i]] = struct{}{}
+				}
+			}
+		}
+		stack = stack[:len(stack)-1]
+		onStack[v] = false
+	}
+
+	// ensure all vertices (even isolated ones) are visited Sort
+	// vertices for deterministic traversal order (Go map
+	// iteration is randomized)
+	vertices := make([]string, 0, len(g))
+	for v := range g {
+		vertices = append(vertices, v)
+	}
+	sort.Strings(vertices)
+
+	for _, v := range vertices {
+		if !visited[v] {
+			dfs(v)
+		}
+	}
+	return recurse
+}
+
 // IsRecursiveQuery determines if a definition is recursive (directly
 // or indirectly calls itself).
 var IsRecursiveQuery = &Query[DefKey, bool]{
@@ -110,9 +193,86 @@ func computeIsRecursive(db *Database, key DefKey) (bool, error) {
 	return isRecursive, nil
 }
 
-// Note: getIsRecursiveFromGrammar is defined in grammar_compiler.go
-// and is reused here. callGraph type and getIsRecursive method are
-// also defined there.
+// Left Recursion Analysis Query
+
+var IsLeftRecursiveQuery = &Query[DefKey, bool]{
+	Name:    "IsLeftRecursive",
+	Compute: computeIsLeftRecursive,
+}
+
+func computeIsLeftRecursive(db *Database, key DefKey) (bool, error) {
+	grammar, err := Get(db, ResolvedImportsQuery, FilePath(key.File))
+	if err != nil {
+		return false, err
+	}
+	def, ok := grammar.DefsByName[key.Name]
+	if !ok {
+		return false, nil
+	}
+	for _, alt := range flattenChoices(def.Expr) {
+		if isLeftRecursiveAlternative(alt, key.Name) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func flattenChoices(node AstNode) []AstNode {
+	var (
+		alternatives []AstNode
+		flatten      func(n AstNode)
+	)
+	flatten = func(n AstNode) {
+		switch x := n.(type) {
+		case *ChoiceNode:
+			flatten(x.Left)
+			flatten(x.Right)
+		case *CaptureNode:
+			flatten(x.Expr)
+		case *LexNode:
+			flatten(x.Expr)
+		default:
+			alternatives = append(alternatives, n)
+		}
+	}
+	flatten(node)
+	return alternatives
+}
+
+// isLeftRecursiveAlternative checks if an alternative starts with a
+// call to the given rule name (direct left recursion).
+func isLeftRecursiveAlternative(alt AstNode, ruleName string) bool {
+	first := getFirstExpr(alt)
+	if id, ok := first.(*IdentifierNode); ok {
+		return id.Value == ruleName
+	}
+	if prec, ok := first.(*PrecedenceNode); ok {
+		if id, ok := prec.Expr.(*IdentifierNode); ok {
+			return id.Value == ruleName
+		}
+	}
+	return false
+}
+
+// getFirstExpr returns the first "terminal" or identifier in an
+// expression, skipping through sequences and other structural nodes.
+func getFirstExpr(node AstNode) AstNode {
+	switch n := node.(type) {
+	case *SequenceNode:
+		if len(n.Items) > 0 {
+			return getFirstExpr(n.Items[0])
+		}
+		return nil
+	case *LexNode:
+		return getFirstExpr(n.Expr)
+	case *CaptureNode:
+		return getFirstExpr(n.Expr)
+	case *LabeledNode:
+		return getFirstExpr(n.Expr)
+	default:
+		return node
+	}
+}
 
 // DefSizeQuery computes the compiled size (in instructions) of a
 // definition, used for inlining decisions.
@@ -133,8 +293,10 @@ func computeDefSize(db *Database, key DefKey) (int, error) {
 		return 0, nil
 	}
 
-	// Create a temporary compiler in dry-run mode to count instructions
-	tmpc := newCompiler(db.Config())
+	// Create a temporary compiler in dry-run mode to count
+	// instructions
+	file := db.FileIDToPath(def.SourceLocation().FileID)
+	tmpc := newCompilerWithDB(db, file)
 	tmpc.dryRun = true
 	tmpc.grammarNode = grammar
 

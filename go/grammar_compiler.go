@@ -2,7 +2,6 @@ package langlang
 
 import (
 	"fmt"
-	"sort"
 )
 
 type compiler struct {
@@ -376,7 +375,33 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 	return nil
 }
 
+func (c *compiler) VisitPrecedenceNode(node *PrecedenceNode) error {
+	c.pushSrc(node.SourceLocation())
+	defer c.popSrc()
+
+	id, ok := node.Expr.(*IdentifierNode)
+	if !ok {
+		// If not an identifier, just compile the expression
+		// normally as precedence only makes sense for rule
+		// calls.  TODO: Should push a warning
+		return node.Expr.Accept(c)
+	}
+	return c.visitIdentifierNode(id, node.Level)
+}
+
 func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
+	isLeftRecursive, err := c.isDefLeftRecursive(node.Value)
+	if err != nil {
+		return err
+	}
+	precedence := 0
+	if isLeftRecursive {
+		precedence = 1
+	}
+	return c.visitIdentifierNode(node, precedence)
+}
+
+func (c *compiler) visitIdentifierNode(node *IdentifierNode, precedence int) error {
 	c.pushSrc(node.SourceLocation())
 	defer c.popSrc()
 	id := c.intern(node.Value)
@@ -388,9 +413,6 @@ func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
 	if inline {
 		return def.Expr.Accept(c)
 	}
-
-	// TODO[bounded left recursion]
-	precedence := 0
 
 	// if the definition indexed by `ID` has already been seen,
 	// we're just going to write its address here.  Otherwise, the
@@ -478,7 +500,13 @@ func (c *compiler) backpatchCallSites() error {
 	id := c.intern(def.Name)
 	label := c.definitionLabels[id]
 	origCall := c.code[0].(ICall)
-	c.emitAt(0, ICall{Label: label, sl: origCall.sl})
+
+	// Set entry precedence to 1 if the first definition is left-recursive
+	precedence := 0
+	if isLeftRecursive, err := c.isDefLeftRecursive(def.Name); err == nil && isLeftRecursive {
+		precedence = 1
+	}
+	c.emitAt(0, ICall{Label: label, Precedence: precedence, sl: origCall.sl})
 
 	return nil
 }
@@ -615,6 +643,11 @@ func (c *compiler) isDefRecursive(name string) (bool, error) {
 	return Get(c.db, IsRecursiveQuery, DefKey{File: c.filePath, Name: name})
 }
 
+// isDefLeftRecursive queries left recursion info for a definition lazily.
+func (c *compiler) isDefLeftRecursive(name string) (bool, error) {
+	return Get(c.db, IsLeftRecursiveQuery, DefKey{File: c.filePath, Name: name})
+}
+
 // getDefSize returns the compiled size of a definition using the query system.
 func (c *compiler) getDefSize(def *DefinitionNode) (int, error) {
 	return Get(c.db, DefSizeQuery, DefKey{File: c.filePath, Name: def.Name})
@@ -705,85 +738,4 @@ func (c *compiler) capExprSize(node AstNode) (int, bool) {
 	default:
 		return 0, false
 	}
-}
-
-type callGraph map[string]map[string]struct{}
-
-func getIsRecursiveFromGrammar(g *GrammarNode) map[string]struct{} {
-	cg := make(callGraph, len(g.Definitions))
-	for _, d := range g.Definitions {
-		if _, ok := cg[d.Name]; !ok {
-			cg[d.Name] = make(map[string]struct{})
-		}
-		for _, id := range findIdentifiers(d.Expr) {
-			cg[d.Name][id] = struct{}{}
-		}
-	}
-	return cg.getIsRecursive()
-}
-
-func findIdentifiers(node AstNode) []string {
-	var ids []string
-	Inspect(node, func(n AstNode) bool {
-		if id, ok := n.(*IdentifierNode); ok {
-			ids = append(ids, id.Value)
-		}
-		return true
-	})
-	return ids
-}
-
-func (g callGraph) getIsRecursive() map[string]struct{} {
-	var (
-		stack   = []string{}
-		onStack = map[string]bool{}
-		visited = map[string]bool{}
-		recurse = map[string]struct{}{}
-		pos     = map[string]int{}
-		dfs     func(string)
-	)
-	dfs = func(v string) {
-		visited[v] = true
-		pos[v] = len(stack)
-		stack = append(stack, v)
-		onStack[v] = true
-
-		// Sort edges for deterministic traversal
-		edges := make([]string, 0, len(g[v]))
-		for w := range g[v] {
-			edges = append(edges, w)
-		}
-		sort.Strings(edges)
-
-		for _, w := range edges {
-			if !visited[w] {
-				dfs(w)
-				continue
-			}
-			if onStack[w] {
-				// back edge v -> w: mark the cycle path w..v
-				for i := pos[w]; i < len(stack); i++ {
-					recurse[stack[i]] = struct{}{}
-				}
-			}
-		}
-		stack = stack[:len(stack)-1]
-		onStack[v] = false
-	}
-
-	// ensure all vertices (even isolated ones) are visited Sort
-	// vertices for deterministic traversal order (Go map
-	// iteration is randomized)
-	vertices := make([]string, 0, len(g))
-	for v := range g {
-		vertices = append(vertices, v)
-	}
-	sort.Strings(vertices)
-
-	for _, v := range vertices {
-		if !visited[v] {
-			dfs(v)
-		}
-	}
-	return recurse
 }

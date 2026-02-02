@@ -86,6 +86,9 @@ type Database struct {
 	// activeQuery tracks the currently executing query for dependency recording
 	activeQuery *queryID
 
+	// computing tracks queries currently being computed (for cycle detection)
+	computing map[queryID]struct{}
+
 	// config holds compiler configuration
 	config *Config
 
@@ -171,6 +174,9 @@ func (db *Database) Revision() int {
 	return db.revision
 }
 
+// ErrQueryCycle is returned when a cyclic query dependency is detected
+var ErrQueryCycle = fmt.Errorf("cyclic query dependency detected")
+
 // Get executes a query, returning a cached result if available and
 // valid, or computing and caching a new result. It automatically
 // tracks dependencies between queries.
@@ -196,6 +202,19 @@ func Get[K QueryKey, V any](db *Database, q *Query[K, V], key K) (V, error) {
 		return cached.value.(V), nil
 	}
 
+	// Check if we're already computing this query (cycle detection)
+	if _, computing := db.computing[id]; computing {
+		db.mu.Unlock()
+		var zero V
+		return zero, ErrQueryCycle
+	}
+
+	// Mark as computing
+	if db.computing == nil {
+		db.computing = make(map[queryID]struct{})
+	}
+	db.computing[id] = struct{}{}
+
 	// Set this as the active query for dependency tracking
 	prevActive := db.activeQuery
 	db.activeQuery = &id
@@ -211,6 +230,9 @@ func Get[K QueryKey, V any](db *Database, q *Query[K, V], key K) (V, error) {
 	db.mu.Lock()
 	// Restore previous active query
 	db.activeQuery = prevActive
+
+	// Remove from computing set
+	delete(db.computing, id)
 
 	// Cache the result
 	db.cache[id] = cachedValue{

@@ -195,27 +195,54 @@ func (IJump) Name() string                     { return "jump" }
 func (IJump) SizeInBytes() int                 { return opJumpSizeInBytes }
 func (i IJump) SourceLocation() SourceLocation { return i.sl }
 
+// ICall is a regular (non-left-recursive) function call
 type ICall struct {
-	Label      ILabel
-	Precedence int
-	sl         SourceLocation
+	Label ILabel
+	sl    SourceLocation
 }
 
 func (ICall) Name() string                     { return "call" }
 func (ICall) SizeInBytes() int                 { return opCallSizeInBytes }
 func (i ICall) SourceLocation() SourceLocation { return i.sl }
 
+// ICallLR is a left-recursive call with precedence handling
+type ICallLR struct {
+	Label      ILabel
+	Precedence int
+	sl         SourceLocation
+}
+
+func (ICallLR) Name() string                     { return "call_lr" }
+func (ICallLR) SizeInBytes() int                 { return opCallLRSizeInBytes }
+func (i ICallLR) SourceLocation() SourceLocation { return i.sl }
+
+// IReturn is a regular (non-left-recursive) return
 type IReturn struct{ sl SourceLocation }
 
 func (IReturn) Name() string                     { return "return" }
 func (IReturn) SizeInBytes() int                 { return opReturnSizeInBytes }
 func (i IReturn) SourceLocation() SourceLocation { return i.sl }
 
+// IReturnLR is a left-recursive return with memo table handling
+type IReturnLR struct{ sl SourceLocation }
+
+func (IReturnLR) Name() string                     { return "return_lr" }
+func (IReturnLR) SizeInBytes() int                 { return opReturnLRSizeInBytes }
+func (i IReturnLR) SourceLocation() SourceLocation { return i.sl }
+
+// ICapReturn is a capture-aware return (non-left-recursive)
 type ICapReturn struct{ sl SourceLocation }
 
 func (ICapReturn) Name() string                     { return "cap_return" }
 func (ICapReturn) SizeInBytes() int                 { return opReturnSizeInBytes }
 func (i ICapReturn) SourceLocation() SourceLocation { return i.sl }
+
+// ICapReturnLR is a capture-aware left-recursive return
+type ICapReturnLR struct{ sl SourceLocation }
+
+func (ICapReturnLR) Name() string                     { return "cap_return_lr" }
+func (ICapReturnLR) SizeInBytes() int                 { return opCapReturnLRSizeInBytes }
+func (i ICapReturnLR) SourceLocation() SourceLocation { return i.sl }
 
 type IThrow struct {
 	ErrorLabel int

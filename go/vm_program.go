@@ -143,6 +143,11 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 		case ICall:
 			writeName(instruction.Name())
 			writeLabel(ii.Label.ID)
+			s.WriteString("\n")
+
+		case ICallLR:
+			writeName(instruction.Name())
+			writeLabel(ii.Label.ID)
 			writeInt(ii.Precedence)
 			s.WriteString("\n")
 
@@ -253,7 +258,15 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeName(instruction.Name())
 			s.WriteString("\n")
 
+		case IReturnLR:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
 		case ICapReturn:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
+		case ICapReturnLR:
 			writeName(instruction.Name())
 			s.WriteString("\n")
 

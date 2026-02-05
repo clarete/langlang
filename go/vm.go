@@ -16,9 +16,9 @@ type Bytecode struct {
 	srcm *SourceMap
 }
 
-// lrMemoKey is the key for the left recursion memoization table.
-// It uniquely identifies a left-recursive call by production address
-// and input position.
+// lrMemoKey is the key for the left recursion memoization table.  It
+// uniquely identifies a left-recursive call by production address and
+// input position.
 type lrMemoKey struct {
 	address int
 	cursor  int
@@ -26,14 +26,15 @@ type lrMemoKey struct {
 
 // lrMemoEntry stores the memoized result of a left-recursive call.
 type lrMemoEntry struct {
-	// cursor is the result cursor position after matching,
-	// or lrResultLeftRec if in initial left-recursive state
+	// cursor is the result cursor position after matching, or
+	// lrResultLeftRec if in initial left-recursive state
 	cursor int
-	// bound counts how many times we've grown the left-recursive match
+	// bound bookkeeps growth of the left-recursive match
 	bound int
 	// precedence is the precedence level of the successful match
 	precedence int
-	// captures holds the NodeIDs captured during the last successful iteration
+	// captures holds the NodeIDs captured during the last
+	// successful iteration
 	captures []NodeID
 }
 
@@ -111,8 +112,7 @@ type virtualMachine struct {
 	errLabels      map[int]int
 	capOffsetId    int
 	capOffsetStart int
-	// lrmemo is the memoization table for left-recursive calls
-	lrmemo map[lrMemoKey]*lrMemoEntry
+	lrmemo         map[lrMemoKey]*lrMemoEntry
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -147,6 +147,9 @@ const (
 	opCapEndOffset
 	opChar32
 	opRange32
+	opCallLR
+	opReturnLR
+	opCapReturnLR
 )
 
 var opNames = map[byte]string{
@@ -180,6 +183,9 @@ var opNames = map[byte]string{
 	opCapTermBeginOffset:    "cap_term_begin_offset",
 	opCapNonTermBeginOffset: "cap_non_term_begin_offset",
 	opCapEndOffset:          "cap_end_offset",
+	opCallLR:                "call_lr",
+	opReturnLR:              "return_lr",
+	opCapReturnLR:           "cap_return_lr",
 }
 
 var (
@@ -204,14 +210,16 @@ var (
 	opChoiceSizeInBytes = 3
 	opCommitSizeInBytes = 3
 	opFailSizeInBytes   = 1
-	// opCallSizeInBytes contains the following bytes
-	//  1. operator
-	//  2. low nib of 16bit uint label address
-	//  3. high nib of 16bit uint label address
-	//  4. uint8 precedence level
-	opCallSizeInBytes = 4
+	// opCallSizeInBytes: 1 opcode + 2 label + 1 precedence (backward compatible)
+	// We keep 4 bytes even for non-LR calls to maintain ABI compatibility
+	// with pre-compiled bytecode (e.g., bootstrap parser)
+	opCallSizeInBytes   = 4
+	opCallLRSizeInBytes = 4
 	// opReturnSizeInBytes contains just one byte for the operator
-	opReturnSizeInBytes                = 1
+	opReturnSizeInBytes = 1
+	// opReturnLRSizeInBytes: same size, different behavior
+	opReturnLRSizeInBytes              = 1
+	opCapReturnLRSizeInBytes           = 1
 	opJumpSizeInBytes                  = 3
 	opThrowSizeInBytes                 = 3
 	opHaltSizeInBytes                  = 1
@@ -435,16 +443,13 @@ code:
 
 		case opCall:
 			addr := int(decodeU16(code, pc+1))
+			stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
+			pc = addr
+			continue
+
+		case opCallLR:
+			addr := int(decodeU16(code, pc+1))
 			prec := int(code[pc+3])
-
-			if prec == 0 {
-				// Regular non-left-recursive call
-				stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
-				pc = addr
-				continue
-			}
-
-			// Left-recursive call handling
 			key := lrMemoKey{address: addr, cursor: cursor}
 			entry := vm.lrmemo[key]
 
@@ -459,7 +464,7 @@ code:
 				captureStart := uint32(len(stack.nodeArena))
 				stack.push(frame{
 					t:              frameType_LRCall,
-					pc:             uint32(pc + opCallSizeInBytes),
+					pc:             uint32(pc + opCallLRSizeInBytes),
 					cursor:         cursor, // Starting cursor for this LR call
 					lrAddress:      addr,
 					lrPrecedence:   prec,
@@ -473,25 +478,26 @@ code:
 			}
 
 			if entry.cursor == lrResultLeftRec || prec < entry.precedence {
-				// (lvar.3, lvar.5) In LR loop or precedence too low - fail
+				// (lvar.3, lvar.5) In LR loop or precedence too low, fail
 				goto fail
 			}
 
-			// (lvar.4) Use memoized result - inject captures
+			// (lvar.4) Use memoized result and inject captures
 			for _, nodeID := range entry.captures {
 				stack.capture(nodeID)
 			}
 			cursor = entry.cursor
-			pc += opCallSizeInBytes
+			pc += opCallLRSizeInBytes
 
 		case opReturn:
-			f := stack.top()
+			// Fast path: regular return
+			f := stack.pop()
+			pc = int(f.pc)
+			continue
 
-			if f.t != frameType_LRCall {
-				stack.pop()
-				pc = int(f.pc)
-				continue
-			}
+		case opReturnLR:
+			// Left-recursive return with memo table handling
+			f := stack.top()
 
 			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
 			entry := vm.lrmemo[key]
@@ -594,13 +600,14 @@ code:
 			top.nodesEnd = top.nodesStart
 
 		case opCapReturn:
-			f := stack.top()
+			// Fast path: capture-aware return (no LR)
+			f := stack.popAndCapture()
+			pc = int(f.pc)
+			continue
 
-			if f.t != frameType_LRCall {
-				stack.popAndCapture()
-				pc = int(f.pc)
-				continue
-			}
+		case opCapReturnLR:
+			// Capture-aware left-recursive return
+			f := stack.top()
 
 			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
 			entry := vm.lrmemo[key]

@@ -87,11 +87,18 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 			code = encodeJmp(code, opCapBackCommit, labels[ii.Label])
 		case ICall:
 			code = encodeJmp(code, opCall, labels[ii.Label])
+			code = append(code, 0) // precedence=0 for backward compatibility
+		case ICallLR:
+			code = encodeJmp(code, opCallLR, labels[ii.Label])
 			code = append(code, byte(ii.Precedence))
 		case IReturn:
 			code = append(code, opReturn)
+		case IReturnLR:
+			code = append(code, opReturnLR)
 		case ICapReturn:
 			code = append(code, opCapReturn)
+		case ICapReturnLR:
+			code = append(code, opCapReturnLR)
 		case IJump:
 			code = encodeJmp(code, opJump, labels[ii.Label])
 		case IFail:

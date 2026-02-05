@@ -56,6 +56,10 @@ type compiler struct {
 
 	dryRun bool
 
+	// currentDefName tracks the name of the definition currently
+	// being compiled, used to emit LR return variants
+	currentDefName string
+
 	// withinPredicate tracks if we're inside a predicate (&/!)
 	// where captures are not needed, allowing us to emit
 	// IPartialCommit instead of IPartialCommitCap
@@ -136,6 +140,10 @@ func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 	}
 	c.pushSrc(node.SourceLocation())
 	defer c.popSrc()
+
+	// Track current definition for LR return emission
+	c.currentDefName = node.Name
+	defer func() { c.currentDefName = "" }()
 
 	var (
 		id = c.intern(node.Name)
@@ -386,7 +394,8 @@ func (c *compiler) VisitPrecedenceNode(node *PrecedenceNode) error {
 		// calls.  TODO: Should push a warning
 		return node.Expr.Accept(c)
 	}
-	return c.visitIdentifierNode(id, node.Level)
+	// Precedence annotation implies left recursion
+	return c.visitIdentifierNode(id, node.Level, true)
 }
 
 func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
@@ -398,10 +407,10 @@ func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
 	if isLeftRecursive {
 		precedence = 1
 	}
-	return c.visitIdentifierNode(node, precedence)
+	return c.visitIdentifierNode(node, precedence, isLeftRecursive)
 }
 
-func (c *compiler) visitIdentifierNode(node *IdentifierNode, precedence int) error {
+func (c *compiler) visitIdentifierNode(node *IdentifierNode, precedence int, isLR bool) error {
 	c.pushSrc(node.SourceLocation())
 	defer c.popSrc()
 	id := c.intern(node.Value)
@@ -418,11 +427,20 @@ func (c *compiler) visitIdentifierNode(node *IdentifierNode, precedence int) err
 	// we're just going to write its address here.  Otherwise, the
 	// combination (cursor, id) are saved within the `openAddrs`
 	// map so the backpatching can fix this later.
-	if label, ok := c.definitionLabels[id]; ok {
-		c.emit(ICall{Label: label, Precedence: precedence, sl: c.currentSrc()})
+	if isLR {
+		if label, ok := c.definitionLabels[id]; ok {
+			c.emit(ICallLR{Label: label, Precedence: precedence, sl: c.currentSrc()})
+		} else {
+			c.saveOpenAddr(id)
+			c.emit(ICallLR{Precedence: precedence, sl: c.currentSrc()})
+		}
 	} else {
-		c.saveOpenAddr(id)
-		c.emit(ICall{Precedence: precedence, sl: c.currentSrc()})
+		if label, ok := c.definitionLabels[id]; ok {
+			c.emit(ICall{Label: label, sl: c.currentSrc()})
+		} else {
+			c.saveOpenAddr(id)
+			c.emit(ICall{sl: c.currentSrc()})
+		}
 	}
 
 	return nil
@@ -487,26 +505,36 @@ func (c *compiler) backpatchCallSites() error {
 		// found we're just going to need to adjust for
 		// forward and backward jumping.
 		if label, ok := c.definitionLabels[id]; ok {
-			// Preserve the source location from the original instruction
-			origCall := c.code[callAddr].(ICall)
-			c.code[callAddr] = ICall{Label: label, Precedence: origCall.Precedence, sl: origCall.sl}
+			// Preserve the source location and type from the original instruction
+			switch orig := c.code[callAddr].(type) {
+			case ICall:
+				c.code[callAddr] = ICall{Label: label, sl: orig.sl}
+			case ICallLR:
+				c.code[callAddr] = ICallLR{Label: label, Precedence: orig.Precedence, sl: orig.sl}
+			}
 			continue
 		}
 		return fmt.Errorf("production `%s` does not exist", c.strings[id])
 	}
 
-	// Patch main call - use grammar node's source location
+	// Patch main call - the initial call was emitted as ICall placeholder
 	def := c.grammarNode.FirstDefinition()
+	if def == nil {
+		return nil // No definitions to call
+	}
 	id := c.intern(def.Name)
 	label := c.definitionLabels[id]
+
+	// Get source location from original placeholder (always ICall)
 	origCall := c.code[0].(ICall)
 
-	// Set entry precedence to 1 if the first definition is left-recursive
-	precedence := 0
-	if isLeftRecursive, err := c.isDefLeftRecursive(def.Name); err == nil && isLeftRecursive {
-		precedence = 1
+	// Set entry call type based on whether first definition is left-recursive
+	isLR, _ := c.isDefLeftRecursive(def.Name)
+	if isLR {
+		c.emitAt(0, ICallLR{Label: label, Precedence: 1, sl: origCall.sl})
+	} else {
+		c.emitAt(0, ICall{Label: label, sl: origCall.sl})
 	}
-	c.emitAt(0, ICall{Label: label, Precedence: precedence, sl: origCall.sl})
 
 	return nil
 }
@@ -542,10 +570,23 @@ func (c *compiler) emitBackCommit(label ILabel) {
 }
 
 func (c *compiler) emitReturn() {
+	isLR := false
+	if c.currentDefName != "" {
+		isLR, _ = c.isDefLeftRecursive(c.currentDefName)
+	}
+
 	if c.shouldCapture() {
-		c.emit(ICapReturn{sl: c.currentSrc()})
+		if isLR {
+			c.emit(ICapReturnLR{sl: c.currentSrc()})
+		} else {
+			c.emit(ICapReturn{sl: c.currentSrc()})
+		}
 	} else {
-		c.emit(IReturn{sl: c.currentSrc()})
+		if isLR {
+			c.emit(IReturnLR{sl: c.currentSrc()})
+		} else {
+			c.emit(IReturn{sl: c.currentSrc()})
+		}
 	}
 }
 

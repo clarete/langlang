@@ -8,6 +8,10 @@ __pycache__
 
 # go implementation
 go/examples/tiny/tiny.go
+go/tests/arithmetic/arithmetic.go
+go/tests/arithmetic/arithmetic.nocap.go
+go/tests/arithmetic_leftrec/arithmetic.go
+go/tests/arithmetic_leftrec/arithmetic.nocap.go
 go/tests/basic/basic.go
 go/tests/charsets/charsets.go
 go/tests/charsets/charsets.nocap.go
@@ -36,3 +40,5 @@ benchmarks/antlr_json/*.tokens
 benchmarks/pigeon_json/json.pigeon.go
 benchmarks/pointlander_json/json.pointlander.peg.go
 benchmarks/pointlander_json_stripped/json.stripped.pointlander.peg.go
+tests/arithmetic/arithmetic.go
+tests/arithmetic/arithmetic.nocap.go

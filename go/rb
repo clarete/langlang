@@ -3,6 +3,8 @@
 VERSION=$(git describe --tags --always --dirty)
 
 declare -a suites=(
+    "arithmetic"
+    "arithmetic_leftrec"
     "charsets"
     "import"
     "json"

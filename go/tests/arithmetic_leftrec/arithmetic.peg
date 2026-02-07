@@ -1,0 +1,52 @@
+// A mini expression language testing left recursion with operator
+// precedence, recovery expressions, lexification, and predicates.
+
+Program    <- Stmt+ EOF
+Stmt       <- LetStmt / IfStmt / ExprStmt
+LetStmt    <- 'let' Identifier '='^leteq Expr^letexpr ';'^letsemi
+IfStmt     <- 'if' '('^iflpar Expr^ifexpr ')'^ifrpar '{' Stmt* '}'^ifrcurl
+ExprStmt   <- Expr ';'^exprsemi
+
+// Left-recursive expression with 7 precedence levels:
+//   1: || (logical or, lowest precedence)
+//   2: && (logical and)
+//   3: ==, != (equality)
+//   4: <=, >=, <, > (comparison)
+//   5: +, - (additive)
+//   6: *, /, % (multiplicative)
+//   7: unary - (negation)
+// Atoms: Number, Identifier, '(' Expr ')'
+
+Expr <- Expr¹ '||' Expr²
+      / Expr² '&&' Expr³
+      / Expr³ '==' Expr⁴
+      / Expr³ '!=' Expr⁴
+      / Expr⁴ '<=' Expr⁵
+      / Expr⁴ '>=' Expr⁵
+      / Expr⁴ '<' Expr⁵
+      / Expr⁴ '>' Expr⁵
+      / Expr⁵ '+' Expr⁶
+      / Expr⁵ '-' Expr⁶
+      / Expr⁶ '*' Expr⁷
+      / Expr⁶ '/' Expr⁷
+      / Expr⁶ '%' Expr⁷
+      / '-' Expr⁷
+      / '(' Expr¹ ')'^closeparen
+      / Number
+      / Identifier
+
+Number     <- #([1-9][0-9]* / '0')
+Identifier <- !Keywords #([a-zA-Z_][a-zA-Z0-9_]*)
+Keywords   <- 'let' / 'if'
+
+// Recovery expressions
+leteq      <- (!Expr .)*
+letexpr    <- (!';' .)*
+letsemi    <-
+iflpar     <- (!Expr .)*
+ifexpr     <- (!(')' / '{') .)*
+ifrpar     <- (!('{') .)*
+ifrcurl    <-
+exprsemi   <-
+closeparen <- (!(';' / '}' / EOF) .)*
+

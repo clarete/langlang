@@ -24,7 +24,7 @@
         6.  [Import system](#import-system)
 3.  [Roadmap](#roadmap)
 4.  [Changelog](#changelog)
-    1.  [go/v0.0.12 (unreleased)](#gov0012-unreleased)
+    1.  [go/v0.0.12](#gov0012)
     2.  [go/v0.0.11](#gov0011)
     3.  [go/v0.0.10](#gov0010)
     4.  [go/v0.0.9](#gov009)
@@ -532,7 +532,6 @@ be used in other grammars using imports.  Behind the scenes, the
 
 -   Known optimization Head-Fail (compiler, vm)
 -   Incremental Parsing (compiler, vm)
--   Left Recursion (compiler, vm)
 -   Parse Data Structures (compiler, vm)
 -   Semantic Actions (compiler, vm)
 -   Display Call Graph for debugging purposes (compiler, tools)
@@ -546,10 +545,11 @@ be used in other grammars using imports.  Behind the scenes, the
 # Changelog
 
 
-<a id="gov0012-unreleased"></a>
+<a id="gov0012"></a>
 
-## go/v0.0.12 (unreleased)
+## go/v0.0.12
 
+-   [FEAT: Left Recursion support!](https://github.com/clarete/langlang/commit/226bf9453447037847cfe77e3d8bdc9ffdc2f23a) ([CR2](https://github.com/clarete/langlang/commit/d9c49064ea02cf14f47ee9f96ed85eb548cbc0c3), [CR3](https://github.com/clarete/langlang/commit/c78e866ce5f73e10317e3dd084d83df0e738f2d8))
 -   [FEAT: New transport independent LSP engine](https://github.com/clarete/langlang/commit/1de748ccf5b9b0c7dea4f6a705c7ec9b0264cde1)
 -   [FEAT: Introduce query-based compiler architecture](https://github.com/clarete/langlang/commit/1a76a7741e429b335574ee74da1f6880064887b3)
 -   [FEAT: Error recovery and partial AST for grammar parser](https://github.com/clarete/langlang/commit/3a2c6fba30d4240d8509598aa51d005c08eadc5b)

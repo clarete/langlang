@@ -367,7 +367,6 @@ be used in other grammars using imports.  Behind the scenes, the
 
  * Known optimization Head-Fail (compiler, vm)
  * Incremental Parsing (compiler, vm)
- * Left Recursion (compiler, vm)
  * Parse Data Structures (compiler, vm)
  * Semantic Actions (compiler, vm)
  * Display Call Graph for debugging purposes (compiler, tools)
@@ -377,8 +376,9 @@ be used in other grammars using imports.  Behind the scenes, the
 
 * Changelog
 
-** go/v0.0.12 (unreleased)
+** go/v0.0.12
 
+ * [[https://github.com/clarete/langlang/commit/226bf9453447037847cfe77e3d8bdc9ffdc2f23a][FEAT: Left Recursion support!]] ([[https://github.com/clarete/langlang/commit/d9c49064ea02cf14f47ee9f96ed85eb548cbc0c3][CR2]], [[https://github.com/clarete/langlang/commit/c78e866ce5f73e10317e3dd084d83df0e738f2d8][CR3]])
  * [[https://github.com/clarete/langlang/commit/1de748ccf5b9b0c7dea4f6a705c7ec9b0264cde1][FEAT: New transport independent LSP engine]]
  * [[https://github.com/clarete/langlang/commit/1a76a7741e429b335574ee74da1f6880064887b3][FEAT: Introduce query-based compiler architecture]]
  * [[https://github.com/clarete/langlang/commit/3a2c6fba30d4240d8509598aa51d005c08eadc5b][FEAT: Error recovery and partial AST for grammar parser]]

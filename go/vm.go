@@ -240,8 +240,8 @@ func NewVirtualMachine(bytecode *Bytecode) *virtualMachine {
 	}
 	stk := &stack{
 		frames:    make([]frame, 0, 256),
-		nodes:     make([]NodeID, 0, 256),
 		nodeArena: make([]NodeID, 0, 256),
+		nodes:     make([]NodeID, 0, 256),
 		tree:      tr,
 	}
 	stk.tree.bindStrings(bytecode.strs)
@@ -249,7 +249,6 @@ func NewVirtualMachine(bytecode *Bytecode) *virtualMachine {
 		stack:    stk,
 		bytecode: bytecode,
 		ffp:      -1,
-		lrmemo:   make(map[lrMemoKey]*lrMemoEntry),
 	}
 	return vm
 }
@@ -279,11 +278,6 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, er
 	// dbg := func(m string) {}
 	// dbg = func(m string) { fmt.Print(m) }
 
-	// we want to reset the VM state every match
-	vm.reset()
-
-	vm.stack.tree.bindInput(data)
-
 	// take a local reference of important data
 	stack := vm.stack
 	code := vm.bytecode.code
@@ -291,6 +285,21 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, er
 	ilen := len(data)
 	cursor := 0
 	pc := 0
+
+	// reset the vm state
+	stack.reset()
+	stack.tree.reset()
+	stack.tree.bindInput(data)
+	vm.ffp = -1
+	vm.ffpPC = 0
+	if vm.showFails {
+		vm.expected.clear()
+	}
+	if vm.lrmemo != nil {
+		for k := range vm.lrmemo {
+			delete(vm.lrmemo, k)
+		}
+	}
 
 	// if a rule was received, push a call frame for it and set
 	// the program appropriately
@@ -442,86 +451,21 @@ code:
 			stack.top().cursor = cursor
 
 		case opCall:
-			addr := int(decodeU16(code, pc+1))
 			stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
-			pc = addr
-			continue
+			pc = int(decodeU16(code, pc+1))
 
 		case opCallLR:
-			addr := int(decodeU16(code, pc+1))
-			prec := int(code[pc+3])
-			key := lrMemoKey{address: addr, cursor: cursor}
-			entry := vm.lrmemo[key]
-
-			if entry == nil {
-				// (lvar.1, lvar.2) First LR call at this position
-				vm.lrmemo[key] = &lrMemoEntry{
-					cursor:     lrResultLeftRec,
-					bound:      0,
-					precedence: prec,
-					captures:   nil,
-				}
-				captureStart := uint32(len(stack.nodeArena))
-				stack.push(frame{
-					t:              frameType_LRCall,
-					pc:             uint32(pc + opCallLRSizeInBytes),
-					cursor:         cursor, // Starting cursor for this LR call
-					lrAddress:      addr,
-					lrPrecedence:   prec,
-					lrResult:       lrResultLeftRec,
-					lrCommittedEnd: captureStart,
-					nodesStart:     captureStart,
-					nodesEnd:       captureStart,
-				})
-				pc = addr
-				continue
-			}
-
-			if entry.cursor == lrResultLeftRec || prec < entry.precedence {
-				// (lvar.3, lvar.5) In LR loop or precedence too low, fail
+			var failed bool
+			if pc, cursor, failed = vm.doCallLR(stack, pc, cursor); failed {
 				goto fail
 			}
 
-			// (lvar.4) Use memoized result and inject captures
-			for _, nodeID := range entry.captures {
-				stack.capture(nodeID)
-			}
-			cursor = entry.cursor
-			pc += opCallLRSizeInBytes
-
 		case opReturn:
-			// Fast path: regular return
 			f := stack.pop()
 			pc = int(f.pc)
-			continue
 
 		case opReturnLR:
-			// Left-recursive return with memo table handling
-			f := stack.top()
-
-			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
-			entry := vm.lrmemo[key]
-
-			if f.lrResult == lrResultLeftRec || cursor > f.lrResult {
-				// (inc.1) We grew the match, try again
-				entry.cursor = cursor
-				entry.bound++
-				entry.precedence = f.lrPrecedence
-
-				// Update frame state for next iteration
-				f.lrResult = cursor
-
-				// Reset cursor and retry
-				cursor = f.cursor
-				pc = f.lrAddress
-				continue
-			}
-
-			// (inc.3) No more progress - finalize
-			stack.pop()
-			cursor = f.lrResult
-			pc = int(f.pc)
-			delete(vm.lrmemo, key)
+			pc, cursor = vm.doReturnLR(stack, cursor)
 
 		case opJump:
 			pc = int(decodeU16(code, pc+1))
@@ -552,13 +496,22 @@ code:
 			pc += opCapEndSizeInBytes
 
 		case opCapTerm:
-			vm.newTermNode(cursor, int(decodeU16(code, pc+1)))
+			offset := int(decodeU16(code, pc+1))
+			if offset > 0 {
+				begin := cursor - offset
+				nodeID := stack.tree.AddString(begin, cursor)
+				stack.capture(nodeID)
+			}
 			pc += opCapTermSizeInBytes
 
 		case opCapNonTerm:
 			id := int(decodeU16(code, pc+1))
 			offset := int(decodeU16(code, pc+3))
-			vm.newNonTermNode(id, cursor, offset)
+			if offset > 0 {
+				begin := cursor - offset
+				named := stack.tree.AddNamedString(int32(id), begin, cursor)
+				stack.capture(named)
+			}
 			pc += opCapNonTermSizeInBytes
 
 		case opCapTermBeginOffset:
@@ -574,11 +527,16 @@ code:
 		case opCapEndOffset:
 			offset := cursor - vm.capOffsetStart
 			pc += opCapEndOffsetSizeInBytes
-			if vm.capOffsetId < 0 {
-				vm.newTermNode(cursor, offset)
-				continue
+			if offset > 0 {
+				begin := cursor - offset
+				if vm.capOffsetId < 0 {
+					nodeID := stack.tree.AddString(begin, cursor)
+					stack.capture(nodeID)
+				} else {
+					named := stack.tree.AddNamedString(int32(vm.capOffsetId), begin, cursor)
+					stack.capture(named)
+				}
 			}
-			vm.newNonTermNode(vm.capOffsetId, cursor, offset)
 
 		case opCapCommit:
 			stack.popAndCapture()
@@ -600,63 +558,11 @@ code:
 			top.nodesEnd = top.nodesStart
 
 		case opCapReturn:
-			// Fast path: capture-aware return (no LR)
 			f := stack.popAndCapture()
 			pc = int(f.pc)
-			continue
 
 		case opCapReturnLR:
-			// Capture-aware left-recursive return
-			f := stack.top()
-
-			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
-			entry := vm.lrmemo[key]
-
-			if f.lrResult == lrResultLeftRec || cursor > f.lrResult {
-				// (inc.1) We grew the match - try again
-				// Collect only the nodes captured TO this LR frame
-				currentCaptures := make([]NodeID, f.nodesEnd-f.nodesStart)
-				copy(currentCaptures, stack.nodeArena[f.nodesStart:f.nodesEnd])
-
-				// Store in memo for next lvar.4 to use
-				entry.captures = currentCaptures
-				entry.cursor = cursor
-				entry.bound++
-				entry.precedence = f.lrPrecedence
-
-				// Truncate arena to remove committed captures (they're saved in memo)
-				// This prevents duplicates when inc.3 injects them
-				stack.truncateArena(f.nodesStart)
-
-				// Update frame state for next iteration
-				f.lrResult = cursor
-				f.lrCommittedEnd = f.nodesStart // Arena position after truncation
-
-				// Reset frame's capture range for next iteration
-				// (stays at same position since we truncated)
-				f.nodesEnd = f.nodesStart
-
-				// Reset cursor and retry
-				cursor = f.cursor
-				pc = f.lrAddress
-				continue
-			}
-
-			// (inc.3) No more progress - finalize
-			// Pop the LR frame
-			stack.pop()
-
-			// Truncate arena to discard captures from the failed iteration
-			stack.truncateArena(f.nodesStart)
-
-			// Inject the final captures from the last successful iteration (stored in memo)
-			for _, nodeID := range entry.captures {
-				stack.capture(nodeID)
-			}
-
-			cursor = f.lrResult
-			pc = int(f.pc)
-			delete(vm.lrmemo, key)
+			pc, cursor = vm.doCapReturnLR(stack, cursor)
 
 		default:
 			panic("NO ENTIENDO SENOR")
@@ -673,50 +579,20 @@ fail:
 
 	for stack.len() > 0 {
 		f := stack.pop()
+		stack.truncateArena(f.nodesStart)
 
-		switch f.t {
-		case frameType_Backtracking:
-			stack.truncateArena(f.nodesStart)
+		if f.t == frameType_Backtracking {
 			pc = int(f.pc)
 			vm.predicate = f.predicate
 			cursor = f.cursor
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", cursor, pc))
 			goto code
-
-		case frameType_LRCall:
-			key := lrMemoKey{address: f.lrAddress, cursor: f.cursor}
-			entry := vm.lrmemo[key]
-
-			if f.lrResult == lrResultLeftRec {
-				// (lvar.2) First iteration failed, clean up memo
-				delete(vm.lrmemo, key)
-				stack.truncateArena(f.nodesStart)
-				continue
-			}
-
-			if f.lrResult > 0 && entry != nil {
-				// (inc.2) Backtrack to previous successful iteration
-				// Truncate to start of this LR frame's captures
-				stack.truncateArena(f.nodesStart)
-
-				// Readd the captures from the last successful iteration
-				for _, nodeID := range entry.captures {
-					stack.capture(nodeID)
-				}
-
-				cursor = f.lrResult
-				pc = int(f.pc)
-				delete(vm.lrmemo, key)
+		}
+		if f.t == frameType_LRCall {
+			var gotoCode bool
+			if pc, cursor, gotoCode = vm.doFailLR(stack, &f); gotoCode {
 				goto code
 			}
-
-			// Clean up and continue popping
-			delete(vm.lrmemo, key)
-			stack.truncateArena(f.nodesStart)
-
-		default:
-			// frameType_Call, frameType_Capture
-			stack.truncateArena(f.nodesStart)
 		}
 	}
 
@@ -730,22 +606,162 @@ fail:
 	return stack.tree, cursor, vm.mkErr(data, 0, cursor, vm.ffp)
 }
 
-// Helpers
+// Left-Recursion Helpers
+//
+// These are kept as separate //go:noinline methods so their machine
+// code lives outside the MatchRule dispatch loop.  For non-LR
+// grammars the opcodes are never emitted, so these are never called
+// and never pollute the instruction cache.
 
-func (vm *virtualMachine) reset() {
-	vm.stack.reset()
-	vm.stack.tree.reset()
-	vm.ffp = -1
-	vm.ffpPC = 0
+//go:noinline
+func (vm *virtualMachine) doCallLR(stack *stack, pc, cursor int) (int, int, bool) {
+	var (
+		code = vm.bytecode.code
+		addr = int(decodeU16(code, pc+1))
+		prec = int(code[pc+3])
+		key  = lrMemoKey{address: addr, cursor: cursor}
+	)
+	if vm.lrmemo == nil {
+		vm.lrmemo = make(map[lrMemoKey]*lrMemoEntry)
+	}
+	entry := vm.lrmemo[key]
 
-	if vm.showFails {
-		vm.expected.clear()
+	if entry == nil {
+		// (lvar.1, lvar.2) First LR call at this position
+		vm.lrmemo[key] = &lrMemoEntry{
+			cursor:     lrResultLeftRec,
+			bound:      0,
+			precedence: prec,
+			captures:   nil,
+		}
+		captureStart := uint32(len(stack.nodeArena))
+		lrIdx := stack.pushLR(lrFrameData{
+			address:      addr,
+			precedence:   prec,
+			result:       lrResultLeftRec,
+			committedEnd: captureStart,
+		})
+		stack.push(frame{
+			t:          frameType_LRCall,
+			pc:         uint32(pc + opCallLRSizeInBytes),
+			cursor:     cursor,
+			lrIdx:      lrIdx,
+			nodesStart: captureStart,
+			nodesEnd:   captureStart,
+		})
+		return addr, cursor, false
 	}
 
-	// Clear the left recursion memo table
-	for k := range vm.lrmemo {
-		delete(vm.lrmemo, k)
+	if entry.cursor == lrResultLeftRec || prec < entry.precedence {
+		// (lvar.3, lvar.5) In LR loop or precedence too low
+		return 0, 0, true // fail
 	}
+
+	// (lvar.4) Use memoized result and inject captures
+	for _, nodeID := range entry.captures {
+		stack.capture(nodeID)
+	}
+	return pc + opCallLRSizeInBytes, entry.cursor, false
+}
+
+//go:noinline
+func (vm *virtualMachine) doReturnLR(stack *stack, cursor int) (int, int) {
+	var (
+		f     = stack.top()
+		lr    = stack.lr(f)
+		key   = lrMemoKey{address: lr.address, cursor: f.cursor}
+		entry = vm.lrmemo[key]
+	)
+	if lr.result == lrResultLeftRec || cursor > lr.result {
+		// (inc.1) We grew the match, try again
+		entry.cursor = cursor
+		entry.bound++
+		entry.precedence = lr.precedence
+		lr.result = cursor
+		return lr.address, f.cursor
+	}
+	// (inc.3) No more progress, finalize
+	stack.pop()
+	var (
+		newCursor = lr.result
+		newPC     = int(f.pc)
+	)
+	delete(vm.lrmemo, key)
+	return newPC, newCursor
+}
+
+//go:noinline
+func (vm *virtualMachine) doCapReturnLR(stack *stack, cursor int) (int, int) {
+	var (
+		f     = stack.top()
+		lr    = stack.lr(f)
+		key   = lrMemoKey{address: lr.address, cursor: f.cursor}
+		entry = vm.lrmemo[key]
+	)
+	if lr.result == lrResultLeftRec || cursor > lr.result {
+		// (inc.1) We grew the match, let's try again
+		currentCaptures := make([]NodeID, f.nodesEnd-f.nodesStart)
+		copy(currentCaptures, stack.nodeArena[f.nodesStart:f.nodesEnd])
+
+		entry.captures = currentCaptures
+		entry.cursor = cursor
+		entry.bound++
+		entry.precedence = lr.precedence
+
+		stack.truncateArena(f.nodesStart)
+
+		lr.result = cursor
+		lr.committedEnd = f.nodesStart
+		f.nodesEnd = f.nodesStart
+
+		return lr.address, f.cursor
+	}
+
+	// (inc.3) No more progress, finalize
+	stack.pop()
+	stack.truncateArena(f.nodesStart)
+
+	for _, nodeID := range entry.captures {
+		stack.capture(nodeID)
+	}
+	var (
+		newCursor = lr.result
+		newPC     = int(f.pc)
+	)
+	delete(vm.lrmemo, key)
+	return newPC, newCursor
+}
+
+// doFailLR handles a left-recursive frame during backtracking.  The
+// caller has already truncated the arena to f.nodesStart.  Returns
+// `(pc, cursor, gotoCode)`.  If `gotoCode` is true, the VM should
+// resume execution; otherwise it continues popping frames.
+//
+//go:noinline
+func (vm *virtualMachine) doFailLR(stack *stack, f *frame) (int, int, bool) {
+	var (
+		lr    = stack.lr(f)
+		key   = lrMemoKey{address: lr.address, cursor: f.cursor}
+		entry = vm.lrmemo[key]
+	)
+	if lr.result == lrResultLeftRec {
+		// (lvar.2) First iteration failed, clean up memo
+		delete(vm.lrmemo, key)
+		return 0, 0, false
+	}
+	if lr.result > 0 && entry != nil {
+		// (inc.2) Backtrack to previous successful iteration
+		// Arena was already truncated by caller; re-inject
+		// the captures from the last successful iteration.
+		for _, nodeID := range entry.captures {
+			stack.capture(nodeID)
+		}
+		delete(vm.lrmemo, key)
+		return int(f.pc), lr.result, true
+	}
+	// Clean up and continue popping
+	delete(vm.lrmemo, key)
+	return 0, 0, false
 }
 
 // Stack Management Helpers
@@ -777,22 +793,6 @@ func (vm *virtualMachine) mkCallFrame(pc int) frame {
 }
 
 // Node Capture Helpers
-
-func (vm *virtualMachine) newTermNode(cursor, offset int) {
-	if offset > 0 {
-		begin := cursor - offset
-		nodeID := vm.stack.tree.AddString(begin, cursor)
-		vm.stack.capture(nodeID)
-	}
-}
-
-func (vm *virtualMachine) newNonTermNode(capId, cursor, offset int) {
-	if offset > 0 {
-		begin := cursor - offset
-		named := vm.stack.tree.AddNamedString(int32(capId), begin, cursor)
-		vm.stack.capture(named)
-	}
-}
 
 func (vm *virtualMachine) newNode(cursor int, f frame, nodes []NodeID) {
 	var (

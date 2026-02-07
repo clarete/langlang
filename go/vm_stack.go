@@ -36,26 +36,50 @@ type frame struct {
 	// frame created within the predicate Not.
 	predicate bool // 1 byte, offset 25
 
-	// lrAddress is the bytecode address of the left-recursive production
-	lrAddress int
+	// 2 bytes implicit padding (offset 26-27)
 
-	// lrPrecedence is the precedence level of this LR call
-	lrPrecedence int
+	// lrIdx is a 1-based index into stack.lrData for LR frames.
+	// 0 means no LR data (non-LR frame).  Only valid when
+	// t == frameType_LRCall.
+	lrIdx uint32 // 4 bytes, offset 28-31
+}
 
-	// lrResult is the cursor position from the previous successful
+// lrFrameData stores left-recursion state for LR call frames.
+// Kept separate from frame to avoid bloating the hot frame struct
+// (keeping it at 32 bytes for cache efficiency).
+type lrFrameData struct {
+	// address is the bytecode address of the left-recursive production
+	address int
+	// precedence is the precedence level of this LR call
+	precedence int
+	// result is the cursor position from the previous successful
 	// iteration, or lrResultLeftRec if in initial state
-	lrResult int
-
-	// lrCommittedEnd marks the end of committed captures in nodeArena
+	result int
+	// committedEnd marks the end of committed captures in nodeArena
 	// (captures from successful iterations that survive backtracking)
-	lrCommittedEnd uint32
+	committedEnd uint32
 }
 
 type stack struct {
-	frames    []frame
-	nodeArena []NodeID // shared arena for all frame captures
-	nodes     []NodeID // top-level captures (when no frames on stack)
-	tree      *tree
+	// Hot fields — keep together in the first cache line (offsets 0-71)
+	frames    []frame  // offset 0
+	nodeArena []NodeID // offset 24 — shared arena for all frame captures
+	nodes     []NodeID // offset 48 — top-level captures (when no frames on stack)
+	tree      *tree    // offset 72
+	// Cold field — only used for left-recursive grammars
+	lrData []lrFrameData // offset 80 — side storage for LR frame data (indexed by frame.lrIdx - 1)
+}
+
+// lr returns a pointer to the LR data for the given frame.
+// Only valid when f.t == frameType_LRCall and f.lrIdx > 0.
+func (s *stack) lr(f *frame) *lrFrameData {
+	return &s.lrData[f.lrIdx-1]
+}
+
+// pushLR appends LR data and returns its 1-based index.
+func (s *stack) pushLR(data lrFrameData) uint32 {
+	s.lrData = append(s.lrData, data)
+	return uint32(len(s.lrData))
 }
 
 // push adds a frame to the stack. The frame's node range starts at
@@ -148,4 +172,7 @@ func (s *stack) reset() {
 	s.frames = s.frames[:0]
 	s.nodeArena = s.nodeArena[:0]
 	s.nodes = s.nodes[:0]
+	if s.lrData != nil {
+		s.lrData = s.lrData[:0]
+	}
 }

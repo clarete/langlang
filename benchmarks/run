@@ -28,6 +28,7 @@ declare -a langlang_versions=(
     # "go/v0.0.9"
     "go/v0.0.10"
     "go/v0.0.11"
+    "go/v0.0.12"
 )
 
 # Langlang configurations to benchmark per version
@@ -106,13 +107,20 @@ run_benchmark() {
     local suite=$1
     local output_path=$2
     local version=${3:-}
+    local tags=${4:-}
 
     mkdir -p "$output_path"
     echo "  Output: $output_path"
 
+    local tags_flag=""
+    if [ -n "$tags" ]; then
+        tags_flag="-tags=$tags"
+    fi
+
     # Pure timing run (no profiling overhead)
     # Benchmark names are: BenchmarkParsers/input=<size>/parser=<name>/version=<ver>
     CGO_ENABLED=1 LANGLANG_VERSION=$version go test ./. -run=^$ \
+        $tags_flag \
         -bench="BenchmarkParsers/.*/^parser=${suite}$/" \
         -benchmem \
         -benchtime="$BENCH_TIME" \
@@ -125,6 +133,7 @@ run_benchmark() {
     if [ "$RUN_PROFILING" = true ]; then
         echo "  Running profiling pass..."
         CGO_ENABLED=1 LANGLANG_VERSION=$version go test ./. -run=^$ \
+            $tags_flag \
             -bench="BenchmarkParsers/.*/^parser=${suite}$/" \
             -benchmem \
             -benchtime="$BENCH_TIME" \
@@ -144,7 +153,7 @@ run_external_benchmarks() {
     record_environment "${OUTPUT_ROOT}/external"
 
     echo -n "Regenerating parsers... "
-    go generate ./...
+    go generate -tags=external ./...
     if [ $? -eq 0 ]; then
         echo "OK"
     else
@@ -154,7 +163,7 @@ run_external_benchmarks() {
 
     for suite in "${external_suites[@]}"; do
         echo "Benchmarking: $suite"
-        run_benchmark "$suite" "${OUTPUT_ROOT}/external/${suite}"
+        run_benchmark "$suite" "${OUTPUT_ROOT}/external/${suite}" "" "external"
     done
 }
 
@@ -173,21 +182,24 @@ run_langlang_version() {
         return 1
     fi
 
-    # If benchmarks folder doesn't exist in this version, copy current one
-    if [ ! -d "$worktree_path/benchmarks" ]; then
-        echo "Benchmarks folder not found in $version, copying current benchmarks..."
-        cp -r "$SCRIPT_DIR" "$worktree_path/benchmarks"
-        # Remove any existing output from the copy
-        rm -rf "$worktree_path/benchmarks/output"
-    fi
+    # Always use the current benchmark harness.  The worktree only
+    # provides the langlang compiler/VM at the tagged version.
+    rm -rf "$worktree_path/benchmarks"
+    cp -r "$SCRIPT_DIR" "$worktree_path/benchmarks"
+    rm -rf "$worktree_path/benchmarks/output"
 
     cd "$worktree_path/benchmarks"
 
-    fetch_treesitter_grammar "$worktree_path/benchmarks/treesitter_json"
     record_environment "${OUTPUT_ROOT}/langlang/${version}"
 
+    # Only regenerate langlang parsers.  External generators like
+    # ANTLR, pigeon, pointlander, tree-sitter, aren't needed here and
+    # their dependencies may not be available in the worktree.
     echo -n "Regenerating parsers for $version... "
-    go generate ./...
+    go run ../go/cmd/langlang -grammar ../grammars/json.peg -output-language go -output-path ./json.go -disable-capture-spaces -go-package benchmarks && \
+    go run ../go/cmd/langlang -grammar ../grammars/json.peg -output-language go -output-path ./json.nocap.go -disable-captures -go-package benchmarks -go-parser NoCapParser -go-remove-lib && \
+    go run ../go/cmd/langlang -grammar ../grammars/json.stripped.peg -output-language go -go-remove-lib -go-package benchmarks -output-path ./json.stripped.go -disable-capture-spaces -go-parser StrippedParser && \
+    go run ../go/cmd/langlang -grammar ../grammars/json.stripped.peg -output-language go -go-remove-lib -go-package benchmarks -output-path ./json.stripped.nocap.go -disable-captures -go-parser StrippedNoCapParser
     if [ $? -eq 0 ]; then
         echo "OK"
     else

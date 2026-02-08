@@ -60,6 +60,11 @@ type compiler struct {
 
 	dryRun bool
 
+	// disableInline forces all inlining off.  Set when re-compiling
+	// after the first pass produced bytecode exceeding the uint16
+	// jump-address limit.
+	disableInline bool
+
 	// currentDefName tracks the name of the definition currently
 	// being compiled, used to emit LR return variants
 	currentDefName string
@@ -73,6 +78,14 @@ type compiler struct {
 	// AST, allowing instructions to reference their originating
 	// grammar location
 	srcStack []SourceLocation
+
+	// inlinedDefs tracks which definitions had their bodies
+	// skipped during VisitDefinitionNode because shouldInline
+	// returned true.  visitIdentifierNode consults this set to
+	// ensure the call site is always inlined—even if
+	// bytecodeSize has since crossed the maxJumpAddress
+	// threshold—since the definition body was never emitted.
+	inlinedDefs map[int]struct{}
 }
 
 func newCompiler(config *Config) *compiler {
@@ -85,6 +98,7 @@ func newCompiler(config *Config) *compiler {
 		strings:          []string{""}, // Reserve index 0 for "no name" sentinel
 		errorLabelIDs:    map[int]struct{}{},
 		recovery:         map[int]recoveryEntry{},
+		inlinedDefs:      map[int]struct{}{},
 	}
 }
 
@@ -108,6 +122,18 @@ func CompileWithDB(db *Database, filePath string, expr AstNode) (*Program, error
 	if err = expr.Accept(c); err != nil {
 		return nil, err
 	}
+
+	// If inlining pushed the bytecode past the uint16 jump-address
+	// limit, discard this attempt and re-compile with inlining
+	// disabled so every jump fits in a uint16 operand.
+	if c.bytecodeSize > maxJumpAddress {
+		c = newCompilerWithDB(db, filePath)
+		c.disableInline = true
+		if err = expr.Accept(c); err != nil {
+			return nil, err
+		}
+	}
+
 	if err = c.backpatchCallSites(); err != nil {
 		return nil, err
 	}
@@ -144,6 +170,9 @@ func (c *compiler) VisitErrorNode(node *ErrorNode) error {
 
 func (c *compiler) VisitDefinitionNode(node *DefinitionNode) error {
 	if inline, err := c.shouldInline(node); err != nil || inline && !c.config.GetBool("compiler.inline.emit.inlined") {
+		if err == nil && inline {
+			c.inlinedDefs[c.intern(node.Name)] = struct{}{}
+		}
 		return err
 	}
 	c.pushSrc(node.SourceLocation())
@@ -423,6 +452,15 @@ func (c *compiler) visitIdentifierNode(node *IdentifierNode, precedence int, isL
 	defer c.popSrc()
 	id := c.intern(node.Value)
 	def := c.grammarNode.DefsByName[node.Value]
+
+	// If the definition body was already skipped during
+	// VisitDefinitionNode, we must inline here regardless of the
+	// current bytecodeSize, because the definition has no emitted body to
+	// call.
+	if _, wasInlined := c.inlinedDefs[id]; wasInlined && def != nil {
+		return def.Expr.Accept(c)
+	}
+
 	inline, err := c.shouldInline(def)
 	if err != nil {
 		return err
@@ -657,12 +695,7 @@ func (c *compiler) shouldInline(def *DefinitionNode) (bool, error) {
 		return false, nil
 	}
 	id := c.intern(def.Name)
-	if c.dryRun || !c.config.GetBool("compiler.inline.enabled") {
-		return false, nil
-	}
-	// Stop inlining once the program approaches the uint16 jump
-	// address limit
-	if c.bytecodeSize > maxJumpAddress {
+	if c.dryRun || c.disableInline || !c.config.GetBool("compiler.inline.enabled") {
 		return false, nil
 	}
 	if c.grammarNode.FirstDefinition().Name == def.Name {

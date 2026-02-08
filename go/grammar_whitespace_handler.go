@@ -112,7 +112,7 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 	case *ZeroOrMoreNode:
 		shouldConsumeSpaces := wi.lexLevel == 0 && !isSyntactic(n, true)
 		if shouldConsumeSpaces {
-			expr := wi.expandExpr(node.Expr, true)
+			expr := wi.expandExpr(node.Expr, false)
 			seq := NewSequenceNode([]AstNode{wsCall(), expr}, node.SourceLocation())
 			return NewZeroOrMoreNode(seq, n.SourceLocation())
 		}
@@ -121,7 +121,7 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 	case *OneOrMoreNode:
 		shouldConsumeSpaces := wi.lexLevel == 0 && !isSyntactic(n, true)
 		if shouldConsumeSpaces {
-			expr := wi.expandExpr(node.Expr, true)
+			expr := wi.expandExpr(node.Expr, false)
 			seq := NewSequenceNode([]AstNode{wsCall(), expr}, node.SourceLocation())
 			return NewOneOrMoreNode(seq, n.SourceLocation())
 		}

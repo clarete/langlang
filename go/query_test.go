@@ -386,6 +386,70 @@ Spacing <- ' '*
 	assert.True(t, hasSpacingCall, "Expected Spacing calls to be injected")
 }
 
+func TestWithWhitespaceQueryNoDoubleSpacing(t *testing.T) {
+	// ZeroOrMore and OneOrMore with an inner sequence of
+	// non-terminals should not inject a Spacing call before the
+	// first item of the inner sequence, because the repetition
+	// wrapper already adds one.
+	//
+	// Correct:   (Spacing (A Spacing B))*
+	// Incorrect: (Spacing (Spacing A Spacing B))*
+	for _, tt := range []struct {
+		name        string
+		grammar     string
+		expectedAST string
+	}{
+		{
+			name: "ZeroOrMore with sequence",
+			grammar: `
+G <- (A B)*
+A <- "a"
+B <- "b"
+Spacing <- ' '*
+`,
+			expectedAST: `ZeroOrMore (2:6..2:12)
+└── Sequence (2:6..2:12)
+    ├── Identifier[Spacing] (1)
+    └── Sequence (2:7..2:10)
+        ├── Identifier[A] (2:7..2:8)
+        ├── Identifier[Spacing] (1)
+        └── Identifier[B] (2:9..2:10)`,
+		},
+		{
+			name: "OneOrMore with sequence",
+			grammar: `
+G <- (A B)+
+A <- "a"
+B <- "b"
+Spacing <- ' '*
+`,
+			expectedAST: `OneOrMore (2:6..2:12)
+└── Sequence (2:6..2:12)
+    ├── Identifier[Spacing] (1)
+    └── Sequence (2:7..2:10)
+        ├── Identifier[A] (2:7..2:8)
+        ├── Identifier[Spacing] (1)
+        └── Identifier[B] (2:9..2:10)`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := NewInMemoryImportLoader()
+			loader.Add("test.peg", []byte(tt.grammar))
+
+			cfg := NewConfig()
+			cfg.SetBool("grammar.add_builtins", false)
+			cfg.SetBool("grammar.handle_spaces", true)
+			db := NewDatabase(cfg, loader)
+
+			grammar, err := Get(db, WithWhitespaceQuery, FilePath("test.peg"))
+			require.NoError(t, err)
+
+			def := grammar.DefsByName["G"]
+			assert.Equal(t, tt.expectedAST, def.Expr.PrettyString())
+		})
+	}
+}
+
 func TestWithCapturesQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	loader.Add("test.peg", []byte(`G <- "hello"`))

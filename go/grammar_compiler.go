@@ -20,6 +20,10 @@ type compiler struct {
 	// `code` vector
 	cursor int
 
+	// bytecodeSize is the running total of the encoded bytecode
+	// size (in bytes), updated on every emit().
+	bytecodeSize int
+
 	// code is a vector where the compiler writes down the
 	// instructions
 	code []Instruction
@@ -92,6 +96,10 @@ func newCompilerWithDB(db *Database, filePath string) *compiler {
 	c.filePath = filePath
 	return c
 }
+
+// maxJumpAddress is the largest bytecode address that fits in a
+// uint16 jump operand.
+const maxJumpAddress = 0xFFFF
 
 // CompileWithDB compiles an AST using the query database for caching.
 func CompileWithDB(db *Database, filePath string, expr AstNode) (*Program, error) {
@@ -597,6 +605,7 @@ func (c *compiler) saveOpenAddr(addr int) {
 func (c *compiler) emit(i Instruction) {
 	c.code = append(c.code, i)
 	c.cursor++
+	c.bytecodeSize += i.SizeInBytes()
 }
 
 func (c *compiler) pushSrc(src SourceLocation) {
@@ -649,6 +658,11 @@ func (c *compiler) shouldInline(def *DefinitionNode) (bool, error) {
 	}
 	id := c.intern(def.Name)
 	if c.dryRun || !c.config.GetBool("compiler.inline.enabled") {
+		return false, nil
+	}
+	// Stop inlining once the program approaches the uint16 jump
+	// address limit
+	if c.bytecodeSize > maxJumpAddress {
 		return false, nil
 	}
 	if c.grammarNode.FirstDefinition().Name == def.Name {

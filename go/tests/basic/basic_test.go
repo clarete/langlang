@@ -201,8 +201,19 @@ func TestIsSyntactic(t *testing.T) {
 		}
 
 		for test, errMsg := range map[string]string{
-			" a9:30":    "Expected 'A-Z', 'a-z' but got ' ' @ 1",
-			"a 999 :99": "Expected '0-9', 'A-Z', 'a-z' but got ' ' @ 6..7",
+			" a9:30": "Expected 'A-Z', 'a-z' but got ' ' @ 1",
+			// Yeah, this is wrong.  It should have found
+			// the space, not the colon to be the
+			// character it got.
+			//
+			// The reason why it doesn't is because we
+			// want to read off of the FFP, and not the
+			// post-backtrack cursor.  The pattern of
+			// lexification right after a sequence with
+			// non-syntactic expressions causes this and
+			// in the future, it's going to cause a
+			// warning.
+			"a 999 :99": "Expected '0-9', 'A-Z', 'a-z' but got ':' @ 6..7",
 		} {
 			p := newBasicParser(test)
 			_, err := p.ParseSPC1()

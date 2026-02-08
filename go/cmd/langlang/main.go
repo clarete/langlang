@@ -369,7 +369,9 @@ func printParsingError(
 		fmt.Println(err.Error())
 		return
 	}
-	loc := tree.Location(perr.Start)
+
+	// perr.End is the farther failure position
+	loc := tree.Location(perr.End)
 	fmt.Printf("%s:%d:%d: ", inputPath, loc.Line, loc.Column)
 	fmt.Println(perr.Message)
 

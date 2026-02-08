@@ -60,7 +60,7 @@ func (p *GrammarParserV2) parseErrorToNode(err error) *ErrorNode {
 	if errors.As(err, &parsingErr) {
 		message := parsingErr.Message
 		if len(parsingErr.Expected) > 0 {
-			message = FormatExpectedMessage(parsingErr.Expected, p.input, parsingErr.Start)
+			message = FormatExpectedMessage(parsingErr.Expected, p.input, parsingErr.End)
 		}
 		// Convert byte offsets to line/column positions
 		pi := newPosIndex(p.input)

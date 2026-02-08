@@ -908,10 +908,10 @@ func (vm *virtualMachine) mkErr(data []byte, errLabelID int, cursor, errCursor i
 		message strings.Builder
 		c       rune
 	)
-	if cursor >= len(data) {
+	if errCursor >= len(data) {
 		isEof = true
 	} else {
-		c, _ = decodeRune(data, cursor)
+		c, _ = decodeRune(data, errCursor)
 	}
 	if msgID, ok := vm.errLabels[errLabelID]; ok {
 		// If an error message has been associated with the

@@ -183,7 +183,7 @@ func main() {
 			input := []byte(text)
 			tree, _, err := matcher.Match(input)
 			if err != nil {
-				printParsingError(err, matcher)
+				printParsingError(err, matcher, tree, "<stdin>")
 			} else if tree != nil {
 				root, _ := tree.Root()
 				fmt.Println(tree.Highlight(root))
@@ -205,7 +205,7 @@ func main() {
 		}
 		tree, _, err := matcher.Match(text)
 		if err != nil {
-			printParsingError(err, matcher)
+			printParsingError(err, matcher, tree, *a.inputPath)
 		} else if tree != nil {
 			root, _ := tree.Root()
 			fmt.Println(tree.Highlight(root))
@@ -356,16 +356,21 @@ func printDiagnosticsAndCheckForErrors(diagnostics []langlang.Diagnostic, minLev
 	return hasErrors
 }
 
-// printParsingError prints a parsing error with grammar location if available.
-func printParsingError(err error, matcher langlang.Matcher) {
+// printParsingError prints a parsing error with input location and
+// grammar location if available.
+func printParsingError(
+	err error,
+	matcher langlang.Matcher,
+	tree langlang.Tree,
+	inputPath string,
+) {
 	perr, ok := err.(langlang.ParsingError)
 	if !ok {
-		fmt.Print(ascii.Color(theme.Error, "error: "))
 		fmt.Println(err.Error())
 		return
 	}
-
-	fmt.Print(ascii.Color(theme.Error, "ERROR: "))
+	loc := tree.Location(perr.Start)
+	fmt.Printf("%s:%d:%d: ", inputPath, loc.Line, loc.Column)
 	fmt.Println(perr.Message)
 
 	// Show grammar location if source map is available

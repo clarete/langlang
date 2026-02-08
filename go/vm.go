@@ -481,7 +481,12 @@ code:
 				pc = addr
 				continue
 			}
-			return nil, cursor, vm.mkErr(data, lb, cursor, vm.ffp)
+			if len(stack.nodes) > 0 {
+				idx := len(stack.nodes) - 1
+				nid := stack.nodes[idx]
+				stack.tree.SetRoot(nid)
+			}
+			return stack.tree, cursor, vm.mkErr(data, lb, cursor, vm.ffp)
 
 		case opCapBegin:
 			id := int(decodeU16(code, pc+1))

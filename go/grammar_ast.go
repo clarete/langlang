@@ -211,7 +211,7 @@ func (n CharsetNode) Accept(v AstNodeVisitor) error  { return v.VisitCharsetNode
 
 func (n CharsetNode) Equal(o AstNode) bool {
 	if other, ok := o.(*CharsetNode); ok {
-		return n.src == other.src && n.cs.eq(other.cs)
+		return n.cs.eq(other.cs)
 	}
 	return false
 }

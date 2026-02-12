@@ -1,0 +1,141 @@
+// CSS Grammar based on https://www.w3.org/TR/css-syntax-3/ and the
+// syntactic parts of https://www.w3.org/TR/css-values-4/
+
+@import Stylesheet, Spacing from "./css2.1.peg"
+
+// CSS 2.1's Stylesheet only knows Ruleset / Media / Page.
+// CSS 3 adds @font-face, @keyframes, @supports, @namespace, and @container.
+Stylesheet <- Charset* Import* Namespace*
+              (Ruleset / Media / Page / FontFace / Keyframes / Supports / Container / CounterStyle)* EOF
+
+// @namespace : @namespace [prefix]? [STRING|URI] ';'
+Namespace <- NAMESPACE_SYM IDENT? (STRING / URI) ';'
+
+// @font-face : @font-face '{' declaration? [';' declaration?]* '}'
+FontFace <- FONTFACE_SYM '{' Declaration? (';' Declaration?)* '}'
+
+// @keyframes : @keyframes IDENT '{' keyframe_rule* '}'
+Keyframes <- KEYFRAMES_SYM IDENT '{' KeyframeRule* '}'
+KeyframeRule <- KeyframeSelector (',' KeyframeSelector)* '{' Declaration? (';' Declaration?)* '}'
+KeyframeSelector <- PERCENTAGE / 'from' / 'to'
+
+// @supports : @supports supports_condition '{' (ruleset | supports)* '}'
+Supports <- SUPPORTS_SYM SupportsCondition '{' (Ruleset / Supports)* '}'
+SupportsCondition <- SupportsNegation / SupportsConjunction / SupportsDisjunction / SupportsInParens
+SupportsNegation <- 'not' SupportsInParens
+SupportsConjunction <- SupportsInParens ('and' SupportsInParens)+
+SupportsDisjunction <- SupportsInParens ('or' SupportsInParens)+
+SupportsInParens <- '(' SupportsCondition ')' / SupportsSelectorFn / '(' Declaration ')'
+
+// selector(): CSS Conditional Rules Level 4
+//   e.g. @supports selector(:focus-visible) { ... }
+SupportsSelectorFn <- 'selector(' Selector ')'
+
+// @counter-style: CSS Counter Styles Level 3
+//   e.g. @counter-style thumbs { system: cyclic; symbols: '\1F44D'; suffix: ' '; }
+CounterStyle <- COUNTERSTYLE_SYM IDENT '{' Declaration? (';' Declaration?)* '}'
+
+// @container: CSS Containment Level 3 container queries
+//   e.g. @container sidebar (min-width: 700px) { ... }
+Container <- CONTAINER_SYM IDENT? ContainerCondition
+             '{' (Ruleset / Media / Container)* '}'
+ContainerCondition <- ContainerExpression ('and' ContainerExpression)*
+ContainerExpression <- '(' IDENT (':' Expr)? ')'
+
+// @media: CSS 3 media queries are richer than CSS 2.1
+// Per CSS Conditional Rules Level 3, @media blocks may contain any
+// top-level rules: rulesets and other at-rules (including nested @media).
+Media <- MEDIA_SYM MediaQueryList '{' (Ruleset / Media / Page / FontFace / Keyframes / Supports / Container / CounterStyle)* '}'
+MediaQueryList <- MediaQuery (',' MediaQuery)*
+MediaQuery <- ('only' / 'not')? MediaType ('and' MediaExpression)*
+            / MediaExpression ('and' MediaExpression)*
+MediaType <- IDENT
+MediaExpression <- '(' IDENT (':' Expr)? ')'
+
+// Selectors Level 3 / 4
+
+// selector : selector_group
+Selector <- SimpleSelector (Combinator? Selector)?
+
+// Combinator now includes ~ (general sibling) and || (column, L4)
+Combinator <- '+' / '>' / '~'
+
+// simple_selector : type_or_universal
+//   [ HASH | class | attrib | pseudo | negation | is | where | has ]*
+// Functional pseudo-classes (:not, :is, :where, :has) must appear before
+// Pseudo, otherwise ':' IDENT branch of Pseudo consumes the colon first.
+SimpleSelector <- ElementName (HASH / Class / Attrib / Negation / Has / Is / Where / Pseudo)*
+               / (HASH / Class / Attrib / Negation / Has / Is / Where / Pseudo)+
+
+// element_name may include a namespace prefix: ns|E, *|E, |E
+ElementName <- (IDENT / '*')? '|' (IDENT / '*')
+             / IDENT / '*'
+
+// attrib: CSS 3 adds ^=, $=, *=
+Attrib <- '[' IDENT
+          (('=' / INCLUDES / DASHMATCH / PREFIXMATCH / SUFFIXMATCH / SUBSTRINGMATCH)
+           (IDENT / STRING))?
+          ']'
+
+// pseudo: CSS 3 distinguishes :pseudo-class from ::pseudo-element
+Pseudo <- '::' (FUNCTION IDENT? ')' / IDENT)
+        / ':'  (FUNCTION Expr? ')' / IDENT)
+
+// :not(): Selectors Level 4 allows a full forgiving selector list inside :not()
+//   e.g. :not(.btn-check:first-child), :not([type=date]), :not(.active, .selected)
+Negation <- ':' 'not(' Selector (',' Selector)* ')'
+
+// :is(): Selectors Level 4 — matches any selector in the list
+//   e.g. :is(h1, h2, h3), :is(.card > .body)
+Is <- ':' 'is(' Selector (',' Selector)* ')'
+
+// :where(): Selectors Level 4 — same as :is() but zero specificity
+//   e.g. :where([title]), :where(.active, .focus)
+Where <- ':' 'where(' Selector (',' Selector)* ')'
+
+// :has(): Selectors Level 4 — relational pseudo-class
+// Takes a relative selector list (selectors optionally preceded by a combinator)
+//   e.g. :has(+ .subtitle), :has(> .child), :has(.active)
+Has <- ':' 'has(' RelativeSelector (',' RelativeSelector)* ')'
+RelativeSelector <- Combinator? Selector
+
+// Extended declarations
+
+// CSS 3 custom properties allow empty values: --font-weight: ;
+Declaration <- Property ':' Expr? Prio?
+
+// Extended values
+
+// operator: CSS 3 adds +, -, * for calc() math expressions
+Operator <- '/' / ',' / '+' / '-' / '*'
+
+// term: CSS 3 adds more function types, calc(), and parenthesized
+// sub-expressions for grouping inside calc():  calc(a - (b))
+Term <- UnaryOperator? (PERCENTAGE / DIMENSION / NUMBER)
+      / STRING / URI / Function / '(' Expr ')' / HexColor / IDENT
+
+// function: allow nested expressions (for calc, var, etc.)
+Function <- FUNCTION Expr ')'
+
+// Overridden lexical tokens
+
+// CSS 3 custom properties use -- prefix: --bg-color, --font-size, etc.
+IDENT <- #('--' NmChar+ / '-'? NmStart NmChar*)
+
+// FUNCTION must also support -- prefix (e.g. var(--x))
+FUNCTION <- #('--' NmChar+ '(' / '-'? NmStart NmChar* '(')
+
+// New at-rule keyword tokens
+
+NAMESPACE_SYM  <- '@namespace'
+FONTFACE_SYM   <- '@font-face'
+KEYFRAMES_SYM  <- '@keyframes' / '@-webkit-keyframes'
+SUPPORTS_SYM   <- '@supports'
+CONTAINER_SYM    <- '@container'
+COUNTERSTYLE_SYM <- '@counter-style'
+
+// New CSS 3 attribute selector tokens
+
+PREFIXMATCH    <- '^='
+SUFFIXMATCH    <- '$='
+SUBSTRINGMATCH <- '*='

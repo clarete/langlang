@@ -1,0 +1,211 @@
+// CSS 2.1 Grammar based off https://www.w3.org/TR/CSS2/grammar.html
+
+// Hierarchical syntax
+
+// stylesheet : [ charset ]*
+//     [S|CDO|CDC]* [ import ]*
+//     [ [ ruleset | media | page ] ]*
+//   ;
+Stylesheet <- Charset* Import* (Ruleset / Media / Page)* EOF
+
+// charset
+//   : CHARSET_SYM STRING ';'
+//   ;
+Charset <- CHARSET_SYM STRING ';'
+
+// import
+//   : IMPORT_SYM
+//     [STRING|URI] media_list? ';'
+//   ;
+Import <- IMPORT_SYM (STRING / URI) MediaList? ';'
+
+// media
+//   : MEDIA_SYM media_list '{' ruleset* '}'
+//   ;
+Media <- MEDIA_SYM MediaList '{' Ruleset* '}'
+
+// media_list
+//   : medium [ COMMA medium]*
+//   ;
+MediaList <- Medium (',' Medium)*
+
+// medium
+//   : IDENT
+//   ;
+Medium <- IDENT
+
+// page
+//   : PAGE_SYM pseudo_page?
+//     '{' declaration? [ ';' declaration? ]* '}'
+//   ;
+Page <- PAGE_SYM PseudoPage? '{' Declaration? (';' Declaration?)* '}'
+
+// pseudo_page
+//   : ':' IDENT
+//   ;
+PseudoPage <- ':' IDENT
+
+// operator
+//   : '/' | ','
+//   ;
+Operator <- '/' / ','
+
+// combinator
+//   : '+' | '>'
+//   ;
+Combinator <- '+' / '>'
+
+// unary_operator
+//   : '-' | '+'
+//   ;
+UnaryOperator <- '-' / '+'
+
+// property
+//   : IDENT
+//   ;
+Property <- IDENT
+
+// ruleset
+//   : selector [ ',' selector ]*
+//     '{' declaration? [ ';' declaration? ]* '}'
+//   ;
+Ruleset <- Selector (',' Selector)* '{' Declaration? (';' Declaration?)* '}'
+
+// selector
+//   : simple_selector [ combinator selector | S+ [ combinator? selector ]? ]?
+//   ;
+Selector <- SimpleSelector (Combinator? Selector)?
+
+// simple_selector
+//   : element_name [ HASH | class | attrib | pseudo ]*
+//   | [ HASH | class | attrib | pseudo ]+
+//   ;
+SimpleSelector <- ElementName (HASH / Class / Attrib / Pseudo)*
+               / (HASH / Class / Attrib / Pseudo)+
+
+// class
+//   : '.' IDENT
+//   ;
+Class <- '.' IDENT
+
+// element_name
+//   : IDENT | '*'
+//   ;
+ElementName <- IDENT / '*'
+
+// attrib
+//   : '[' IDENT [ [ '=' | INCLUDES | DASHMATCH ]
+//     [ IDENT | STRING ] ]? ']'
+//   ;
+Attrib <- '[' IDENT (('=' / INCLUDES / DASHMATCH) (IDENT / STRING))? ']'
+
+// pseudo
+//   : ':' [ IDENT | FUNCTION [IDENT]? ')' ]
+//   ;
+Pseudo <- ':' ':' ? (FUNCTION IDENT? ')' / IDENT)
+
+// declaration
+//   : property ':' expr prio?
+//   ;
+Declaration <- Property ':' Expr Prio?
+
+// prio
+//   : IMPORTANT_SYM
+//   ;
+Prio <- IMPORTANT_SYM
+
+// expr
+//   : term [ operator? term ]*
+//   ;
+Expr <- Term (Operator? Term)*
+
+// term
+//   : unary_operator?
+//     [ NUMBER | PERCENTAGE | LENGTH | EMS | EXS
+//     | ANGLE | TIME | FREQ ]
+//   | STRING | IDENT | URI | hexcolor | function
+//   ;
+Term <- UnaryOperator? (PERCENTAGE / DIMENSION / NUMBER)
+      / STRING / URI / Function / HexColor / IDENT
+
+// function
+//   : FUNCTION expr ')'
+//   ;
+Function <- FUNCTION Expr ')'
+
+// /*
+//  * There is a constraint on the color that it must
+//  * have either 3 or 6 hex-digits (i.e., [0-9a-fA-F])
+//  * after the "#"; e.g., "#000" is OK, but "#abcd" is not.
+//  */
+// hexcolor
+//   : HASH
+//   ;
+HexColor <- HASH
+
+// Lexical tokens
+
+IMPORT_SYM    <- '@import'
+PAGE_SYM      <- '@page'
+MEDIA_SYM     <- '@media'
+CHARSET_SYM   <- '@charset'
+IMPORTANT_SYM <- #('!' 'important')
+
+INCLUDES  <- '~='
+DASHMATCH <- '|='
+
+// ident  : [-]?{nmstart}{nmchar}*
+IDENT    <- #('-'? NmStart NmChar*)
+
+// FUNCTION : {ident}'('
+FUNCTION <- #('-'? NmStart NmChar* '(')
+
+// HASH : '#'{name}
+HASH     <- #('#' NmChar+)
+
+// string  : {string1}|{string2}
+// string1 : \"([^\n\r\f\\"]|\\{nl}|{escape})*\"
+// string2 : \'([^\n\r\f\\']|\\{nl}|{escape})*\'
+STRING <- #('"' (Escape / !["\n\r] .)* '"')
+        / #("'" (Escape / !['\n\r] .)* "'")
+
+// num : [0-9]+|[0-9]*'.'[0-9]+
+Num <- #([0-9]+ ('.' [0-9]+)? / '.' [0-9]+)
+
+// NUMBER : {num}
+NUMBER <- #(Num)
+
+// PERCENTAGE : {num}'%'
+PERCENTAGE <- #(Num '%')
+
+// DIMENSION covers LENGTH, EMS, EXS, ANGLE, TIME, FREQ
+// dimension : {num}{ident}
+DIMENSION <- #(Num '-'? NmStart NmChar*)
+
+// URI : url'('{w}{string}{w}')'
+//     | url'('{w}([!#$%&*-\200+]|{nonascii}|{escape})*{w}')'
+URI <- #('url(' (STRING / (!')' .)*) ')')
+
+// Character-level rules
+
+// nmstart : [_a-zA-Z]|{nonascii}|{escape}
+NmStart <- #([_a-zA-Z] / NonAscii / Escape)
+
+// nmchar : [_a-zA-Z0-9-]|{nonascii}|{escape}
+NmChar <- #([_a-zA-Z0-9-] / NonAscii / Escape)
+
+// nonascii : [^\0-\177]
+NonAscii <- [\u0080-\uFFFF]
+
+// escape : {unicode}|\\[^\n\r\f0-9a-fA-F]
+Escape <- #(Unicode / '\\' ![0-9a-fA-F\n\r] .)
+
+// unicode : \\[0-9a-fA-F]{1,6}(\r\n|[ \n\r\t\f])?
+Unicode <- #('\\' Hex Hex? Hex? Hex? Hex? Hex? ('\r\n' / [\n\r\t ])?)
+
+Hex <- [0-9a-fA-F]
+
+// Spacing (override built-in for CSS block comments)
+
+Spacing <- (' ' / '\t' / '\r\n' / '\n' / '\r' / Comment)*
+Comment <- '/*' (!'*/' .)* '*/'

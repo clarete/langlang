@@ -209,14 +209,18 @@ func computeLeftRecursiveSet(db *Database, key FilePath) (map[string]struct{}, e
 	if err != nil {
 		return nil, err
 	}
-	return getLeftRecursiveFromGrammar(grammar), nil
+	nullableSet, err := Get(db, NullableRulesQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	return getLeftRecursiveFromGrammar(grammar, nullableSet), nil
 }
 
 // getLeftRecursiveFromGrammar builds a "left-call graph" where an
 // edge from A to B means A can start with a call to B in at least one
 // alternative (considering nullable prefixes). Then finds all cycles
 // in this graph - any rule in a cycle is left-recursive.
-func getLeftRecursiveFromGrammar(g *GrammarNode) map[string]struct{} {
+func getLeftRecursiveFromGrammar(g *GrammarNode, nullableSet map[string]struct{}) map[string]struct{} {
 	lcg := make(callGraph, len(g.Definitions))
 	for _, d := range g.Definitions {
 		if _, ok := lcg[d.Name]; !ok {
@@ -225,7 +229,7 @@ func getLeftRecursiveFromGrammar(g *GrammarNode) map[string]struct{} {
 		// For each alternative, find ALL potential left-calls
 		// (including those after nullable prefixes)
 		for _, alt := range flattenChoices(d.Expr) {
-			for _, call := range getLeftCalls(alt, g) {
+			for _, call := range getLeftCalls(alt, g, nullableSet) {
 				lcg[d.Name][call] = struct{}{}
 			}
 		}
@@ -237,21 +241,21 @@ func getLeftRecursiveFromGrammar(g *GrammarNode) map[string]struct{} {
 // getLeftCalls returns all rule names that could be "first" in an
 // expression, considering nullable prefixes. For example, in "B? A",
 // both B and A are potential left-calls because B? can match empty.
-func getLeftCalls(node AstNode, g *GrammarNode) []string {
+func getLeftCalls(node AstNode, g *GrammarNode, nullableSet map[string]struct{}) []string {
 	var calls []string
-	collectLeftCalls(node, g, &calls)
+	collectLeftCalls(node, g, nullableSet, &calls)
 	return calls
 }
 
 // collectLeftCalls recursively collects all potential left-calls.
-func collectLeftCalls(node AstNode, g *GrammarNode, calls *[]string) {
+func collectLeftCalls(node AstNode, g *GrammarNode, nullableSet map[string]struct{}, calls *[]string) {
 	switch n := node.(type) {
 	case *SequenceNode:
 		// For sequences, collect calls from each item until we hit
 		// a non-nullable item
 		for _, item := range n.Items {
-			collectLeftCalls(item, g, calls)
-			if !isNullable(item, g) {
+			collectLeftCalls(item, g, nullableSet, calls)
+			if !isNullableWithSet(item, nullableSet) {
 				break
 			}
 		}
@@ -262,17 +266,17 @@ func collectLeftCalls(node AstNode, g *GrammarNode, calls *[]string) {
 			*calls = append(*calls, id.Value)
 		}
 	case *LexNode:
-		collectLeftCalls(n.Expr, g, calls)
+		collectLeftCalls(n.Expr, g, nullableSet, calls)
 	case *CaptureNode:
-		collectLeftCalls(n.Expr, g, calls)
+		collectLeftCalls(n.Expr, g, nullableSet, calls)
 	case *LabeledNode:
-		collectLeftCalls(n.Expr, g, calls)
+		collectLeftCalls(n.Expr, g, nullableSet, calls)
 	case *ZeroOrMoreNode:
-		collectLeftCalls(n.Expr, g, calls)
+		collectLeftCalls(n.Expr, g, nullableSet, calls)
 	case *OneOrMoreNode:
-		collectLeftCalls(n.Expr, g, calls)
+		collectLeftCalls(n.Expr, g, nullableSet, calls)
 	case *OptionalNode:
-		collectLeftCalls(n.Expr, g, calls)
+		collectLeftCalls(n.Expr, g, nullableSet, calls)
 	case *AndNode:
 		// Lookahead doesn't consume input but we should still
 		// check what's after it
@@ -281,80 +285,276 @@ func collectLeftCalls(node AstNode, g *GrammarNode, calls *[]string) {
 	}
 }
 
-// isNullable returns true if the expression can match the empty string.
-func isNullable(node AstNode, g *GrammarNode) bool {
+// NullableRulesQuery computes the set of all nullable rule names in a
+// grammar using a fixed-point iteration.  A rule is nullable if its
+// body can match the empty string, considering transitive rule
+// references of arbitrary depth.
+var NullableRulesQuery = &Query[FilePath, map[string]struct{}]{
+	Name:    "NullableRules",
+	Compute: computeNullableRules,
+}
+
+func computeNullableRules(db *Database, key FilePath) (map[string]struct{}, error) {
+	grammar, err := Get(db, ResolvedImportsQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	return computeNullableSet(grammar), nil
+}
+
+// computeNullableSet computes the set of all nullable rule names
+// using a fixed-point iteration.  On each pass it checks every
+// definition body against the current set; whenever a new rule
+// becomes nullable, another pass is triggered.  Converges in at most
+// N iterations (N = number of rules here) because nullability is
+// monotone, as it only moves from false to true.
+func computeNullableSet(g *GrammarNode) map[string]struct{} {
+	nullableSet := make(map[string]struct{})
+	for {
+		changed := false
+		for _, def := range g.Definitions {
+			if _, already := nullableSet[def.Name]; already {
+				continue
+			}
+			if isNullableWithSet(def.Expr, nullableSet) {
+				nullableSet[def.Name] = struct{}{}
+				changed = true
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	return nullableSet
+}
+
+// isNullableWithSet returns true if the expression can match the
+// empty string.  Rule references are resolved by looking up the
+// pre-computed nullableSet instead of recursing into rule bodies,
+// which avoids infinite recursion and handles chains of any depth.
+func isNullableWithSet(node AstNode, nullableSet map[string]struct{}) bool {
 	switch n := node.(type) {
-	case *ZeroOrMoreNode:
-		return true // * always nullable
-	case *OptionalNode:
-		return true // ? always nullable
 	case *AndNode:
-		return true // & doesn't consume input
+		return true
 	case *NotNode:
-		return true // ! doesn't consume input
+		return true
+	case *OptionalNode:
+		return true
+	case *ZeroOrMoreNode:
+		return true
+	case *OneOrMoreNode:
+		// e+ is nullable iff e is nullable (at least one
+		// match is required, but that match can be empty)
+		return isNullableWithSet(n.Expr, nullableSet)
 	case *SequenceNode:
 		// Sequence is nullable if ALL items are nullable
 		for _, item := range n.Items {
-			if !isNullable(item, g) {
+			if !isNullableWithSet(item, nullableSet) {
 				return false
 			}
 		}
 		return true
 	case *ChoiceNode:
 		// Choice is nullable if ANY alternative is nullable
-		return isNullable(n.Left, g) || isNullable(n.Right, g)
+		return isNullableWithSet(n.Left, nullableSet) || isNullableWithSet(n.Right, nullableSet)
 	case *LexNode:
-		return isNullable(n.Expr, g)
+		return isNullableWithSet(n.Expr, nullableSet)
 	case *CaptureNode:
-		return isNullable(n.Expr, g)
+		return isNullableWithSet(n.Expr, nullableSet)
 	case *LabeledNode:
-		return isNullable(n.Expr, g)
+		return isNullableWithSet(n.Expr, nullableSet)
 	case *IdentifierNode:
-		// Rule reference - check if the referenced rule is nullable
-		// To avoid infinite recursion, we use a simple heuristic:
-		// assume rules are NOT nullable unless trivially so
-		if def, ok := g.DefsByName[n.Value]; ok {
-			return isNullableSimple(def.Expr)
-		}
-		return false
-	case *OneOrMoreNode:
-		return false // + requires at least one match
+		_, ok := nullableSet[n.Value]
+		return ok
 	default:
-		// Terminals (Literal, Char, Range, Any, etc.) are not nullable
 		return false
 	}
 }
 
-// isNullableSimple checks nullability without following rule references
-// to avoid infinite recursion. Used as a simple heuristic.
-func isNullableSimple(node AstNode) bool {
+// AlwaysSucceedsRulesQuery computes the set of all rule names whose
+// body always succeeds regardless of input.
+//
+// A rule always succeeds if its body is composed entirely of
+// expressions that cannot fail: e?, e*, etc.
+//
+// This is used to distinguish between:
+//
+//   - definitive infinite loops: body always succeeds creates loops
+//     that can never exit
+//
+//   - input-dependent infinite loops: body can fail, which might
+//     cause loops to exit.
+var AlwaysSucceedsRulesQuery = &Query[FilePath, map[string]struct{}]{
+	Name:    "AlwaysSucceedsRules",
+	Compute: computeAlwaysSucceedsRules,
+}
+
+func computeAlwaysSucceedsRules(db *Database, key FilePath) (map[string]struct{}, error) {
+	grammar, err := Get(db, ResolvedImportsQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	return computeAlwaysSucceedsSet(grammar), nil
+}
+
+// computeAlwaysSucceedsSet computes the set of all rule names whose
+// body always succeeds using a fixed-point iteration, analogous to
+// computeNullableSet.
+func computeAlwaysSucceedsSet(g *GrammarNode) map[string]struct{} {
+	asSet := make(map[string]struct{})
+	for {
+		changed := false
+		for _, def := range g.Definitions {
+			if _, already := asSet[def.Name]; already {
+				continue
+			}
+			if alwaysSucceeds(def.Expr, asSet) {
+				asSet[def.Name] = struct{}{}
+				changed = true
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	return asSet
+}
+
+// alwaysSucceeds returns true if the expression can never fail,
+// regardless of input.
+func alwaysSucceeds(node AstNode, asSet map[string]struct{}) bool {
 	switch n := node.(type) {
-	case *ZeroOrMoreNode:
-		return true
+	case *AndNode:
+		return false
+	case *NotNode:
+		return false
 	case *OptionalNode:
 		return true
-	case *AndNode:
+	case *ZeroOrMoreNode:
 		return true
-	case *NotNode:
-		return true
+	case *OneOrMoreNode:
+		// e+ succeeds iff the first attempt succeeds
+		return alwaysSucceeds(n.Expr, asSet)
 	case *SequenceNode:
 		for _, item := range n.Items {
-			if !isNullableSimple(item) {
+			if !alwaysSucceeds(item, asSet) {
 				return false
 			}
 		}
 		return true
 	case *ChoiceNode:
-		return isNullableSimple(n.Left) || isNullableSimple(n.Right)
+		return alwaysSucceeds(n.Left, asSet) || alwaysSucceeds(n.Right, asSet)
 	case *LexNode:
-		return isNullableSimple(n.Expr)
+		return alwaysSucceeds(n.Expr, asSet)
 	case *CaptureNode:
-		return isNullableSimple(n.Expr)
+		return alwaysSucceeds(n.Expr, asSet)
 	case *LabeledNode:
-		return isNullableSimple(n.Expr)
+		return alwaysSucceeds(n.Expr, asSet)
+	case *IdentifierNode:
+		_, ok := asSet[n.Value]
+		return ok
 	default:
 		return false
 	}
+}
+
+// Infinite Loop Detection
+
+// InfiniteLoopRisk describes a repetition operator whose body can
+// match the empty string, which may cause an infinite loop at
+// runtime.
+//
+// Definitive means the body always succeeds, so the loop can never
+// exit, so this is an unconditional infinite loop.  Non-definitive
+// means the body can fail on some inputs, so the loop might exit,
+// which is a potential infinite loop on certain inputs.
+type InfiniteLoopRisk struct {
+	DefName    string         // which definition contains the loop
+	Location   SourceLocation // location of the * or + node
+	Operator   string         // "*" or "+"
+	BodyExpr   string         // String() of the nullable body for the message
+	ViaRule    string         // if non-empty, the rule reference that makes the body nullable
+	Definitive bool           // true if the body always succeeds (loop can never exit)
+}
+
+// InfiniteLoopRisksQuery detects repetition operators (* and +) whose
+// body is nullable (can match the empty string).  Definitive findings
+// (body always succeeds) are errors; non-definitive findings (body
+// can fail) are warnings.
+var InfiniteLoopRisksQuery = &Query[FilePath, []InfiniteLoopRisk]{
+	Name:    "InfiniteLoopRisks",
+	Compute: computeInfiniteLoopRisks,
+}
+
+func computeInfiniteLoopRisks(db *Database, key FilePath) ([]InfiniteLoopRisk, error) {
+	grammar, err := Get(db, ResolvedImportsQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	nullableSet, err := Get(db, NullableRulesQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	asSet, err := Get(db, AlwaysSucceedsRulesQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	var risks []InfiniteLoopRisk
+	for _, def := range grammar.Definitions {
+		Inspect(def.Expr, func(n AstNode) bool {
+			var body AstNode
+			var op string
+			switch x := n.(type) {
+			case *ZeroOrMoreNode:
+				body, op = x.Expr, "*"
+			case *OneOrMoreNode:
+				body, op = x.Expr, "+"
+			default:
+				return true
+			}
+			if !isNullableWithSet(body, nullableSet) {
+				return true
+			}
+			risk := InfiniteLoopRisk{
+				DefName:    def.Name,
+				Location:   n.SourceLocation(),
+				Operator:   op,
+				BodyExpr:   body.String(),
+				Definitive: alwaysSucceeds(body, asSet),
+			}
+			// If the body is not nullable with an empty
+			// set, then some rule reference is involved:
+			// find the first nullable identifier to
+			// populate ViaRule.
+			emptySet := map[string]struct{}{}
+			if !isNullableWithSet(body, emptySet) {
+				risk.ViaRule = firstNullableRef(body, nullableSet)
+			}
+			risks = append(risks, risk)
+			return true
+		})
+	}
+	return risks, nil
+}
+
+// firstNullableRef finds the first IdentifierNode within node whose
+// name is in nullableSet.  Used to populate the ViaRule field in
+// diagnostics for cross-rule nullable bodies.
+func firstNullableRef(node AstNode, nullableSet map[string]struct{}) string {
+	var found string
+	Inspect(node, func(n AstNode) bool {
+		if found != "" {
+			return false
+		}
+		if id, ok := n.(*IdentifierNode); ok {
+			if _, isNullable := nullableSet[id.Value]; isNullable {
+				found = id.Value
+				return false
+			}
+		}
+		return true
+	})
+	return found
 }
 
 var IsLeftRecursiveQuery = &Query[DefKey, bool]{

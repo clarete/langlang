@@ -752,3 +752,292 @@ func TestIsLeftRecursiveQuery(t *testing.T) {
 		})
 	}
 }
+
+// Nullability Tests
+
+func TestNullableRulesQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		grammar  string
+		nullable []string // rule names expected to be nullable
+		solid    []string // rule names expected to NOT be nullable
+	}{
+		{"optional body",
+			`A <- 'x'?`,
+			[]string{"A"}, []string{}},
+		{"zero or more",
+			`A <- 'x'*`,
+			[]string{"A"}, []string{}},
+		{"literal",
+			`A <- 'x'`,
+			[]string{}, []string{"A"}},
+		{"one or more non-nullable",
+			`A <- 'x'+`,
+			[]string{}, []string{"A"}},
+		{"one or more nullable",
+			`A <- 'x'?
+			 B <- A+`,
+			[]string{"A", "B"}, []string{}},
+		{"transitive chain",
+			`A <- B
+			 B <- C
+			 C <- 'x'?`,
+			[]string{"A", "B", "C"}, []string{}},
+		{"transitive chain blocked",
+			`A <- B
+			 B <- C
+			 C <- 'x'`,
+			[]string{}, []string{"A", "B", "C"}},
+		{"sequence all nullable",
+			`A <- 'x'? 'y'?`,
+			[]string{"A"}, []string{}},
+		{"sequence one solid",
+			`A <- 'x' 'y'?`,
+			[]string{}, []string{"A"}},
+		{"choice one nullable",
+			`A <- 'x' / 'y'?`,
+			[]string{"A"}, []string{}},
+		{"and predicate",
+			`A <- &'x'`,
+			[]string{"A"}, []string{}},
+		{"not predicate",
+			`A <- !'x'`,
+			[]string{"A"}, []string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := NewInMemoryImportLoader()
+			loader.Add("test.peg", []byte(tt.grammar))
+			cfg := NewConfig()
+			cfg.SetBool("grammar.add_builtins", false)
+			db := NewDatabase(cfg, loader)
+
+			nullableSet, err := Get(db, NullableRulesQuery, FilePath("test.peg"))
+			require.NoError(t, err)
+
+			for _, name := range tt.nullable {
+				_, ok := nullableSet[name]
+				assert.True(t, ok, "expected %s to be nullable", name)
+			}
+			for _, name := range tt.solid {
+				_, ok := nullableSet[name]
+				assert.False(t, ok, "expected %s to NOT be nullable", name)
+			}
+		})
+	}
+}
+
+// Infinite Loop Detection Tests
+
+func TestInfiniteLoopRisksQuery(t *testing.T) {
+	tests := []struct {
+		name      string
+		grammar   string
+		wantCount int
+		wantOps   []string // expected operators in order
+		wantVia   []bool   // true = has ViaRule, false = structural
+		wantDef   []bool   // true = Definitive (error), false = input-dependent (warning)
+	}{
+		// Definitive: body always succeeds, loop can never exit
+		{"optional star",
+			`A <- ('x'?)*`,
+			1, []string{"*"}, []bool{false}, []bool{true}},
+		{"optional plus",
+			`A <- ('x'?)+`,
+			1, []string{"+"}, []bool{false}, []bool{true}},
+		{"star star",
+			`A <- ('x'*)*`,
+			1, []string{"*"}, []bool{false}, []bool{true}},
+		{"all nullable sequence star",
+			`A <- ('x'? 'y'?)*`,
+			1, []string{"*"}, []bool{false}, []bool{true}},
+		{"any nullable choice star definitive",
+			`A <- ('x'? / 'y'?)*`,
+			1, []string{"*"}, []bool{false}, []bool{true}},
+		{"nullable rule star definitive",
+			`A <- B*
+			 B <- 'x'?`,
+			1, []string{"*"}, []bool{true}, []bool{true}},
+		{"deep chain star definitive",
+			`A <- B*
+			 B <- C
+			 C <- 'x'?`,
+			1, []string{"*"}, []bool{true}, []bool{true}},
+		{"nullable ref sequence definitive",
+			`A <- (B C)*
+			 B <- 'x'?
+			 C <- 'y'?`,
+			1, []string{"*"}, []bool{true}, []bool{true}},
+
+		// Input-dependent: body can fail, loop might exit
+		{"and star",
+			`A <- (&'x')*`,
+			1, []string{"*"}, []bool{false}, []bool{false}},
+		{"not star",
+			`A <- (!'x')*`,
+			1, []string{"*"}, []bool{false}, []bool{false}},
+		{"nullable choice left always succeeds",
+			`A <- ('x'? / 'y')*`,
+			1, []string{"*"}, []bool{false}, []bool{true}},
+		{"not guard plus nullable ref",
+			`A <- (!'x' B)*
+			 B <- 'y'?`,
+			1, []string{"*"}, []bool{true}, []bool{false}},
+
+		// Safe patterns: should produce zero risks
+		{"terminal star",
+			`A <- 'x'*`,
+			0, nil, nil, nil},
+		{"class star",
+			`A <- [a-z]*`,
+			0, nil, nil, nil},
+		{"dot star",
+			`A <- .*`,
+			0, nil, nil, nil},
+		{"one or more non-nullable star",
+			`A <- ('x'+)*`,
+			0, nil, nil, nil},
+		{"solid prefix in sequence",
+			`A <- ('x' 'y'?)*`,
+			0, nil, nil, nil},
+		{"non-nullable rule star",
+			`A <- B*
+			 B <- 'x'`,
+			0, nil, nil, nil},
+
+		// Multiple risks in one grammar
+		{"definitive and input-dependent mix",
+			`A <- ('x'?)* (!'y')+`,
+			2, []string{"*", "+"}, []bool{false, false}, []bool{true, false}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := NewInMemoryImportLoader()
+			loader.Add("test.peg", []byte(tt.grammar))
+			cfg := NewConfig()
+			cfg.SetBool("grammar.add_builtins", false)
+			db := NewDatabase(cfg, loader)
+
+			risks, err := Get(db, InfiniteLoopRisksQuery, FilePath("test.peg"))
+			require.NoError(t, err)
+			require.Len(t, risks, tt.wantCount, "unexpected number of risks")
+
+			for i, risk := range risks {
+				if i < len(tt.wantOps) {
+					assert.Equal(t, tt.wantOps[i], risk.Operator, "risk %d operator", i)
+				}
+				if i < len(tt.wantVia) {
+					if tt.wantVia[i] {
+						assert.NotEmpty(t, risk.ViaRule, "risk %d expected ViaRule to be set", i)
+					} else {
+						assert.Empty(t, risk.ViaRule, "risk %d expected structural (no ViaRule)", i)
+					}
+				}
+				if i < len(tt.wantDef) {
+					assert.Equal(t, tt.wantDef[i], risk.Definitive, "risk %d Definitive", i)
+				}
+			}
+		})
+	}
+}
+
+func TestInfiniteLoopDiagnostics(t *testing.T) {
+	tests := []struct {
+		name         string
+		grammar      string
+		wantCount    int
+		wantSeverity DiagnosticSeverity
+		wantSubstr   string // expected substring in the diagnostic message
+	}{
+		// Definitive infinite loops produce errors
+		{"optional star",
+			`A <- ('x'?)*`,
+			1, DiagnosticError, "Infinite loop"},
+		{"star star",
+			`A <- ('x'*)*`,
+			1, DiagnosticError, "Infinite loop"},
+		{"optional plus",
+			`A <- ('x'?)+`,
+			1, DiagnosticError, "Infinite loop"},
+		{"nullable rule ref star",
+			`A <- B*
+			 B <- 'x'?`,
+			1, DiagnosticError, "Infinite loop"},
+		{"deep nullable chain star",
+			`A <- B*
+			 B <- C
+			 C <- D
+			 D <- 'x'?`,
+			1, DiagnosticError, "Infinite loop"},
+		{"all nullable sequence star",
+			`A <- ('x'? 'y'? 'z'?)*`,
+			1, DiagnosticError, "Infinite loop"},
+		{"nullable choice left always succeeds",
+			`A <- ('x'? / 'y')*`,
+			1, DiagnosticError, "Infinite loop"},
+		{"nullable refs in sequence",
+			`A <- (B C)*
+			 B <- 'x'?
+			 C <- 'y'?`,
+			1, DiagnosticError, "Infinite loop"},
+
+		// Input-dependent infinite loops produce warnings
+		{"not predicate star",
+			`A <- (!'x')*`,
+			1, DiagnosticWarning, "Possible infinite loop"},
+		{"and predicate star",
+			`A <- (&'x')*`,
+			1, DiagnosticWarning, "Possible infinite loop"},
+		{"not guard with nullable ref",
+			`A <- (!'x' B)*
+			 B <- 'y'?`,
+			1, DiagnosticWarning, "Possible infinite loop"},
+		{"not guard with deep nullable chain",
+			`A <- (!'x' B)*
+			 B <- C
+			 C <- 'y'?`,
+			1, DiagnosticWarning, "Possible infinite loop"},
+		{"predicate sequence star",
+			`A <- (&'x' !'y')*`,
+			1, DiagnosticWarning, "Possible infinite loop"},
+
+		// Safe patterns: no infinite-loop diagnostics
+		{"terminal star",
+			`A <- 'x'*`,
+			0, 0, ""},
+		{"class star",
+			`A <- [a-z]*`,
+			0, 0, ""},
+		{"solid prefix in sequence",
+			`A <- ('x' 'y'?)*`,
+			0, 0, ""},
+		{"non-nullable rule star",
+			`A <- B*
+			 B <- 'x'`,
+			0, 0, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loader := NewInMemoryImportLoader()
+			loader.Add("test.peg", []byte(tt.grammar))
+			cfg := NewConfig()
+			cfg.SetBool("grammar.add_builtins", false)
+			db := NewDatabase(cfg, loader)
+
+			diags, err := Get(db, DiagnosticsQuery, FilePath("test.peg"))
+			require.NoError(t, err)
+
+			var loopDiags []Diagnostic
+			for _, d := range diags {
+				if d.Code == "infinite-loop" {
+					loopDiags = append(loopDiags, d)
+				}
+			}
+			require.Len(t, loopDiags, tt.wantCount, "unexpected number of infinite-loop diagnostics")
+			if tt.wantCount > 0 {
+				assert.Equal(t, tt.wantSeverity, loopDiags[0].Severity, "severity")
+				assert.Contains(t, loopDiags[0].Message, tt.wantSubstr, "message")
+			}
+		})
+	}
+}

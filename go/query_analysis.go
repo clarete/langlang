@@ -360,6 +360,43 @@ func computeDiagnostics(db *Database, key FilePath) ([]Diagnostic, error) {
 			}
 		}
 	}
+	loopRisks, err := Get(db, InfiniteLoopRisksQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	for _, risk := range loopRisks {
+		var msg string
+		severity := DiagnosticWarning
+		if risk.Definitive {
+			severity = DiagnosticError
+			if risk.ViaRule != "" {
+				msg = fmt.Sprintf(
+					"Infinite loop: body of '%s' always succeeds without consuming input because rule '%s' is nullable",
+					risk.Operator, risk.ViaRule)
+			} else {
+				msg = fmt.Sprintf(
+					"Infinite loop: body of '%s' always succeeds without consuming input",
+					risk.Operator)
+			}
+		} else {
+			if risk.ViaRule != "" {
+				msg = fmt.Sprintf(
+					"Possible infinite loop: body of '%s' can match empty because rule '%s' is nullable",
+					risk.Operator, risk.ViaRule)
+			} else {
+				msg = fmt.Sprintf(
+					"Possible infinite loop: body of '%s' can match empty",
+					risk.Operator)
+			}
+		}
+		diagnostics = append(diagnostics, Diagnostic{
+			Location: risk.Location,
+			Severity: severity,
+			Message:  msg,
+			Code:     "infinite-loop",
+			FilePath: resolvePath(risk.Location),
+		})
+	}
 	return diagnostics, nil
 }
 

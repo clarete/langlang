@@ -127,6 +127,48 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 			code = encodeU16(code, uint16(ii.ID))
 		case ICapEndOffset:
 			code = append(code, opCapEndOffset)
+
+		// Tree-rewriting instructions
+		case IMatchNode:
+			code = append(code, opMatchNode)
+			code = encodeU16(code, uint16(ii.NameID))
+		case IMatchString:
+			code = append(code, opMatchString)
+			code = encodeU16(code, uint16(ii.StrID))
+		case IMatchAnyNode:
+			code = append(code, opMatchAnyNode)
+		case IMatchSeq:
+			code = append(code, opMatchSeq)
+		case IEnterChild:
+			code = append(code, opEnterChild)
+		case IEnterIndex:
+			code = append(code, opEnterIndex)
+			code = encodeU16(code, uint16(ii.Index))
+		case IPopCursor:
+			code = append(code, opPopCursor)
+		case IBind:
+			code = append(code, opBind)
+			code = encodeU16(code, uint16(ii.VarID))
+		case ICheckBind:
+			code = append(code, opCheckBind)
+			code = encodeU16(code, uint16(ii.VarID))
+		case IBuildNode:
+			code = append(code, opBuildNode)
+			code = encodeU16(code, uint16(ii.NameID))
+			code = append(code, byte(ii.FieldCount))
+		case IBuildSeq:
+			code = append(code, opBuildSeq)
+			code = encodeU16(code, uint16(ii.Count))
+		case IBuildStr:
+			code = append(code, opBuildStr)
+			code = encodeU16(code, uint16(ii.StrID))
+		case IBuildRef:
+			code = append(code, opBuildRef)
+			code = encodeU16(code, uint16(ii.VarID))
+		case IBuildCopy:
+			code = append(code, opBuildCopy)
+		case IForEachChild:
+			code = encodeJmp(code, opForEachChild, labels[ii.Label])
 		}
 
 		// This doesn't happen for ILabel

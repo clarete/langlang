@@ -313,3 +313,126 @@ type ICapEndOffset struct{ sl SourceLocation }
 func (ICapEndOffset) Name() string                     { return "cap_end_offset" }
 func (ICapEndOffset) SizeInBytes() int                 { return opCapEndOffsetSizeInBytes }
 func (i ICapEndOffset) SourceLocation() SourceLocation { return i.sl }
+
+// --- Tree-rewriting instructions ---
+
+type IMatchNode struct {
+	NameID int
+	sl     SourceLocation
+}
+
+func (IMatchNode) Name() string                     { return "match_node" }
+func (IMatchNode) SizeInBytes() int                 { return opMatchNodeSizeInBytes }
+func (i IMatchNode) SourceLocation() SourceLocation { return i.sl }
+
+type IMatchString struct {
+	StrID int
+	sl    SourceLocation
+}
+
+func (IMatchString) Name() string                     { return "match_string" }
+func (IMatchString) SizeInBytes() int                 { return opMatchStringSizeInBytes }
+func (i IMatchString) SourceLocation() SourceLocation { return i.sl }
+
+type IMatchAnyNode struct{ sl SourceLocation }
+
+func (IMatchAnyNode) Name() string                     { return "match_any_node" }
+func (IMatchAnyNode) SizeInBytes() int                 { return opMatchAnyNodeSizeInBytes }
+func (i IMatchAnyNode) SourceLocation() SourceLocation { return i.sl }
+
+type IMatchSeq struct{ sl SourceLocation }
+
+func (IMatchSeq) Name() string                     { return "match_seq" }
+func (IMatchSeq) SizeInBytes() int                 { return opMatchSeqSizeInBytes }
+func (i IMatchSeq) SourceLocation() SourceLocation { return i.sl }
+
+type IEnterChild struct{ sl SourceLocation }
+
+func (IEnterChild) Name() string                     { return "enter_child" }
+func (IEnterChild) SizeInBytes() int                 { return opEnterChildSizeInBytes }
+func (i IEnterChild) SourceLocation() SourceLocation { return i.sl }
+
+type IEnterIndex struct {
+	Index int
+	sl    SourceLocation
+}
+
+func (IEnterIndex) Name() string                     { return "enter_index" }
+func (IEnterIndex) SizeInBytes() int                 { return opEnterIndexSizeInBytes }
+func (i IEnterIndex) SourceLocation() SourceLocation { return i.sl }
+
+type IPopCursor struct{ sl SourceLocation }
+
+func (IPopCursor) Name() string                     { return "pop_cursor" }
+func (IPopCursor) SizeInBytes() int                 { return opPopCursorSizeInBytes }
+func (i IPopCursor) SourceLocation() SourceLocation { return i.sl }
+
+type IBind struct {
+	VarID int
+	sl    SourceLocation
+}
+
+func (IBind) Name() string                     { return "bind" }
+func (IBind) SizeInBytes() int                 { return opBindSizeInBytes }
+func (i IBind) SourceLocation() SourceLocation { return i.sl }
+
+type ICheckBind struct {
+	VarID int
+	sl    SourceLocation
+}
+
+func (ICheckBind) Name() string                     { return "check_bind" }
+func (ICheckBind) SizeInBytes() int                 { return opCheckBindSizeInBytes }
+func (i ICheckBind) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildNode struct {
+	NameID     int
+	FieldCount int
+	sl         SourceLocation
+}
+
+func (IBuildNode) Name() string                     { return "build_node" }
+func (IBuildNode) SizeInBytes() int                 { return opBuildNodeSizeInBytes }
+func (i IBuildNode) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildSeq struct {
+	Count int
+	sl    SourceLocation
+}
+
+func (IBuildSeq) Name() string                     { return "build_seq" }
+func (IBuildSeq) SizeInBytes() int                 { return opBuildSeqSizeInBytes }
+func (i IBuildSeq) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildStr struct {
+	StrID int
+	sl    SourceLocation
+}
+
+func (IBuildStr) Name() string                     { return "build_str" }
+func (IBuildStr) SizeInBytes() int                 { return opBuildStrSizeInBytes }
+func (i IBuildStr) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildRef struct {
+	VarID int
+	sl    SourceLocation
+}
+
+func (IBuildRef) Name() string                     { return "build_ref" }
+func (IBuildRef) SizeInBytes() int                 { return opBuildRefSizeInBytes }
+func (i IBuildRef) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildCopy struct{ sl SourceLocation }
+
+func (IBuildCopy) Name() string                     { return "build_copy" }
+func (IBuildCopy) SizeInBytes() int                 { return opBuildCopySizeInBytes }
+func (i IBuildCopy) SourceLocation() SourceLocation { return i.sl }
+
+type IForEachChild struct {
+	Label ILabel
+	sl    SourceLocation
+}
+
+func (IForEachChild) Name() string                     { return "for_each_child" }
+func (IForEachChild) SizeInBytes() int                 { return opForEachChildSizeInBytes }
+func (i IForEachChild) SourceLocation() SourceLocation { return i.sl }

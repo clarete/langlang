@@ -109,6 +109,25 @@ func (c ConSeq) String() string {
 	return s + "]"
 }
 
+// ConCall applies another rewrite rule to a construction argument.
+// e.g., expr(?e) calls the "expr" rule set on the subtree bound to ?e.
+type ConCall struct {
+	RuleName string
+	Args     []RewriteConstruction
+}
+
+func (ConCall) rewriteConstruction() {}
+func (c ConCall) String() string {
+	s := c.RuleName + "("
+	for i, a := range c.Args {
+		if i > 0 {
+			s += ", "
+		}
+		s += a.String()
+	}
+	return s + ")"
+}
+
 // RewriteRule pairs a pattern (LHS) with a construction (RHS).
 type RewriteRule struct {
 	Name    string
@@ -299,6 +318,10 @@ func collectConVars(c RewriteConstruction, result *[]string, seen map[string]boo
 	case ConSeq:
 		for _, e := range cc.Elems {
 			collectConVars(e, result, seen)
+		}
+	case ConCall:
+		for _, a := range cc.Args {
+			collectConVars(a, result, seen)
 		}
 	}
 }

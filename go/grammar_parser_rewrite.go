@@ -1,6 +1,27 @@
 package langlang
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+func stripQuotes(s string) string {
+	if len(s) >= 2 && ((s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'')) {
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
+// trimIdentifier extracts a clean identifier from text that may have
+// a prefix (like "?" for variables) consumed by a lexified sub-expression.
+func trimIdentifier(s string) string {
+	if idx := strings.IndexFunc(s, func(r rune) bool {
+		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_'
+	}); idx > 0 {
+		return s[idx:]
+	}
+	return s
+}
 
 // namedNodeChildren returns the effective children of a named node.
 // In langlang's tree structure, a NodeType_Node has a single child
@@ -21,16 +42,31 @@ func namedNodeChildren(tree Tree, id NodeID) []NodeID {
 }
 
 // ParseTypeDecl converts a parse tree node for @type into a TypeDecl.
-// Expected tree structure:
-//   TypeDecl(Sequence[Identifier("name"), CtorList(Sequence[CtorDecl, ...])])
 func ParseTypeDecl(tree Tree, id NodeID) (*TypeDecl, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 2 {
-		return nil, fmt.Errorf("TypeDecl: expected at least 2 children (name + ctors), got %d", len(children))
+
+	var name string
+	var ctorListID NodeID
+	foundCtor := false
+
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "Identifier":
+			if name == "" {
+				name = tree.Text(childID)
+			}
+		case "CtorList":
+			ctorListID = childID
+			foundCtor = true
+		}
 	}
 
-	name := tree.Text(children[0])
-	ctorListID := children[1]
+	if name == "" || !foundCtor {
+		return nil, fmt.Errorf("TypeDecl: missing name or constructor list")
+	}
 
 	ctors, err := parseCtorList(tree, ctorListID)
 	if err != nil {
@@ -59,21 +95,30 @@ func parseCtorList(tree Tree, id NodeID) ([]*Constructor, error) {
 
 func parseCtorDecl(tree Tree, id NodeID) (*Constructor, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 1 {
-		return nil, fmt.Errorf("CtorDecl: expected at least 1 child (name)")
-	}
 
-	name := tree.Text(children[0])
+	var name string
 	var fields []*Field
 
-	for _, childID := range children[1:] {
-		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "FieldList" {
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "Identifier":
+			if name == "" {
+				name = tree.Text(childID)
+			}
+		case "FieldList":
 			var err error
 			fields, err = parseFieldList(tree, childID)
 			if err != nil {
 				return nil, err
 			}
 		}
+	}
+
+	if name == "" {
+		return nil, fmt.Errorf("CtorDecl: missing name")
 	}
 
 	return &Constructor{
@@ -98,12 +143,31 @@ func parseFieldList(tree Tree, id NodeID) ([]*Field, error) {
 
 func parseFieldDecl(tree Tree, id NodeID) (*Field, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 2 {
-		return nil, fmt.Errorf("FieldDecl: expected 2 children (name, type)")
+
+	var name string
+	var typeName string
+
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "Identifier":
+			if name == "" {
+				name = tree.Text(childID)
+			}
+		case "TypeRef":
+			typeName = tree.Text(childID)
+		}
 	}
+
+	if name == "" {
+		return nil, fmt.Errorf("FieldDecl: missing name")
+	}
+
 	return &Field{
-		Name:     tree.Text(children[0]),
-		TypeName: tree.Text(children[1]),
+		Name:     name,
+		TypeName: typeName,
 	}, nil
 }
 
@@ -111,26 +175,37 @@ func parseFieldDecl(tree Tree, id NodeID) (*Field, error) {
 // into a RewriteRuleSet.
 func ParseRewriteDef(tree Tree, id NodeID) (*RewriteRuleSet, string, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 2 {
-		return nil, "", fmt.Errorf("RewriteDef: expected at least 2 children")
-	}
 
-	idx := 0
+	var name string
 	exhaustiveType := ""
+	var altListID NodeID
+	foundAltList := false
 
-	// Check for @exhaustive annotation
-	if tree.Type(children[0]) == NodeType_Node && tree.Name(children[0]) == "Exhaustive" {
-		exChildren := tree.Children(children[0])
-		if len(exChildren) > 0 {
-			exhaustiveType = tree.Text(exChildren[0])
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
 		}
-		idx++
+		switch tree.Name(childID) {
+		case "Exhaustive":
+			for _, exChild := range namedNodeChildren(tree, childID) {
+				if tree.Type(exChild) == NodeType_Node && tree.Name(exChild) == "Identifier" {
+					exhaustiveType = tree.Text(exChild)
+				}
+			}
+		case "Identifier":
+			if name == "" {
+				name = tree.Text(childID)
+			}
+		case "RewriteAltList":
+			altListID = childID
+			foundAltList = true
+		}
 	}
 
-	name := tree.Text(children[idx])
-	idx++
+	if name == "" || !foundAltList {
+		return nil, "", fmt.Errorf("RewriteDef: missing name or alt list")
+	}
 
-	altListID := children[idx]
 	rules, err := parseRewriteAltList(tree, altListID, name)
 	if err != nil {
 		return nil, "", err
@@ -158,16 +233,34 @@ func parseRewriteAltList(tree Tree, id NodeID, ruleName string) ([]*RewriteRule,
 
 func parseRewriteAlt(tree Tree, id NodeID, ruleName string) (*RewriteRule, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 2 {
-		return nil, fmt.Errorf("RewriteAlt: expected 2 children (pattern, construction)")
+
+	var patNode, conNode NodeID
+	foundPat, foundCon := false, false
+
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		name := tree.Name(childID)
+		if !foundPat && isPatternNodeName(name) {
+			patNode = childID
+			foundPat = true
+		} else if foundPat && !foundCon && isConstructionNodeName(name) {
+			conNode = childID
+			foundCon = true
+		}
 	}
 
-	pat, err := parseRwPattern(tree, children[0])
+	if !foundPat || !foundCon {
+		return nil, fmt.Errorf("RewriteAlt: missing pattern or construction")
+	}
+
+	pat, err := parseRwPattern(tree, patNode)
 	if err != nil {
 		return nil, err
 	}
 
-	con, err := parseRwConstruction(tree, children[1])
+	con, err := parseRwConstruction(tree, conNode)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +272,22 @@ func parseRewriteAlt(tree Tree, id NodeID, ruleName string) (*RewriteRule, error
 	}, nil
 }
 
+func isPatternNodeName(name string) bool {
+	switch name {
+	case "RwPatNamed", "RwPatVar", "RwPatWild", "RwPatStr", "RwPatSeq", "RwPattern":
+		return true
+	}
+	return false
+}
+
+func isConstructionNodeName(name string) bool {
+	switch name {
+	case "RwConNamed", "RwConVar", "RwConStr", "RwConSeq", "RwConCall", "RwConstruction":
+		return true
+	}
+	return false
+}
+
 func parseRwPattern(tree Tree, id NodeID) (RewritePattern, error) {
 	if tree.Type(id) != NodeType_Node {
 		return nil, fmt.Errorf("expected pattern node, got %s", tree.Type(id))
@@ -188,17 +297,18 @@ func parseRwPattern(tree Tree, id NodeID) (RewritePattern, error) {
 	case "RwPatNamed":
 		return parseRwPatNamed(tree, id)
 	case "RwPatVar":
-		return PatVar{Name: tree.Text(id)}, nil
+		return PatVar{Name: trimIdentifier(tree.Text(id))}, nil
 	case "RwPatWild":
 		return PatWild{}, nil
 	case "RwPatStr":
-		return PatStr{Text: tree.Text(id)}, nil
+		return PatStr{Text: stripQuotes(tree.Text(id))}, nil
 	case "RwPatSeq":
 		return parseRwPatSeq(tree, id)
 	case "RwPattern":
-		// Wrapper node, descend
 		child, _ := tree.Child(id)
 		return parseRwPattern(tree, child)
+	case "Spacing":
+		return nil, nil // skip spacing nodes
 	default:
 		return nil, fmt.Errorf("unknown pattern node: %s", tree.Name(id))
 	}
@@ -206,28 +316,73 @@ func parseRwPattern(tree Tree, id NodeID) (RewritePattern, error) {
 
 func parseRwPatNamed(tree Tree, id NodeID) (RewritePattern, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 2 {
-		return nil, fmt.Errorf("RwPatNamed: expected at least 2 children")
+
+	var name string
+	for _, childID := range children {
+		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "Identifier" {
+			name = tree.Text(childID)
+			break
+		}
+	}
+	if name == "" {
+		return nil, fmt.Errorf("RwPatNamed: missing name")
 	}
 
-	name := tree.Text(children[0])
-	body, err := parseRwPattern(tree, children[1])
-	if err != nil {
-		return nil, err
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "RwPatFields":
+			return parseRwPatFieldsAsNamed(tree, name, childID)
+		case "RwPatNamed", "RwPatVar", "RwPatWild", "RwPatStr", "RwPatSeq", "RwPattern":
+			body, err := parseRwPattern(tree, childID)
+			if err != nil {
+				return nil, err
+			}
+			return PatNamed{NodeName: name, Body: body}, nil
+		}
 	}
 
-	return PatNamed{NodeName: name, Body: body}, nil
+	return nil, fmt.Errorf("RwPatNamed: missing body for %s", name)
+}
+
+// parseRwPatFieldsAsNamed converts field patterns like Binary(Op: ?op, Left: ?l)
+// into PatNamed{NodeName: "Binary", Body: PatSeq{[?op, ?l]}}.
+// Field names are used for documentation; the tree stores children positionally.
+func parseRwPatFieldsAsNamed(tree Tree, name string, fieldsNode NodeID) (RewritePattern, error) {
+	var elems []RewritePattern
+	for _, childID := range namedNodeChildren(tree, fieldsNode) {
+		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "RwFieldPat" {
+			for _, fc := range namedNodeChildren(tree, childID) {
+				if tree.Type(fc) == NodeType_Node && isPatternNodeName(tree.Name(fc)) {
+					pat, err := parseRwPattern(tree, fc)
+					if err != nil {
+						return nil, err
+					}
+					elems = append(elems, pat)
+					break
+				}
+			}
+		}
+	}
+	if len(elems) == 1 {
+		return PatNamed{NodeName: name, Body: elems[0]}, nil
+	}
+	return PatNamed{NodeName: name, Body: PatSeq{Elems: elems}}, nil
 }
 
 func parseRwPatSeq(tree Tree, id NodeID) (RewritePattern, error) {
 	var elems []RewritePattern
 	for _, childID := range namedNodeChildren(tree, id) {
-		if tree.Type(childID) == NodeType_Node {
+		if tree.Type(childID) == NodeType_Node && isPatternNodeName(tree.Name(childID)) {
 			elem, err := parseRwPattern(tree, childID)
 			if err != nil {
 				return nil, err
 			}
-			elems = append(elems, elem)
+			if elem != nil {
+				elems = append(elems, elem)
+			}
 		}
 	}
 	return PatSeq{Elems: elems}, nil
@@ -242,9 +397,9 @@ func parseRwConstruction(tree Tree, id NodeID) (RewriteConstruction, error) {
 	case "RwConNamed":
 		return parseRwConNamed(tree, id)
 	case "RwConVar":
-		return ConVar{Name: tree.Text(id)}, nil
+		return ConVar{Name: trimIdentifier(tree.Text(id))}, nil
 	case "RwConStr":
-		return ConStr{Text: tree.Text(id)}, nil
+		return ConStr{Text: stripQuotes(tree.Text(id))}, nil
 	case "RwConSeq":
 		return parseRwConSeq(tree, id)
 	case "RwConCall":
@@ -252,6 +407,8 @@ func parseRwConstruction(tree Tree, id NodeID) (RewriteConstruction, error) {
 	case "RwConstruction":
 		child, _ := tree.Child(id)
 		return parseRwConstruction(tree, child)
+	case "Spacing":
+		return nil, nil // skip spacing nodes
 	default:
 		return nil, fmt.Errorf("unknown construction node: %s", tree.Name(id))
 	}
@@ -259,28 +416,70 @@ func parseRwConstruction(tree Tree, id NodeID) (RewriteConstruction, error) {
 
 func parseRwConNamed(tree Tree, id NodeID) (RewriteConstruction, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 2 {
-		return nil, fmt.Errorf("RwConNamed: expected at least 2 children")
+
+	var name string
+	for _, childID := range children {
+		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "Identifier" {
+			name = tree.Text(childID)
+			break
+		}
+	}
+	if name == "" {
+		return nil, fmt.Errorf("RwConNamed: missing name")
 	}
 
-	name := tree.Text(children[0])
-	body, err := parseRwConstruction(tree, children[1])
-	if err != nil {
-		return nil, err
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "RwConFields":
+			return parseRwConFieldsAsNamed(tree, name, childID)
+		case "RwConNamed", "RwConVar", "RwConStr", "RwConSeq", "RwConCall", "RwConstruction":
+			body, err := parseRwConstruction(tree, childID)
+			if err != nil {
+				return nil, err
+			}
+			return ConNamed{NodeName: name, Body: body}, nil
+		}
 	}
 
-	return ConNamed{NodeName: name, Body: body}, nil
+	return nil, fmt.Errorf("RwConNamed: missing body for %s", name)
+}
+
+func parseRwConFieldsAsNamed(tree Tree, name string, fieldsNode NodeID) (RewriteConstruction, error) {
+	var elems []RewriteConstruction
+	for _, childID := range namedNodeChildren(tree, fieldsNode) {
+		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "RwConField" {
+			for _, fc := range namedNodeChildren(tree, childID) {
+				if tree.Type(fc) == NodeType_Node && isConstructionNodeName(tree.Name(fc)) {
+					con, err := parseRwConstruction(tree, fc)
+					if err != nil {
+						return nil, err
+					}
+					elems = append(elems, con)
+					break
+				}
+			}
+		}
+	}
+	if len(elems) == 1 {
+		return ConNamed{NodeName: name, Body: elems[0]}, nil
+	}
+	return ConNamed{NodeName: name, Body: ConSeq{Elems: elems}}, nil
 }
 
 func parseRwConSeq(tree Tree, id NodeID) (RewriteConstruction, error) {
 	var elems []RewriteConstruction
 	for _, childID := range namedNodeChildren(tree, id) {
-		if tree.Type(childID) == NodeType_Node {
+		if tree.Type(childID) == NodeType_Node && isConstructionNodeName(tree.Name(childID)) {
 			elem, err := parseRwConstruction(tree, childID)
 			if err != nil {
 				return nil, err
 			}
-			elems = append(elems, elem)
+			if elem != nil {
+				elems = append(elems, elem)
+			}
 		}
 	}
 	return ConSeq{Elems: elems}, nil
@@ -288,18 +487,91 @@ func parseRwConSeq(tree Tree, id NodeID) (RewriteConstruction, error) {
 
 func parseRwConCall(tree Tree, id NodeID) (RewriteConstruction, error) {
 	children := namedNodeChildren(tree, id)
-	if len(children) < 2 {
-		return nil, fmt.Errorf("RwConCall: expected at least 2 children")
+
+	var name string
+	var args []RewriteConstruction
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "Identifier":
+			if name == "" {
+				name = tree.Text(childID)
+			}
+		default:
+			if isConstructionNodeName(tree.Name(childID)) {
+				arg, err := parseRwConstruction(tree, childID)
+				if err != nil {
+					return nil, err
+				}
+				args = append(args, arg)
+			}
+		}
 	}
 
-	// A construction call like expr(?e) is syntactic sugar for applying
-	// a rewrite rule to a variable. At the codegen level this becomes
-	// a function call: rw.expr(tree, ?e).
-	name := tree.Text(children[0])
-	arg, err := parseRwConstruction(tree, children[1])
-	if err != nil {
-		return nil, err
+	if name == "" {
+		return nil, fmt.Errorf("RwConCall: missing name")
+	}
+	return ConCall{RuleName: name, Args: args}, nil
+}
+
+// RewriteFile holds the parsed contents of a .peg file with @type and <~ declarations.
+type RewriteFile struct {
+	Types         []*TypeDecl
+	RuleSets      []*RewriteRuleSet
+	ExhaustiveMap map[string]string // rule name -> type name
+}
+
+// ParseRewriteFile walks a parse tree produced by the rewrite_syntax.peg grammar
+// and extracts all @type declarations and <~ rewrite definitions.
+func ParseRewriteFile(tree Tree, root NodeID) (*RewriteFile, error) {
+	result := &RewriteFile{
+		ExhaustiveMap: make(map[string]string),
 	}
 
-	return ConNamed{NodeName: name, Body: arg}, nil
+	for _, childID := range allNamedChildren(tree, root) {
+		switch tree.Name(childID) {
+		case "TypeDecl":
+			td, err := ParseTypeDecl(tree, childID)
+			if err != nil {
+				return nil, fmt.Errorf("parsing @type: %w", err)
+			}
+			result.Types = append(result.Types, td)
+
+		case "RewriteDef":
+			rs, exhaustiveType, err := ParseRewriteDef(tree, childID)
+			if err != nil {
+				return nil, fmt.Errorf("parsing rewrite def %q: %w", tree.Text(childID), err)
+			}
+			result.RuleSets = append(result.RuleSets, rs)
+			if exhaustiveType != "" {
+				result.ExhaustiveMap[rs.Name] = exhaustiveType
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// allNamedChildren collects all NodeType_Node children at any nesting
+// depth within sequences under the given root.
+func allNamedChildren(tree Tree, id NodeID) []NodeID {
+	var result []NodeID
+	switch tree.Type(id) {
+	case NodeType_Node:
+		child, ok := tree.Child(id)
+		if ok {
+			result = append(result, allNamedChildren(tree, child)...)
+		}
+	case NodeType_Sequence:
+		for _, childID := range tree.Children(id) {
+			if tree.Type(childID) == NodeType_Node {
+				result = append(result, childID)
+			} else if tree.Type(childID) == NodeType_Sequence {
+				result = append(result, allNamedChildren(tree, childID)...)
+			}
+		}
+	}
+	return result
 }

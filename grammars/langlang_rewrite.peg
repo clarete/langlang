@@ -1,0 +1,62 @@
+// PEG grammar for langlang's rewrite system.
+//
+// Parses @type declarations and <~ rewrite rules.
+// Self-contained: includes its own lexical rules (Identifier, Literal,
+// Spacing) so it can be compiled at runtime via MatcherFromFilePath
+// independently of the bootstrap grammar.
+
+RewriteFile  <- (TypeDecl / RewriteDef)* EOF
+
+// --- Type declarations ---
+// @type Expr = Binary(Op: string, Left: Expr, Right: Expr) | Num(Value: string)
+
+TypeDecl     <- "@type" Identifier '=' CtorList
+CtorList     <- CtorDecl ('|' CtorDecl)*
+CtorDecl     <- Identifier '(' FieldList? ')'
+FieldList    <- FieldDecl (',' FieldDecl)*
+FieldDecl    <- Identifier ':' TypeRef
+TypeRef      <- "list[" TypeRef ']' / Identifier
+
+// --- Rewrite definitions ---
+// name <~ Pattern -> Construction / Pattern -> Construction
+
+RewriteDef      <- Exhaustive? Identifier "<~" RewriteAltList
+Exhaustive      <- "@exhaustive" '(' Identifier ')'
+RewriteAltList  <- RewriteAlt (SLASH RewriteAlt)*
+RewriteAlt      <- RwPattern "->" RwConstruction
+
+// --- Patterns (LHS) ---
+
+RwPattern    <- RwPatNamed / RwPatVar / RwPatWild / RwPatStr / RwPatSeq
+RwPatNamed   <- Identifier '(' RwPatFields ')'
+RwPatFields  <- RwFieldPat (',' RwFieldPat)*
+RwFieldPat   <- Identifier ':' RwPattern
+RwPatVar     <- #('?' Identifier)
+RwPatWild    <- '_' ![a-zA-Z0-9_]
+RwPatStr     <- Literal
+RwPatSeq     <- '[' (RwPattern (',' RwPattern)*)? ']'
+
+// --- Constructions (RHS) ---
+
+RwConstruction  <- RwConEach / RwConLen / RwConFoldl / RwConNamed / RwConCall / RwConVar / RwConStr / RwConSeq
+RwConEach       <- "each" '(' Identifier ',' RwConstruction ')'
+RwConLen        <- "len" '(' RwConstruction ')'
+RwConFoldl      <- "foldl" '(' Identifier ',' Identifier ',' RwConstruction ')'
+RwConNamed      <- Identifier '(' RwConFields ')'
+RwConFields     <- RwConField (',' RwConField)*
+RwConField      <- Identifier ':' RwConstruction
+RwConCall       <- Identifier '(' RwConstruction (',' RwConstruction)* ')'
+RwConVar        <- #('?' Identifier)
+RwConStr        <- Literal
+RwConSeq        <- '[' (RwConstruction (',' RwConstruction)*)? ']'
+
+// --- Lexical ---
+
+Identifier  <- [a-zA-Z_][a-zA-Z0-9_]*
+Literal     <- ['] #(!['] Char)* [']
+             / ["] #(!["] Char)* ["]
+Char        <- '\\' [nrt'"\[\]\\] / .
+SLASH       <- '/'
+
+Spacing     <- #([ \t\n\r] / '//' (![\n] .)*)*
+EOF         <- !.

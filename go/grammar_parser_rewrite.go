@@ -282,7 +282,8 @@ func isPatternNodeName(name string) bool {
 
 func isConstructionNodeName(name string) bool {
 	switch name {
-	case "RwConNamed", "RwConVar", "RwConStr", "RwConSeq", "RwConCall", "RwConstruction":
+	case "RwConNamed", "RwConVar", "RwConStr", "RwConSeq", "RwConCall",
+		"RwConEach", "RwConLen", "RwConFoldl", "RwConstruction":
 		return true
 	}
 	return false
@@ -404,6 +405,12 @@ func parseRwConstruction(tree Tree, id NodeID) (RewriteConstruction, error) {
 		return parseRwConSeq(tree, id)
 	case "RwConCall":
 		return parseRwConCall(tree, id)
+	case "RwConEach":
+		return parseRwConEach(tree, id)
+	case "RwConLen":
+		return parseRwConLen(tree, id)
+	case "RwConFoldl":
+		return parseRwConFoldl(tree, id)
 	case "RwConstruction":
 		child, _ := tree.Child(id)
 		return parseRwConstruction(tree, child)
@@ -514,6 +521,83 @@ func parseRwConCall(tree Tree, id NodeID) (RewriteConstruction, error) {
 		return nil, fmt.Errorf("RwConCall: missing name")
 	}
 	return ConCall{RuleName: name, Args: args}, nil
+}
+
+// parseRwConEach parses: each(Identifier, RwConstruction)
+func parseRwConEach(tree Tree, id NodeID) (RewriteConstruction, error) {
+	children := namedNodeChildren(tree, id)
+	var ruleName string
+	var seqArg RewriteConstruction
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "Identifier":
+			if ruleName == "" {
+				ruleName = tree.Text(childID)
+			}
+		default:
+			if isConstructionNodeName(tree.Name(childID)) && seqArg == nil {
+				var err error
+				seqArg, err = parseRwConstruction(tree, childID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	if ruleName == "" || seqArg == nil {
+		return nil, fmt.Errorf("RwConEach: missing rule name or sequence arg")
+	}
+	return ConEach{RuleName: ruleName, SeqArg: seqArg}, nil
+}
+
+// parseRwConLen parses: len(RwConstruction)
+func parseRwConLen(tree Tree, id NodeID) (RewriteConstruction, error) {
+	children := namedNodeChildren(tree, id)
+	for _, childID := range children {
+		if tree.Type(childID) == NodeType_Node && isConstructionNodeName(tree.Name(childID)) {
+			arg, err := parseRwConstruction(tree, childID)
+			if err != nil {
+				return nil, err
+			}
+			return ConLen{SeqArg: arg}, nil
+		}
+	}
+	return nil, fmt.Errorf("RwConLen: missing argument")
+}
+
+// parseRwConFoldl parses: foldl(Identifier, Identifier, RwConstruction)
+func parseRwConFoldl(tree Tree, id NodeID) (RewriteConstruction, error) {
+	children := namedNodeChildren(tree, id)
+	var ctorName, ruleName string
+	var seqArg RewriteConstruction
+	for _, childID := range children {
+		if tree.Type(childID) != NodeType_Node {
+			continue
+		}
+		switch tree.Name(childID) {
+		case "Identifier":
+			if ctorName == "" {
+				ctorName = tree.Text(childID)
+			} else if ruleName == "" {
+				ruleName = tree.Text(childID)
+			}
+		default:
+			if isConstructionNodeName(tree.Name(childID)) && seqArg == nil {
+				var err error
+				seqArg, err = parseRwConstruction(tree, childID)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	if ctorName == "" || ruleName == "" || seqArg == nil {
+		return nil, fmt.Errorf("RwConFoldl: missing ctor name, rule name, or sequence arg")
+	}
+	return ConFoldl{CtorName: ctorName, RuleName: ruleName, SeqArg: seqArg}, nil
 }
 
 // RewriteFile holds the parsed contents of a .peg file with @type and <~ declarations.

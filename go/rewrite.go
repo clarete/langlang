@@ -128,6 +128,46 @@ func (c ConCall) String() string {
 	return s + ")"
 }
 
+// ConEach maps a rewrite rule over each element of a sequence.
+// e.g., each(expr, ?args) applies "expr" to each named-node child of ?args.
+// Produces a sequence of the results.
+type ConEach struct {
+	RuleName string
+	SeqArg   RewriteConstruction
+}
+
+func (ConEach) rewriteConstruction() {}
+func (c ConEach) String() string {
+	return fmt.Sprintf("each(%s, %s)", c.RuleName, c.SeqArg)
+}
+
+// ConLen returns the count of named-node children in a sequence as a string literal.
+// e.g., len(?args) produces "2" if ?args has two elements.
+type ConLen struct {
+	SeqArg RewriteConstruction
+}
+
+func (ConLen) rewriteConstruction() {}
+func (c ConLen) String() string {
+	return fmt.Sprintf("len(%s)", c.SeqArg)
+}
+
+// ConFoldl left-folds an alternating sequence [term, op, term, op, ...]
+// into nested constructor nodes. Applies a rule to each term.
+// e.g., foldl(Binary, reshape_expr, ?elems) folds [a,"+",b,"-",c] into
+// Binary("-", Binary("+", reshape(a), reshape(b)), reshape(c)).
+// If the sequence has a single element, just applies the rule.
+type ConFoldl struct {
+	CtorName string
+	RuleName string
+	SeqArg   RewriteConstruction
+}
+
+func (ConFoldl) rewriteConstruction() {}
+func (c ConFoldl) String() string {
+	return fmt.Sprintf("foldl(%s, %s, %s)", c.CtorName, c.RuleName, c.SeqArg)
+}
+
 // RewriteRule pairs a pattern (LHS) with a construction (RHS).
 type RewriteRule struct {
 	Name    string
@@ -323,6 +363,12 @@ func collectConVars(c RewriteConstruction, result *[]string, seen map[string]boo
 		for _, a := range cc.Args {
 			collectConVars(a, result, seen)
 		}
+	case ConEach:
+		collectConVars(cc.SeqArg, result, seen)
+	case ConLen:
+		collectConVars(cc.SeqArg, result, seen)
+	case ConFoldl:
+		collectConVars(cc.SeqArg, result, seen)
 	}
 }
 

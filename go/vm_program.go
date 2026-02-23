@@ -60,6 +60,14 @@ type Program struct {
 
 	// sourceFiles maps FileID to file paths for source mapping
 	sourceFiles []string
+
+	// spacingNameID is the string table index for "Spacing" (rewrite only).
+	// Nodes with this name are skipped when iterating sequence children. -1 means none.
+	SpacingNameID int32
+
+	// RewriteHaltLabel is the label of the IHalt after the entry rule set (rewrite only).
+	// Encode sets Bytecode.rewriteHaltPC so Rewrite can push an initial frame.
+	RewriteHaltLabel ILabel
 }
 
 func (p Program) StringID(n string) int {

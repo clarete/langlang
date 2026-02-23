@@ -139,6 +139,9 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 			code = append(code, opMatchAnyNode)
 		case IMatchSeq:
 			code = append(code, opMatchSeq)
+		case ICheckSeqLen:
+			code = append(code, opCheckSeqLen)
+			code = encodeU16(code, uint16(ii.ExpectedLen))
 		case IEnterChild:
 			code = append(code, opEnterChild)
 		case IEnterIndex:
@@ -167,8 +170,18 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 			code = encodeU16(code, uint16(ii.VarID))
 		case IBuildCopy:
 			code = append(code, opBuildCopy)
+		case ISetCursorFromBuild:
+			code = append(code, opSetCursorFromBuild)
 		case IForEachChild:
 			code = encodeJmp(code, opForEachChild, labels[ii.Label])
+		case IBuildEach:
+			code = encodeJmp(code, opBuildEach, labels[ii.Label])
+		case IBuildLen:
+			code = append(code, opBuildLen)
+		case IBuildFoldl:
+			code = append(code, opBuildFoldl)
+			code = encodeU16(code, uint16(ii.CtorNameID))
+			code = encodeU16(code, uint16(labels[ii.Label]))
 		}
 
 		// This doesn't happen for ILabel
@@ -181,7 +194,7 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 	if cfg.GetBool("vm.debug.source_map") {
 		srcm = BuildSourceMapFromProgram(p)
 	}
-	return &Bytecode{
+	bc := &Bytecode{
 		code: code,
 		strs: p.strings,
 		smap: p.stringsMap,
@@ -191,6 +204,21 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 		sexp: sexp,
 		srcm: srcm,
 	}
+	if p.SpacingNameID >= 0 {
+		bc.spacingNameID = p.SpacingNameID
+	} else {
+		bc.spacingNameID = -1
+	}
+	bc.rewriteHaltPC = -1
+	if p.RewriteHaltLabel.ID != 0 {
+		for lab, addr := range labels {
+			if lab.ID == p.RewriteHaltLabel.ID {
+				bc.rewriteHaltPC = addr
+				break
+			}
+		}
+	}
+	return bc
 }
 
 func encodeJmp(code []byte, op byte, label int) []byte {

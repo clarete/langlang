@@ -3,6 +3,7 @@ package langlang
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -16,6 +17,14 @@ type Bytecode struct {
 	rxps map[int]int
 	rxbs bitset512
 	srcm *SourceMap
+
+	// spacingNameID is the string table index for "Spacing"; nodes with this
+	// name are skipped when iterating sequence children (each/foldl). -1 means none.
+	spacingNameID int32
+
+	// rewriteHaltPC is the bytecode address of the IHalt after the entry rule set.
+	// Rewrite pushes a frame with this pc so the entry's IReturn has a return address. -1 means none.
+	rewriteHaltPC int
 }
 
 // lrMemoKey is the key for the left recursion memoization table.  It
@@ -124,6 +133,12 @@ type virtualMachine struct {
 	treeNav    []NodeID // navigation stack for enter_child/pop_cursor
 	vars       [maxVars]NodeID
 	buildStack []NodeID // construction stack for build_* instructions
+
+	// treeBacktrackStack saves (treeCursor, treeNav length) on IChoice so we restore on backtrack
+	treeBacktrackStack []struct {
+		cursor NodeID
+		navLen int
+	}
 }
 
 // NOTE: changing the order of these variants will break Bytecode ABI
@@ -167,6 +182,7 @@ const (
 	opMatchString  // assert tree cursor is NodeType_String with text == strs[strID] (u16)
 	opMatchAnyNode // wildcard: succeed on any node type
 	opMatchSeq     // assert tree cursor is NodeType_Sequence
+	opCheckSeqLen  // assert sequence has exactly N children (u16 N)
 	opEnterChild   // push tree cursor, descend into NamedNode/ErrNode child
 	opEnterIndex   // push tree cursor, descend into SeqNode child at index (u16)
 	opPopCursor    // restore tree cursor from navigation stack
@@ -181,9 +197,13 @@ const (
 	opBuildStr    // push a new StrNode from strs[strID] onto build stack (u16 strID)
 	opBuildRef    // push var slot value onto build stack (u16 varID)
 	opBuildCopy   // push current tree cursor subtree onto build stack
+	opSetCursorFromBuild // pop build stack -> push treeCursor to treeNav -> set treeCursor to popped node
 
 	// Tree-rewriting opcodes (traversal)
 	opForEachChild // iterate over children, calling sub-program for each (u16 label)
+	opBuildEach    // pop seq from build stack, iterate non-skippable children with rule (u16 label)
+	opBuildLen     // pop seq from build stack, push count of non-skippable children as string
+	opBuildFoldl   // pop seq from build stack, left-fold with ctor (u16 ctorNameID, u16 label)
 )
 
 var opNames = map[byte]string{
@@ -224,6 +244,7 @@ var opNames = map[byte]string{
 	opMatchString:           "match_string",
 	opMatchAnyNode:          "match_any_node",
 	opMatchSeq:              "match_seq",
+	opCheckSeqLen:           "check_seq_len",
 	opEnterChild:            "enter_child",
 	opEnterIndex:            "enter_index",
 	opPopCursor:             "pop_cursor",
@@ -234,7 +255,11 @@ var opNames = map[byte]string{
 	opBuildStr:              "build_str",
 	opBuildRef:              "build_ref",
 	opBuildCopy:             "build_copy",
+	opSetCursorFromBuild:    "set_cursor_from_build",
 	opForEachChild:          "for_each_child",
+	opBuildEach:             "build_each",
+	opBuildLen:              "build_len",
+	opBuildFoldl:            "build_foldl",
 }
 
 var (
@@ -285,6 +310,7 @@ var (
 	opMatchStringSizeInBytes  = 3 // 1 opcode + 2 strID
 	opMatchAnyNodeSizeInBytes = 1
 	opMatchSeqSizeInBytes     = 1
+	opCheckSeqLenSizeInBytes  = 3 // 1 opcode + 2 expectedLen
 	opEnterChildSizeInBytes   = 1
 	opEnterIndexSizeInBytes   = 3 // 1 opcode + 2 index
 	opPopCursorSizeInBytes    = 1
@@ -295,7 +321,11 @@ var (
 	opBuildStrSizeInBytes     = 3 // 1 opcode + 2 strID
 	opBuildRefSizeInBytes     = 3 // 1 opcode + 2 varID
 	opBuildCopySizeInBytes    = 1
-	opForEachChildSizeInBytes = 3 // 1 opcode + 2 label
+	opSetCursorFromBuildSizeInBytes = 1
+	opForEachChildSizeInBytes       = 3 // 1 opcode + 2 label
+	opBuildEachSizeInBytes         = 3 // 1 opcode + 2 label
+	opBuildLenSizeInBytes          = 1
+	opBuildFoldlSizeInBytes        = 5 // 1 opcode + 2 ctorNameID + 2 label
 )
 
 func NewVirtualMachine(bytecode *Bytecode) *virtualMachine {
@@ -340,6 +370,19 @@ func (vm *virtualMachine) Match(data []byte) (Tree, int, error) {
 	return vm.MatchRule(data, 0)
 }
 
+// RewriteWithBytecode compiles the bytecode, runs the rewrite entry point (PC=0)
+// on the given tree at rootID, and returns the result node. The tree must be the
+// concrete type from TreeBuilder (same package). Used by external callers that
+// only have the Tree interface.
+func RewriteWithBytecode(bytecode *Bytecode, t Tree, rootID NodeID) (NodeID, error) {
+	tr, ok := t.(*tree)
+	if !ok {
+		return 0, fmt.Errorf("RewriteWithBytecode: tree must be from TreeBuilder")
+	}
+	vm := NewVirtualMachine(bytecode)
+	return vm.Rewrite(tr, rootID)
+}
+
 // Rewrite applies the rewrite bytecode (starting at PC=0) to the
 // given tree rooted at rootID.  On success it returns the NodeID of
 // the newly constructed tree (from the build stack).  New nodes are
@@ -349,10 +392,16 @@ func (vm *virtualMachine) Rewrite(inputTree *tree, rootID NodeID) (NodeID, error
 	vm.treeCursor = rootID
 	vm.treeNav = vm.treeNav[:0]
 	vm.buildStack = vm.buildStack[:0]
+	vm.treeBacktrackStack = vm.treeBacktrackStack[:0]
 
 	// Point the output tree at the input tree so build_* opcodes
 	// append to the same arena and NodeIDs from bind/copy are valid.
 	vm.stack.tree = inputTree
+
+	// Push a frame so the entry rule set's IReturn has somewhere to return (to IHalt).
+	if vm.bytecode.rewriteHaltPC >= 0 {
+		vm.stack.push(frame{t: frameType_Call, pc: uint32(vm.bytecode.rewriteHaltPC)})
+	}
 
 	_, _, err := vm.MatchRule(inputTree.input, 0)
 	if err != nil {
@@ -374,6 +423,69 @@ func (vm *virtualMachine) internStr(t *tree, s string) int32 {
 	id := int32(len(t.strs))
 	t.strs = append(t.strs, s)
 	return id
+}
+
+// nonSkippableChildren returns children of seqID that are not skippable
+// (String nodes and Node with name Spacing are skipped when spacingNameID >= 0).
+func (vm *virtualMachine) nonSkippableChildren(seqID NodeID) []NodeID {
+	ti := vm.treeInput
+	var out []NodeID
+	switch ti.Type(seqID) {
+	case NodeType_Sequence:
+		for _, c := range ti.Children(seqID) {
+			if vm.isSkippable(c) {
+				continue
+			}
+			out = append(out, c)
+		}
+	case NodeType_Node:
+		if child, ok := ti.Child(seqID); ok {
+			if ti.Type(child) == NodeType_Sequence {
+				return vm.nonSkippableChildren(child)
+			}
+			if !vm.isSkippable(child) {
+				out = append(out, child)
+			}
+		}
+	}
+	return out
+}
+
+func (vm *virtualMachine) isSkippable(id NodeID) bool {
+	ti := vm.treeInput
+	if ti.Type(id) == NodeType_String {
+		return true
+	}
+	if vm.bytecode.spacingNameID >= 0 && ti.Type(id) == NodeType_Node && ti.NameID(id) == vm.bytecode.spacingNameID {
+		return true
+	}
+	return false
+}
+
+// foldlChildren returns children for foldl: only skip Spacing-named nodes, not all strings,
+// so [term, "+", term] keeps the "+" for building Binary(op, left, right).
+func (vm *virtualMachine) foldlChildren(seqID NodeID) []NodeID {
+	ti := vm.treeInput
+	var out []NodeID
+	switch ti.Type(seqID) {
+	case NodeType_Sequence:
+		for _, c := range ti.Children(seqID) {
+			if vm.bytecode.spacingNameID >= 0 && ti.Type(c) == NodeType_Node && ti.NameID(c) == vm.bytecode.spacingNameID {
+				continue
+			}
+			out = append(out, c)
+		}
+	case NodeType_Node:
+		if child, ok := ti.Child(seqID); ok {
+			if ti.Type(child) == NodeType_Sequence {
+				return vm.foldlChildren(child)
+			}
+			if vm.bytecode.spacingNameID < 0 || ti.Type(child) != NodeType_Node || ti.NameID(child) != vm.bytecode.spacingNameID {
+				out = append(out, child)
+			}
+		}
+	}
+	return out
 }
 
 func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, error) {
@@ -545,11 +657,23 @@ code:
 
 		case opChoice:
 			lb := int(decodeU16(code, pc+1))
+			if vm.treeInput != nil {
+				vm.treeBacktrackStack = append(vm.treeBacktrackStack, struct {
+					cursor NodeID
+					navLen int
+				}{vm.treeCursor, len(vm.treeNav)})
+			}
 			stack.push(mkBacktrackFrame(lb, cursor))
 			pc += opChoiceSizeInBytes
 
 		case opChoicePred:
 			lb := int(decodeU16(code, pc+1))
+			if vm.treeInput != nil {
+				vm.treeBacktrackStack = append(vm.treeBacktrackStack, struct {
+					cursor NodeID
+					navLen int
+				}{vm.treeCursor, len(vm.treeNav)})
+			}
 			stack.push(mkBacktrackPredFrame(lb, cursor))
 			pc += opChoiceSizeInBytes
 			vm.predicate = true
@@ -577,8 +701,84 @@ code:
 			}
 
 		case opReturn:
-			f := stack.pop()
-			pc = int(f.pc)
+			if stack.len() == 0 {
+				// Rewrite entry rule set returned; jump to IHalt after it
+				if vm.treeInput != nil && vm.bytecode.rewriteHaltPC >= 0 {
+					pc = vm.bytecode.rewriteHaltPC
+					continue code
+				}
+				goto fail
+			}
+			f := stack.top()
+			if f.t == frameType_Iter {
+				it := stack.iter(f)
+				if it.kind == iterKindForEachChild {
+					// Strategy traversal: no result collection; advance to next child or finish
+					it.index++
+					if it.index < len(it.children) {
+						vm.treeCursor = it.children[it.index]
+						pc = it.ruleAddr
+						continue code
+					}
+					vm.treeCursor = it.savedCursor
+					stack.pop()
+					pc = int(f.pc)
+					continue code
+				}
+				n := len(vm.buildStack)
+				if n == 0 {
+					goto fail
+				}
+				result := vm.buildStack[n-1]
+				vm.buildStack = vm.buildStack[:n-1]
+				if it.kind == iterKindEach {
+					it.results = append(it.results, result)
+					it.index++
+					if it.index < len(it.children) {
+						vm.treeCursor = it.children[it.index]
+						pc = it.ruleAddr
+						continue code
+					}
+					// Done: build sequence from results, restore cursor, pop frame, resume
+					outTree := stack.tree
+					seqID := outTree.AddSequence(it.results, 0, 0)
+					vm.buildStack = append(vm.buildStack, seqID)
+					vm.treeCursor = it.savedCursor
+					stack.pop()
+					pc = int(f.pc)
+					continue code
+				}
+				// foldl
+				if it.index == 0 {
+					it.acc = result
+					it.index = 1
+				} else {
+					// it.index is even (we just processed a term); previous element is op
+					opNode := it.children[it.index-1]
+					outTree := stack.tree
+					ctorStr := vm.bytecode.strs[it.ctorNameID]
+					outNameID := vm.internStr(outTree, ctorStr)
+					seqID := outTree.AddSequence([]NodeID{opNode, it.acc, result}, 0, 0)
+					it.acc = outTree.AddNode(outNameID, seqID, 0, 0)
+					it.index++
+				}
+				// Advance past op(s) to next term
+				for it.index < len(it.children) && (it.index%2) == 1 {
+					it.index++
+				}
+				if it.index < len(it.children) {
+					vm.treeCursor = it.children[it.index]
+					pc = it.ruleAddr
+					continue code
+				}
+				vm.buildStack = append(vm.buildStack, it.acc)
+				vm.treeCursor = it.savedCursor
+				stack.pop()
+				pc = int(f.pc)
+				continue code
+			}
+			prev := stack.pop()
+			pc = int(prev.pc)
 
 		case opReturnLR:
 			pc, cursor = vm.doReturnLR(stack, cursor)
@@ -712,6 +912,16 @@ code:
 				goto fail
 			}
 
+		case opCheckSeqLen:
+			expected := int(binary.LittleEndian.Uint16(code[pc+1:]))
+			pc += opCheckSeqLenSizeInBytes
+			if vm.treeInput.Type(vm.treeCursor) != NodeType_Sequence {
+				goto fail
+			}
+			if len(vm.treeInput.Children(vm.treeCursor)) != expected {
+				goto fail
+			}
+
 		case opEnterChild:
 			pc += opEnterChildSizeInBytes
 			ti := vm.treeInput
@@ -806,32 +1016,123 @@ code:
 			pc += opBuildCopySizeInBytes
 			vm.buildStack = append(vm.buildStack, vm.treeCursor)
 
+		case opSetCursorFromBuild:
+			pc += opSetCursorFromBuildSizeInBytes
+			n := len(vm.buildStack)
+			if n == 0 {
+				goto fail
+			}
+			newCursor := vm.buildStack[n-1]
+			vm.buildStack = vm.buildStack[:n-1]
+			vm.treeNav = append(vm.treeNav, vm.treeCursor)
+			vm.treeCursor = newCursor
+
 		case opForEachChild:
 			label := int(binary.LittleEndian.Uint16(code[pc+1:]))
 			pc += opForEachChildSizeInBytes
 			ti := vm.treeInput
 			children := ti.Children(vm.treeCursor)
-			savedCursor := vm.treeCursor
-			for _, child := range children {
-				vm.treeCursor = child
-				// Push a call frame so the sub-program can return
-				stack.push(frame{
-					pc: uint32(pc),
-					t:  frameType_Call,
-				})
-				pc = label
-				// The sub-program will execute and return via opReturn,
-				// which pops the call frame and restores pc.
-				// We need to break out and let the main loop handle it.
-				// Store iteration state: the remaining children and
-				// the saved cursor are managed by the sub-program.
+			if len(children) == 0 {
+				continue code
 			}
-			vm.treeCursor = savedCursor
-			// Note: for_each_child with the current loop structure
-			// needs coroutine-like behavior. For now, it pushes the
-			// first child call and the main loop handles return.
-			// Full iteration is handled by the compiler emitting
-			// explicit loops with enter_index.
+			savedCursor := vm.treeCursor
+			iterIdx := stack.pushIter(iterFrameData{
+				children:     children,
+				index:        0,
+				savedCursor:  savedCursor,
+				ruleAddr:     label,
+				kind:         iterKindForEachChild,
+			})
+			stack.push(frame{
+				pc:    uint32(pc),
+				t:     frameType_Iter,
+				lrIdx: iterIdx,
+			})
+			vm.treeCursor = children[0]
+			pc = label
+			continue code
+
+		case opBuildEach:
+			ruleAddr := int(binary.LittleEndian.Uint16(code[pc+1:]))
+			pc += opBuildEachSizeInBytes
+			n := len(vm.buildStack)
+			if n == 0 {
+				goto fail
+			}
+			seqID := vm.buildStack[n-1]
+			vm.buildStack = vm.buildStack[:n-1]
+			children := vm.nonSkippableChildren(seqID)
+			if len(children) == 0 {
+				seqID := stack.tree.AddSequence(nil, 0, 0)
+				vm.buildStack = append(vm.buildStack, seqID)
+				continue code
+			}
+			iterIdx := stack.pushIter(iterFrameData{
+				children:     children,
+				index:        0,
+				savedCursor:  vm.treeCursor,
+				results:      nil,
+				ruleAddr:     ruleAddr,
+				kind:         iterKindEach,
+			})
+			stack.push(frame{
+				pc:    uint32(pc),
+				t:     frameType_Iter,
+				lrIdx: iterIdx,
+			})
+			vm.treeCursor = children[0]
+			pc = ruleAddr
+			continue code
+
+		case opBuildLen:
+			pc += opBuildLenSizeInBytes
+			n := len(vm.buildStack)
+			if n == 0 {
+				goto fail
+			}
+			seqID := vm.buildStack[n-1]
+			vm.buildStack = vm.buildStack[:n-1]
+			children := vm.nonSkippableChildren(seqID)
+			countStr := strconv.Itoa(len(children))
+			strID := vm.internStr(stack.tree, countStr)
+			nodeID := stack.tree.AddStringFromStrID(strID)
+			vm.buildStack = append(vm.buildStack, nodeID)
+
+		case opBuildFoldl:
+			ctorNameID := int32(binary.LittleEndian.Uint16(code[pc+1:]))
+			ruleAddr := int(binary.LittleEndian.Uint16(code[pc+3:]))
+			pc += opBuildFoldlSizeInBytes
+			n := len(vm.buildStack)
+			if n == 0 {
+				goto fail
+			}
+			seqID := vm.buildStack[n-1]
+			vm.buildStack = vm.buildStack[:n-1]
+			children := vm.foldlChildren(seqID)
+			if len(children) == 0 {
+				goto fail
+			}
+			if len(children) == 1 {
+				// Single element: use same iter path; continuation will push acc and exit
+			} else if len(children) < 3 || len(children)%2 == 0 {
+				goto fail
+			}
+			iterIdx := stack.pushIter(iterFrameData{
+				children:     children,
+				index:        0,
+				savedCursor:  vm.treeCursor,
+				ctorNameID:   ctorNameID,
+				ruleAddr:     ruleAddr,
+				kind:         iterKindFoldl,
+			})
+			stack.push(frame{
+				pc:    uint32(pc),
+				t:     frameType_Iter,
+				lrIdx: iterIdx,
+			})
+			vm.treeCursor = children[0]
+			pc = ruleAddr
+			continue code
 
 		default:
 			panic("NO ENTIENDO SENOR")
@@ -854,6 +1155,12 @@ fail:
 			pc = int(f.pc)
 			vm.predicate = f.predicate
 			cursor = f.cursor
+			if vm.treeInput != nil && len(vm.treeBacktrackStack) > 0 {
+				bt := vm.treeBacktrackStack[len(vm.treeBacktrackStack)-1]
+				vm.treeBacktrackStack = vm.treeBacktrackStack[:len(vm.treeBacktrackStack)-1]
+				vm.treeCursor = bt.cursor
+				vm.treeNav = vm.treeNav[:bt.navLen]
+			}
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", cursor, pc))
 			goto code
 		}

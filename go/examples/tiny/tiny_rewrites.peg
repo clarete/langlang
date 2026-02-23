@@ -6,7 +6,7 @@
 
 // --- Structured AST types (target of reshape) ---
 
-@type Expr = Binary(Op: string, Left: Expr, Right: Expr)
+@type Expr = Binary(Left: Expr, Op: string, Right: Expr)
            | Call(Callee: string, Args: list[Expr])
            | Var(Name: string)
            | NumLit(Value: string)
@@ -22,7 +22,9 @@
 
 // --- Pass 0: Reshape (PEG parse tree -> structured AST) ---
 
-reshape_expr <~ Expr(Child: ?c) -> foldl(Binary, reshape_expr, ?c)
+reshape_expr <~ Expr(Child: ?c) -> reshape_expr(?c)
+              / Expr(Child: ?c) -> foldl(Binary, reshape_expr, ?c)
+              / Multi(Child: [?left, ?op, ?right]) -> Binary(Left: reshape_expr(?left), Op: ?op, Right: reshape_expr(?right))
               / Multi(Child: ?c) -> foldl(Binary, reshape_expr, ?c)
               / Primary(Body: ["(", ?inner, ")"]) -> reshape_expr(?inner)
               / Primary(Child: ?c) -> reshape_expr(?c)
@@ -35,12 +37,12 @@ reshape_expr <~ Expr(Child: ?c) -> foldl(Binary, reshape_expr, ?c)
 
 // --- Pass 1: Constant folding (AST -> AST) ---
 
-fold <~ Binary(Op: "+", Left: NumLit(Value: "0"), Right: ?e)  -> ?e
-      / Binary(Op: "+", Left: ?e, Right: NumLit(Value: "0"))  -> ?e
-      / Binary(Op: "*", Left: NumLit(Value: "1"), Right: ?e)  -> ?e
-      / Binary(Op: "*", Left: ?e, Right: NumLit(Value: "1"))  -> ?e
-      / Binary(Op: "*", Left: NumLit(Value: "0"), Right: _)   -> NumLit(Value: "0")
-      / Binary(Op: "*", Left: _, Right: NumLit(Value: "0"))   -> NumLit(Value: "0")
+fold <~ Binary(Left: NumLit(Value: "0"), Op: "+", Right: ?e)  -> ?e
+      / Binary(Left: ?e, Op: "+", Right: NumLit(Value: "0"))  -> ?e
+      / Binary(Left: NumLit(Value: "1"), Op: "*", Right: ?e)  -> ?e
+      / Binary(Left: ?e, Op: "*", Right: NumLit(Value: "1"))  -> ?e
+      / Binary(Left: NumLit(Value: "0"), Op: "*", Right: _)   -> NumLit(Value: "0")
+      / Binary(Left: _, Op: "*", Right: NumLit(Value: "0"))   -> NumLit(Value: "0")
 
 // --- Pass 2: Code generation (AST -> stack machine) ---
 
@@ -51,7 +53,7 @@ expr <~ NumLit(Value: ?v)
       / Var(Name: ?n)
         -> Load(Name: ?n)
 
-      / Binary(Op: ?op, Left: ?l, Right: ?r)
+      / Binary(Left: ?l, Op: ?op, Right: ?r)
         -> Seq(Items: [expr(?l), expr(?r), BinOp(Op: ?op)])
 
       / Call(Callee: ?name, Args: ?args)

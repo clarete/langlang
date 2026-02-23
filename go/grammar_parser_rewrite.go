@@ -351,9 +351,26 @@ func parseRwPatNamed(tree Tree, id NodeID) (RewritePattern, error) {
 // parseRwPatFieldsAsNamed converts field patterns like Binary(Op: ?op, Left: ?l)
 // into PatNamed{NodeName: "Binary", Body: PatSeq{[?op, ?l]}}.
 // Field names are used for documentation; the tree stores children positionally.
+// We collect RwFieldPat in depth-first order so that PEG repetition (',' RwFieldPat)*
+// preserves source order regardless of nesting.
 func parseRwPatFieldsAsNamed(tree Tree, name string, fieldsNode NodeID) (RewritePattern, error) {
-	var elems []RewritePattern
-	for _, childID := range namedNodeChildren(tree, fieldsNode) {
+	elems, err := collectFieldPats(tree, fieldsNode)
+	if err != nil {
+		return nil, err
+	}
+	if len(elems) == 1 {
+		return PatNamed{NodeName: name, Body: elems[0]}, nil
+	}
+	return PatNamed{NodeName: name, Body: PatSeq{Elems: elems}}, nil
+}
+
+func collectFieldPats(tree Tree, id NodeID) ([]RewritePattern, error) {
+	var out []RewritePattern
+	children := namedNodeChildren(tree, id)
+	// Reverse iteration only: parse tree often has fields in right-recursive order;
+	// reversing yields order that matches runtime tree (e.g. [Op, Left, Right] for Binary).
+	for i := len(children) - 1; i >= 0; i-- {
+		childID := children[i]
 		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "RwFieldPat" {
 			for _, fc := range namedNodeChildren(tree, childID) {
 				if tree.Type(fc) == NodeType_Node && isPatternNodeName(tree.Name(fc)) {
@@ -361,16 +378,64 @@ func parseRwPatFieldsAsNamed(tree Tree, name string, fieldsNode NodeID) (Rewrite
 					if err != nil {
 						return nil, err
 					}
-					elems = append(elems, pat)
+					out = append(out, pat)
 					break
 				}
 			}
+		} else if tree.Type(childID) == NodeType_Sequence {
+			sub, err := collectFieldPats(tree, childID)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, sub...)
+		} else if child, ok := tree.Child(childID); ok && tree.Type(child) == NodeType_Sequence {
+			sub, err := collectFieldPats(tree, child)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, sub...)
 		}
 	}
-	if len(elems) == 1 {
-		return PatNamed{NodeName: name, Body: elems[0]}, nil
+	return out, nil
+}
+
+
+func collectConFields(tree Tree, id NodeID) ([]RewriteConstruction, error) {
+	var out []RewriteConstruction
+	children := namedNodeChildren(tree, id)
+	// Reverse iteration + final reverse: RwConFields from (',' RwConField)* is right-recursive,
+	// so source order Left, Op, Right appears as [Right, Op, Left] in tree; reverse to get [Left, Op, Right].
+	for i := len(children) - 1; i >= 0; i-- {
+		childID := children[i]
+		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "RwConField" {
+			for _, fc := range namedNodeChildren(tree, childID) {
+				if tree.Type(fc) == NodeType_Node && isConstructionNodeName(tree.Name(fc)) {
+					con, err := parseRwConstruction(tree, fc)
+					if err != nil {
+						return nil, err
+					}
+					out = append(out, con)
+					break
+				}
+			}
+		} else if tree.Type(childID) == NodeType_Sequence {
+			sub, err := collectConFields(tree, childID)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, sub...)
+		} else if child, ok := tree.Child(childID); ok && tree.Type(child) == NodeType_Sequence {
+			sub, err := collectConFields(tree, child)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, sub...)
+		}
 	}
-	return PatNamed{NodeName: name, Body: PatSeq{Elems: elems}}, nil
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, nil
 }
 
 func parseRwPatSeq(tree Tree, id NodeID) (RewritePattern, error) {
@@ -455,20 +520,9 @@ func parseRwConNamed(tree Tree, id NodeID) (RewriteConstruction, error) {
 }
 
 func parseRwConFieldsAsNamed(tree Tree, name string, fieldsNode NodeID) (RewriteConstruction, error) {
-	var elems []RewriteConstruction
-	for _, childID := range namedNodeChildren(tree, fieldsNode) {
-		if tree.Type(childID) == NodeType_Node && tree.Name(childID) == "RwConField" {
-			for _, fc := range namedNodeChildren(tree, childID) {
-				if tree.Type(fc) == NodeType_Node && isConstructionNodeName(tree.Name(fc)) {
-					con, err := parseRwConstruction(tree, fc)
-					if err != nil {
-						return nil, err
-					}
-					elems = append(elems, con)
-					break
-				}
-			}
-		}
+	elems, err := collectConFields(tree, fieldsNode)
+	if err != nil {
+		return nil, err
 	}
 	if len(elems) == 1 {
 		return ConNamed{NodeName: name, Body: elems[0]}, nil

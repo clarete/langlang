@@ -238,6 +238,9 @@ func compilePattern(pat RewritePattern, c *compiler, vars map[string]int, nextVa
 
 	case PatSeq:
 		c.emit(IMatchSeq{})
+		if len(p.Elems) > 0 {
+			c.emit(ICheckSeqLen{ExpectedLen: len(p.Elems)})
+		}
 		for i, elem := range p.Elems {
 			c.emit(IEnterIndex{Index: i})
 			if err := compilePattern(elem, c, vars, nextVar); err != nil {
@@ -279,6 +282,57 @@ func compileConstruction(con RewriteConstruction, c *compiler, vars map[string]i
 			}
 		}
 		c.emit(IBuildSeq{Count: len(co.Elems)})
+
+	case ConCall:
+		if len(co.Args) != 1 {
+			return fmt.Errorf("ConCall %s: expected 1 arg, got %d", co.RuleName, len(co.Args))
+		}
+		if c.ruleSetLabels == nil {
+			return fmt.Errorf("ConCall %s: ruleSetLabels not set (compile with CompileRewriteFile)", co.RuleName)
+		}
+		label, ok := c.ruleSetLabels[co.RuleName]
+		if !ok {
+			return fmt.Errorf("ConCall: unknown rule set %q", co.RuleName)
+		}
+		if err := compileConstruction(co.Args[0], c, vars); err != nil {
+			return err
+		}
+		c.emit(ISetCursorFromBuild{})
+		c.emit(ICall{Label: label})
+		c.emit(IPopCursor{})
+
+	case ConEach:
+		if c.ruleSetLabels == nil {
+			return fmt.Errorf("ConEach %s: ruleSetLabels not set (compile with CompileRewriteFile)", co.RuleName)
+		}
+		label, ok := c.ruleSetLabels[co.RuleName]
+		if !ok {
+			return fmt.Errorf("ConEach: unknown rule set %q", co.RuleName)
+		}
+		if err := compileConstruction(co.SeqArg, c, vars); err != nil {
+			return err
+		}
+		c.emit(IBuildEach{Label: label})
+
+	case ConLen:
+		if err := compileConstruction(co.SeqArg, c, vars); err != nil {
+			return err
+		}
+		c.emit(IBuildLen{})
+
+	case ConFoldl:
+		if c.ruleSetLabels == nil {
+			return fmt.Errorf("ConFoldl %s: ruleSetLabels not set (compile with CompileRewriteFile)", co.RuleName)
+		}
+		label, ok := c.ruleSetLabels[co.RuleName]
+		if !ok {
+			return fmt.Errorf("ConFoldl: unknown rule set %q", co.RuleName)
+		}
+		if err := compileConstruction(co.SeqArg, c, vars); err != nil {
+			return err
+		}
+		ctorNameID := c.intern(co.CtorName)
+		c.emit(IBuildFoldl{CtorNameID: ctorNameID, Label: label})
 
 	default:
 		return fmt.Errorf("unsupported construction type: %T", con)
@@ -382,6 +436,123 @@ func CheckWellFormed(rule *RewriteRule) error {
 	for _, v := range ConstructionVars(rule.Constr) {
 		if !patVars[v] {
 			return fmt.Errorf("variable ?%s used in construction but not bound in pattern", v)
+		}
+	}
+	return nil
+}
+
+// CompileRewriteFile compiles all rule sets in rf into a single bytecode blob.
+// entryRuleName is the rule set whose code is placed at address 0 (the rewrite entry point).
+// Returns the bytecode and a map from rule set name to bytecode address for use with RewriteAt.
+func CompileRewriteFile(rf *RewriteFile, entryRuleName string) (*Bytecode, map[string]int, error) {
+	// Order rule sets: entry first, then the rest
+	var ordered []*RewriteRuleSet
+	var entryIndex int
+	for i, rs := range rf.RuleSets {
+		if rs.Name == entryRuleName {
+			entryIndex = i
+			break
+		}
+	}
+	if entryIndex >= len(rf.RuleSets) {
+		return nil, nil, fmt.Errorf("entry rule set %q not found in rewrite file", entryRuleName)
+	}
+	ordered = append(ordered, rf.RuleSets[entryIndex])
+	for i, rs := range rf.RuleSets {
+		if i != entryIndex {
+			ordered = append(ordered, rs)
+		}
+	}
+
+	c := newCompiler(NewConfig())
+	c.ruleSetLabels = make(map[string]ILabel)
+	for _, rs := range ordered {
+		c.ruleSetLabels[rs.Name] = NewILabel()
+	}
+
+	haltLabel := NewILabel()
+	for i, rs := range ordered {
+		c.emit(c.ruleSetLabels[rs.Name])
+		if err := CompileRewriteRuleSet(rs, c); err != nil {
+			return nil, nil, fmt.Errorf("compiling rule set %s: %w", rs.Name, err)
+		}
+		c.emit(IReturn{})
+		if i == 0 {
+			// Entry rule set: IReturn pops to this halt so Rewrite can start at 0 without a frame
+			c.emit(haltLabel)
+			c.emit(IHalt{})
+		}
+	}
+
+	// Ensure "Spacing" is in the string table so bytecode can skip Spacing nodes in each/foldl
+	spacingID := c.intern("Spacing")
+	p := &Program{
+		code:               c.code,
+		strings:            c.strings,
+		stringsMap:         c.stringsMap,
+		SpacingNameID:      int32(spacingID),
+		RewriteHaltLabel:   haltLabel,
+	}
+	cfg := NewConfig()
+	bytecode := Encode(p, cfg)
+
+	// Build label -> address from the encoded code (labels were resolved during Encode)
+	labels := make(map[ILabel]int)
+	addr := 0
+	for _, inst := range c.code {
+		switch ii := inst.(type) {
+		case ILabel:
+			labels[ii] = addr
+		default:
+			addr += inst.SizeInBytes()
+		}
+	}
+	ruleAddrs := make(map[string]int, len(ordered))
+	for _, rs := range ordered {
+		ruleAddrs[rs.Name] = labels[c.ruleSetLabels[rs.Name]]
+	}
+
+	return bytecode, ruleAddrs, nil
+}
+
+// CompileRewriteFileWithStrategy compiles all rule sets and places the strategy
+// code at address 0, so that Rewrite runs the strategy (e.g. innermost(fold)).
+// Use this when the entry point is a strategy rather than a single rule set.
+func CompileRewriteFileWithStrategy(rf *RewriteFile, strat Strategy) (*Bytecode, error) {
+	c := newCompiler(NewConfig())
+	c.ruleSetLabels = make(map[string]ILabel)
+	for _, rs := range rf.RuleSets {
+		c.ruleSetLabels[rs.Name] = NewILabel()
+	}
+	// Emit strategy at 0, then all rule sets
+	entryLabel := NewILabel()
+	c.emit(entryLabel)
+	if err := CompileStrategy(strat, c); err != nil {
+		return nil, fmt.Errorf("compiling strategy: %w", err)
+	}
+	c.emit(IHalt{})
+	for _, rs := range rf.RuleSets {
+		c.emit(c.ruleSetLabels[rs.Name])
+		if err := CompileRewriteRuleSet(rs, c); err != nil {
+			return nil, fmt.Errorf("compiling rule set %s: %w", rs.Name, err)
+		}
+		c.emit(IReturn{})
+	}
+	spacingID := c.intern("Spacing")
+	p := &Program{
+		code:          c.code,
+		strings:       c.strings,
+		stringsMap:    c.stringsMap,
+		SpacingNameID: int32(spacingID),
+	}
+	return Encode(p, NewConfig()), nil
+}
+
+// RuleSetByName returns the rule set with the given name in rf, or nil.
+func RuleSetByName(rf *RewriteFile, name string) *RewriteRuleSet {
+	for _, rs := range rf.RuleSets {
+		if rs.Name == name {
+			return rs
 		}
 	}
 	return nil

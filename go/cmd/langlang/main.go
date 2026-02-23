@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -16,7 +17,12 @@ import (
 var theme = ascii.DefaultTheme
 
 type args struct {
+	subcommand *string
+
 	grammarPath *string
+	rulesPath   *string
+	rewriteGram *string
+	entry       *string
 
 	grammarAST *bool
 	grammarASM *bool
@@ -48,7 +54,11 @@ type args struct {
 
 func readArgs() *args {
 	a := &args{
+		subcommand:  flag.String("subcommand", "", "Subcommand: parse, rewrite, emit (or pass as first arg)"),
 		grammarPath: flag.String("grammar", "", "Path to the grammar file"),
+		rulesPath:   flag.String("rules", "", "Path to the rewrite rules file (.peg with <~ rules)"),
+		rewriteGram: flag.String("rewrite-grammar", "", "Path to grammar that parses rules files (e.g. langlang_rewrite.peg)"),
+		entry:       flag.String("entry", "", "Rewrite entry: rule set name or strategy e.g. 'innermost(fold)'"),
 
 		// Debugging Options
 
@@ -92,11 +102,39 @@ func readArgs() *args {
 }
 
 func main() {
+	// If first arg is a subcommand, strip it so flag.Parse() sees the rest (e.g. -grammar x).
+	sub := ""
+	if len(os.Args) >= 2 && !strings.HasPrefix(os.Args[1], "-") {
+		switch os.Args[1] {
+		case "parse", "rewrite", "emit":
+			sub = os.Args[1]
+			os.Args = append(os.Args[:1], os.Args[2:]...)
+		}
+	}
+
 	a := readArgs()
 
 	if *a.showVersion {
 		version()
 		os.Exit(0)
+	}
+
+	if sub == "" {
+		sub = *a.subcommand
+		if args := flag.Args(); len(args) > 0 && sub == "" {
+			sub = args[0]
+		}
+	}
+	switch sub {
+	case "parse":
+		runParse(a)
+		return
+	case "rewrite":
+		runRewrite(a)
+		return
+	case "emit":
+		runEmit(a)
+		return
 	}
 
 	if *a.grammarPath == "" {
@@ -396,4 +434,98 @@ func fatal(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format, args...)
 	fmt.Fprintf(os.Stderr, "\n")
 	os.Exit(1)
+}
+
+// runParse: read input from stdin, parse with grammar, output s-expr tree to stdout.
+func runParse(a *args) {
+	if *a.grammarPath == "" {
+		fatal("parse requires -grammar")
+	}
+	cfg := langlang.NewConfig()
+	loader := langlang.NewRelativeImportLoader()
+	db := langlang.NewDatabase(cfg, loader)
+	matcher, err := langlang.QueryMatcher(db, *a.grammarPath)
+	if err != nil {
+		fatal("Failed to create matcher: %s", err.Error())
+	}
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fatal("Failed to read stdin: %s", err.Error())
+	}
+	tree, _, err := matcher.Match(input)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	root, ok := tree.Root()
+	if !ok {
+		fatal("Empty parse tree")
+	}
+	fmt.Println(langlang.TreeToSExpr(tree, root))
+}
+
+// runRewrite: read s-expr from stdin, apply rewrite, output s-expr to stdout.
+func runRewrite(a *args) {
+	if *a.rulesPath == "" {
+		fatal("rewrite requires -rules")
+	}
+	if *a.rewriteGram == "" {
+		fatal("rewrite requires -rewrite-grammar (e.g. path to langlang_rewrite.peg)")
+	}
+	if *a.entry == "" {
+		fatal("rewrite requires -entry (rule set name or e.g. 'innermost(fold)')")
+	}
+	// Parse rules file
+	matcher, err := langlang.MatcherFromFilePath(*a.rewriteGram)
+	if err != nil {
+		fatal("Failed to compile rewrite grammar: %s", err.Error())
+	}
+	rulesContent, err := os.ReadFile(*a.rulesPath)
+	if err != nil {
+		fatal("Failed to read rules file: %s", err.Error())
+	}
+	tree, _, err := matcher.Match(rulesContent)
+	if err != nil {
+		fatal("Failed to parse rules file: %s", err.Error())
+	}
+	root, ok := tree.Root()
+	if !ok {
+		fatal("Empty rules parse tree")
+	}
+	rf, err := langlang.ParseRewriteFile(tree, root)
+	if err != nil {
+		fatal("Failed to parse rewrite file: %s", err.Error())
+	}
+	bytecode, err := langlang.ParseStrategyExprToEntry(*a.entry, rf)
+	if err != nil {
+		fatal("Failed to compile rewrite: %s", err.Error())
+	}
+	// Read s-expr from stdin
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fatal("Failed to read stdin: %s", err.Error())
+	}
+	t, rootID, err := langlang.ParseSExpr(strings.TrimSpace(string(input)))
+	if err != nil {
+		fatal("Failed to parse s-expr: %s", err.Error())
+	}
+	result, err := langlang.RewriteWithBytecode(bytecode, t, rootID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(langlang.TreeToSExpr(t, result))
+}
+
+// runEmit: read s-expr from stdin, output pretty tree to stdout.
+func runEmit(a *args) {
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fatal("Failed to read stdin: %s", err.Error())
+	}
+	t, rootID, err := langlang.ParseSExpr(strings.TrimSpace(string(input)))
+	if err != nil {
+		fatal("Failed to parse s-expr: %s", err.Error())
+	}
+	fmt.Println(t.Pretty(rootID))
 }

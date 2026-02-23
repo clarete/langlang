@@ -65,7 +65,17 @@ func (t *tree) Type(id NodeID) NodeType             { return t.nodes[id].typ }
 func (t *tree) MessageID(id NodeID) int32           { return t.nodes[id].messageID }
 func (t *tree) Message(id NodeID) string            { return t.strs[t.MessageID(id)] }
 func (t *tree) NameID(id NodeID) int32              { return t.nodes[id].nameID }
-func (t *tree) Name(id NodeID) string               { return t.strs[t.NameID(id)] }
+func (t *tree) Name(id NodeID) string {
+	nid := t.NameID(id)
+	if nid < 0 {
+		// String/Sequence nodes use nameID -1; for String return text content.
+		if t.Type(id) == NodeType_String {
+			return t.Text(id)
+		}
+		return ""
+	}
+	return t.strs[nid]
+}
 func (t *tree) IsType(id NodeID, typ NodeType) bool { return t.Type(id) == typ }
 func (t *tree) IsNamed(id NodeID, nameID int32) bool {
 	return t.Type(id) == NodeType_Node && t.NameID(id) == nameID
@@ -158,6 +168,21 @@ func (t *tree) AddString(start, end int) NodeID {
 		start:     start,
 		end:       end,
 		nameID:    -1,
+		childID:   -1,
+		messageID: -1,
+	})
+	return id
+}
+
+// AddStringFromStrID creates a string node whose text is t.strs[strID].
+// Used for literal string construction (e.g. opBuildLen result).
+func (t *tree) AddStringFromStrID(strID int32) NodeID {
+	id := NodeID(len(t.nodes))
+	t.nodes = append(t.nodes, node{
+		typ:       NodeType_String,
+		start:     0,
+		end:       0,
+		nameID:    strID,
 		childID:   -1,
 		messageID: -1,
 	})
@@ -268,6 +293,9 @@ func (t *tree) Text(id NodeID) string {
 
 	switch n.typ {
 	case NodeType_String:
+		if n.start == n.end && n.nameID >= 0 {
+			return t.strs[n.nameID]
+		}
 		return string(t.input[n.start:n.end])
 
 	case NodeType_Sequence:

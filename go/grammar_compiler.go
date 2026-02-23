@@ -86,6 +86,11 @@ type compiler struct {
 	// bytecodeSize has since crossed the maxJumpAddress
 	// threshold—since the definition body was never emitted.
 	inlinedDefs map[int]struct{}
+
+	// ruleSetLabels maps rewrite rule set names to their bytecode
+	// labels. Set when compiling a full RewriteFile (CompileRewriteFile)
+	// so that ConCall can resolve rule names to addresses.
+	ruleSetLabels map[string]ILabel
 }
 
 func newCompiler(config *Config) *compiler {

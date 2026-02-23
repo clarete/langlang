@@ -7,6 +7,7 @@ const (
 	frameType_Call
 	frameType_Capture
 	frameType_LRCall
+	frameType_Iter
 )
 
 const lrResultLeftRec = -1 // Initial state - left recursive call in progress
@@ -60,6 +61,28 @@ type lrFrameData struct {
 	committedEnd uint32
 }
 
+// iterKind distinguishes each vs foldl iteration.
+type iterKind byte
+
+const (
+	iterKindEach        iterKind = 0
+	iterKindFoldl       iterKind = 1
+	iterKindForEachChild iterKind = 2 // strategy traversal: run sub at each child, no result collection
+)
+
+// iterFrameData stores state for each/foldl iteration over a sequence.
+// Indexed by frame.lrIdx when frame.t == frameType_Iter (lrIdx reused as iterIdx).
+type iterFrameData struct {
+	children   []NodeID // non-skippable children of the sequence
+	index      int      // current position
+	savedCursor NodeID  // cursor to restore when done
+	results    []NodeID // collected build results (for each)
+	acc        NodeID   // fold accumulator (for foldl)
+	ctorNameID int32    // constructor name ID (for foldl)
+	ruleAddr   int      // bytecode address to jump to for next iteration
+	kind       iterKind
+}
+
 type stack struct {
 	// Hot fields — keep together in the first cache line (offsets 0-71)
 	frames    []frame  // offset 0
@@ -68,6 +91,8 @@ type stack struct {
 	tree      *tree    // offset 72
 	// Cold field — only used for left-recursive grammars
 	lrData []lrFrameData // offset 80 — side storage for LR frame data (indexed by frame.lrIdx - 1)
+	// iterData — only used for rewrite each/foldl
+	iterData []iterFrameData
 }
 
 // lr returns a pointer to the LR data for the given frame.
@@ -80,6 +105,18 @@ func (s *stack) lr(f *frame) *lrFrameData {
 func (s *stack) pushLR(data lrFrameData) uint32 {
 	s.lrData = append(s.lrData, data)
 	return uint32(len(s.lrData))
+}
+
+// iter returns a pointer to the iter data for the given frame.
+// Only valid when f.t == frameType_Iter and f.lrIdx > 0.
+func (s *stack) iter(f *frame) *iterFrameData {
+	return &s.iterData[f.lrIdx-1]
+}
+
+// pushIter appends iter data and returns its 1-based index.
+func (s *stack) pushIter(data iterFrameData) uint32 {
+	s.iterData = append(s.iterData, data)
+	return uint32(len(s.iterData))
 }
 
 // push adds a frame to the stack. The frame's node range starts at
@@ -174,5 +211,8 @@ func (s *stack) reset() {
 	s.nodes = s.nodes[:0]
 	if s.lrData != nil {
 		s.lrData = s.lrData[:0]
+	}
+	if s.iterData != nil {
+		s.iterData = s.iterData[:0]
 	}
 }

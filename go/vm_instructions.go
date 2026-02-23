@@ -346,6 +346,15 @@ func (IMatchSeq) Name() string                     { return "match_seq" }
 func (IMatchSeq) SizeInBytes() int                 { return opMatchSeqSizeInBytes }
 func (i IMatchSeq) SourceLocation() SourceLocation { return i.sl }
 
+type ICheckSeqLen struct {
+	ExpectedLen int
+	sl          SourceLocation
+}
+
+func (ICheckSeqLen) Name() string                     { return "check_seq_len" }
+func (i ICheckSeqLen) SizeInBytes() int               { return opCheckSeqLenSizeInBytes }
+func (i ICheckSeqLen) SourceLocation() SourceLocation { return i.sl }
+
 type IEnterChild struct{ sl SourceLocation }
 
 func (IEnterChild) Name() string                     { return "enter_child" }
@@ -428,6 +437,12 @@ func (IBuildCopy) Name() string                     { return "build_copy" }
 func (IBuildCopy) SizeInBytes() int                 { return opBuildCopySizeInBytes }
 func (i IBuildCopy) SourceLocation() SourceLocation { return i.sl }
 
+type ISetCursorFromBuild struct{ sl SourceLocation }
+
+func (ISetCursorFromBuild) Name() string                     { return "set_cursor_from_build" }
+func (ISetCursorFromBuild) SizeInBytes() int                 { return opSetCursorFromBuildSizeInBytes }
+func (i ISetCursorFromBuild) SourceLocation() SourceLocation { return i.sl }
+
 type IForEachChild struct {
 	Label ILabel
 	sl    SourceLocation
@@ -436,3 +451,28 @@ type IForEachChild struct {
 func (IForEachChild) Name() string                     { return "for_each_child" }
 func (IForEachChild) SizeInBytes() int                 { return opForEachChildSizeInBytes }
 func (i IForEachChild) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildEach struct {
+	Label ILabel
+	sl    SourceLocation
+}
+
+func (IBuildEach) Name() string                     { return "build_each" }
+func (IBuildEach) SizeInBytes() int                 { return opBuildEachSizeInBytes }
+func (i IBuildEach) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildLen struct{ sl SourceLocation }
+
+func (IBuildLen) Name() string                     { return "build_len" }
+func (IBuildLen) SizeInBytes() int                 { return opBuildLenSizeInBytes }
+func (i IBuildLen) SourceLocation() SourceLocation { return i.sl }
+
+type IBuildFoldl struct {
+	CtorNameID int
+	Label      ILabel
+	sl         SourceLocation
+}
+
+func (IBuildFoldl) Name() string                     { return "build_foldl" }
+func (IBuildFoldl) SizeInBytes() int                 { return opBuildFoldlSizeInBytes }
+func (i IBuildFoldl) SourceLocation() SourceLocation { return i.sl }

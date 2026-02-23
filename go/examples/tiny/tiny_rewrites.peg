@@ -1,0 +1,58 @@
+// Tiny Language: Parse Tree -> AST -> Stack Machine IR
+// ====================================================
+// Demonstrates the full pipeline: PEG parse tree reshaping,
+// constant folding, and code generation -- all expressed as
+// rewrite rules in langlang's surface syntax.
+
+// --- Structured AST types (target of reshape) ---
+
+@type Expr = Binary(Op: string, Left: Expr, Right: Expr)
+           | Call(Callee: string, Args: list[Expr])
+           | Var(Name: string)
+           | NumLit(Value: string)
+
+// --- Stack machine IR types ---
+
+@type Asm = Seq(Items: list[Asm])
+          | Push(Value: string)
+          | Load(Name: string)
+          | BinOp(Op: string)
+          | AsmCall(Name: string, Arity: string)
+          | Nop()
+
+// --- Pass 0: Reshape (PEG parse tree -> structured AST) ---
+
+reshape_expr <~ Expr(Child: ?c) -> foldl(Binary, reshape_expr, ?c)
+              / Multi(Child: ?c) -> foldl(Binary, reshape_expr, ?c)
+              / Primary(Body: ["(", ?inner, ")"]) -> reshape_expr(?inner)
+              / Primary(Child: ?c) -> reshape_expr(?c)
+              / Call(Body: [Id(Name: ?name), "(", Params(Args: ?args), ")"])
+                  -> Call(Callee: ?name, Args: each(reshape_expr, ?args))
+              / Call(Body: [Id(Name: ?name), "(", ")"])
+                  -> Call(Callee: ?name, Args: [])
+              / Num(Value: ?v) -> NumLit(Value: ?v)
+              / Id(Name: ?name) -> Var(Name: ?name)
+
+// --- Pass 1: Constant folding (AST -> AST) ---
+
+fold <~ Binary(Op: "+", Left: NumLit(Value: "0"), Right: ?e)  -> ?e
+      / Binary(Op: "+", Left: ?e, Right: NumLit(Value: "0"))  -> ?e
+      / Binary(Op: "*", Left: NumLit(Value: "1"), Right: ?e)  -> ?e
+      / Binary(Op: "*", Left: ?e, Right: NumLit(Value: "1"))  -> ?e
+      / Binary(Op: "*", Left: NumLit(Value: "0"), Right: _)   -> NumLit(Value: "0")
+      / Binary(Op: "*", Left: _, Right: NumLit(Value: "0"))   -> NumLit(Value: "0")
+
+// --- Pass 2: Code generation (AST -> stack machine) ---
+
+@exhaustive(Expr)
+expr <~ NumLit(Value: ?v)
+        -> Push(Value: ?v)
+
+      / Var(Name: ?n)
+        -> Load(Name: ?n)
+
+      / Binary(Op: ?op, Left: ?l, Right: ?r)
+        -> Seq(Items: [expr(?l), expr(?r), BinOp(Op: ?op)])
+
+      / Call(Callee: ?name, Args: ?args)
+        -> Seq(Items: [each(expr, ?args), AsmCall(Name: ?name, Arity: len(?args))])

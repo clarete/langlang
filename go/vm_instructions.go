@@ -476,3 +476,21 @@ type IBuildFoldl struct {
 func (IBuildFoldl) Name() string                     { return "build_foldl" }
 func (IBuildFoldl) SizeInBytes() int                 { return opBuildFoldlSizeInBytes }
 func (i IBuildFoldl) SourceLocation() SourceLocation { return i.sl }
+
+type IIndent struct{ sl SourceLocation }
+
+func (IIndent) Name() string                     { return "indent" }
+func (IIndent) SizeInBytes() int                 { return opIndentSizeInBytes }
+func (i IIndent) SourceLocation() SourceLocation { return i.sl }
+
+type IDedent struct{ sl SourceLocation }
+
+func (IDedent) Name() string                     { return "dedent" }
+func (IDedent) SizeInBytes() int                 { return opDedentSizeInBytes }
+func (i IDedent) SourceLocation() SourceLocation { return i.sl }
+
+type ISamedent struct{ sl SourceLocation }
+
+func (ISamedent) Name() string                     { return "samedent" }
+func (ISamedent) SizeInBytes() int                 { return opSamedentSizeInBytes }
+func (i ISamedent) SourceLocation() SourceLocation { return i.sl }

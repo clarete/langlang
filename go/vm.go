@@ -126,6 +126,7 @@ type virtualMachine struct {
 	capOffsetId    int
 	capOffsetStart int
 	lrmemo         map[lrMemoKey]*lrMemoEntry
+	indentStack    []int
 
 	// Tree rewriting state (nil/zero when in parse mode)
 	treeInput  *tree    // the tree being matched against
@@ -204,6 +205,10 @@ const (
 	opBuildEach    // pop seq from build stack, iterate non-skippable children with rule (u16 label)
 	opBuildLen     // pop seq from build stack, push count of non-skippable children as string
 	opBuildFoldl   // pop seq from build stack, left-fold with ctor (u16 ctorNameID, u16 label)
+
+	opIndent
+	opDedent
+	opSamedent
 )
 
 var opNames = map[byte]string{
@@ -260,6 +265,9 @@ var opNames = map[byte]string{
 	opBuildEach:             "build_each",
 	opBuildLen:              "build_len",
 	opBuildFoldl:            "build_foldl",
+	opIndent:                "indent",
+	opDedent:                "dedent",
+	opSamedent:              "samedent",
 }
 
 var (
@@ -326,6 +334,10 @@ var (
 	opBuildEachSizeInBytes         = 3 // 1 opcode + 2 label
 	opBuildLenSizeInBytes          = 1
 	opBuildFoldlSizeInBytes        = 5 // 1 opcode + 2 ctorNameID + 2 label
+
+	opIndentSizeInBytes   = 1
+	opDedentSizeInBytes   = 1
+	opSamedentSizeInBytes = 1
 )
 
 func NewVirtualMachine(bytecode *Bytecode) *virtualMachine {
@@ -342,9 +354,10 @@ func NewVirtualMachine(bytecode *Bytecode) *virtualMachine {
 	}
 	stk.tree.bindStrings(bytecode.strs)
 	vm := &virtualMachine{
-		stack:    stk,
-		bytecode: bytecode,
-		ffp:      -1,
+		stack:       stk,
+		bytecode:    bytecode,
+		ffp:         -1,
+		indentStack: []int{0},
 	}
 	return vm
 }
@@ -518,6 +531,8 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, er
 			delete(vm.lrmemo, k)
 		}
 	}
+	vm.indentStack = vm.indentStack[:1]
+	vm.indentStack[0] = 0
 
 	// if a rule was received, push a call frame for it and set
 	// the program appropriately
@@ -663,7 +678,9 @@ code:
 					navLen int
 				}{vm.treeCursor, len(vm.treeNav)})
 			}
-			stack.push(mkBacktrackFrame(lb, cursor))
+			f := mkBacktrackFrame(lb, cursor)
+			f.indentDepth = uint16(len(vm.indentStack))
+			stack.push(f)
 			pc += opChoiceSizeInBytes
 
 		case opChoicePred:
@@ -674,7 +691,9 @@ code:
 					navLen int
 				}{vm.treeCursor, len(vm.treeNav)})
 			}
-			stack.push(mkBacktrackPredFrame(lb, cursor))
+			f := mkBacktrackPredFrame(lb, cursor)
+			f.indentDepth = uint16(len(vm.indentStack))
+			stack.push(f)
 			pc += opChoiceSizeInBytes
 			vm.predicate = true
 
@@ -688,7 +707,9 @@ code:
 
 		case opPartialCommit:
 			pc = int(decodeU16(code, pc+1))
-			stack.top().cursor = cursor
+			top := stack.top()
+			top.cursor = cursor
+			top.indentDepth = uint16(len(vm.indentStack))
 
 		case opCall:
 			stack.push(vm.mkCallFrame(pc + opCallSizeInBytes))
@@ -872,6 +893,7 @@ code:
 			pc = int(decodeU16(code, pc+1))
 			top := stack.top()
 			top.cursor = cursor
+			top.indentDepth = uint16(len(vm.indentStack))
 			stack.collectCaptures()
 			// Reset this frame's capture range for the
 			// next iteration
@@ -1134,6 +1156,36 @@ code:
 			pc = ruleAddr
 			continue code
 
+		case opIndent:
+			indent := measureIndent(data, cursor)
+			top := vm.indentStack[len(vm.indentStack)-1]
+			if indent <= top {
+				goto fail
+			}
+			vm.indentStack = append(vm.indentStack, indent)
+			ls := lineStartOf(data, cursor)
+			cursor = ls + indent
+			pc += opIndentSizeInBytes
+
+		case opDedent:
+			indent := measureIndent(data, cursor)
+			top := vm.indentStack[len(vm.indentStack)-1]
+			if indent >= top {
+				goto fail
+			}
+			vm.indentStack = vm.indentStack[:len(vm.indentStack)-1]
+			pc += opDedentSizeInBytes
+
+		case opSamedent:
+			indent := measureIndent(data, cursor)
+			top := vm.indentStack[len(vm.indentStack)-1]
+			if indent != top {
+				goto fail
+			}
+			ls := lineStartOf(data, cursor)
+			cursor = ls + indent
+			pc += opSamedentSizeInBytes
+
 		default:
 			panic("NO ENTIENDO SENOR")
 		}
@@ -1161,6 +1213,7 @@ fail:
 				vm.treeCursor = bt.cursor
 				vm.treeNav = vm.treeNav[:bt.navLen]
 			}
+			vm.indentStack = vm.indentStack[:f.indentDepth]
 			// dbg(fmt.Sprintf(" -> [c=%02d, pc=%02d]\n", cursor, pc))
 			goto code
 		}
@@ -1338,6 +1391,28 @@ func (vm *virtualMachine) doFailLR(stack *stack, f *frame) (int, int, bool) {
 	// Clean up and continue popping
 	delete(vm.lrmemo, key)
 	return 0, 0, false
+}
+
+// Indentation Helpers
+
+func lineStartOf(data []byte, cursor int) int {
+	for cursor > 0 && data[cursor-1] != '\n' {
+		cursor--
+	}
+	return cursor
+}
+
+func measureIndent(data []byte, cursor int) int {
+	ls := lineStartOf(data, cursor)
+	indent := 0
+	for i := ls; i < len(data); i++ {
+		if data[i] == ' ' || data[i] == '\t' {
+			indent++
+		} else {
+			break
+		}
+	}
+	return indent
 }
 
 // Stack Management Helpers

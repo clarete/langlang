@@ -182,6 +182,12 @@ func Encode(p *Program, cfg *Config) *Bytecode {
 			code = append(code, opBuildFoldl)
 			code = encodeU16(code, uint16(ii.CtorNameID))
 			code = encodeU16(code, uint16(labels[ii.Label]))
+		case IIndent:
+			code = append(code, opIndent)
+		case IDedent:
+			code = append(code, opDedent)
+		case ISamedent:
+			code = append(code, opSamedent)
 		}
 
 		// This doesn't happen for ILabel

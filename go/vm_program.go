@@ -278,6 +278,18 @@ func (p Program) prettyString(format FormatFunc[AsmFormatToken]) string {
 			writeName(instruction.Name())
 			s.WriteString("\n")
 
+		case IIndent:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
+		case IDedent:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
+		case ISamedent:
+			writeName(instruction.Name())
+			s.WriteString("\n")
+
 		default:
 			writeName(instruction.Name())
 			s.WriteString("\n")

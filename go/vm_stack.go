@@ -37,7 +37,10 @@ type frame struct {
 	// frame created within the predicate Not.
 	predicate bool // 1 byte, offset 25
 
-	// 2 bytes implicit padding (offset 26-27)
+	// indentDepth saves the length of the VM's indentStack at the
+	// time a backtracking frame is created, so it can be restored
+	// on backtrack.  Uses the 2 padding bytes at offset 26-27.
+	indentDepth uint16 // 2 bytes, offset 26-27
 
 	// lrIdx is a 1-based index into stack.lrData for LR frames.
 	// 0 means no LR data (non-LR frame).  Only valid when

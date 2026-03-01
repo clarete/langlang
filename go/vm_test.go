@@ -1164,3 +1164,106 @@ E <- E¹ '+' E²
    / '(' E¹ ')'
    / 'n'
 `
+
+func TestIndentOperators(t *testing.T) {
+	mkVM := func(t *testing.T, grammar string) (*virtualMachine, *Database) {
+		t.Helper()
+		cfg := NewConfig()
+		cfg.SetInt("compiler.optimize", 0)
+		cfg.SetBool("grammar.add_charsets", false)
+		loader := NewInMemoryImportLoader()
+		loader.Add("test.peg", []byte(grammar))
+		db := NewDatabase(cfg, loader)
+		code, err := QueryBytecode(db, "test.peg")
+		require.NoError(t, err)
+		vm := NewVirtualMachine(code)
+		return vm, db
+	}
+
+	indentGrammar := `
+Program   <- Statement+ !.
+Statement <- SAMEDENT (Block / Simple) NL?
+Block     <- "if" NL INDENT Statement+ DEDENT
+Simple    <- [a-z]+
+
+Spacing   <- #([ \t])*
+NL        <- #('\n' BlankLine*)
+BlankLine <- #([ \t]* '\n')
+`
+
+	t.Run("valid single-level indent", func(t *testing.T) {
+		vm, _ := mkVM(t, indentGrammar)
+		input := "if\n  hello\n"
+		_, _, err := vm.Match([]byte(input))
+		require.NoError(t, err)
+	})
+
+	t.Run("valid two-level indent", func(t *testing.T) {
+		vm, _ := mkVM(t, indentGrammar)
+		input := "if\n  if\n    deep\n"
+		_, _, err := vm.Match([]byte(input))
+		require.NoError(t, err)
+	})
+
+	t.Run("reject invalid indent (not deeper)", func(t *testing.T) {
+		rejectGrammar := `
+Program   <- SAMEDENT "if" NL INDENT [a-z]+ DEDENT !.
+
+Spacing   <- #([ \t])*
+NL        <- #('\n')
+`
+		vm, _ := mkVM(t, rejectGrammar)
+		input := "if\nhello"
+		_, _, err := vm.Match([]byte(input))
+		require.Error(t, err)
+	})
+
+	t.Run("multi-level dedent", func(t *testing.T) {
+		vm, _ := mkVM(t, indentGrammar)
+		input := "if\n  if\n    deep\n  back\n"
+		_, _, err := vm.Match([]byte(input))
+		require.NoError(t, err)
+	})
+
+	t.Run("samedent must match exactly", func(t *testing.T) {
+		vm, _ := mkVM(t, indentGrammar)
+		input := "  hello\n"
+		_, _, err := vm.Match([]byte(input))
+		require.Error(t, err)
+	})
+
+	t.Run("backtracking restores indent stack", func(t *testing.T) {
+		backtrackGrammar := `
+Program   <- Statement+ !.
+Statement <- SAMEDENT (IfBlock / Simple) NL?
+IfBlock   <- "if" NL INDENT Statement+ DEDENT
+Simple    <- [a-z]+
+
+Spacing   <- #([ \t])*
+NL        <- #('\n' BlankLine*)
+BlankLine <- #([ \t]* '\n')
+`
+		vm, _ := mkVM(t, backtrackGrammar)
+		input := "hello\n"
+		_, _, err := vm.Match([]byte(input))
+		require.NoError(t, err)
+	})
+
+	t.Run("sequence of same-indent statements", func(t *testing.T) {
+		vm, _ := mkVM(t, indentGrammar)
+		input := "hello\nworld\n"
+		_, _, err := vm.Match([]byte(input))
+		require.NoError(t, err)
+	})
+}
+
+func TestIndentUndefinedReferences(t *testing.T) {
+	cfg := NewConfig()
+	loader := NewInMemoryImportLoader()
+	loader.Add("test.peg", []byte("G <- INDENT [a-z]+ DEDENT\nH <- SAMEDENT [a-z]+"))
+	db := NewDatabase(cfg, loader)
+
+	refs, err := Get(db, UndefinedReferencesQuery, "test.peg")
+	require.NoError(t, err)
+	assert.Empty(t, refs, "INDENT/DEDENT/SAMEDENT should not be flagged as undefined")
+}

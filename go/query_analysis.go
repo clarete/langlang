@@ -242,6 +242,10 @@ func computeUndefinedReferences(db *Database, key FilePath) ([]IdentifierLocatio
 		if idLoc.IsDefinition {
 			continue
 		}
+		switch idLoc.Name {
+		case "INDENT", "DEDENT", "SAMEDENT":
+			continue
+		}
 		if _, ok := defLocs[idLoc.Name]; !ok {
 			undefined = append(undefined, idLoc)
 		}

@@ -441,6 +441,17 @@ func (c *compiler) VisitPrecedenceNode(node *PrecedenceNode) error {
 }
 
 func (c *compiler) VisitIdentifierNode(node *IdentifierNode) error {
+	switch node.Value {
+	case "INDENT":
+		c.emit(IIndent{sl: node.SourceLocation()})
+		return nil
+	case "DEDENT":
+		c.emit(IDedent{sl: node.SourceLocation()})
+		return nil
+	case "SAMEDENT":
+		c.emit(ISamedent{sl: node.SourceLocation()})
+		return nil
+	}
 	isLeftRecursive, err := c.isDefLeftRecursive(node.Value)
 	if err != nil {
 		return err

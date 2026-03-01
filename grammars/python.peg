@@ -66,19 +66,19 @@ CompoundStmt <- FuncDef
 
 // ─── Assignment & expressions as statements ──────────────────────
 
-AssignStmt <- AnnotatedAssign
-            / AugAssign
+AssignStmt <- AugAssign
+            / AnnotatedAssign
             / MultiAssign
             / StarExpressions
 
 AnnotatedAssign <- SingleTarget COLON Expression (EQU (YieldExpr / StarExpressions))?
 
-AugAssign   <- SingleTarget AugAssignOp (YieldExpr / StarExpressions)
+AugAssign   <- SingleTarget (SpacingNL1 / SpacingNL?)? AugAssignOp SpacingNL? (YieldExpr / StarExpressions)
 AugAssignOp <- PLUSEQU / MINUSEQU / STAREQU / ATEQU / SLASHEQU
              / PERCENTEQU / AMPEQU / PIPEEQU / CARETEQU
              / LTLTEQU / GTGTEQU / STARSTAREQU / SLASHSLASHEQU
 
-MultiAssign <- (TargetList EQU)+ (YieldExpr / StarExpressions)
+MultiAssign <- (TargetList SpacingNL EQU)+ (YieldExpr / StarExpressions)
 
 TargetList  <- Target (COMMA Target)* COMMA?
 
@@ -91,14 +91,17 @@ TStar       <- STAR Target
 
 TAtom       <- TPrimary
 TPrimary    <- Atom TPrimarySuffix*
-TPrimarySuffix <- DOT NAME
+TPrimarySuffix <- (SpacingNL1 / SpacingNL?)? DOT NAME
                / LBRACK Slices RBRACK
+               / LPAREN (!')' Arguments)? RPAREN
 
 SingleTarget <- LPAREN SingleTarget RPAREN
               / SingleSubscriptAttrTarget
 
-SingleSubscriptAttrTarget <- TPrimary DOT NAME
-                           / TPrimary LBRACK Slices RBRACK
+SingleSubscriptAttrTarget <- TPrimary
+                           / Atom (SpacingNL1 / SpacingNL?)? DOT NAME
+                           / TPrimary (SpacingNL1 / SpacingNL?)? DOT NAME
+                           / TPrimary (SpacingNL1 / SpacingNL?)? LBRACK Slices RBRACK
                            / NAME
 
 // ─── Simple statements ───────────────────────────────────────────
@@ -115,7 +118,8 @@ AssertStmt   <- ASSERT Expression (COMMA Expression)?
 YieldStmt    <- YieldExpr
 
 DelTargets  <- DelTarget (COMMA DelTarget)* COMMA?
-DelTarget   <- NAME (DOT NAME / LBRACK Slices RBRACK)+
+DelTarget   <- TPrimary (SpacingNL? DOT NAME / LBRACK Slices RBRACK)+
+             / NAME (DOT NAME / LBRACK Slices RBRACK)+
              / NAME
 
 // ─── Import ──────────────────────────────────────────────────────
@@ -126,7 +130,7 @@ ImportFrom  <- FROM (ImportDots DottedName? / DottedName) IMPORT (STAR / LPAREN 
 ImportDots  <- '.'+
 
 ImportAsNames   <- ImportAsName (COMMA ImportAsName)* COMMA?
-ImportAsNamesNL <- ImportAsName (COMMA SpacingNL ImportAsName)* COMMA?
+ImportAsNamesNL <- ImportAsName (COMMA ImportAsName)* COMMA?
 ImportAsName    <- NAME (AS NAME)?
 DottedAsNames  <- DottedAsName (COMMA DottedAsName)*
 DottedAsName   <- DottedName (AS NAME)?
@@ -153,7 +157,7 @@ ForStmt <- SAMEDENT FOR StarTargets IN StarExpressions COLON Block ElseBlock?
 // ─── With ────────────────────────────────────────────────────────
 
 WithStmt <- SAMEDENT WITH LPAREN WithItem (COMMA SpacingNL WithItem)* COMMA? RPAREN COLON Block
-          / SAMEDENT WITH WithItem (COMMA WithItem)* COLON Block
+          / SAMEDENT WITH WithItem (COMMA SpacingNL WithItem)* COLON Block
 
 WithItem <- Expression (AS StarTarget)?
           / Expression
@@ -183,8 +187,8 @@ Guard <- IF NamedExpr
 
 Patterns <- OpenSequencePattern / Pattern
 
-OpenSequencePattern <- MaybeStarPattern COMMA SpacingNL MaybeSequencePattern?
-MaybeSequencePattern <- MaybeStarPattern (COMMA SpacingNL MaybeStarPattern)* COMMA?
+OpenSequencePattern <- MaybeStarPattern COMMA MaybeSequencePattern?
+MaybeSequencePattern <- MaybeStarPattern (COMMA MaybeStarPattern)* COMMA?
 
 MaybeStarPattern <- StarPattern / Pattern
 
@@ -226,26 +230,26 @@ Attr <- NAME (DOT NAME)+
 
 GroupPattern <- LPAREN Pattern RPAREN
 
-SequencePattern <- LBRACK MaybeSequencePattern? RBRACK
+SequencePattern <- LBRACK (!']' MaybeSequencePattern)? RBRACK
                  / LPAREN OpenSequencePattern RPAREN
 
 MappingPattern <- LBRACE RBRACE
                / LBRACE DoubleStarPattern COMMA? RBRACE
                / LBRACE ItemsPattern COMMA? RBRACE
-               / LBRACE ItemsPattern COMMA SpacingNL DoubleStarPattern COMMA? RBRACE
+               / LBRACE ItemsPattern COMMA DoubleStarPattern COMMA? RBRACE
 
-ItemsPattern <- KeyValuePattern (COMMA SpacingNL KeyValuePattern)*
+ItemsPattern <- KeyValuePattern (COMMA KeyValuePattern)*
 KeyValuePattern <- (LiteralPattern / Attr) COLON Pattern
 DoubleStarPattern <- STARSTAR PatternCaptureTarget
 
 ClassPattern <- NameOrAttr LPAREN RPAREN
               / NameOrAttr LPAREN PositionalPatterns COMMA? RPAREN
               / NameOrAttr LPAREN KeywordPatterns COMMA? RPAREN
-              / NameOrAttr LPAREN PositionalPatterns COMMA SpacingNL KeywordPatterns COMMA? RPAREN
+              / NameOrAttr LPAREN PositionalPatterns COMMA KeywordPatterns COMMA? RPAREN
 
 NameOrAttr <- NAME (DOT NAME)*
-PositionalPatterns <- Pattern (COMMA SpacingNL Pattern)*
-KeywordPatterns <- KeywordPattern (COMMA SpacingNL KeywordPattern)*
+PositionalPatterns <- Pattern (COMMA Pattern)*
+KeywordPatterns <- KeywordPattern (COMMA KeywordPattern)*
 KeywordPattern <- NAME EQU Pattern
 
 // ─── Async ───────────────────────────────────────────────────────
@@ -255,11 +259,11 @@ AsyncStmt <- SAMEDENT ASYNC (FuncDefRaw / ForStmtRaw / WithStmtRaw)
 FuncDefRaw  <- DEF NAME TypeParams? LPAREN Parameters? RPAREN (RARROW Expression)? COLON Block
 ForStmtRaw  <- FOR StarTargets IN StarExpressions COLON Block ElseBlock?
 WithStmtRaw <- WITH LPAREN WithItem (COMMA SpacingNL WithItem)* COMMA? RPAREN COLON Block
-             / WITH WithItem (Spacing COMMA WithItem)* COLON Block
+             / WITH WithItem (COMMA SpacingNL WithItem)* COLON Block
 
 // ─── Function definition ─────────────────────────────────────────
 
-FuncDef  <- Decorators FuncDefRaw / SAMEDENT FuncDefRaw
+FuncDef  <- SAMEDENT (Decorators SpacingNL)? (ASYNC SpacingNL)? FuncDefRaw
 
 Decorators  <- (SAMEDENT Decorator)+
 Decorator   <- AT NamedExpr NEWLINE
@@ -271,10 +275,10 @@ TypeParam   <- STARSTAR NAME (COLON Expression)?
 
 // ─── Parameters ──────────────────────────────────────────────────
 
-Parameters  <- SlashNoDefault (COMMA SpacingNL ParamNoDefault)* (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)?
-             / SlashWithDefault (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)?
-             / ParamNoDefault (COMMA SpacingNL ParamNoDefault)* (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)?
-             / ParamWithDefault (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)?
+Parameters  <- SlashNoDefault (COMMA SpacingNL ParamNoDefault)* (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)? COMMA?
+             / SlashWithDefault (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)? COMMA?
+             / ParamNoDefault (COMMA SpacingNL ParamNoDefault)* (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)? COMMA?
+             / ParamWithDefault (COMMA SpacingNL ParamWithDefault)* (COMMA SpacingNL StarEtc)? COMMA?
              / StarEtc
 
 SlashNoDefault   <- ParamNoDefault (COMMA SpacingNL ParamNoDefault)* COMMA SLASH
@@ -291,8 +295,8 @@ ParamWithDefault   <- Param Default
 ParamMaybeDefault  <- Param Default?
 
 Param   <- NAME Annotation?
-Annotation <- COLON Expression
-Default <- EQU Expression
+Annotation <- COLON SpacingNL Expression
+Default <- SpacingNL? EQU SpacingNL Expression
 
 // ─── Class definition ────────────────────────────────────────────
 
@@ -301,14 +305,15 @@ ClassDefRaw <- CLASS NAME TypeParams? (LPAREN Arguments? RPAREN)? COLON Block
 
 // ─── Block ───────────────────────────────────────────────────────
 
-Block <- NEWLINE INDENT (Statement)+ DEDENT
+// Allow blank lines and line-continuation-only lines (e.g. "\" or "  \") before INDENT.
+Block <- NEWLINE (BlankLine / ([ \t\u{C}]* '\\' '\r'? '\n'))* INDENT (Statement)+ DEDENT
        / SimpleStmtBlock
 
 SimpleStmtBlock <- SimpleStmt (SEMI SimpleStmt)* SEMI? NEWLINE
 
 // ─── Expressions ─────────────────────────────────────────────────
 
-StarExpressions <- StarExpression (COMMA StarExpression)* COMMA?
+StarExpressions <- StarExpression (COMMA SpacingNL StarExpression)* COMMA?
 StarExpression  <- STAR BitwiseOr / Expression
 
 StarNamedExprs  <- StarNamedExpr (COMMA SpacingNL StarNamedExpr)* COMMA?
@@ -317,7 +322,8 @@ StarNamedExpr   <- STAR BitwiseOr / NamedExpr
 NamedExpr <- NAME COLONEQU Expression
            / Expression
 
-Expression <- Disjunction IF Disjunction ELSE Expression
+// SpacingNL after IF and after ELSE so newline can separate keyword from condition/result.
+Expression <- Disjunction (&(SpacingNL IF) SpacingNL IF SpacingNL Disjunction SpacingNL ELSE SpacingNL Expression)
             / Disjunction
             / LambdaDef
 
@@ -342,32 +348,32 @@ LambdaParamMaybeDefault <- NAME Default?
 
 // ─── Boolean / comparison ────────────────────────────────────────
 
-Disjunction   <- Conjunction (OR Conjunction)*
-Conjunction   <- Inversion (AND Inversion)*
+Disjunction   <- Conjunction (SpacingNL OR SpacingNL Conjunction)*
+Conjunction   <- Inversion (SpacingNL AND SpacingNL Inversion)*
 Inversion     <- NOT Inversion / Comparison
 
-Comparison    <- BitwiseOr CompareOpBitwiseOrPair*
+Comparison    <- BitwiseOr (SpacingNL CompareOp SpacingNL BitwiseOr)*
 CompareOpBitwiseOrPair <- CompareOp BitwiseOr
 CompareOp <- EQUEQU / NOTEQU / LTEQU / GTEQU / LT / GT
-           / NOT_IN / IN / IS_NOT / IS
+           / IS_NOT / NOT_IN / IS / IN
 
 // ─── Bitwise / arithmetic ────────────────────────────────────────
 
-BitwiseOr   <- BitwiseXor (PIPE BitwiseXor)*
-BitwiseXor  <- BitwiseAnd (CARET BitwiseAnd)*
-BitwiseAnd  <- ShiftExpr (AMP ShiftExpr)*
-ShiftExpr   <- Sum (ShiftOp Sum)*
+BitwiseOr   <- BitwiseXor (SpacingNL PIPE SpacingNL BitwiseXor)*
+BitwiseXor  <- BitwiseAnd (SpacingNL CARET SpacingNL BitwiseAnd)*
+BitwiseAnd  <- ShiftExpr (SpacingNL AMP SpacingNL ShiftExpr)*
+ShiftExpr   <- Sum (SpacingNL ShiftOp SpacingNL Sum)*
 ShiftOp     <- LTLT / GTGT
 
-Sum   <- Term (SumOp Term)*
+Sum   <- Term (SpacingNL SumOp SpacingNL Term)*
 SumOp <- PLUS / MINUS
 
-Term  <- Factor (TermOp Factor)*
+Term  <- Factor (SpacingNL PERCENT SpacingNL Factor / SpacingNL SLASH SpacingNL Factor / SpacingNL SLASHSLASH SpacingNL Factor / SpacingNL AT SpacingNL Factor / TermOp SpacingNL Factor)*
 TermOp <- STAR / SLASH / SLASHSLASH / PERCENT / AT
 
-Factor <- PLUS Factor / MINUS Factor / TILDE Factor / Power
+Factor <- (PLUS / MINUS / TILDE) SpacingNL Factor / Power
 
-Power <- AwaitPrimary (STARSTAR Factor)?
+Power <- AwaitPrimary (SpacingNL STARSTAR SpacingNL Factor)?
 
 AwaitPrimary <- AWAIT Primary / Primary
 
@@ -375,53 +381,60 @@ AwaitPrimary <- AWAIT Primary / Primary
 
 Primary <- Atom PrimarySuffix*
 
-PrimarySuffix <- DOT NAME
+PrimarySuffix <- SpacingNL? DOT NAME
                / GenExpCallTrailer
                / LBRACK Slices RBRACK
 
-GenExpCallTrailer <- LPAREN (Arguments COMMA?)? RPAREN
+GenExpCallTrailer <- LPAREN (!')' Arguments COMMA?)? RPAREN
                    / LPAREN Comprehension RPAREN
 
 // ─── Slicing ─────────────────────────────────────────────────────
 
 Slices  <- Slice (COMMA SpacingNL Slice)* COMMA?
-Slice   <- Expression? COLON Expression? (COLON Expression?)?
+Slice   <- Expression? SpacingNL? COLON SpacingNL? Expression? (SpacingNL? COLON SpacingNL? Expression?)?
          / NamedExpr
 
 // ─── Atom ────────────────────────────────────────────────────────
 
-Atom <- NUMBER
+// TupleLiteral/ListLiteral/DictOrSetLiteral first so '(' '[' '{' match immediately
+// and reduce backtracking on deeply nested structures.
+Atom <- TupleLiteral
+      / ListLiteral
+      / DictOrSetLiteral
+      / NUMBER IDENT_J
+      / NUMBER
+      / NAME !('"' / "'")
       / Strings
       / TRUE / FALSE / NONE
       / ELLIPSIS
-      / TupleLiteral
-      / ListLiteral
-      / DictOrSetLiteral
       / NAME
 
-TupleLiteral <- LPAREN (StarNamedExpr COMMA SpacingNL StarNamedExprs? / Comprehension / NamedExpr)? RPAREN
-ListLiteral  <- LBRACK (Comprehension / StarNamedExprs)? RBRACK
-DictOrSetLiteral <- LBRACE (DictComp / DictItems / SetComp / StarNamedExprs)? RBRACE
+// Lookahead: comma at same nesting level. Only take tuple branch when this matches,
+// so ((True)) and similar don't trigger expensive tuple parse and backtrack.
+ParenContentHasComma <- ( #('(') ParenContentHasComma* #(')') / (!')' !',' .) )* #(',')
+TupleLiteral <- LPAREN ( &ParenContentHasComma StarNamedExpr COMMA SpacingNL StarNamedExprs? / Comprehension / NamedExpr )? RPAREN
+ListLiteral  <- LBRACK (!']' (Comprehension / StarNamedExprs))? RBRACK
+DictOrSetLiteral <- LBRACE (!'}' (DictComp / DictItems / SetComp / StarNamedExprs))? RBRACE
 
 DictItems <- KeyValuePair (COMMA SpacingNL KeyValuePair)* COMMA?
 KeyValuePair <- STARSTAR BitwiseOr
-              / Expression COLON Expression
+              / Expression COLON SpacingNL? Expression
 
 // ─── Comprehension ───────────────────────────────────────────────
 
-Comprehension <- (NamedExpr / StarExpr) CompFor+
+Comprehension <- (NamedExpr / StarExpr) SpacingNL CompFor (SpacingNL CompFor)*
 StarExpr <- STAR BitwiseOr
 
 CompFor  <- ASYNC? FOR StarTargets IN Disjunction CompIf*
-CompIf   <- IF DisjunctionNoIf
+CompIf   <- SpacingNL IF DisjunctionNoIf
 
-DisjunctionNoIf <- ConjunctionNoIf (OR ConjunctionNoIf)*
-ConjunctionNoIf <- InversionNoIf (AND InversionNoIf)*
+DisjunctionNoIf <- ConjunctionNoIf (SpacingNL OR SpacingNL ConjunctionNoIf)*
+ConjunctionNoIf <- InversionNoIf (SpacingNL AND SpacingNL InversionNoIf)*
 InversionNoIf   <- NOT InversionNoIf / ComparisonNoIf
-ComparisonNoIf  <- BitwiseOr CompareOpBitwiseOrPair*
+ComparisonNoIf  <- BitwiseOr (SpacingNL CompareOp SpacingNL BitwiseOr)*
 
-DictComp <- Expression COLON Expression CompFor+
-SetComp  <- NamedExpr CompFor+
+DictComp <- Expression COLON Expression SpacingNL CompFor (SpacingNL CompFor)*
+SetComp  <- NamedExpr SpacingNL CompFor (SpacingNL CompFor)*
 
 // ─── Yield ───────────────────────────────────────────────────────
 
@@ -440,23 +453,23 @@ TargetWithStarAtom <- TPrimary DOT NAME
 
 StarAtom <- NAME
            / LPAREN TargetWithStarAtom RPAREN
-           / LPAREN StarTargets? RPAREN
-           / LBRACK StarTargets? RBRACK
+           / LPAREN (!')' StarTargets)? RPAREN
+           / LBRACK (!']' StarTargets)? RBRACK
 
 // ─── Arguments ───────────────────────────────────────────────────
 
-Arguments <- Argument (COMMA SpacingNL Argument)* COMMA?
+Arguments <- SpacingNL? Argument (COMMA SpacingNL Argument)* COMMA?
 
 Argument  <- StarredExpr
            / KeywordArg
            / NamedExpr
 
 StarredExpr <- STAR Expression / STARSTAR Expression
-KeywordArg  <- NAME EQU Expression
+KeywordArg  <- NAME SpacingNL? EQU SpacingNL Expression
 
 // ─── Strings and f-strings ───────────────────────────────────────
 
-Strings <- String+
+Strings <- String (SpacingNL String)*
 
 String <- FSTRING / BSTRING / RSTRING / SIMPLESTRING
 
@@ -464,9 +477,9 @@ String <- FSTRING / BSTRING / RSTRING / SIMPLESTRING
 
 // Newline: consumes \n (or \r\n) plus any following blank lines and
 // comments.  Blank lines and comment-only lines are NOT statements.
-NEWLINE   <- #(NL BlankLine*) / #([ \t]* Comment? !.)
-NL        <- #([ \t]* Comment? '\r'? '\n')
-BlankLine <- #([ \t]* Comment? '\r'? '\n')
+NEWLINE   <- #(NL BlankLine*) / #([ \t\u{C}]* Comment? !.)
+NL        <- #([ \t\u{C}]* Comment? '\r'? '\n')
+BlankLine <- #([ \t\u{C}]* Comment? '\r'? '\n')
 Comment   <- '#' (!'\n' .)*
 
 // Override to consume only horizontal whitespace.
@@ -474,13 +487,15 @@ Comment   <- '#' (!'\n' .)*
 // and indentation before INDENT/DEDENT/SAMEDENT can inspect them.
 // Line continuations (backslash-newline) are treated as horizontal
 // whitespace, allowing expressions to span multiple lines.
-Spacing <- #([ \t] / '\\' '\r'? '\n')*
+Spacing <- #([ \t\u{C}] / '\\' '\r'? '\n')*
 
 // SpacingNL: like Spacing but also consumes newlines and comments.
 // Used only at bracket boundaries and between elements inside brackets,
 // so that implicit line continuations work (e.g. multi-line lists).
 // Does not interact with INDENT/DEDENT; bracket contents are flat.
-SpacingNL <- #([ \t\r\n] / '\\' '\r'? '\n' / Comment)*
+SpacingNL <- #([ \t\r\n\u{C}] / '\\' '\r'? '\n' / Comment)*
+// SpacingNL1: one or more (so optional space between target and += is consumed)
+SpacingNL1 <- #([ \t\r\n\u{C}] / '\\' '\r'? '\n' / Comment)+
 
 // ─── Keywords ────────────────────────────────────────────────────
 // Each keyword wraps the literal + !IdentCont in a lex node #(...)
@@ -535,7 +550,7 @@ IS_NOT <- #('is'  !IdentCont) Spacing #('not' !IdentCont) Spacing
 
 // ─── Identifier ──────────────────────────────────────────────────
 
-NAME      <- #(!Keyword IdentStart IdentCont*) Spacing
+NAME       <- #(!Keyword IdentStart IdentCont*)
 IdentStart <- [a-zA-Z_]
 IdentCont  <- [a-zA-Z_0-9]
 
@@ -553,9 +568,12 @@ NUMBER   <- #(HexNumber / OctNumber / BinNumber / Float / Integer) Spacing
 HexNumber <- '0' [xX] [0-9a-fA-F] ([0-9a-fA-F] / '_')*
 OctNumber <- '0' [oO] [0-7] ([0-7] / '_')*
 BinNumber <- '0' [bB] [01] ([01] / '_')*
-Float     <- Digits '.' Digits? Exponent?
+// Trailing-dot float (e.g. 1.) only when not followed by whitespace, so "1 .real" is Integer + attribute.
+Float     <- Digits '.' Digits Exponent?
+            / Digits '.' Exponent
             / Digits Exponent
             / '.' Digits Exponent?
+            / Digits '.' (!([0-9Ee \t\r\n\u{C} ]) / !.)
 Integer   <- Digits
 Digits    <- [0-9] ([0-9] / '_')*
 Exponent  <- [eE] [+-]? Digits
@@ -566,7 +584,7 @@ SIMPLESTRING <- #(StringPrefix? (LongString / ShortString)) Spacing
 BSTRING      <- #([bB] [rR]? (LongString / ShortString)) Spacing
 RSTRING      <- #([rR] [bB]? (LongString / ShortString)) Spacing
 FSTRING      <- #([fF] [rR]? (LongString / ShortString)
-               / [rR] [fF]  (LongString / ShortString)) Spacing
+                / [rR] [fF]  (LongString / ShortString)) Spacing
 
 StringPrefix <- [uU]
 
@@ -588,7 +606,7 @@ EscapeSeq   <- '\\' .
 
 COLON      <- ':'
 SEMI       <- ';'
-COMMA      <- ','
+COMMA      <- ',' SpacingNL
 DOT        <- '.' !'.'
 ELLIPSIS   <- '...'
 AT         <- '@' !'='

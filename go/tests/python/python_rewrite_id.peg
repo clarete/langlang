@@ -1,0 +1,4 @@
+// Trivial identity rewrite for Python parse trees.
+// Used to validate that the Python parse tree is compatible with the rewrite VM.
+// Rule: match any node and return it unchanged.
+id <~ ?x -> ?x

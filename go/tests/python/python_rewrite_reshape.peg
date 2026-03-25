@@ -1,0 +1,6 @@
+// Minimal reshape: map one Python parse-tree construct to an AST node.
+// Demonstrates mapping FuncDef -> FuncDefAST (step 2 of the rewrite-for-Python plan).
+// No @type needed for this test; we just build a node with the same child.
+
+reshape <~ FuncDef(Child: ?c) -> FuncDefAST(Child: ?c)
+        / ?x -> ?x

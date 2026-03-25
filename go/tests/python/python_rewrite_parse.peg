@@ -1,0 +1,14 @@
+// Path B: Parse a right-nested Cons list of tokens into AST nodes.
+// Input: root is Cons(Child: Sequence(head, tail)) or Nil.
+// Tokenizer wraps each token: Token(NAME), Token(EQU), etc.
+
+// Assignment: Cons(Token(NAME), Cons(Token(EQU), value_rest)) -> Assign(Name, parse(value_rest))
+parse <~ Cons(Child: [ Token(Child: NAME(Child: ?n)), Cons(Child: [ Token(Child: EQU(Child: _)), ?value_rest ]) ])
+        -> Assign(Child: [ ?n, parse(?value_rest) ])
+     / Cons(Child: [ Token(Child: PASS(Child: _)), ?tail ])
+        -> Pass(Child: parse(?tail))
+     / Cons(Child: [ Token(Child: RETURN(Child: _)), ?tail ])
+        -> Return(Child: parse(?tail))
+     / Cons(Child: [ ?head, ?tail ])
+        -> Cons(Child: [ ?head, parse(?tail) ])
+     / Nil(Child: ?c) -> ?c

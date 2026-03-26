@@ -1,0 +1,42 @@
+// TOML subset grammar (basic key/value, tables, inline tables, arrays)
+// Langlang auto-handles whitespace between rules.
+
+TOML       <- Expression* EOF
+Expression <- Table / KeyVal
+
+Table      <- '[' Key ']' KeyVal*
+
+KeyVal     <- Key '=' Val
+
+Key        <- SimpleKey ('.' SimpleKey)*
+SimpleKey  <- QuotedKey / BareKey
+BareKey    <- #([a-zA-Z0-9_-]+)
+QuotedKey  <- BasicString
+
+Val        <- InlineTable / Array / BasicString / DateTime / Number / Boolean
+
+BasicString   <- '"' #(BasicChar* ('"'^strClose))
+BasicChar     <- #(BasicEscape / (!["\\\n] .))
+BasicEscape   <- '\\' ["\\/bfnrt]
+
+Number        <- #('-'? ('0' / ([1-9] [0-9]*)) ('.' [0-9]+ ([eE][-+]?[0-9]+)?)?)
+Boolean       <- 'true' / 'false'
+
+DateTime      <- #([0-9][0-9][0-9][0-9] '-' [0-9][0-9] '-' [0-9][0-9]
+                  ('T' [0-9][0-9] ':' [0-9][0-9] ':' [0-9][0-9]
+                   ('.' [0-9]+)?
+                   ('Z' / ([-+][0-9][0-9] ':' [0-9][0-9]))?)?)
+
+Array         <- '[' ArrayValues? ']'^arrayClose
+ArrayValues   <- Val (',' Val^itemAfterComma)* ','?
+
+InlineTable   <- '{' InlineTableKeyVals? '}'
+InlineTableKeyVals <- InlineKeyVal (',' InlineKeyVal)*
+InlineKeyVal  <- Key '=' Val
+
+EOF           <- !.
+
+// Recovery Expressions
+strClose         <-
+arrayClose       <-
+itemAfterComma   <- (![,\]] .)*

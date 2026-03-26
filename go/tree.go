@@ -3,7 +3,7 @@ package langlang
 import (
 	"fmt"
 	"strconv"
-	"strings"
+	"unsafe"
 )
 
 type FormatToken int
@@ -47,6 +47,25 @@ type tree struct {
 	input       []byte
 	root        NodeID
 	posView     *posIndex
+	viewArena []NodeID
+}
+
+// viewSlice returns a sub-slice of the view arena containing the NodeIDs
+// appended between viewMark and now. Used by generated view constructors
+// to collect repeated children without per-view heap allocations.
+func (t *tree) viewSlice(mark int) []NodeID {
+	return t.viewArena[mark:len(t.viewArena)]
+}
+
+// viewMark returns the current end of the view arena. Call before
+// appending repeated children, then pass to viewSlice to get the slice.
+func (t *tree) viewMark() int {
+	return len(t.viewArena)
+}
+
+// viewAppend appends a NodeID to the view arena.
+func (t *tree) viewAppend(id NodeID) {
+	t.viewArena = append(t.viewArena, id)
 }
 
 func (t *tree) bindInput(input []byte)    { t.input = input }
@@ -55,17 +74,38 @@ func (t *tree) reset() {
 	t.nodes = t.nodes[:0]
 	t.children = t.children[:0]
 	t.childRanges = t.childRanges[:0]
+	t.viewArena = t.viewArena[:0]
 	t.posView = nil
 	t.root = 0
 }
 
-func (t *tree) Root() (NodeID, bool)                { return t.root, int(t.root) < len(t.nodes) }
-func (t *tree) SetRoot(id NodeID)                   { t.root = id }
-func (t *tree) Type(id NodeID) NodeType             { return t.nodes[id].typ }
-func (t *tree) MessageID(id NodeID) int32           { return t.nodes[id].messageID }
-func (t *tree) Message(id NodeID) string            { return t.strs[t.MessageID(id)] }
-func (t *tree) NameID(id NodeID) int32              { return t.nodes[id].nameID }
-func (t *tree) Name(id NodeID) string               { return t.strs[t.NameID(id)] }
+func (t *tree) Root() (NodeID, bool)    { return t.root, int(t.root) < len(t.nodes) }
+func (t *tree) SetRoot(id NodeID)       { t.root = id }
+func (t *tree) Type(id NodeID) NodeType { return t.nodes[id].typ }
+
+func (t *tree) MessageID(
+	id NodeID,
+) int32 {
+	return t.nodes[id].messageID
+}
+
+func (t *tree) Message(
+	id NodeID,
+) string {
+	return t.strs[t.MessageID(id)]
+}
+
+func (t *tree) NameID(
+	id NodeID,
+) int32 {
+	return t.nodes[id].nameID
+}
+
+func (t *tree) Name(
+	id NodeID,
+) string {
+	return t.strs[t.NameID(id)]
+}
 func (t *tree) IsType(id NodeID, typ NodeType) bool { return t.Type(id) == typ }
 func (t *tree) IsNamed(id NodeID, nameID int32) bool {
 	return t.Type(id) == NodeType_Node && t.NameID(id) == nameID
@@ -172,7 +212,10 @@ func (t *tree) AddSequence(children []NodeID, start, end int) NodeID {
 		childStart := int32(len(t.children))
 		t.children = append(t.children, children...)
 		childEnd := int32(len(t.children))
-		t.childRanges = append(t.childRanges, struct{ start, end int32 }{childStart, childEnd})
+		t.childRanges = append(
+			t.childRanges,
+			struct{ start, end int32 }{childStart, childEnd},
+		)
 	}
 	t.nodes = append(t.nodes, node{
 		typ:       NodeType_Sequence,
@@ -234,7 +277,11 @@ func (t *tree) AddError(labelID, messageID int32, start, end int) NodeID {
 	return id
 }
 
-func (t *tree) AddErrorWithChild(labelID, messageID int32, childID NodeID, start, end int) NodeID {
+func (t *tree) AddErrorWithChild(
+	labelID, messageID int32,
+	childID NodeID,
+	start, end int,
+) NodeID {
 	id := NodeID(len(t.nodes))
 	t.nodes = append(t.nodes, node{
 		typ:       NodeType_Error,
@@ -263,19 +310,17 @@ func (t *tree) Visit(id NodeID, fn func(NodeID) bool) {
 	}
 }
 
+// Text returns the text of a node without copying. The returned string
+// points directly into the parse input buffer. It is valid for the
+// lifetime of the tree; callers must not retain it after the tree is
+// garbage collected.
 func (t *tree) Text(id NodeID) string {
 	n := &t.nodes[id]
 
 	switch n.typ {
-	case NodeType_String:
-		return string(t.input[n.start:n.end])
-
-	case NodeType_Sequence:
-		var b strings.Builder
-		for _, childID := range t.Children(id) {
-			b.WriteString(t.Text(childID))
-		}
-		return b.String()
+	case NodeType_String, NodeType_Sequence:
+		b := t.input[n.start:n.end]
+		return unsafe.String(unsafe.SliceData(b), len(b))
 
 	case NodeType_Node:
 		if child, ok := t.Child(id); ok {
@@ -294,17 +339,25 @@ func (t *tree) Text(id NodeID) string {
 }
 
 func (t *tree) Pretty(id NodeID) string {
-	vi := newPrettyPrinter(t, t.input, func(input string, _ FormatToken) string {
-		return input
-	})
+	vi := newPrettyPrinter(
+		t,
+		t.input,
+		func(input string, _ FormatToken) string {
+			return input
+		},
+	)
 	vi.visit(id)
 	return vi.output.String()
 }
 
 func (t *tree) Highlight(id NodeID) string {
-	vi := newPrettyPrinter(t, t.input, func(input string, token FormatToken) string {
-		return treePrinterTheme[token] + input + treePrinterTheme[FormatToken_None]
-	})
+	vi := newPrettyPrinter(
+		t,
+		t.input,
+		func(input string, token FormatToken) string {
+			return treePrinterTheme[token] + input + treePrinterTheme[FormatToken_None]
+		},
+	)
 	vi.visit(id)
 	return vi.output.String()
 }
@@ -322,7 +375,11 @@ type prettyPrinter struct {
 	*treePrinter[FormatToken]
 }
 
-func newPrettyPrinter(tree *tree, input []byte, format FormatFunc[FormatToken]) *prettyPrinter {
+func newPrettyPrinter(
+	tree *tree,
+	input []byte,
+	format FormatFunc[FormatToken],
+) *prettyPrinter {
 	return &prettyPrinter{
 		tree:        tree,
 		input:       input,

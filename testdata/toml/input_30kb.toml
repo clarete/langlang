@@ -1,0 +1,1708 @@
+title = "Benchmark Data"
+version = 1
+debug = false
+
+[section_0]
+name = "Section 0"
+id = 0
+ratio = 0.00
+enabled = true
+tags = ["tag_0_a", "tag_0_b", "tag_0_c"]
+meta = {x = 0, y = 0}
+
+[section_1]
+name = "Section 1"
+id = 1
+ratio = 1.01
+enabled = false
+tags = ["tag_1_a", "tag_1_b", "tag_1_c"]
+meta = {x = 1, y = 2}
+
+[section_2]
+name = "Section 2"
+id = 2
+ratio = 2.02
+enabled = true
+tags = ["tag_2_a", "tag_2_b", "tag_2_c"]
+meta = {x = 2, y = 4}
+
+[section_3]
+name = "Section 3"
+id = 3
+ratio = 3.03
+enabled = false
+tags = ["tag_3_a", "tag_3_b", "tag_3_c"]
+meta = {x = 3, y = 6}
+
+[section_4]
+name = "Section 4"
+id = 4
+ratio = 4.04
+enabled = true
+tags = ["tag_4_a", "tag_4_b", "tag_4_c"]
+meta = {x = 4, y = 8}
+
+[section_5]
+name = "Section 5"
+id = 5
+ratio = 5.05
+enabled = false
+tags = ["tag_5_a", "tag_5_b", "tag_5_c"]
+meta = {x = 5, y = 10}
+
+[section_6]
+name = "Section 6"
+id = 6
+ratio = 6.06
+enabled = true
+tags = ["tag_6_a", "tag_6_b", "tag_6_c"]
+meta = {x = 6, y = 12}
+
+[section_7]
+name = "Section 7"
+id = 7
+ratio = 7.07
+enabled = false
+tags = ["tag_7_a", "tag_7_b", "tag_7_c"]
+meta = {x = 7, y = 14}
+
+[section_8]
+name = "Section 8"
+id = 8
+ratio = 8.08
+enabled = true
+tags = ["tag_8_a", "tag_8_b", "tag_8_c"]
+meta = {x = 8, y = 16}
+
+[section_9]
+name = "Section 9"
+id = 9
+ratio = 9.09
+enabled = false
+tags = ["tag_9_a", "tag_9_b", "tag_9_c"]
+meta = {x = 9, y = 18}
+
+[section_10]
+name = "Section 10"
+id = 10
+ratio = 10.10
+enabled = true
+tags = ["tag_10_a", "tag_10_b", "tag_10_c"]
+meta = {x = 10, y = 20}
+
+[section_11]
+name = "Section 11"
+id = 11
+ratio = 11.11
+enabled = false
+tags = ["tag_11_a", "tag_11_b", "tag_11_c"]
+meta = {x = 11, y = 22}
+
+[section_12]
+name = "Section 12"
+id = 12
+ratio = 12.12
+enabled = true
+tags = ["tag_12_a", "tag_12_b", "tag_12_c"]
+meta = {x = 12, y = 24}
+
+[section_13]
+name = "Section 13"
+id = 13
+ratio = 13.13
+enabled = false
+tags = ["tag_13_a", "tag_13_b", "tag_13_c"]
+meta = {x = 13, y = 26}
+
+[section_14]
+name = "Section 14"
+id = 14
+ratio = 14.14
+enabled = true
+tags = ["tag_14_a", "tag_14_b", "tag_14_c"]
+meta = {x = 14, y = 28}
+
+[section_15]
+name = "Section 15"
+id = 15
+ratio = 15.15
+enabled = false
+tags = ["tag_15_a", "tag_15_b", "tag_15_c"]
+meta = {x = 15, y = 30}
+
+[section_16]
+name = "Section 16"
+id = 16
+ratio = 16.16
+enabled = true
+tags = ["tag_16_a", "tag_16_b", "tag_16_c"]
+meta = {x = 16, y = 32}
+
+[section_17]
+name = "Section 17"
+id = 17
+ratio = 17.17
+enabled = false
+tags = ["tag_17_a", "tag_17_b", "tag_17_c"]
+meta = {x = 17, y = 34}
+
+[section_18]
+name = "Section 18"
+id = 18
+ratio = 18.18
+enabled = true
+tags = ["tag_18_a", "tag_18_b", "tag_18_c"]
+meta = {x = 18, y = 36}
+
+[section_19]
+name = "Section 19"
+id = 19
+ratio = 19.19
+enabled = false
+tags = ["tag_19_a", "tag_19_b", "tag_19_c"]
+meta = {x = 19, y = 38}
+
+[section_20]
+name = "Section 20"
+id = 20
+ratio = 20.20
+enabled = true
+tags = ["tag_20_a", "tag_20_b", "tag_20_c"]
+meta = {x = 20, y = 40}
+
+[section_21]
+name = "Section 21"
+id = 21
+ratio = 21.21
+enabled = false
+tags = ["tag_21_a", "tag_21_b", "tag_21_c"]
+meta = {x = 21, y = 42}
+
+[section_22]
+name = "Section 22"
+id = 22
+ratio = 22.22
+enabled = true
+tags = ["tag_22_a", "tag_22_b", "tag_22_c"]
+meta = {x = 22, y = 44}
+
+[section_23]
+name = "Section 23"
+id = 23
+ratio = 23.23
+enabled = false
+tags = ["tag_23_a", "tag_23_b", "tag_23_c"]
+meta = {x = 23, y = 46}
+
+[section_24]
+name = "Section 24"
+id = 24
+ratio = 24.24
+enabled = true
+tags = ["tag_24_a", "tag_24_b", "tag_24_c"]
+meta = {x = 24, y = 48}
+
+[section_25]
+name = "Section 25"
+id = 25
+ratio = 25.25
+enabled = false
+tags = ["tag_25_a", "tag_25_b", "tag_25_c"]
+meta = {x = 25, y = 50}
+
+[section_26]
+name = "Section 26"
+id = 26
+ratio = 26.26
+enabled = true
+tags = ["tag_26_a", "tag_26_b", "tag_26_c"]
+meta = {x = 26, y = 52}
+
+[section_27]
+name = "Section 27"
+id = 27
+ratio = 27.27
+enabled = false
+tags = ["tag_27_a", "tag_27_b", "tag_27_c"]
+meta = {x = 27, y = 54}
+
+[section_28]
+name = "Section 28"
+id = 28
+ratio = 28.28
+enabled = true
+tags = ["tag_28_a", "tag_28_b", "tag_28_c"]
+meta = {x = 28, y = 56}
+
+[section_29]
+name = "Section 29"
+id = 29
+ratio = 29.29
+enabled = false
+tags = ["tag_29_a", "tag_29_b", "tag_29_c"]
+meta = {x = 29, y = 58}
+
+[section_30]
+name = "Section 30"
+id = 30
+ratio = 30.30
+enabled = true
+tags = ["tag_30_a", "tag_30_b", "tag_30_c"]
+meta = {x = 30, y = 60}
+
+[section_31]
+name = "Section 31"
+id = 31
+ratio = 31.31
+enabled = false
+tags = ["tag_31_a", "tag_31_b", "tag_31_c"]
+meta = {x = 31, y = 62}
+
+[section_32]
+name = "Section 32"
+id = 32
+ratio = 32.32
+enabled = true
+tags = ["tag_32_a", "tag_32_b", "tag_32_c"]
+meta = {x = 32, y = 64}
+
+[section_33]
+name = "Section 33"
+id = 33
+ratio = 33.33
+enabled = false
+tags = ["tag_33_a", "tag_33_b", "tag_33_c"]
+meta = {x = 33, y = 66}
+
+[section_34]
+name = "Section 34"
+id = 34
+ratio = 34.34
+enabled = true
+tags = ["tag_34_a", "tag_34_b", "tag_34_c"]
+meta = {x = 34, y = 68}
+
+[section_35]
+name = "Section 35"
+id = 35
+ratio = 35.35
+enabled = false
+tags = ["tag_35_a", "tag_35_b", "tag_35_c"]
+meta = {x = 35, y = 70}
+
+[section_36]
+name = "Section 36"
+id = 36
+ratio = 36.36
+enabled = true
+tags = ["tag_36_a", "tag_36_b", "tag_36_c"]
+meta = {x = 36, y = 72}
+
+[section_37]
+name = "Section 37"
+id = 37
+ratio = 37.37
+enabled = false
+tags = ["tag_37_a", "tag_37_b", "tag_37_c"]
+meta = {x = 37, y = 74}
+
+[section_38]
+name = "Section 38"
+id = 38
+ratio = 38.38
+enabled = true
+tags = ["tag_38_a", "tag_38_b", "tag_38_c"]
+meta = {x = 38, y = 76}
+
+[section_39]
+name = "Section 39"
+id = 39
+ratio = 39.39
+enabled = false
+tags = ["tag_39_a", "tag_39_b", "tag_39_c"]
+meta = {x = 39, y = 78}
+
+[section_40]
+name = "Section 40"
+id = 40
+ratio = 40.40
+enabled = true
+tags = ["tag_40_a", "tag_40_b", "tag_40_c"]
+meta = {x = 40, y = 80}
+
+[section_41]
+name = "Section 41"
+id = 41
+ratio = 41.41
+enabled = false
+tags = ["tag_41_a", "tag_41_b", "tag_41_c"]
+meta = {x = 41, y = 82}
+
+[section_42]
+name = "Section 42"
+id = 42
+ratio = 42.42
+enabled = true
+tags = ["tag_42_a", "tag_42_b", "tag_42_c"]
+meta = {x = 42, y = 84}
+
+[section_43]
+name = "Section 43"
+id = 43
+ratio = 43.43
+enabled = false
+tags = ["tag_43_a", "tag_43_b", "tag_43_c"]
+meta = {x = 43, y = 86}
+
+[section_44]
+name = "Section 44"
+id = 44
+ratio = 44.44
+enabled = true
+tags = ["tag_44_a", "tag_44_b", "tag_44_c"]
+meta = {x = 44, y = 88}
+
+[section_45]
+name = "Section 45"
+id = 45
+ratio = 45.45
+enabled = false
+tags = ["tag_45_a", "tag_45_b", "tag_45_c"]
+meta = {x = 45, y = 90}
+
+[section_46]
+name = "Section 46"
+id = 46
+ratio = 46.46
+enabled = true
+tags = ["tag_46_a", "tag_46_b", "tag_46_c"]
+meta = {x = 46, y = 92}
+
+[section_47]
+name = "Section 47"
+id = 47
+ratio = 47.47
+enabled = false
+tags = ["tag_47_a", "tag_47_b", "tag_47_c"]
+meta = {x = 47, y = 94}
+
+[section_48]
+name = "Section 48"
+id = 48
+ratio = 48.48
+enabled = true
+tags = ["tag_48_a", "tag_48_b", "tag_48_c"]
+meta = {x = 48, y = 96}
+
+[section_49]
+name = "Section 49"
+id = 49
+ratio = 49.49
+enabled = false
+tags = ["tag_49_a", "tag_49_b", "tag_49_c"]
+meta = {x = 49, y = 98}
+
+[section_50]
+name = "Section 50"
+id = 50
+ratio = 50.50
+enabled = true
+tags = ["tag_50_a", "tag_50_b", "tag_50_c"]
+meta = {x = 50, y = 100}
+
+[section_51]
+name = "Section 51"
+id = 51
+ratio = 51.51
+enabled = false
+tags = ["tag_51_a", "tag_51_b", "tag_51_c"]
+meta = {x = 51, y = 102}
+
+[section_52]
+name = "Section 52"
+id = 52
+ratio = 52.52
+enabled = true
+tags = ["tag_52_a", "tag_52_b", "tag_52_c"]
+meta = {x = 52, y = 104}
+
+[section_53]
+name = "Section 53"
+id = 53
+ratio = 53.53
+enabled = false
+tags = ["tag_53_a", "tag_53_b", "tag_53_c"]
+meta = {x = 53, y = 106}
+
+[section_54]
+name = "Section 54"
+id = 54
+ratio = 54.54
+enabled = true
+tags = ["tag_54_a", "tag_54_b", "tag_54_c"]
+meta = {x = 54, y = 108}
+
+[section_55]
+name = "Section 55"
+id = 55
+ratio = 55.55
+enabled = false
+tags = ["tag_55_a", "tag_55_b", "tag_55_c"]
+meta = {x = 55, y = 110}
+
+[section_56]
+name = "Section 56"
+id = 56
+ratio = 56.56
+enabled = true
+tags = ["tag_56_a", "tag_56_b", "tag_56_c"]
+meta = {x = 56, y = 112}
+
+[section_57]
+name = "Section 57"
+id = 57
+ratio = 57.57
+enabled = false
+tags = ["tag_57_a", "tag_57_b", "tag_57_c"]
+meta = {x = 57, y = 114}
+
+[section_58]
+name = "Section 58"
+id = 58
+ratio = 58.58
+enabled = true
+tags = ["tag_58_a", "tag_58_b", "tag_58_c"]
+meta = {x = 58, y = 116}
+
+[section_59]
+name = "Section 59"
+id = 59
+ratio = 59.59
+enabled = false
+tags = ["tag_59_a", "tag_59_b", "tag_59_c"]
+meta = {x = 59, y = 118}
+
+[section_60]
+name = "Section 60"
+id = 60
+ratio = 60.60
+enabled = true
+tags = ["tag_60_a", "tag_60_b", "tag_60_c"]
+meta = {x = 60, y = 120}
+
+[section_61]
+name = "Section 61"
+id = 61
+ratio = 61.61
+enabled = false
+tags = ["tag_61_a", "tag_61_b", "tag_61_c"]
+meta = {x = 61, y = 122}
+
+[section_62]
+name = "Section 62"
+id = 62
+ratio = 62.62
+enabled = true
+tags = ["tag_62_a", "tag_62_b", "tag_62_c"]
+meta = {x = 62, y = 124}
+
+[section_63]
+name = "Section 63"
+id = 63
+ratio = 63.63
+enabled = false
+tags = ["tag_63_a", "tag_63_b", "tag_63_c"]
+meta = {x = 63, y = 126}
+
+[section_64]
+name = "Section 64"
+id = 64
+ratio = 64.64
+enabled = true
+tags = ["tag_64_a", "tag_64_b", "tag_64_c"]
+meta = {x = 64, y = 128}
+
+[section_65]
+name = "Section 65"
+id = 65
+ratio = 65.65
+enabled = false
+tags = ["tag_65_a", "tag_65_b", "tag_65_c"]
+meta = {x = 65, y = 130}
+
+[section_66]
+name = "Section 66"
+id = 66
+ratio = 66.66
+enabled = true
+tags = ["tag_66_a", "tag_66_b", "tag_66_c"]
+meta = {x = 66, y = 132}
+
+[section_67]
+name = "Section 67"
+id = 67
+ratio = 67.67
+enabled = false
+tags = ["tag_67_a", "tag_67_b", "tag_67_c"]
+meta = {x = 67, y = 134}
+
+[section_68]
+name = "Section 68"
+id = 68
+ratio = 68.68
+enabled = true
+tags = ["tag_68_a", "tag_68_b", "tag_68_c"]
+meta = {x = 68, y = 136}
+
+[section_69]
+name = "Section 69"
+id = 69
+ratio = 69.69
+enabled = false
+tags = ["tag_69_a", "tag_69_b", "tag_69_c"]
+meta = {x = 69, y = 138}
+
+[section_70]
+name = "Section 70"
+id = 70
+ratio = 70.70
+enabled = true
+tags = ["tag_70_a", "tag_70_b", "tag_70_c"]
+meta = {x = 70, y = 140}
+
+[section_71]
+name = "Section 71"
+id = 71
+ratio = 71.71
+enabled = false
+tags = ["tag_71_a", "tag_71_b", "tag_71_c"]
+meta = {x = 71, y = 142}
+
+[section_72]
+name = "Section 72"
+id = 72
+ratio = 72.72
+enabled = true
+tags = ["tag_72_a", "tag_72_b", "tag_72_c"]
+meta = {x = 72, y = 144}
+
+[section_73]
+name = "Section 73"
+id = 73
+ratio = 73.73
+enabled = false
+tags = ["tag_73_a", "tag_73_b", "tag_73_c"]
+meta = {x = 73, y = 146}
+
+[section_74]
+name = "Section 74"
+id = 74
+ratio = 74.74
+enabled = true
+tags = ["tag_74_a", "tag_74_b", "tag_74_c"]
+meta = {x = 74, y = 148}
+
+[section_75]
+name = "Section 75"
+id = 75
+ratio = 75.75
+enabled = false
+tags = ["tag_75_a", "tag_75_b", "tag_75_c"]
+meta = {x = 75, y = 150}
+
+[section_76]
+name = "Section 76"
+id = 76
+ratio = 76.76
+enabled = true
+tags = ["tag_76_a", "tag_76_b", "tag_76_c"]
+meta = {x = 76, y = 152}
+
+[section_77]
+name = "Section 77"
+id = 77
+ratio = 77.77
+enabled = false
+tags = ["tag_77_a", "tag_77_b", "tag_77_c"]
+meta = {x = 77, y = 154}
+
+[section_78]
+name = "Section 78"
+id = 78
+ratio = 78.78
+enabled = true
+tags = ["tag_78_a", "tag_78_b", "tag_78_c"]
+meta = {x = 78, y = 156}
+
+[section_79]
+name = "Section 79"
+id = 79
+ratio = 79.79
+enabled = false
+tags = ["tag_79_a", "tag_79_b", "tag_79_c"]
+meta = {x = 79, y = 158}
+
+[section_80]
+name = "Section 80"
+id = 80
+ratio = 80.80
+enabled = true
+tags = ["tag_80_a", "tag_80_b", "tag_80_c"]
+meta = {x = 80, y = 160}
+
+[section_81]
+name = "Section 81"
+id = 81
+ratio = 81.81
+enabled = false
+tags = ["tag_81_a", "tag_81_b", "tag_81_c"]
+meta = {x = 81, y = 162}
+
+[section_82]
+name = "Section 82"
+id = 82
+ratio = 82.82
+enabled = true
+tags = ["tag_82_a", "tag_82_b", "tag_82_c"]
+meta = {x = 82, y = 164}
+
+[section_83]
+name = "Section 83"
+id = 83
+ratio = 83.83
+enabled = false
+tags = ["tag_83_a", "tag_83_b", "tag_83_c"]
+meta = {x = 83, y = 166}
+
+[section_84]
+name = "Section 84"
+id = 84
+ratio = 84.84
+enabled = true
+tags = ["tag_84_a", "tag_84_b", "tag_84_c"]
+meta = {x = 84, y = 168}
+
+[section_85]
+name = "Section 85"
+id = 85
+ratio = 85.85
+enabled = false
+tags = ["tag_85_a", "tag_85_b", "tag_85_c"]
+meta = {x = 85, y = 170}
+
+[section_86]
+name = "Section 86"
+id = 86
+ratio = 86.86
+enabled = true
+tags = ["tag_86_a", "tag_86_b", "tag_86_c"]
+meta = {x = 86, y = 172}
+
+[section_87]
+name = "Section 87"
+id = 87
+ratio = 87.87
+enabled = false
+tags = ["tag_87_a", "tag_87_b", "tag_87_c"]
+meta = {x = 87, y = 174}
+
+[section_88]
+name = "Section 88"
+id = 88
+ratio = 88.88
+enabled = true
+tags = ["tag_88_a", "tag_88_b", "tag_88_c"]
+meta = {x = 88, y = 176}
+
+[section_89]
+name = "Section 89"
+id = 89
+ratio = 89.89
+enabled = false
+tags = ["tag_89_a", "tag_89_b", "tag_89_c"]
+meta = {x = 89, y = 178}
+
+[section_90]
+name = "Section 90"
+id = 90
+ratio = 90.90
+enabled = true
+tags = ["tag_90_a", "tag_90_b", "tag_90_c"]
+meta = {x = 90, y = 180}
+
+[section_91]
+name = "Section 91"
+id = 91
+ratio = 91.91
+enabled = false
+tags = ["tag_91_a", "tag_91_b", "tag_91_c"]
+meta = {x = 91, y = 182}
+
+[section_92]
+name = "Section 92"
+id = 92
+ratio = 92.92
+enabled = true
+tags = ["tag_92_a", "tag_92_b", "tag_92_c"]
+meta = {x = 92, y = 184}
+
+[section_93]
+name = "Section 93"
+id = 93
+ratio = 93.93
+enabled = false
+tags = ["tag_93_a", "tag_93_b", "tag_93_c"]
+meta = {x = 93, y = 186}
+
+[section_94]
+name = "Section 94"
+id = 94
+ratio = 94.94
+enabled = true
+tags = ["tag_94_a", "tag_94_b", "tag_94_c"]
+meta = {x = 94, y = 188}
+
+[section_95]
+name = "Section 95"
+id = 95
+ratio = 95.95
+enabled = false
+tags = ["tag_95_a", "tag_95_b", "tag_95_c"]
+meta = {x = 95, y = 190}
+
+[section_96]
+name = "Section 96"
+id = 96
+ratio = 96.96
+enabled = true
+tags = ["tag_96_a", "tag_96_b", "tag_96_c"]
+meta = {x = 96, y = 192}
+
+[section_97]
+name = "Section 97"
+id = 97
+ratio = 97.97
+enabled = false
+tags = ["tag_97_a", "tag_97_b", "tag_97_c"]
+meta = {x = 97, y = 194}
+
+[section_98]
+name = "Section 98"
+id = 98
+ratio = 98.98
+enabled = true
+tags = ["tag_98_a", "tag_98_b", "tag_98_c"]
+meta = {x = 98, y = 196}
+
+[section_99]
+name = "Section 99"
+id = 99
+ratio = 99.99
+enabled = false
+tags = ["tag_99_a", "tag_99_b", "tag_99_c"]
+meta = {x = 99, y = 198}
+
+[section_100]
+name = "Section 100"
+id = 100
+ratio = 100.00
+enabled = true
+tags = ["tag_100_a", "tag_100_b", "tag_100_c"]
+meta = {x = 100, y = 200}
+
+[section_101]
+name = "Section 101"
+id = 101
+ratio = 101.01
+enabled = false
+tags = ["tag_101_a", "tag_101_b", "tag_101_c"]
+meta = {x = 101, y = 202}
+
+[section_102]
+name = "Section 102"
+id = 102
+ratio = 102.02
+enabled = true
+tags = ["tag_102_a", "tag_102_b", "tag_102_c"]
+meta = {x = 102, y = 204}
+
+[section_103]
+name = "Section 103"
+id = 103
+ratio = 103.03
+enabled = false
+tags = ["tag_103_a", "tag_103_b", "tag_103_c"]
+meta = {x = 103, y = 206}
+
+[section_104]
+name = "Section 104"
+id = 104
+ratio = 104.04
+enabled = true
+tags = ["tag_104_a", "tag_104_b", "tag_104_c"]
+meta = {x = 104, y = 208}
+
+[section_105]
+name = "Section 105"
+id = 105
+ratio = 105.05
+enabled = false
+tags = ["tag_105_a", "tag_105_b", "tag_105_c"]
+meta = {x = 105, y = 210}
+
+[section_106]
+name = "Section 106"
+id = 106
+ratio = 106.06
+enabled = true
+tags = ["tag_106_a", "tag_106_b", "tag_106_c"]
+meta = {x = 106, y = 212}
+
+[section_107]
+name = "Section 107"
+id = 107
+ratio = 107.07
+enabled = false
+tags = ["tag_107_a", "tag_107_b", "tag_107_c"]
+meta = {x = 107, y = 214}
+
+[section_108]
+name = "Section 108"
+id = 108
+ratio = 108.08
+enabled = true
+tags = ["tag_108_a", "tag_108_b", "tag_108_c"]
+meta = {x = 108, y = 216}
+
+[section_109]
+name = "Section 109"
+id = 109
+ratio = 109.09
+enabled = false
+tags = ["tag_109_a", "tag_109_b", "tag_109_c"]
+meta = {x = 109, y = 218}
+
+[section_110]
+name = "Section 110"
+id = 110
+ratio = 110.10
+enabled = true
+tags = ["tag_110_a", "tag_110_b", "tag_110_c"]
+meta = {x = 110, y = 220}
+
+[section_111]
+name = "Section 111"
+id = 111
+ratio = 111.11
+enabled = false
+tags = ["tag_111_a", "tag_111_b", "tag_111_c"]
+meta = {x = 111, y = 222}
+
+[section_112]
+name = "Section 112"
+id = 112
+ratio = 112.12
+enabled = true
+tags = ["tag_112_a", "tag_112_b", "tag_112_c"]
+meta = {x = 112, y = 224}
+
+[section_113]
+name = "Section 113"
+id = 113
+ratio = 113.13
+enabled = false
+tags = ["tag_113_a", "tag_113_b", "tag_113_c"]
+meta = {x = 113, y = 226}
+
+[section_114]
+name = "Section 114"
+id = 114
+ratio = 114.14
+enabled = true
+tags = ["tag_114_a", "tag_114_b", "tag_114_c"]
+meta = {x = 114, y = 228}
+
+[section_115]
+name = "Section 115"
+id = 115
+ratio = 115.15
+enabled = false
+tags = ["tag_115_a", "tag_115_b", "tag_115_c"]
+meta = {x = 115, y = 230}
+
+[section_116]
+name = "Section 116"
+id = 116
+ratio = 116.16
+enabled = true
+tags = ["tag_116_a", "tag_116_b", "tag_116_c"]
+meta = {x = 116, y = 232}
+
+[section_117]
+name = "Section 117"
+id = 117
+ratio = 117.17
+enabled = false
+tags = ["tag_117_a", "tag_117_b", "tag_117_c"]
+meta = {x = 117, y = 234}
+
+[section_118]
+name = "Section 118"
+id = 118
+ratio = 118.18
+enabled = true
+tags = ["tag_118_a", "tag_118_b", "tag_118_c"]
+meta = {x = 118, y = 236}
+
+[section_119]
+name = "Section 119"
+id = 119
+ratio = 119.19
+enabled = false
+tags = ["tag_119_a", "tag_119_b", "tag_119_c"]
+meta = {x = 119, y = 238}
+
+[section_120]
+name = "Section 120"
+id = 120
+ratio = 120.20
+enabled = true
+tags = ["tag_120_a", "tag_120_b", "tag_120_c"]
+meta = {x = 120, y = 240}
+
+[section_121]
+name = "Section 121"
+id = 121
+ratio = 121.21
+enabled = false
+tags = ["tag_121_a", "tag_121_b", "tag_121_c"]
+meta = {x = 121, y = 242}
+
+[section_122]
+name = "Section 122"
+id = 122
+ratio = 122.22
+enabled = true
+tags = ["tag_122_a", "tag_122_b", "tag_122_c"]
+meta = {x = 122, y = 244}
+
+[section_123]
+name = "Section 123"
+id = 123
+ratio = 123.23
+enabled = false
+tags = ["tag_123_a", "tag_123_b", "tag_123_c"]
+meta = {x = 123, y = 246}
+
+[section_124]
+name = "Section 124"
+id = 124
+ratio = 124.24
+enabled = true
+tags = ["tag_124_a", "tag_124_b", "tag_124_c"]
+meta = {x = 124, y = 248}
+
+[section_125]
+name = "Section 125"
+id = 125
+ratio = 125.25
+enabled = false
+tags = ["tag_125_a", "tag_125_b", "tag_125_c"]
+meta = {x = 125, y = 250}
+
+[section_126]
+name = "Section 126"
+id = 126
+ratio = 126.26
+enabled = true
+tags = ["tag_126_a", "tag_126_b", "tag_126_c"]
+meta = {x = 126, y = 252}
+
+[section_127]
+name = "Section 127"
+id = 127
+ratio = 127.27
+enabled = false
+tags = ["tag_127_a", "tag_127_b", "tag_127_c"]
+meta = {x = 127, y = 254}
+
+[section_128]
+name = "Section 128"
+id = 128
+ratio = 128.28
+enabled = true
+tags = ["tag_128_a", "tag_128_b", "tag_128_c"]
+meta = {x = 128, y = 256}
+
+[section_129]
+name = "Section 129"
+id = 129
+ratio = 129.29
+enabled = false
+tags = ["tag_129_a", "tag_129_b", "tag_129_c"]
+meta = {x = 129, y = 258}
+
+[section_130]
+name = "Section 130"
+id = 130
+ratio = 130.30
+enabled = true
+tags = ["tag_130_a", "tag_130_b", "tag_130_c"]
+meta = {x = 130, y = 260}
+
+[section_131]
+name = "Section 131"
+id = 131
+ratio = 131.31
+enabled = false
+tags = ["tag_131_a", "tag_131_b", "tag_131_c"]
+meta = {x = 131, y = 262}
+
+[section_132]
+name = "Section 132"
+id = 132
+ratio = 132.32
+enabled = true
+tags = ["tag_132_a", "tag_132_b", "tag_132_c"]
+meta = {x = 132, y = 264}
+
+[section_133]
+name = "Section 133"
+id = 133
+ratio = 133.33
+enabled = false
+tags = ["tag_133_a", "tag_133_b", "tag_133_c"]
+meta = {x = 133, y = 266}
+
+[section_134]
+name = "Section 134"
+id = 134
+ratio = 134.34
+enabled = true
+tags = ["tag_134_a", "tag_134_b", "tag_134_c"]
+meta = {x = 134, y = 268}
+
+[section_135]
+name = "Section 135"
+id = 135
+ratio = 135.35
+enabled = false
+tags = ["tag_135_a", "tag_135_b", "tag_135_c"]
+meta = {x = 135, y = 270}
+
+[section_136]
+name = "Section 136"
+id = 136
+ratio = 136.36
+enabled = true
+tags = ["tag_136_a", "tag_136_b", "tag_136_c"]
+meta = {x = 136, y = 272}
+
+[section_137]
+name = "Section 137"
+id = 137
+ratio = 137.37
+enabled = false
+tags = ["tag_137_a", "tag_137_b", "tag_137_c"]
+meta = {x = 137, y = 274}
+
+[section_138]
+name = "Section 138"
+id = 138
+ratio = 138.38
+enabled = true
+tags = ["tag_138_a", "tag_138_b", "tag_138_c"]
+meta = {x = 138, y = 276}
+
+[section_139]
+name = "Section 139"
+id = 139
+ratio = 139.39
+enabled = false
+tags = ["tag_139_a", "tag_139_b", "tag_139_c"]
+meta = {x = 139, y = 278}
+
+[section_140]
+name = "Section 140"
+id = 140
+ratio = 140.40
+enabled = true
+tags = ["tag_140_a", "tag_140_b", "tag_140_c"]
+meta = {x = 140, y = 280}
+
+[section_141]
+name = "Section 141"
+id = 141
+ratio = 141.41
+enabled = false
+tags = ["tag_141_a", "tag_141_b", "tag_141_c"]
+meta = {x = 141, y = 282}
+
+[section_142]
+name = "Section 142"
+id = 142
+ratio = 142.42
+enabled = true
+tags = ["tag_142_a", "tag_142_b", "tag_142_c"]
+meta = {x = 142, y = 284}
+
+[section_143]
+name = "Section 143"
+id = 143
+ratio = 143.43
+enabled = false
+tags = ["tag_143_a", "tag_143_b", "tag_143_c"]
+meta = {x = 143, y = 286}
+
+[section_144]
+name = "Section 144"
+id = 144
+ratio = 144.44
+enabled = true
+tags = ["tag_144_a", "tag_144_b", "tag_144_c"]
+meta = {x = 144, y = 288}
+
+[section_145]
+name = "Section 145"
+id = 145
+ratio = 145.45
+enabled = false
+tags = ["tag_145_a", "tag_145_b", "tag_145_c"]
+meta = {x = 145, y = 290}
+
+[section_146]
+name = "Section 146"
+id = 146
+ratio = 146.46
+enabled = true
+tags = ["tag_146_a", "tag_146_b", "tag_146_c"]
+meta = {x = 146, y = 292}
+
+[section_147]
+name = "Section 147"
+id = 147
+ratio = 147.47
+enabled = false
+tags = ["tag_147_a", "tag_147_b", "tag_147_c"]
+meta = {x = 147, y = 294}
+
+[section_148]
+name = "Section 148"
+id = 148
+ratio = 148.48
+enabled = true
+tags = ["tag_148_a", "tag_148_b", "tag_148_c"]
+meta = {x = 148, y = 296}
+
+[section_149]
+name = "Section 149"
+id = 149
+ratio = 149.49
+enabled = false
+tags = ["tag_149_a", "tag_149_b", "tag_149_c"]
+meta = {x = 149, y = 298}
+
+[section_150]
+name = "Section 150"
+id = 150
+ratio = 150.50
+enabled = true
+tags = ["tag_150_a", "tag_150_b", "tag_150_c"]
+meta = {x = 150, y = 300}
+
+[section_151]
+name = "Section 151"
+id = 151
+ratio = 151.51
+enabled = false
+tags = ["tag_151_a", "tag_151_b", "tag_151_c"]
+meta = {x = 151, y = 302}
+
+[section_152]
+name = "Section 152"
+id = 152
+ratio = 152.52
+enabled = true
+tags = ["tag_152_a", "tag_152_b", "tag_152_c"]
+meta = {x = 152, y = 304}
+
+[section_153]
+name = "Section 153"
+id = 153
+ratio = 153.53
+enabled = false
+tags = ["tag_153_a", "tag_153_b", "tag_153_c"]
+meta = {x = 153, y = 306}
+
+[section_154]
+name = "Section 154"
+id = 154
+ratio = 154.54
+enabled = true
+tags = ["tag_154_a", "tag_154_b", "tag_154_c"]
+meta = {x = 154, y = 308}
+
+[section_155]
+name = "Section 155"
+id = 155
+ratio = 155.55
+enabled = false
+tags = ["tag_155_a", "tag_155_b", "tag_155_c"]
+meta = {x = 155, y = 310}
+
+[section_156]
+name = "Section 156"
+id = 156
+ratio = 156.56
+enabled = true
+tags = ["tag_156_a", "tag_156_b", "tag_156_c"]
+meta = {x = 156, y = 312}
+
+[section_157]
+name = "Section 157"
+id = 157
+ratio = 157.57
+enabled = false
+tags = ["tag_157_a", "tag_157_b", "tag_157_c"]
+meta = {x = 157, y = 314}
+
+[section_158]
+name = "Section 158"
+id = 158
+ratio = 158.58
+enabled = true
+tags = ["tag_158_a", "tag_158_b", "tag_158_c"]
+meta = {x = 158, y = 316}
+
+[section_159]
+name = "Section 159"
+id = 159
+ratio = 159.59
+enabled = false
+tags = ["tag_159_a", "tag_159_b", "tag_159_c"]
+meta = {x = 159, y = 318}
+
+[section_160]
+name = "Section 160"
+id = 160
+ratio = 160.60
+enabled = true
+tags = ["tag_160_a", "tag_160_b", "tag_160_c"]
+meta = {x = 160, y = 320}
+
+[section_161]
+name = "Section 161"
+id = 161
+ratio = 161.61
+enabled = false
+tags = ["tag_161_a", "tag_161_b", "tag_161_c"]
+meta = {x = 161, y = 322}
+
+[section_162]
+name = "Section 162"
+id = 162
+ratio = 162.62
+enabled = true
+tags = ["tag_162_a", "tag_162_b", "tag_162_c"]
+meta = {x = 162, y = 324}
+
+[section_163]
+name = "Section 163"
+id = 163
+ratio = 163.63
+enabled = false
+tags = ["tag_163_a", "tag_163_b", "tag_163_c"]
+meta = {x = 163, y = 326}
+
+[section_164]
+name = "Section 164"
+id = 164
+ratio = 164.64
+enabled = true
+tags = ["tag_164_a", "tag_164_b", "tag_164_c"]
+meta = {x = 164, y = 328}
+
+[section_165]
+name = "Section 165"
+id = 165
+ratio = 165.65
+enabled = false
+tags = ["tag_165_a", "tag_165_b", "tag_165_c"]
+meta = {x = 165, y = 330}
+
+[section_166]
+name = "Section 166"
+id = 166
+ratio = 166.66
+enabled = true
+tags = ["tag_166_a", "tag_166_b", "tag_166_c"]
+meta = {x = 166, y = 332}
+
+[section_167]
+name = "Section 167"
+id = 167
+ratio = 167.67
+enabled = false
+tags = ["tag_167_a", "tag_167_b", "tag_167_c"]
+meta = {x = 167, y = 334}
+
+[section_168]
+name = "Section 168"
+id = 168
+ratio = 168.68
+enabled = true
+tags = ["tag_168_a", "tag_168_b", "tag_168_c"]
+meta = {x = 168, y = 336}
+
+[section_169]
+name = "Section 169"
+id = 169
+ratio = 169.69
+enabled = false
+tags = ["tag_169_a", "tag_169_b", "tag_169_c"]
+meta = {x = 169, y = 338}
+
+[section_170]
+name = "Section 170"
+id = 170
+ratio = 170.70
+enabled = true
+tags = ["tag_170_a", "tag_170_b", "tag_170_c"]
+meta = {x = 170, y = 340}
+
+[section_171]
+name = "Section 171"
+id = 171
+ratio = 171.71
+enabled = false
+tags = ["tag_171_a", "tag_171_b", "tag_171_c"]
+meta = {x = 171, y = 342}
+
+[section_172]
+name = "Section 172"
+id = 172
+ratio = 172.72
+enabled = true
+tags = ["tag_172_a", "tag_172_b", "tag_172_c"]
+meta = {x = 172, y = 344}
+
+[section_173]
+name = "Section 173"
+id = 173
+ratio = 173.73
+enabled = false
+tags = ["tag_173_a", "tag_173_b", "tag_173_c"]
+meta = {x = 173, y = 346}
+
+[section_174]
+name = "Section 174"
+id = 174
+ratio = 174.74
+enabled = true
+tags = ["tag_174_a", "tag_174_b", "tag_174_c"]
+meta = {x = 174, y = 348}
+
+[section_175]
+name = "Section 175"
+id = 175
+ratio = 175.75
+enabled = false
+tags = ["tag_175_a", "tag_175_b", "tag_175_c"]
+meta = {x = 175, y = 350}
+
+[section_176]
+name = "Section 176"
+id = 176
+ratio = 176.76
+enabled = true
+tags = ["tag_176_a", "tag_176_b", "tag_176_c"]
+meta = {x = 176, y = 352}
+
+[section_177]
+name = "Section 177"
+id = 177
+ratio = 177.77
+enabled = false
+tags = ["tag_177_a", "tag_177_b", "tag_177_c"]
+meta = {x = 177, y = 354}
+
+[section_178]
+name = "Section 178"
+id = 178
+ratio = 178.78
+enabled = true
+tags = ["tag_178_a", "tag_178_b", "tag_178_c"]
+meta = {x = 178, y = 356}
+
+[section_179]
+name = "Section 179"
+id = 179
+ratio = 179.79
+enabled = false
+tags = ["tag_179_a", "tag_179_b", "tag_179_c"]
+meta = {x = 179, y = 358}
+
+[section_180]
+name = "Section 180"
+id = 180
+ratio = 180.80
+enabled = true
+tags = ["tag_180_a", "tag_180_b", "tag_180_c"]
+meta = {x = 180, y = 360}
+
+[section_181]
+name = "Section 181"
+id = 181
+ratio = 181.81
+enabled = false
+tags = ["tag_181_a", "tag_181_b", "tag_181_c"]
+meta = {x = 181, y = 362}
+
+[section_182]
+name = "Section 182"
+id = 182
+ratio = 182.82
+enabled = true
+tags = ["tag_182_a", "tag_182_b", "tag_182_c"]
+meta = {x = 182, y = 364}
+
+[section_183]
+name = "Section 183"
+id = 183
+ratio = 183.83
+enabled = false
+tags = ["tag_183_a", "tag_183_b", "tag_183_c"]
+meta = {x = 183, y = 366}
+
+[section_184]
+name = "Section 184"
+id = 184
+ratio = 184.84
+enabled = true
+tags = ["tag_184_a", "tag_184_b", "tag_184_c"]
+meta = {x = 184, y = 368}
+
+[section_185]
+name = "Section 185"
+id = 185
+ratio = 185.85
+enabled = false
+tags = ["tag_185_a", "tag_185_b", "tag_185_c"]
+meta = {x = 185, y = 370}
+
+[section_186]
+name = "Section 186"
+id = 186
+ratio = 186.86
+enabled = true
+tags = ["tag_186_a", "tag_186_b", "tag_186_c"]
+meta = {x = 186, y = 372}
+
+[section_187]
+name = "Section 187"
+id = 187
+ratio = 187.87
+enabled = false
+tags = ["tag_187_a", "tag_187_b", "tag_187_c"]
+meta = {x = 187, y = 374}
+
+[section_188]
+name = "Section 188"
+id = 188
+ratio = 188.88
+enabled = true
+tags = ["tag_188_a", "tag_188_b", "tag_188_c"]
+meta = {x = 188, y = 376}
+
+[section_189]
+name = "Section 189"
+id = 189
+ratio = 189.89
+enabled = false
+tags = ["tag_189_a", "tag_189_b", "tag_189_c"]
+meta = {x = 189, y = 378}
+
+[section_190]
+name = "Section 190"
+id = 190
+ratio = 190.90
+enabled = true
+tags = ["tag_190_a", "tag_190_b", "tag_190_c"]
+meta = {x = 190, y = 380}
+
+[section_191]
+name = "Section 191"
+id = 191
+ratio = 191.91
+enabled = false
+tags = ["tag_191_a", "tag_191_b", "tag_191_c"]
+meta = {x = 191, y = 382}
+
+[section_192]
+name = "Section 192"
+id = 192
+ratio = 192.92
+enabled = true
+tags = ["tag_192_a", "tag_192_b", "tag_192_c"]
+meta = {x = 192, y = 384}
+
+[section_193]
+name = "Section 193"
+id = 193
+ratio = 193.93
+enabled = false
+tags = ["tag_193_a", "tag_193_b", "tag_193_c"]
+meta = {x = 193, y = 386}
+
+[section_194]
+name = "Section 194"
+id = 194
+ratio = 194.94
+enabled = true
+tags = ["tag_194_a", "tag_194_b", "tag_194_c"]
+meta = {x = 194, y = 388}
+
+[section_195]
+name = "Section 195"
+id = 195
+ratio = 195.95
+enabled = false
+tags = ["tag_195_a", "tag_195_b", "tag_195_c"]
+meta = {x = 195, y = 390}
+
+[section_196]
+name = "Section 196"
+id = 196
+ratio = 196.96
+enabled = true
+tags = ["tag_196_a", "tag_196_b", "tag_196_c"]
+meta = {x = 196, y = 392}
+
+[section_197]
+name = "Section 197"
+id = 197
+ratio = 197.97
+enabled = false
+tags = ["tag_197_a", "tag_197_b", "tag_197_c"]
+meta = {x = 197, y = 394}
+
+[section_198]
+name = "Section 198"
+id = 198
+ratio = 198.98
+enabled = true
+tags = ["tag_198_a", "tag_198_b", "tag_198_c"]
+meta = {x = 198, y = 396}
+
+[section_199]
+name = "Section 199"
+id = 199
+ratio = 199.99
+enabled = false
+tags = ["tag_199_a", "tag_199_b", "tag_199_c"]
+meta = {x = 199, y = 398}
+
+[section_200]
+name = "Section 200"
+id = 200
+ratio = 200.00
+enabled = true
+tags = ["tag_200_a", "tag_200_b", "tag_200_c"]
+meta = {x = 200, y = 400}
+
+[section_201]
+name = "Section 201"
+id = 201
+ratio = 201.01
+enabled = false
+tags = ["tag_201_a", "tag_201_b", "tag_201_c"]
+meta = {x = 201, y = 402}
+
+[section_202]
+name = "Section 202"
+id = 202
+ratio = 202.02
+enabled = true
+tags = ["tag_202_a", "tag_202_b", "tag_202_c"]
+meta = {x = 202, y = 404}
+
+[section_203]
+name = "Section 203"
+id = 203
+ratio = 203.03
+enabled = false
+tags = ["tag_203_a", "tag_203_b", "tag_203_c"]
+meta = {x = 203, y = 406}
+
+[section_204]
+name = "Section 204"
+id = 204
+ratio = 204.04
+enabled = true
+tags = ["tag_204_a", "tag_204_b", "tag_204_c"]
+meta = {x = 204, y = 408}
+
+[section_205]
+name = "Section 205"
+id = 205
+ratio = 205.05
+enabled = false
+tags = ["tag_205_a", "tag_205_b", "tag_205_c"]
+meta = {x = 205, y = 410}
+
+[section_206]
+name = "Section 206"
+id = 206
+ratio = 206.06
+enabled = true
+tags = ["tag_206_a", "tag_206_b", "tag_206_c"]
+meta = {x = 206, y = 412}
+
+[section_207]
+name = "Section 207"
+id = 207
+ratio = 207.07
+enabled = false
+tags = ["tag_207_a", "tag_207_b", "tag_207_c"]
+meta = {x = 207, y = 414}
+
+[section_208]
+name = "Section 208"
+id = 208
+ratio = 208.08
+enabled = true
+tags = ["tag_208_a", "tag_208_b", "tag_208_c"]
+meta = {x = 208, y = 416}
+
+[section_209]
+name = "Section 209"
+id = 209
+ratio = 209.09
+enabled = false
+tags = ["tag_209_a", "tag_209_b", "tag_209_c"]
+meta = {x = 209, y = 418}
+
+[section_210]
+name = "Section 210"
+id = 210
+ratio = 210.10
+enabled = true
+tags = ["tag_210_a", "tag_210_b", "tag_210_c"]
+meta = {x = 210, y = 420}
+
+[section_211]
+name = "Section 211"
+id = 211
+ratio = 211.11
+enabled = false
+tags = ["tag_211_a", "tag_211_b", "tag_211_c"]
+meta = {x = 211, y = 422}
+
+[section_212]
+name = "Section 212"
+id = 212
+ratio = 212.12
+enabled = true
+tags = ["tag_212_a", "tag_212_b", "tag_212_c"]
+meta = {x = 212, y = 424}
+

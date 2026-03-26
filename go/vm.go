@@ -16,6 +16,14 @@ type Bytecode struct {
 	srcm *SourceMap
 }
 
+// StringID returns the integer name ID for a rule name string, and
+// whether the name exists in the bytecode string table. This is used
+// by extract codegen to resolve compile-time nameID constants.
+func (b *Bytecode) StringID(name string) (int, bool) {
+	id, ok := b.smap[name]
+	return id, ok
+}
+
 // lrMemoKey is the key for the left recursion memoization table.  It
 // uniquely identifies a left-recursive call by production address and
 // input position.

@@ -92,6 +92,15 @@ func readArgs() *args {
 }
 
 func main() {
+	// Subcommand dispatch
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "extract":
+			runExtract(os.Args[2:])
+			return
+		}
+	}
+
 	a := readArgs()
 
 	if *a.showVersion {

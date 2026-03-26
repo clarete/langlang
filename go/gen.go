@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"unicode"
 )
 
 //go:embed api.go vm.go vm_stack.go vm_charset.go tree.go tree_printer.go errors.go pos.go
@@ -71,6 +72,7 @@ func (g *goEvalEmitter) writePrelude() {
 		g.parser.writeil(`"strconv"`)
 		g.parser.writeil(`"strings"`)
 		g.parser.writeil(`"unicode/utf8"`)
+		g.parser.writeil(`"unsafe"`)
 		g.parser.unindent()
 		g.parser.writel(")\n")
 	}
@@ -273,6 +275,9 @@ func (g *goEvalEmitter) writeParserMethods(asm *Program) {
 	for _, addr := range addrs {
 		strID := asm.identifiers[addr]
 		name := asm.strings[strID]
+		if len(name) == 0 || !unicode.IsUpper(rune(name[0])) {
+			continue
+		}
 		g.parser.write(fmt.Sprintf("func (p *%s) Parse%s() (Tree, error) { ", g.options.ParserName, name))
 		g.parser.write(fmt.Sprintf("return p.parseFn(%d)", addrmap[addr]))
 		g.parser.writel(" }")

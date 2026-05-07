@@ -376,6 +376,14 @@ be used in other grammars using imports.  Behind the scenes, the
 
 * Changelog
 
+** go/v0.0.13 (unreleased)
+
+ * [[https://github.com/clarete/langlang/commit/74787905c48bc2a4420dd8f490825ab5e920a430][FEAT[BREAKING]: unambiguous syntax for unicode]]
+ * [[https://github.com/clarete/langlang/commit/6306108fc8a82f5ed0ddf70db14c456c95898107][FEAT: Detect infinite loops statically]]
+ * [[https://github.com/clarete/langlang/commit/1dc35fb0de87ed18ecd7204d50ab60b1d2f7dca4][BUG FIX: complement charset fails matching runes]]
+ * [[https://github.com/clarete/langlang/commit/1e904434a577b7b28eaa762e6a20b33a57a29447][BUG FIX: Fix jumps exceeding uint16 address limit]]
+ * [[https://github.com/clarete/langlang/commit/980d30fba3d754a1090c8083c97dd799800fad86][BUG FIX: Re-add line/column of where error happened]]
+
 ** go/v0.0.12
 
  * [[https://github.com/clarete/langlang/commit/226bf9453447037847cfe77e3d8bdc9ffdc2f23a][FEAT: Left Recursion support!]] ([[https://github.com/clarete/langlang/commit/d9c49064ea02cf14f47ee9f96ed85eb548cbc0c3][CR2]], [[https://github.com/clarete/langlang/commit/c78e866ce5f73e10317e3dd084d83df0e738f2d8][CR3]])

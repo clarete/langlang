@@ -24,14 +24,15 @@
         6.  [Import system](#import-system)
 3.  [Roadmap](#roadmap)
 4.  [Changelog](#changelog)
-    1.  [go/v0.0.12](#gov0012)
-    2.  [go/v0.0.11](#gov0011)
-    3.  [go/v0.0.10](#gov0010)
-    4.  [go/v0.0.9](#gov009)
-    5.  [go/v0.0.8](#gov008)
-    6.  [go/v0.0.7](#gov007)
-    7.  [go/v0.0.6](#gov006)
-    8.  [go/v0.0.5](#gov005)
+    1.  [go/v0.0.13 (unreleased)](#gov0013-unreleased)
+    2.  [go/v0.0.12](#gov0012)
+    3.  [go/v0.0.11](#gov0011)
+    4.  [go/v0.0.10](#gov0010)
+    5.  [go/v0.0.9](#gov009)
+    6.  [go/v0.0.8](#gov008)
+    7.  [go/v0.0.7](#gov007)
+    8.  [go/v0.0.6](#gov006)
+    9.  [go/v0.0.5](#gov005)
 
 
 <a id="introduction"></a>
@@ -543,6 +544,17 @@ be used in other grammars using imports.  Behind the scenes, the
 <a id="changelog"></a>
 
 # Changelog
+
+
+<a id="gov0013-unreleased"></a>
+
+## go/v0.0.13 (unreleased)
+
+-   [FEAT[BREAKING]: unambiguous syntax for unicode](https://github.com/clarete/langlang/commit/74787905c48bc2a4420dd8f490825ab5e920a430)
+-   [FEAT: Detect infinite loops statically](https://github.com/clarete/langlang/commit/6306108fc8a82f5ed0ddf70db14c456c95898107)
+-   [BUG FIX: complement charset fails matching runes](https://github.com/clarete/langlang/commit/1dc35fb0de87ed18ecd7204d50ab60b1d2f7dca4)
+-   [BUG FIX: Fix jumps exceeding uint16 address limit](https://github.com/clarete/langlang/commit/1e904434a577b7b28eaa762e6a20b33a57a29447)
+-   [BUG FIX: Re-add line/column of where error happened](https://github.com/clarete/langlang/commit/980d30fba3d754a1090c8083c97dd799800fad86)
 
 
 <a id="gov0012"></a>

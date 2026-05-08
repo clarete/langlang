@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@langlang/react": "workspace:*",
     "@langlang/wasm": "workspace:*",
     "@monaco-editor/react": "^4.8.0-rc.3",
     "@pigment-css/react": "^0.0.30",

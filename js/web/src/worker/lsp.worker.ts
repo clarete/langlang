@@ -36,14 +36,20 @@ interface RawApi {
         Node: number;
         Error: number;
     };
-    matcherFromString(grammar: string, cfg?: Record<string, unknown>): RawResult<{ id: number }>;
+    matcherFromString(
+        grammar: string,
+        cfg?: Record<string, unknown>,
+    ): RawResult<{ id: number }>;
     matcherFromFiles(
         entry: string,
         files: Array<{ path: string; content: string }>,
-        cfg?: Record<string, unknown>
+        cfg?: Record<string, unknown>,
     ): RawResult<{ id: number }>;
     freeMatcher(id: number): RawResult<void>;
-    match(id: number, input: string): RawResult<{ consumed: number; value: unknown }>;
+    match(
+        id: number,
+        input: string,
+    ): RawResult<{ consumed: number; value: unknown }>;
     lspHandle?: LspHandle;
 }
 
@@ -51,7 +57,14 @@ interface RawApi {
 export type WorkerRequest =
     | { type: "init"; wasmUrl: string; wasmExecUrl: string }
     | { type: "lsp"; id: number; message: unknown }
-    | { type: "compile"; id: number; grammar: string; files?: Array<{ path: string; content: string }>; entry?: string; config?: Record<string, unknown> }
+    | {
+          type: "compile";
+          id: number;
+          grammar: string;
+          files?: Array<{ path: string; content: string }>;
+          entry?: string;
+          config?: Record<string, unknown>;
+      }
     | { type: "match"; id: number; matcherId: number; input: string }
     | { type: "freeMatcher"; matcherId: number };
 
@@ -91,7 +104,7 @@ async function initWasm(wasmUrl: string, wasmExecUrl: string): Promise<void> {
 
     const webAssembly = await WebAssembly.instantiateStreaming(
         wasmResponse,
-        go.importObject
+        go.importObject,
     );
 
     // Start the Go runtime (runs until program exits)
@@ -107,7 +120,10 @@ async function initWasm(wasmUrl: string, wasmExecUrl: string): Promise<void> {
             throw new Error("Go runtime exited before ready");
         }),
         new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout waiting for WASM init")), 5000)
+            setTimeout(
+                () => reject(new Error("Timeout waiting for WASM init")),
+                5000,
+            ),
         ),
     ]);
 
@@ -119,7 +135,9 @@ async function initWasm(wasmUrl: string, wasmExecUrl: string): Promise<void> {
 
     lspHandle = raw.lspHandle ?? null;
     if (!lspHandle) {
-        console.warn("[lsp.worker] LSP handle not available in this WASM build");
+        console.warn(
+            "[lsp.worker] LSP handle not available in this WASM build",
+        );
     }
 }
 
@@ -164,7 +182,7 @@ function handleCompile(
     grammar: string,
     files?: Array<{ path: string; content: string }>,
     entry?: string,
-    config?: Record<string, unknown>
+    config?: Record<string, unknown>,
 ): void {
     if (!raw) {
         self.postMessage({
@@ -273,7 +291,13 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
             break;
 
         case "compile":
-            handleCompile(msg.id, msg.grammar, msg.files, msg.entry, msg.config);
+            handleCompile(
+                msg.id,
+                msg.grammar,
+                msg.files,
+                msg.entry,
+                msg.config,
+            );
             break;
 
         case "match":

@@ -201,30 +201,33 @@ export function startLanglangLsp(
     workerClient = getSharedWorkerClient();
 
     // Subscribe to diagnostics notifications
-    subscribeToNotifications("textDocument/publishDiagnostics", (method, params) => {
-        dbg("notification", method, params);
-        const { uri, diagnostics } = params as {
-            uri: string;
-            diagnostics: Array<any>;
-        };
-        const model = monaco.editor.getModel(monaco.Uri.parse(uri));
-        if (!model) return;
-        const markers = (diagnostics ?? []).map((d) => ({
-            message: d.message ?? "diagnostic",
-            severity:
-                d.severity === 1
-                    ? monaco.MarkerSeverity.Error
-                    : d.severity === 2
-                      ? monaco.MarkerSeverity.Warning
-                      : monaco.MarkerSeverity.Info,
-            startLineNumber: d.range.start.line + 1,
-            startColumn: d.range.start.character + 1,
-            endLineNumber: d.range.end.line + 1,
-            endColumn: d.range.end.character + 1,
-        }));
-        monaco.editor.setModelMarkers(model, "langlang", markers);
-        hooks?.onDiagnostics?.(uri, diagnostics ?? []);
-    });
+    subscribeToNotifications(
+        "textDocument/publishDiagnostics",
+        (method, params) => {
+            dbg("notification", method, params);
+            const { uri, diagnostics } = params as {
+                uri: string;
+                diagnostics: Array<any>;
+            };
+            const model = monaco.editor.getModel(monaco.Uri.parse(uri));
+            if (!model) return;
+            const markers = (diagnostics ?? []).map((d) => ({
+                message: d.message ?? "diagnostic",
+                severity:
+                    d.severity === 1
+                        ? monaco.MarkerSeverity.Error
+                        : d.severity === 2
+                          ? monaco.MarkerSeverity.Warning
+                          : monaco.MarkerSeverity.Info,
+                startLineNumber: d.range.start.line + 1,
+                startColumn: d.range.start.character + 1,
+                endLineNumber: d.range.end.line + 1,
+                endColumn: d.range.end.character + 1,
+            }));
+            monaco.editor.setModelMarkers(model, "langlang", markers);
+            hooks?.onDiagnostics?.(uri, diagnostics ?? []);
+        },
+    );
 
     const readyPromise = startSharedWorker().then(async () => {
         dbg("worker ready");
@@ -272,13 +275,16 @@ export function startLanglangLsp(
             provideDefinition: async (model: any, position: any) => {
                 const uri = model.uri.toString();
                 dbg("definition:request", { uri, position });
-                const res = await workerClient!.request("textDocument/definition", {
-                    textDocument: { uri },
-                    position: {
-                        line: position.lineNumber - 1,
-                        character: position.column - 1,
+                const res = await workerClient!.request(
+                    "textDocument/definition",
+                    {
+                        textDocument: { uri },
+                        position: {
+                            line: position.lineNumber - 1,
+                            character: position.column - 1,
+                        },
                     },
-                });
+                );
                 dbg("definition:result", res);
                 if (!res) return null;
                 const locs = Array.isArray(res) ? res : [res];
@@ -304,7 +310,9 @@ export function startLanglangLsp(
                 if (!res || !res.contents) return null;
                 const value = getHoverMarkdown(res.contents);
                 if (!value) return null;
-                const range = res.range ? lspToMonacoRange(res.range) : undefined;
+                const range = res.range
+                    ? lspToMonacoRange(res.range)
+                    : undefined;
                 return { range, contents: [{ value }] };
             },
         });
@@ -313,9 +321,12 @@ export function startLanglangLsp(
             provideDocumentSymbols: async (model: any) => {
                 const uri = model.uri.toString();
                 dbg("documentSymbol:request", { uri });
-                const res = await workerClient!.request("textDocument/documentSymbol", {
-                    textDocument: { uri },
-                });
+                const res = await workerClient!.request(
+                    "textDocument/documentSymbol",
+                    {
+                        textDocument: { uri },
+                    },
+                );
                 dbg("documentSymbol:result", res);
                 if (!res || !Array.isArray(res)) return [];
                 return res.map((sym: any) => ({
@@ -323,13 +334,17 @@ export function startLanglangLsp(
                     detail: sym.detail ?? "",
                     kind: lspSymbolKindToMonaco(monaco, sym.kind),
                     range: lspToMonacoRange(sym.range),
-                    selectionRange: lspToMonacoRange(sym.selectionRange ?? sym.range),
+                    selectionRange: lspToMonacoRange(
+                        sym.selectionRange ?? sym.range,
+                    ),
                     children: sym.children?.map((child: any) => ({
                         name: child.name,
                         detail: child.detail ?? "",
                         kind: lspSymbolKindToMonaco(monaco, child.kind),
                         range: lspToMonacoRange(child.range),
-                        selectionRange: lspToMonacoRange(child.selectionRange ?? child.range),
+                        selectionRange: lspToMonacoRange(
+                            child.selectionRange ?? child.range,
+                        ),
                     })),
                 }));
             },
@@ -340,13 +355,16 @@ export function startLanglangLsp(
             provideCompletionItems: async (model: any, position: any) => {
                 const uri = model.uri.toString();
                 dbg("completion:request", { uri, position });
-                const res = await workerClient!.request("textDocument/completion", {
-                    textDocument: { uri },
-                    position: {
-                        line: position.lineNumber - 1,
-                        character: position.column - 1,
+                const res = await workerClient!.request(
+                    "textDocument/completion",
+                    {
+                        textDocument: { uri },
+                        position: {
+                            line: position.lineNumber - 1,
+                            character: position.column - 1,
+                        },
                     },
-                });
+                );
                 dbg("completion:result", res);
                 if (!res || !Array.isArray(res)) return { suggestions: [] };
                 const word = model.getWordUntilPosition(position);
@@ -363,7 +381,8 @@ export function startLanglangLsp(
                     documentation: item.documentation?.value ?? "",
                     insertText: item.insertText ?? item.label,
                     insertTextRules: item.insertText?.includes("$")
-                        ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+                        ? monaco.languages.CompletionItemInsertTextRule
+                              .InsertAsSnippet
                         : undefined,
                     range,
                 }));
@@ -375,7 +394,11 @@ export function startLanglangLsp(
     });
 
     client = {
-        requestDefinition: async (uri: string, line: number, character: number) => {
+        requestDefinition: async (
+            uri: string,
+            line: number,
+            character: number,
+        ) => {
             await readyPromise;
             return workerClient!.request("textDocument/definition", {
                 textDocument: { uri },

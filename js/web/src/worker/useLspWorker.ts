@@ -6,7 +6,11 @@
  */
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { createLspWorkerClient, type LspWorkerClient, type LspNotificationHandler } from "./lsp.client";
+import {
+    createLspWorkerClient,
+    type LspWorkerClient,
+    type LspNotificationHandler,
+} from "./lsp.client";
 
 // Asset URLs for WASM - these use Vite's ?url import syntax
 import wasmUrl from "@langlang/wasm/langlang.wasm?url";
@@ -86,7 +90,7 @@ export function startSharedWorker(): Promise<void> {
  */
 export function subscribeToNotifications(
     method: string,
-    handler: LspNotificationHandler
+    handler: LspNotificationHandler,
 ): () => void {
     const sub: NotificationSubscriber = { method, handler };
     notificationSubscribers.add(sub);
@@ -137,4 +141,3 @@ export function useLspWorker(): UseLspWorkerResult {
     }
     return { status: "ready", client: getSharedWorkerClient(), error: null };
 }
-

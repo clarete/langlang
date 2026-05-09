@@ -40,7 +40,8 @@ type PendingRequest = {
  * Creates an LSP client that communicates with a worker-based LSP server.
  */
 export function createLspWorkerClient(config: LspClientConfig) {
-    const { wasmUrl, wasmExecUrl, onNotification, onReady, onError, debug } = config;
+    const { wasmUrl, wasmExecUrl, onNotification, onReady, onError, debug } =
+        config;
 
     let worker: Worker | null = null;
     let nextRequestId = 1;
@@ -134,7 +135,7 @@ export function createLspWorkerClient(config: LspClientConfig) {
         // The worker returns an array of messages.
         // We need to separate responses (with matching id) from notifications.
         let foundResponse = false;
-        
+
         for (const msg of messages) {
             if (msg.id !== undefined) {
                 // This is a response to a request
@@ -154,7 +155,7 @@ export function createLspWorkerClient(config: LspClientConfig) {
                 onNotification?.(msg.method, msg.params);
             }
         }
-        
+
         // If no response was found, this was a notification from client to server.
         // Resolve the pending promise since notifications don't expect responses.
         if (!foundResponse) {
@@ -182,10 +183,9 @@ export function createLspWorkerClient(config: LspClientConfig) {
 
         // Create a classic worker (not module) so we can use importScripts()
         // for loading wasm_exec.js safely without eval()
-        worker = new Worker(
-            new URL("./lsp.worker.ts", import.meta.url),
-            { type: "classic" }
-        );
+        worker = new Worker(new URL("./lsp.worker.ts", import.meta.url), {
+            type: "classic",
+        });
         worker.onmessage = handleWorkerMessage;
         worker.onerror = (e) => {
             const error = new Error(`Worker error: ${e.message}`);
@@ -241,7 +241,7 @@ export function createLspWorkerClient(config: LspClientConfig) {
     // Grammar compilation (also runs in worker)
     async function compile(
         grammar: string,
-        config?: Record<string, any>
+        config?: Record<string, any>,
     ): Promise<{ matcherId: number }> {
         await readyPromise;
         const id = nextRequestId++;
@@ -255,20 +255,27 @@ export function createLspWorkerClient(config: LspClientConfig) {
     async function compileFiles(
         entry: string,
         files: Array<{ path: string; content: string }>,
-        config?: Record<string, any>
+        config?: Record<string, any>,
     ): Promise<{ matcherId: number }> {
         await readyPromise;
         const id = nextRequestId++;
 
         return new Promise((resolve, reject) => {
             pending.set(id, { resolve, reject });
-            postMessage({ type: "compile", id, grammar: "", files, entry, config });
+            postMessage({
+                type: "compile",
+                id,
+                grammar: "",
+                files,
+                entry,
+                config,
+            });
         });
     }
 
     async function match(
         matcherId: number,
-        input: string
+        input: string,
     ): Promise<{ consumed: number; value: any }> {
         await readyPromise;
         const id = nextRequestId++;
@@ -321,4 +328,3 @@ export function createLspWorkerClient(config: LspClientConfig) {
 }
 
 export type LspWorkerClient = ReturnType<typeof createLspWorkerClient>;
-

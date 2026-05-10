@@ -1,6 +1,14 @@
 import type { Monaco } from "@monaco-editor/react";
+import { pegColors } from "../highlight/pegColors";
 
 const PEG_LANGUAGE_ID = "peg";
+export const PEG_THEME_ID = "langlang-dark";
+export const PEG_LIGHT_THEME_ID = "langlang-light";
+
+// Strip '#' for Monaco theme rules which expect bare hex strings.
+function hex(color: string): string {
+    return color.startsWith("#") ? color.slice(1) : color;
+}
 
 function isPegRegistered(monaco: Monaco): boolean {
     return monaco.languages
@@ -75,7 +83,8 @@ export function registerPegLanguage(monaco: Monaco) {
                 // label/annotation marker: `^label`
                 [/\^[a-zA-Z_][a-zA-Z0-9_]*/, "annotation"],
 
-                // char class
+                // char class — use constant.character inside so it can be
+                // colored differently from string literal content
                 [
                     /\[/,
                     {
@@ -103,21 +112,11 @@ export function registerPegLanguage(monaco: Monaco) {
                     },
                 ],
 
-                // operators / delimiters
-                // NOTE: Monaco's default `vs-dark` theme renders plain `operator`
-                // close to normal foreground, so we use `keyword.operator` for
-                // better contrast.
+                // operators
                 [/<-/, "keyword.operator"],
-                [/\/(?!\/)/, "keyword.operator"], // prevent collision with `//` comments
+                [/\/(?!\/)/, "keyword.operator"],
                 [/[?*+]/, "keyword.operator"],
-                [
-                    /([&!#]|[.])/,
-                    {
-                        cases: {
-                            "@default": "keyword.operator",
-                        },
-                    },
-                ],
+                [/([&!#]|[.])/, "keyword.operator"],
                 [/[{}()[\],:]/, "delimiter"],
             ],
             whitespace: [
@@ -128,7 +127,6 @@ export function registerPegLanguage(monaco: Monaco) {
             afterRuleName: [
                 { include: "@whitespace" },
                 [/<-/, "keyword.operator", "@pop"],
-                // If anything else happens before `<-`, give up and return to normal lexing.
                 [/./, "", "@pop"],
             ],
             comment: [
@@ -152,9 +150,11 @@ export function registerPegLanguage(monaco: Monaco) {
                     { token: "string.quote", bracket: "@close", next: "@pop" },
                 ],
             ],
+            // Use constant.character (not string) so charclass content gets
+            // its own distinct color in the theme.
             charclass: [
-                [/[^\\\]]+/, "string"],
-                [/\\./, "string.escape"],
+                [/[^\\\]]+/, "constant.character"],
+                [/\\./, "constant.character"],
                 [
                     /\]/,
                     {
@@ -165,5 +165,33 @@ export function registerPegLanguage(monaco: Monaco) {
                 ],
             ],
         },
+    });
+
+    const tokenRules = [
+        { token: "type.identifier.peg",     foreground: hex(pegColors.ruleName) },
+        { token: "identifier.peg",           foreground: hex(pegColors.ruleRef) },
+        { token: "string.peg",               foreground: hex(pegColors.literal) },
+        { token: "string.quote.peg",         foreground: hex(pegColors.literal) },
+        { token: "string.escape.peg",        foreground: hex(pegColors.literal) },
+        { token: "constant.character.peg",   foreground: hex(pegColors.charClass) },
+        { token: "delimiter.square.peg",     foreground: hex(pegColors.charClass) },
+        { token: "keyword.peg",              foreground: hex(pegColors.label) },
+        { token: "annotation.peg",           foreground: hex(pegColors.label) },
+        { token: "comment.peg",              foreground: hex(pegColors.comment) },
+        { token: "keyword.operator.peg",     foreground: hex(pegColors.operator) },
+    ];
+
+    monaco.editor.defineTheme(PEG_THEME_ID, {
+        base: "vs-dark",
+        inherit: true,
+        rules: tokenRules,
+        colors: {},
+    });
+
+    monaco.editor.defineTheme(PEG_LIGHT_THEME_ID, {
+        base: "vs",
+        inherit: true,
+        rules: tokenRules,
+        colors: { "editor.background": "#f5f4f1" },
     });
 }

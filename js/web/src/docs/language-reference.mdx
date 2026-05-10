@@ -1,0 +1,367 @@
+# Reference
+
+Complete guide to the langlang grammar syntax.
+
+## Overview
+
+langlang uses a grammar format based on Parsing Expression Grammars
+(PEG). If you're familiar with regular expressions or BNF notation,
+you'll find the syntax intuitive.
+
+A grammar consists of **productions** (also called rules) that define
+how to parse input. The parser starts from the first production and
+works its way through the grammar recursively.
+
+## Productions
+
+A production has a name on the left, an arrow, and an expression on
+the right:
+
+```peg
+ProductionName <- Expression
+```
+
+The first production in a grammar is the **start rule** — parsing
+begins there.
+
+## Terminals
+
+Terminals match actual characters in the input.
+
+### Literals
+
+Match exact character sequences using single or double quotes:
+
+```peg
+Keyword  <- 'function'
+Greeting <- "hello"
+```
+
+Both quote styles are equivalent. Use whichever makes your grammar more readable (e.g.: double quotes if the literal contains single quotes).
+
+#### Escape Sequences
+
+Standard escape sequences work inside literals:
+
+| Sequence   | Meaning                |
+|------------|------------------------|
+| `\n`       | Newline                |
+| `\r`       | Carriage return        |
+| `\t`       | Tab                    |
+| `\\`       | Backslash              |
+| `\'`       | Single quote           |
+| `\"`       | Double quote           |
+| `\u{XXXX}` | Unicode |
+
+```peg
+Newline <- '\n'
+Tab     <- '\t'
+```
+
+### Character Classes
+
+Match any single character from a set using square brackets:
+
+```peg
+Digit  <- [0-9]
+Letter <- [a-zA-Z]
+Hex    <- [0-9a-fA-F]
+```
+
+`[a-z]` matches any character from 'a' to 'z' (inclusive). You can combine multiple ranges and individual characters:
+
+```peg
+// Matches digits, letters, and underscore
+Identifier <- [a-zA-Z_0-9]
+```
+
+### Any Character
+
+The dot `.` matches any single character except end-of-input:
+
+```peg
+// Match anything until closing quote (using not predicate)
+StringChar <- !'"' . / '\\' .
+```
+
+### Unicode Support
+
+langlang has full Unicode support. You can match characters from any script, including CJK, Arabic, Cyrillic, and even emoji, directly in your grammars.
+
+```peg
+Hiragana  <- [ぁ-ん]         // Match a single Hiragana character
+Katakana  <- [ァ-ン]         // Match a single Katakana character
+Hangul    <- [가-힣]         // Match a single Hangul syllable
+```
+
+## Composition Operators
+
+Build complex expressions from simpler ones.
+
+### Sequence
+
+Expressions separated by whitespace must match in order:
+
+```peg
+// Matches "let x = 5"
+LetStatement <- 'let' Identifier '=' Expression
+```
+
+### Ordered Choice
+
+The `/` operator tries alternatives left-to-right, stopping at the first match:
+
+```peg
+Value <- Number / String / Boolean
+```
+
+Unlike regular expressions or CFGs, PEG choices are **ordered** and **unambiguous** — the first matching alternative wins.
+
+### Grouping
+
+Use parentheses to group sub-expressions:
+
+```peg
+Ambiguous <- 'a' / 'b' 'c'    // Without grouping: matches 'a' OR 'bc'
+
+Clear <- 'a' ('b' / 'c')      // With grouping: matches 'ab' OR 'ac'
+```
+
+## Repetition Operators
+
+Control how many times an expression matches.
+
+### Zero or More (`*`)
+
+Match zero or more occurrences:
+
+```peg
+As <- 'a'*        // Matches "", "a", "aaa", ...
+
+List <- Value (',' Value)* // Matches comma-separated values
+```
+
+Zero-or-more **never fails** — it succeeds even without matching anything.
+
+### One or More (`+`)
+
+Match one or more occurrences:
+
+```peg
+As <- 'a'+        // Matches "a", "aa", "aaa", ... (but not "")
+
+Digits <- [0-9]+  // Must have at least one digit
+```
+
+This is syntactic sugar for `e e*`.
+
+### Optional (`?`)
+
+Match zero or one occurrence:
+
+```peg
+Color    <- 'colo' 'u'? 'r'  // Matches "color" or "colour"
+
+SignedInt <- [+-]? Digits    // Optional sign before number
+```
+
+## Predicates
+
+Predicates look ahead without consuming input.
+
+### Not Predicate (`!`)
+
+Succeeds if the expression **fails** to match (without consuming input):
+
+```peg
+NotQuote   <- !'"' .                          // Match any char that's not a quote
+Identifier <- !Keyword [a-zA-Z_][a-zA-Z0-9_]* // Match word that's not a keyword
+```
+
+This enables **unlimited lookahead** — you can check arbitrarily complex conditions before committing to a match.
+
+```peg
+// Classic PEG example: match content between brackets
+BracketString <- '[' (!']' .)* ']'
+```
+
+### And Predicate (`&`)
+
+Succeeds if the expression **matches** (without consuming input):
+
+```peg
+// Only match if followed by specific char
+SpecialA <- 'a' &'('
+```
+
+Use `&` when you want to assert a positive condition before committing
+to a branch. It reads more clearly than a double negation (`!!e`) in
+those cases:
+
+```peg
+// Assert the identifier starts with a valid character before consuming
+Identifier <- &[a-zA-Z_] [a-zA-Z_0-9]+
+
+// Gate on a delimiter that signals the format to expect
+TypedValue <- &'{' Object / &'[' Array / Scalar
+```
+
+## Whitespace Control
+
+### Automatic Whitespace Handling
+
+langlang automatically inserts whitespace handling between elements of
+non-syntactic productions. A production is **syntactic** if all its
+expressions lead only to terminal matches.
+
+```peg
+// Non-syntactic: calls other production, gets auto-spacing
+Expr <- Int '+' Int
+
+// Syntactic: only terminals, no auto-spacing
+Int <- [0-9]+
+```
+
+For `Expr`, the parser automatically allows whitespace before `Int`,
+`'+'`, and the second `Int`. So `"1+2"` and `"1 + 2"` both parse
+successfully.
+
+### Disabling Auto-Spacing (`#`)
+
+Use `#` to **disable** automatic whitespace handling for an expression:
+
+```peg
+// Without #: "3 rd" would match (spaces between number and suffix)
+// With #: space between number and suffix causes failure
+Ordinal <- Decimal #('st' / 'nd' / 'rd' / 'th')
+Decimal <- [0-9]+
+```
+
+| Input    | Without `#` | With `#`  |
+|----------|-------------|-----------|
+| `"3rd"`  | ✓ matches   | ✓ matches |
+| `"3 rd"` | ✓ matches   | ✗ fails   |
+| `" 3rd"` | ✓ matches   | ✓ matches |
+
+A common use case is string literals where internal spaces matter:
+
+```peg
+// Non-syntactic (calls DQ production)
+String <- DQ #((!DQ .)* DQ)
+DQ     <- '"'
+```
+
+## Error Handling
+
+### Labels
+
+Attach error labels to expressions using `^`:
+
+```peg
+Array <- '[' (Value (',' Value^itemExpected)*)? ']'^closeBracket
+```
+
+When parsing fails at a labeled expression, the label appears in the
+error message instead of a generic "expected X" message.  Labels are
+syntactic sugar for throwing a failure if the labeled expression
+fails.  e.g.: `Exp^label = Exp / throw(label)`
+
+### Recovery Expressions
+
+Recovery rules let the parser continue after errors, producing a partial parse tree with error nodes:
+
+```peg
+// Main grammar
+JSON  <- Value^jsonValue EOF^eof
+Array <- '[' (Value (',' Value^item)*)? ']'^close
+
+// Recovery expressions (lowercase by convention)
+jsonValue <- .*           // Consume rest of input on failure
+item      <- (![,\]] .)*  // Skip until comma or bracket
+close     <-              // Empty: just mark the error
+eof       <- .*
+```
+
+When a labeled expression fails and a recovery rule with that label exists, the parser:
+
+1. Executes the recovery expression
+2. Records an error node in the tree
+3. Continues parsing
+
+This enables "keep parsing" behavior useful for IDEs and linters.
+
+## Import System
+
+Split large grammars across files using imports:
+
+```peg
+// file: main.peg
+@import Value from "./value.peg"
+@import String from "./string.peg"
+
+Document <- Value+
+```
+
+```peg
+// file: value.peg
+Value  <- Number / String
+Number <- [0-9]+
+```
+
+Imported productions and all their dependencies are merged into the importing grammar.
+
+### Import Syntax
+
+```peg
+@import ProductionName from "path/to/file.peg"
+```
+
+- Paths are relative to the importing file
+- Only the named production (and its dependencies) are imported
+- Multiple imports can reference the same file
+
+## Operator Reference
+
+| Operator  | Name           | Description                                        |
+|-----------|----------------|----------------------------------------------------|
+| `'...'`   | Literal        | Match exact string (supports Unicode)              |
+| `[...]`   | Class          | Match character from set (supports Unicode ranges) |
+| `.`       | Any            | Match any single character (including Unicode)     |
+| `e1 e2`   | Sequence       | Match e1 then e2                                   |
+| `e1 / e2` | Ordered Choice | Try e1, then e2 if e1 fails                        |
+| `e*`      | Zero or More   | Match e zero or more times                         |
+| `e+`      | One or More    | Match e one or more times                          |
+| `e?`      | Optional       | Match e zero or one time                           |
+| `!e`      | Not Predicate  | Succeed if e fails (no consume)                    |
+| `&e`      | And Predicate  | Succeed if e matches (no consume)                  |
+| `#e`      | Lexification   | Disable auto-whitespace for e                      |
+| `e^label` | Label          | Attach error label to e                            |
+| `(e)`     | Grouping       | Group expressions                                  |
+
+## Tips and Best Practices
+
+### Avoid Common Pitfalls
+
+#### Greedy Matching
+
+Repetitions are greedy — they consume as much as possible:
+
+```peg
+// WRONG: .* consumes everything including quotes
+BadString <- '"' .* '"'
+
+// CORRECT: stop at the quote
+GoodString <- '"' (!'"' .)* '"'
+```
+
+#### Order Matters
+
+In ordered choice, put specific matches before general ones:
+
+```peg
+// WRONG: 'if' never matches because Identifier matches first
+Keyword <- Identifier / 'if' / 'else'
+
+// CORRECT: keywords before identifier
+Keyword <- 'if' / 'else' / Identifier
+```

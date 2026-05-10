@@ -6,16 +6,24 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && bun run copy-assets",
+    "build:docs": "export LANGLANG_WEB_BASE=/langlang/ LANGLANG_WEB_OUTDIR=../../docs && tsc && vite build && bun run copy-assets",
     "copy-assets": "bun run scripts/copy-assets",
     "preview": "vite preview"
   },
   "dependencies": {
     "@langlang/wasm": "workspace:*",
+    "@mdx-js/react": "^3.1.1",
+    "@mdx-js/rollup": "^3.1.1",
     "@monaco-editor/react": "^4.8.0-rc.3",
     "@pigment-css/react": "^0.0.30",
     "@primer/octicons-react": "^19.21.1",
+    "@types/mdx": "^2.0.13",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router-dom": "^7.15.0",
+    "rehype-autolink-headings": "^7.1.0",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "type-fest": "^5.3.1"
   },
   "devDependencies": {

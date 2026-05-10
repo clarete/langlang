@@ -5,6 +5,7 @@ _/
 __pycache__
 .gocache
 .gopath
+.DS_Store
 
 # go implementation
 go/examples/tiny/tiny.go

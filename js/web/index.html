@@ -3,7 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@langlang/web-test</title>
+    <title>langlang</title>
+    <script>
+      (function () {
+        var saved = localStorage.getItem("ll-theme");
+        var sys = window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+        document.documentElement.setAttribute("data-theme", saved || sys);
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -1,10 +1,18 @@
 "use client";
 
-import React, { Suspense } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.tsx";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 import "./global.css";
+
+import DocLayout from "./layout/DocLayout";
+import PlaygroundLayout from "./layout/PlaygroundLayout";
+import PlaygroundPage from "./pages/PlaygroundPage";
+import HomePage from "./pages/HomePage";
+import GettingStarted from "./docs/getting-started.mdx";
+import LanguageReference from "./docs/language-reference.mdx";
+import Examples from "./docs/examples.mdx";
 
 class ErrorBoundary extends React.Component<
     { children: React.ReactNode; fallback?: React.ReactNode },
@@ -25,18 +33,39 @@ class ErrorBoundary extends React.Component<
 
     render() {
         if (this.state.hasError) {
-            return this.props.fallback ?? <div>Error</div>;
+            return this.props.fallback ?? <div>Error loading page</div>;
         }
-
         return this.props.children;
     }
 }
+
+const router = createBrowserRouter([
+    {
+        path: "/",
+        element: <DocLayout><HomePage /></DocLayout>,
+    },
+    {
+        path: "/getting-started",
+        element: <DocLayout><GettingStarted /></DocLayout>,
+    },
+    {
+        path: "/language-reference",
+        element: <DocLayout><LanguageReference /></DocLayout>,
+    },
+    {
+        path: "/examples",
+        element: <DocLayout><Examples /></DocLayout>,
+    },
+    {
+        path: "/playground",
+        element: <PlaygroundLayout><PlaygroundPage /></PlaygroundLayout>,
+    },
+]);
+
 ReactDOM.createRoot(document.getElementById("app") as HTMLElement).render(
     <React.StrictMode>
         <ErrorBoundary>
-            <Suspense fallback={<div>Loading...</div>}>
-                <App />
-            </Suspense>
+            <RouterProvider router={router} />
         </ErrorBoundary>
     </React.StrictMode>,
 );

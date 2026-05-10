@@ -1,0 +1,289 @@
+# Getting Started
+
+Three ways to use langlang: interactive, ahead-of-time, and dynamic.
+
+## Installation
+
+langlang is currently distributed as a Go binary. To retrieve it, execute the following command:
+
+```bash
+go install github.com/clarete/langlang/go/cmd/langlang@latest
+```
+
+## Interactive Mode
+
+The interactive shell is the fastest way to experiment with grammars.
+It lets you test input strings immediately without generating any code, or calling any API.
+
+### Starting the Interactive Shell
+
+Point the CLI at a grammar file:
+
+```bash
+langlang -grammar ../grammars/json.peg
+```
+
+You'll see a prompt where you can type input to parse:
+
+```
+>
+```
+
+### Testing Input
+
+Type any valid input for your grammar:
+
+```
+> [1, 2, 3]
+JSON (1..2:1)
+└── Value (1..10)
+    └── Array (1..10)
+        └── Sequence<7> (1..10)
+            ├── "[" (1..2)
+            ├── Value (2..3)
+            │   └── Number (2..3)
+            │       └── Int (2..3)
+            │           └── "1" (2..3)
+            ├── "," (3..4)
+            ├── Value (5..6)
+            │   └── Number (5..6)
+            │       └── Int (5..6)
+            │           └── "2" (5..6)
+            ├── "," (6..7)
+            ├── Value (8..9)
+            │   └── Number (8..9)
+            │       └── Int (8..9)
+            │           └── "3" (8..9)
+            └── "]" (9..10)
+```
+
+The output shows the parse tree with:
+- Node names (matching production names in the grammar)
+- Character positions in the format `(start..end)`
+- Hierarchical structure of the parsed input
+
+Example with cleaner output, disabling capture of whitespace nodes:
+
+```bash
+langlang -grammar ../grammars/json.peg -disable-capture-spaces
+```
+
+### Parsing Files
+
+Instead of typing input interactively, parse a file directly:
+
+```bash
+langlang -grammar path/to/grammar.peg -input path/to/file.json
+```
+
+## Ahead-of-Time Code Generation
+
+For production use, generate a standalone parser in your target language. The generated code has no runtime dependencies on langlang.
+
+### Generating Go Parsers
+
+```bash
+langlang \
+  -grammar ./grammar/json.peg \
+  -output-language go \
+  -output-path ./parser/parse_json.go \
+  -go-package parser
+```
+
+This produces a self-contained Go file with:
+- A `Parser` struct (customizable via `-go-parser`)
+- The parsing bytecode
+- A complete virtual machine to execute it
+
+### Using the Generated Parser
+
+```go
+package main
+
+import (
+    "fmt"
+    "your/project/parser"
+)
+
+func main() {
+    p := parser.NewParser()
+    tree, consumed, err := p.Parse([]byte(`{"name": "langlang"}`))
+    if err != nil {
+        fmt.Println("Parse error:", err)
+        return
+    }
+
+    fmt.Printf("Consumed %d bytes\n", consumed)
+
+    // Navigate the tree
+    root, _ := tree.Root()
+    fmt.Println(tree.Pretty(root))
+}
+```
+
+### Code Generation Options
+
+| Flag                    | Description                                             |
+|-------------------------|---------------------------------------------------------|
+| `-output-language LANG` | Target language (`go` or `goeval`)                      |
+| `-output-path PATH`     | Where to write the generated file                       |
+| `-go-package NAME`      | Package name for Go output                              |
+| `-go-parser NAME`       | Custom name for the Parser struct                       |
+| `-go-remove-lib`        | Omit the VM, useful for multiple parsers in one package |
+
+### Generating Multiple Parsers
+
+When you need multiple parsers in the same Go package, use `-go-remove-lib` to avoid duplicate VM definitions:
+
+```bash
+# First parser includes runtime
+langlang \
+  -grammar json.peg \
+  -output-language go \
+  -output-path ./parsers/json.go \
+  -go-package parsers \
+  -go-parser JSONParser
+
+# Second parser omits runtime (shared with first)
+langlang \
+  -grammar csv.peg \
+  -output-language go \
+  -output-path ./parsers/csv.go \
+  -go-package parsers \
+  -go-parser CSVParser \
+  -go-remove-lib
+```
+
+## Compile New Parsers Dynamically
+
+Create parsers at runtime using the Go API. This is useful when:
+
+- Grammars are user provided and/or loaded dynamically
+- You need to parse many different formats without pre-compilation
+- Building tools like editors, linters, or playground environments
+
+### Basic Usage
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/clarete/langlang/go"
+)
+
+func main() {
+    // Create a database with configuration and import loader
+    db := langlang.NewDatabase(
+        langlang.NewConfig(),
+        langlang.NewRelativeImportLoader(),
+    )
+
+    // Build a matcher from a grammar file
+    matcher, err := langlang.QueryMatcher(db, "json.peg")
+    if err != nil {
+        panic(err)
+    }
+
+    // Parse input
+    input := []byte(`{"hello": "world"}`)
+    tree, consumed, err := matcher.Match(input)
+    if err != nil {
+        fmt.Println("Parse error:", err)
+        return
+    }
+
+    fmt.Printf("Consumed %d bytes\n", consumed)
+
+    // Work with the tree
+    root, ok := tree.Root()
+    if ok {
+        fmt.Println(tree.Pretty(root))
+    }
+}
+```
+
+### In-Memory Grammars
+
+For testing or when grammars aren't files, use the in-memory loader:
+
+```go
+loader := langlang.NewInMemoryImportLoader()
+
+// Add grammars as strings
+loader.Add("number.peg", []byte(`
+Number <- [0-9]+
+`))
+
+loader.Add("main.peg", []byte(`
+@import Number from "./number.peg"
+Expr <- Number ('+' Number)*
+`))
+
+db := langlang.NewDatabase(langlang.NewConfig(), loader)
+matcher, _ := langlang.QueryMatcher(db, "main.peg")
+```
+
+### Tree Navigation
+
+The `Tree` interface provides methods to inspect parse results:
+
+```go
+tree, _, _ := matcher.Match(input)
+root, _ := tree.Root()
+
+// Get node information
+nodeType := tree.Type(root)      // NodeType_String, _Sequence, _Node, _Error
+name := tree.Name(root)          // Production name for NodeType_Node
+text := tree.Text(root)          // Matched text
+span := tree.Span(root)          // Start/end positions
+
+// Navigate children
+for _, child := range tree.Children(root) {
+    fmt.Printf("Child: %s = %q\n", tree.Name(child), tree.Text(child))
+}
+
+// Pretty print
+fmt.Println(tree.Pretty(root))    // Plain text
+fmt.Println(tree.Highlight(root)) // With ANSI colors
+```
+
+### Memory Ownership
+
+The tree returned by `Match` is *borrowed* from the matcher. If you call `Match` again, the previous tree becomes invalid.
+
+```go
+// WRONG: tree1 is invalidated when Match is called again
+tree1, _, _ := matcher.Match(input1)
+tree2, _, _ := matcher.Match(input2)  // tree1 is now invalid!
+process(tree1)  // Bug!
+
+// CORRECT: Copy the tree if you need it later
+tree1, _, _ := matcher.Match(input1)
+tree1Copy := tree1.Copy()  // Your own copy
+tree2, _, _ := matcher.Match(input2)
+process(tree1Copy)  // Safe!
+```
+
+### Configuration Options
+
+The `Config` struct controls parser behavior:
+
+```go
+config := langlang.NewConfig()
+
+// Available options (set via functional options or struct fields):
+// - DisableCaptures: Don't build a tree, just match
+// - DisableSpaces: Don't inject automatic space handling
+// - DisableCaptureSpaces: Don't capture whitespace nodes
+// - ShowFails: Collect expected tokens for better errors
+
+db := langlang.NewDatabase(config, loader)
+```
+
+## Next Steps
+
+Now that you know how to use langlang, learn about the grammar language itself:
+
+- [Reference](/docs/language-reference): Complete guide to the PEG syntax
+- [Playground](/playground): Try langlang in your browser

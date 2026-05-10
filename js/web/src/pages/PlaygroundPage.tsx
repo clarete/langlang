@@ -1,52 +1,41 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useLspWorker } from "./worker/useLspWorker";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useLspWorker } from "../worker/useLspWorker";
 import type { Value, Span } from "@langlang/wasm";
 import type { EditorProps, Monaco } from "@monaco-editor/react";
-import MatcherSettingsPanel from "./components/MatcherSettingsPanel";
-import TraceExplorer from "./components/TraceExplorer";
-import SplitView from "./components/SplitView";
-import TreeView from "./components/TreeView";
-import { registerPegLanguage } from "./monaco/peg";
+import MatcherSettingsPanel from "../components/MatcherSettingsPanel";
+import TraceExplorer from "../components/TraceExplorer";
+import SplitView from "../components/SplitView";
+import TreeView from "../components/TreeView";
+import { registerPegLanguage, PEG_THEME_ID, PEG_LIGHT_THEME_ID } from "../monaco/peg";
 import {
     ensureProjectModels,
     fromDocUri,
     startLanglangLsp,
-} from "./monaco/lsp";
-import WorkspaceSidebar from "./components/WorkspaceSidebar";
-import EditorPanel from "./components/EditorPanel";
-import ProjectPanel from "./components/ProjectPanel";
-import { useWorkspacePlayground } from "./workspace/useWorkspacePlayground";
+} from "../monaco/lsp";
+import WorkspaceSidebar from "../components/WorkspaceSidebar";
+import EditorPanel from "../components/EditorPanel";
+import ProjectPanel from "../components/ProjectPanel";
+import { useWorkspacePlayground } from "../workspace/useWorkspacePlayground";
+import { useDebouncedEffect } from "../live/useDebouncedEffect";
 
 import {
     BarHeader,
     BarRoot,
-    BarSpacer,
-    BarTitle,
     SettingsTab,
     Status,
     OutputPanelBody,
     OutputViewContainerWrapper,
     OutputView,
-} from "./App.styles";
+    ErrorDisplay,
+} from "../Playground.styles";
 import {
     PanelBody,
     PanelContainer,
     PanelHeader,
-} from "./components/Panel.styles";
-import { Tabs, Tab } from "./components/Tabs.styles";
-
-function useDebouncedEffect(
-    effect: () => void,
-    deps: React.DependencyList,
-    delay: number,
-) {
-    useEffect(() => {
-        const handle = window.setTimeout(effect, delay);
-        return () => window.clearTimeout(handle);
-    }, deps);
-}
+} from "../components/Panel.styles";
+import { Tabs, Tab } from "../components/Tabs.styles";
 
 function formatError(error: unknown): string {
     if (error instanceof Error) {
@@ -65,7 +54,7 @@ const EDITOR_OPTIONS = {
     scrollBeyondLastLine: false,
 } satisfies EditorProps["options"];
 
-function App() {
+function PlaygroundPage() {
     const [result, setResult] = useState<Value | null>(null);
     const [outputView, setOutputView] = useState<"tree" | "trace">("tree");
     const { status, client, error } = useLspWorker();
@@ -89,6 +78,20 @@ function App() {
     const inputEditorRef = useRef<any | null>(null);
     const monacoRef = useRef<Monaco | null>(null);
     const inputDecorationsRef = useRef<string[]>([]);
+
+    const [monacoTheme, setMonacoTheme] = useState<string>(() =>
+        document.documentElement.getAttribute("data-theme") === "dark"
+            ? PEG_THEME_ID
+            : PEG_LIGHT_THEME_ID,
+    );
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const mode = (e as CustomEvent<string>).detail;
+            setMonacoTheme(mode === "dark" ? PEG_THEME_ID : PEG_LIGHT_THEME_ID);
+        };
+        window.addEventListener("theme-change", handler);
+        return () => window.removeEventListener("theme-change", handler);
+    }, []);
 
     const {
         workspace,
@@ -221,7 +224,6 @@ function App() {
     );
 
     // Debounced compile step (grammar -> matcher)
-    // Now uses the worker client instead of main-thread WASM
     useDebouncedEffect(
         () => {
             if (!client) return;
@@ -274,7 +276,6 @@ function App() {
     );
 
     // Debounced match step (matcher + input -> result tree)
-    // Now uses the worker client instead of main-thread WASM
     useDebouncedEffect(
         () => {
             if (isCompiling) {
@@ -358,47 +359,28 @@ function App() {
         };
     }, [client]);
 
+    const pageStyle: React.CSSProperties = {
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+    };
+
     if (status === "pending") {
-        return <div>Loading...</div>;
+        return <div style={pageStyle} />;
     }
 
     if (status === "error") {
-        return <div>Error: {error?.message}</div>;
+        return (
+            <div style={{ ...pageStyle, padding: "1rem", fontFamily: "monospace", fontSize: "0.85rem" }}>
+                Error: {error?.message}
+            </div>
+        );
     }
 
     if (status === "ready") {
         return (
-            <>
-                <BarRoot>
-                    <BarHeader>
-                        <BarTitle>langlang</BarTitle>
-                        <BarSpacer />
-                        <SettingsTab
-                            type="button"
-                            active={showSettings}
-                            aria-expanded={showSettings}
-                            onClick={() => setShowSettings((v) => !v)}
-                        >
-                            Settings
-                        </SettingsTab>
-                        <Status
-                            title={outputError ?? "Live preview"}
-                            style={{
-                                color: outputError
-                                    ? "rgba(255, 123, 123, 0.9)"
-                                    : "rgba(123, 255, 180, 0.9)",
-                            }}
-                        >
-                            {outputError ? "Error" : "Live"}
-                        </Status>
-                    </BarHeader>
-                    {showSettings ? (
-                        <MatcherSettingsPanel
-                            value={settings}
-                            onChange={setSettings}
-                        />
-                    ) : null}
-                </BarRoot>
+            <div style={pageStyle}>
+                <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
                 <SplitView
                     initialRatio={0.65}
                     left={
@@ -437,6 +419,7 @@ function App() {
                                                 registerMonacoLanguages
                                             }
                                             onMount={onGrammarEditorMount}
+                                            theme={monacoTheme}
                                         />
                                     }
                                     bottom={
@@ -445,6 +428,7 @@ function App() {
                                             language="text"
                                             value={activeInputContent}
                                             options={EDITOR_OPTIONS}
+                                            theme={monacoTheme}
                                             onMount={(editor, monaco) => {
                                                 inputEditorRef.current = editor;
                                                 monacoRef.current = monaco;
@@ -527,17 +511,9 @@ function App() {
                                                     />
                                                 )
                                             ) : outputError ? (
-                                                <div
-                                                    style={{
-                                                        padding: "0.75rem",
-                                                        color: "rgba(255, 123, 123, 0.9)",
-                                                        fontFamily:
-                                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                                                        whiteSpace: "pre-wrap",
-                                                    }}
-                                                >
+                                                <ErrorDisplay>
                                                     {outputError}
-                                                </div>
+                                                </ErrorDisplay>
                                             ) : (
                                                 ""
                                             )}
@@ -548,9 +524,38 @@ function App() {
                         </PanelContainer>
                     }
                 />
-            </>
+                </div>
+                <BarRoot>
+                    <BarHeader>
+                        <SettingsTab
+                            type="button"
+                            active={showSettings}
+                            aria-expanded={showSettings}
+                            onClick={() => setShowSettings((v) => !v)}
+                        >
+                            Settings
+                        </SettingsTab>
+                        <Status
+                            title={outputError ?? "Live preview"}
+                            style={{
+                                color: outputError
+                                    ? "rgba(255, 123, 123, 0.9)"
+                                    : "rgba(123, 255, 180, 0.9)",
+                            }}
+                        >
+                            {outputError ? "Error" : "Live"}
+                        </Status>
+                    </BarHeader>
+                    {showSettings ? (
+                        <MatcherSettingsPanel
+                            value={settings}
+                            onChange={setSettings}
+                        />
+                    ) : null}
+                </BarRoot>
+            </div>
         );
     }
 }
 
-export default App;
+export default PlaygroundPage;

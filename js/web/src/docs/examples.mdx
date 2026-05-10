@@ -1,0 +1,102 @@
+import LiveEditor from '../live/LiveEditor'
+
+# Examples
+
+Each example below is a complete, runnable grammar. Edit the grammar or input and the parse tree updates live.
+
+## CSV
+
+Three rules cover the whole format. `Val` uses a not-predicate (`!`) to consume every character that isn't a comma or newline, which naturally handles empty fields between consecutive commas.
+
+<LiveEditor
+  grammar={`File <- Line*
+Line <- Val (',' Val)* #'\\n'
+Val  <- (![,\\n] .)*`}
+  input={`name,age,city
+Alice,30,Paris
+Bob,,London
+`}
+  height="280px"
+/>
+
+## JSON
+
+`Value` delegates to `Object` and `Array`, both of which reference `Value` again. The recursion just works — PEG resolves it depth-first, so deeply nested structures parse correctly with no extra bookkeeping.
+
+<LiveEditor
+  grammar={`JSON   <- Value
+Value  <- Object / Array / String / Number / 'true' / 'false' / 'null'
+Object <- '{' (Member (',' Member)*)? '}'
+Member <- String ':' Value
+Array  <- '[' (Value (',' Value)*)? ']'
+Number <- '-'? ('0' / [1-9][0-9]*) ('.' [0-9]+)? ([eE][-+]?[0-9]+)?
+String <- '"' (!'"' .)* '"'`}
+  input={`{"name":"langlang","tags":["peg","parser"],"version":1}`}
+  height="300px"
+/>
+
+## Arithmetic — without left recursion
+
+Operator precedence falls out of rule nesting: `Term` handles `*` and `/`; `Expr` handles `+` and `-`. Because `Term` is always resolved before `Expr` sees its result, multiplication binds tighter — no precedence declarations needed.
+
+<LiveEditor
+  grammar={`Expr    <- Term   (('+' / '-') Term)*
+Term    <- Unary  (('*' / '/') Unary)*
+Unary   <- '-' Unary / Primary
+Primary <- '(' Expr ')' / Number
+Number  <- [1-9][0-9]* / '0'`}
+  input={`1 + 2 * 3`}
+  height="280px"
+/>
+
+## Arithmetic — with left recursion
+
+The same language, expressed differently. Superscript numbers are precedence levels: higher binds tighter. `Expr² '*' Expr³` means "a level-2 expression, then `*`, then a level-3 expression." The VM resolves left recursion through memoization — the grammar reads exactly like a textbook operator table.
+
+<LiveEditor
+  grammar={`Expr   <- Expr¹ '+' Expr²
+        / Expr¹ '-' Expr²
+        / Expr² '*' Expr³
+        / Expr² '/' Expr³
+        / '-' Expr³
+        / '(' Expr¹ ')'
+        / Number
+Number <- [1-9][0-9]* / '0'`}
+  input={`1 + 2 * 3`}
+  height="300px"
+/>
+
+## Error labels
+
+Attach `^label` to any sub-expression. When that position fails, the label names the error instead of a generic "unexpected character" message. Here the grammar has labels but no recovery rules — parsing stops at the first failure, but the error clearly says *what* was expected.
+
+<LiveEditor
+  grammar={`Program <- Assign+ EOF
+Assign  <- Name '='^eq Expr^value ';'^semi
+Name    <- [a-z]+
+Expr    <- [0-9]+ / [a-z]+`}
+  input={`x = 1;
+y = ;
+z = 3;`}
+  height="300px"
+/>
+
+## Error recovery
+
+Recovery rules are definitions that share a name with a label. When `^value` fails, the parser runs `value <- (!';' .)*` — consuming input up to the next `;` — then records an error node and continues. `semi <-` is an empty rule: it marks the missing `;` without consuming anything. The result is a complete parse tree covering all three assignments, with an error node only where the value was missing.
+
+<LiveEditor
+  grammar={`Program <- Assign+ EOF
+Assign  <- Name '='^eq Expr^value ';'^semi
+Name    <- [a-z]+
+Expr    <- [0-9]+ / [a-z]+
+
+// recovery expressions
+eq    <- (![0-9a-z] .)*
+value <- (!';' .)*
+semi  <-`}
+  input={`x = 1;
+y = ;
+z = 3;`}
+  height="360px"
+/>

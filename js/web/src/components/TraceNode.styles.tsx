@@ -26,8 +26,8 @@ export const NodeName = styled("div")<{
     parentHighlighted?: boolean;
     level?: number;
 }>({
-    backgroundColor: "hsl(36, 78%, calc(var(--highlight-level, 100) * 0.93%))",
-    color: theme.colors.bg.panel,
+    backgroundColor: theme.colors.bg.controlHover,
+    color: theme.colors.text.primary,
     padding: "0.3rem 0.7rem",
     fontWeight: 500,
     fontSize: "calc(0.5em * var(--line-height))",

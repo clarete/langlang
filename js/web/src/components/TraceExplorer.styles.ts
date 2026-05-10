@@ -5,11 +5,11 @@ export const TraceViewContainer = styled("div")({
     display: "flex",
     flexDirection: "column",
     gap: "0.2rem",
-    // width: "fit-content",
+    overflowX: "auto",
+    padding: "0.75rem",
 });
 
 export const SourceLine = styled("div")({
     display: "flex",
-    // gridTemplateColumns: "repeat(auto-fit, minmax(0, 1fr))",
     gap: "0.2rem",
 });

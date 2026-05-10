@@ -4,6 +4,7 @@ import { PanelBody, PanelContainer, PanelHeader } from "./Panel.styles";
 import { HeaderInner } from "./ProjectPanel.styles";
 import { Tab, Tabs } from "./Tabs.styles";
 import { toDocUri } from "../monaco/lsp";
+import { PEG_THEME_ID } from "../monaco/peg";
 
 export interface ProjectPanelProps {
     project: Project;
@@ -14,6 +15,7 @@ export interface ProjectPanelProps {
     options: EditorProps["options"];
     beforeMount?: EditorProps["beforeMount"];
     onMount?: EditorProps["onMount"];
+    theme?: string;
 }
 
 function basename(path: string) {
@@ -30,6 +32,7 @@ export default function ProjectPanel({
     options,
     beforeMount,
     onMount,
+    theme = PEG_THEME_ID,
 }: ProjectPanelProps) {
     return (
         <PanelContainer>
@@ -52,7 +55,7 @@ export default function ProjectPanel({
             </PanelHeader>
             <PanelBody>
                 <Editor
-                    theme="vs-dark"
+                    theme={theme}
                     beforeMount={beforeMount}
                     language="peg"
                     path={toDocUri(activePath)}

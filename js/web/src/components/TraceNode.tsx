@@ -1,7 +1,7 @@
 import type { Span, Value } from "@langlang/wasm";
 import type React from "react";
 import { NodeContainer, NodeName, SequenceContainer } from "./TraceNode.styles";
-import { useContext, useEffect, useRef } from "react";
+import { useContext, useLayoutEffect, useRef } from "react";
 import { TraceUiContext } from "./TraceExplorer";
 
 interface TraceNodeProps {
@@ -63,27 +63,18 @@ function TraceNode({
     parent,
     onHoverRange,
 }: TraceNodeProps) {
-    const { highlight, setHighlight, leafNodeSizeMap } =
+    const { highlight, setHighlight, leafNodeSizeMap, notifyMeasured } =
         useContext(TraceUiContext);
 
     const nodeNameRef = useRef<HTMLDivElement>(null);
 
-    // observe NodeName element size resize events
-    useEffect(() => {
+    useLayoutEffect(() => {
         const nodeNameElement = nodeNameRef.current;
         if (!renderLeafOnly && node.type === "string" && nodeNameElement) {
-            leafNodeSizeMap.set(
-                parent,
-                nodeNameElement.getBoundingClientRect(),
-            );
-
-            // const observer = new ResizeObserver(() => {
-
-            // });
-            // observer.observe(nodeNameElement);
-            // return () => observer.disconnect();
+            leafNodeSizeMap.set(parent, nodeNameElement.getBoundingClientRect());
+            notifyMeasured();
         }
-    }, [renderLeafOnly, node, parent, leafNodeSizeMap]);
+    }, [renderLeafOnly, node, parent, leafNodeSizeMap, notifyMeasured]);
 
     if (renderLeafOnly && node.type !== "string") {
         return children;
@@ -97,13 +88,7 @@ function TraceNode({
                 ? leafNodeSizeMap.get(parent)
                 : undefined;
 
-            const style = sizeData
-                ? {
-                      width: sizeData.width,
-                      paddingLeft: 0,
-                      paddingRight: 0,
-                  }
-                : {};
+            const style = sizeData ? { width: sizeData.width } : {};
 
             return (
                 <NodeContainer className="string" data-parent={parent} leaf>

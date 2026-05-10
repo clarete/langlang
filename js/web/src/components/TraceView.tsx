@@ -1,8 +1,6 @@
 import type { Span, Value } from "@langlang/wasm";
 import TraceNode from "./TraceNode";
 
-// import { v4 as randomUuid } from "uuid";
-
 interface TraceViewProps {
     tree: Value;
     renderLeafOnly?: boolean;

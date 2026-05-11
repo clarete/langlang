@@ -1,1 +1,23 @@
-soon raccoon
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>langlang</title>
+    <script>
+      (function () {
+        var saved = localStorage.getItem("ll-theme");
+        var sys = window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+        document.documentElement.setAttribute("data-theme", saved || sys);
+      })();
+    </script>
+    <script type="module" crossorigin src="/langlang/assets/index-BUhrDbe2.js"></script>
+    <link rel="stylesheet" crossorigin href="/langlang/assets/index-DQLvz-EN.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
+

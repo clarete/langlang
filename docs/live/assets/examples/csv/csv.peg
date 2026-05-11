@@ -1,3 +1,0 @@
-File <- Line*
-Line <- Val #((',' Val)* '\n')
-Val  <- (![,\n] .)*

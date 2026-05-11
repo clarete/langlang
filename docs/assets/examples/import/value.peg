@@ -1,0 +1,13 @@
+@import Number from "./number.peg"
+@import String from "./string.peg"
+
+Value   <- String / Number / Boolean
+Boolean <- 'true' / 'false'
+
+// Overrides what's defined within Number (see number.peg)
+Binary      <- '0b' [0-1]+
+Hexadecimal <- '0x' [a-fA-F0-9]+^LabelHex
+
+// Recovery expression for failure on the last subexpression of the
+// Hexadecimal rule.
+LabelHex    <- (!' ' .)*

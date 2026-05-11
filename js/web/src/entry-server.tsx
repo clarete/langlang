@@ -9,8 +9,9 @@ import LanguageReference from "./docs/language-reference.mdx";
 import Examples from "./docs/examples.mdx";
 
 export function render(url: string): string {
+    const basename = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
     return ReactDOMServer.renderToString(
-        <StaticRouter location={url}>
+        <StaticRouter location={url} basename={basename}>
             <Routes>
                 <Route path="/" element={<DocLayout><HomePage /></DocLayout>} />
                 <Route path="/getting-started" element={<DocLayout><GettingStarted /></DocLayout>} />

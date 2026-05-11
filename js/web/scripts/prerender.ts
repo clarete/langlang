@@ -9,6 +9,8 @@ const outDir = process.env.LANGLANG_WEB_OUTDIR
     ? path.resolve(process.env.LANGLANG_WEB_OUTDIR)
     : path.resolve(__dirname, "../dist");
 
+const base = (process.env.LANGLANG_WEB_BASE ?? "/").replace(/\/$/, "");
+
 const serverBuildDir = path.resolve(__dirname, "../dist-server");
 const { render } = await import(path.join(serverBuildDir, "entry-server.js"));
 
@@ -23,7 +25,7 @@ const routes = [
 ];
 
 for (const route of routes) {
-    const appHtml = render(route);
+    const appHtml = render(base + route);
     const html = template.replace(
         '<div id="app"></div>',
         `<div id="app">${appHtml}</div>`,

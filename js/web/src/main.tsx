@@ -18,8 +18,6 @@ import Examples from "./docs/examples.mdx";
 const options = {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: '2026-01-30',
-  persistence: 'localStorage+cookie',
-  cookie_domain: window.location.hostname,
 } as const;
 
 class ErrorBoundary extends React.Component<

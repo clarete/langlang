@@ -79,11 +79,14 @@ function PlaygroundPage() {
     const monacoRef = useRef<Monaco | null>(null);
     const inputDecorationsRef = useRef<string[]>([]);
 
-    const [monacoTheme, setMonacoTheme] = useState<string>(() =>
-        document.documentElement.getAttribute("data-theme") === "dark"
-            ? PEG_THEME_ID
-            : PEG_LIGHT_THEME_ID,
-    );
+    const [monacoTheme, setMonacoTheme] = useState<string>(PEG_LIGHT_THEME_ID);
+    useEffect(() => {
+        setMonacoTheme(
+            document.documentElement.getAttribute("data-theme") === "dark"
+                ? PEG_THEME_ID
+                : PEG_LIGHT_THEME_ID,
+        );
+    }, []);
     useEffect(() => {
         const handler = (e: Event) => {
             const mode = (e as CustomEvent<string>).detail;

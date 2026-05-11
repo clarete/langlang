@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
     base: process.env.LANGLANG_WEB_BASE ?? "/",
     plugins: [
         {
@@ -30,8 +30,8 @@ export default defineConfig({
     },
     build: {
         target: "esnext",
-        outDir: process.env.LANGLANG_WEB_OUTDIR ?? "dist",
+        outDir: isSsrBuild ? "dist-server" : (process.env.LANGLANG_WEB_OUTDIR ?? "dist"),
     },
     // Ensure WASM files are served correctly
     assetsInclude: ["**/*.wasm"],
-});
+}));

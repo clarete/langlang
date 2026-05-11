@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { MDXProvider } from "@mdx-js/react";
 import NavBar from "../nav/NavBar";
@@ -41,7 +41,7 @@ export default function DocLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
     const [toc, setToc] = useState<TocEntry[]>([]);
 
-    useLayoutEffect(() => {
+    useEffect(() => {
         const headings = Array.from(
             document.querySelectorAll<HTMLHeadingElement>(
                 ".doc-content h2, .doc-content h3, .doc-content h4",

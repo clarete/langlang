@@ -60,9 +60,10 @@ const router = createBrowserRouter([
         path: "/playground",
         element: <PlaygroundLayout><PlaygroundPage /></PlaygroundLayout>,
     },
-]);
+], { basename: import.meta.env.BASE_URL.replace(/\/$/, "") || "/" });
 
-ReactDOM.createRoot(document.getElementById("app") as HTMLElement).render(
+ReactDOM.hydrateRoot(
+    document.getElementById("app") as HTMLElement,
     <React.StrictMode>
         <ErrorBoundary>
             <RouterProvider router={router} />

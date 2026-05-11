@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>langlang</title>
+    <script>
+      (function () {
+        var saved = localStorage.getItem("ll-theme");
+        var sys = window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+        document.documentElement.setAttribute("data-theme", saved || sys);
+      })();
+    </script>
+    <script type="module" crossorigin src="/langlang/assets/index-C_fUBB_k.js"></script>
+    <link rel="stylesheet" crossorigin href="/langlang/assets/index-DQLvz-EN.css">
+  </head>
+  <body>
+    <div id="app"><div class="d1ohs5ks"><nav class="n13a6h5r"><div class="n1plrfq3"><a class="n1ycxcn" href="/" data-discover="true">{<!-- --> langlang <!-- -->}</a><div class="n1dsa6xi"><a class="n1r39pg2" href="/getting-started" data-discover="true">Getting Started</a><a class="n1r39pg2" href="/language-reference" data-discover="true">Reference</a><a class="n1r39pg2" href="/examples" data-discover="true">Examples</a><a class="n1r39pg2" href="/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="n1r39pg2">GitHub</a></div><button aria-label="Switch to dark mode" title="Switch to dark mode" class="t1s4i7br">☽</button></div></nav><main class="d1nm70v6"><div class="d10qi3ee doc-content"><h1 id="getting-started"><a aria-hidden="true" tabindex="-1" href="#getting-started"><span class="icon icon-link"></span></a>Getting Started</h1>
+<p>Three ways to use langlang: interactive, ahead-of-time, and dynamic.</p>
+<h2 id="installation"><a aria-hidden="true" tabindex="-1" href="#installation"><span class="icon icon-link"></span></a>Installation</h2>
+<p>langlang is currently distributed as a Go binary. To retrieve it, execute the following command:</p>
+<pre><code class="language-bash">go install github.com/clarete/langlang/go/cmd/langlang@latest
+</code></pre>
+<h2 id="interactive-mode"><a aria-hidden="true" tabindex="-1" href="#interactive-mode"><span class="icon icon-link"></span></a>Interactive Mode</h2>
+<p>The interactive shell is the fastest way to experiment with grammars.
+It lets you test input strings immediately without generating any code, or calling any API.</p>
+<h3 id="starting-the-interactive-shell"><a aria-hidden="true" tabindex="-1" href="#starting-the-interactive-shell"><span class="icon icon-link"></span></a>Starting the Interactive Shell</h3>
+<p>Point the CLI at a grammar file:</p>
+<pre><code class="language-bash">langlang -grammar ../grammars/json.peg
+</code></pre>
+<p>You&#x27;ll see a prompt where you can type input to parse:</p>
+<pre><code>&gt;
+</code></pre>
+<h3 id="testing-input"><a aria-hidden="true" tabindex="-1" href="#testing-input"><span class="icon icon-link"></span></a>Testing Input</h3>
+<p>Type any valid input for your grammar:</p>
+<pre><code>&gt; [1, 2, 3]
+JSON (1..2:1)
+└── Value (1..10)
+    └── Array (1..10)
+        └── Sequence&lt;7&gt; (1..10)
+            ├── &quot;[&quot; (1..2)
+            ├── Value (2..3)
+            │   └── Number (2..3)
+            │       └── Int (2..3)
+            │           └── &quot;1&quot; (2..3)
+            ├── &quot;,&quot; (3..4)
+            ├── Value (5..6)
+            │   └── Number (5..6)
+            │       └── Int (5..6)
+            │           └── &quot;2&quot; (5..6)
+            ├── &quot;,&quot; (6..7)
+            ├── Value (8..9)
+            │   └── Number (8..9)
+            │       └── Int (8..9)
+            │           └── &quot;3&quot; (8..9)
+            └── &quot;]&quot; (9..10)
+</code></pre>
+<p>The output shows the parse tree with:</p>
+<ul>
+<li>Node names (matching production names in the grammar)</li>
+<li>Character positions in the format <code>(start..end)</code></li>
+<li>Hierarchical structure of the parsed input</li>
+</ul>
+<p>Example with cleaner output, disabling capture of whitespace nodes:</p>
+<pre><code class="language-bash">langlang -grammar ../grammars/json.peg -disable-capture-spaces
+</code></pre>
+<h3 id="parsing-files"><a aria-hidden="true" tabindex="-1" href="#parsing-files"><span class="icon icon-link"></span></a>Parsing Files</h3>
+<p>Instead of typing input interactively, parse a file directly:</p>
+<pre><code class="language-bash">langlang -grammar path/to/grammar.peg -input path/to/file.json
+</code></pre>
+<h2 id="ahead-of-time-code-generation"><a aria-hidden="true" tabindex="-1" href="#ahead-of-time-code-generation"><span class="icon icon-link"></span></a>Ahead-of-Time Code Generation</h2>
+<p>For production use, generate a standalone parser in your target language. The generated code has no runtime dependencies on langlang.</p>
+<h3 id="generating-go-parsers"><a aria-hidden="true" tabindex="-1" href="#generating-go-parsers"><span class="icon icon-link"></span></a>Generating Go Parsers</h3>
+<pre><code class="language-bash">langlang \
+  -grammar ./grammar/json.peg \
+  -output-language go \
+  -output-path ./parser/parse_json.go \
+  -go-package parser
+</code></pre>
+<p>This produces a self-contained Go file with:</p>
+<ul>
+<li>A <code>Parser</code> struct (customizable via <code>-go-parser</code>)</li>
+<li>The parsing bytecode</li>
+<li>A complete virtual machine to execute it</li>
+</ul>
+<h3 id="using-the-generated-parser"><a aria-hidden="true" tabindex="-1" href="#using-the-generated-parser"><span class="icon icon-link"></span></a>Using the Generated Parser</h3>
+<pre><code class="language-go ll-highlighted">package main
+
+import (
+    &quot;fmt&quot;
+    &quot;your/project/parser&quot;
+)
+
+func main() {
+    p := parser.NewParser()
+    tree, consumed, err := p.Parse([]byte(`{&quot;name&quot;: &quot;langlang&quot;}`))
+    if err != nil {
+        fmt.Println(&quot;Parse error:&quot;, err)
+        return
+    }
+
+    fmt.Printf(&quot;Consumed %d bytes\n&quot;, consumed)
+
+    // Navigate the tree
+    root, _ := tree.Root()
+    fmt.Println(tree.Pretty(root))
+}</code></pre>
+<h3 id="code-generation-options"><a aria-hidden="true" tabindex="-1" href="#code-generation-options"><span class="icon icon-link"></span></a>Code Generation Options</h3>
+<table><thead><tr><th>Flag</th><th>Description</th></tr></thead><tbody><tr><td><code>-output-language LANG</code></td><td>Target language (<code>go</code> or <code>goeval</code>)</td></tr><tr><td><code>-output-path PATH</code></td><td>Where to write the generated file</td></tr><tr><td><code>-go-package NAME</code></td><td>Package name for Go output</td></tr><tr><td><code>-go-parser NAME</code></td><td>Custom name for the Parser struct</td></tr><tr><td><code>-go-remove-lib</code></td><td>Omit the VM, useful for multiple parsers in one package</td></tr></tbody></table>
+<h3 id="generating-multiple-parsers"><a aria-hidden="true" tabindex="-1" href="#generating-multiple-parsers"><span class="icon icon-link"></span></a>Generating Multiple Parsers</h3>
+<p>When you need multiple parsers in the same Go package, use <code>-go-remove-lib</code> to avoid duplicate VM definitions:</p>
+<pre><code class="language-bash"># First parser includes runtime
+langlang \
+  -grammar json.peg \
+  -output-language go \
+  -output-path ./parsers/json.go \
+  -go-package parsers \
+  -go-parser JSONParser
+
+# Second parser omits runtime (shared with first)
+langlang \
+  -grammar csv.peg \
+  -output-language go \
+  -output-path ./parsers/csv.go \
+  -go-package parsers \
+  -go-parser CSVParser \
+  -go-remove-lib
+</code></pre>
+<h2 id="compile-new-parsers-dynamically"><a aria-hidden="true" tabindex="-1" href="#compile-new-parsers-dynamically"><span class="icon icon-link"></span></a>Compile New Parsers Dynamically</h2>
+<p>Create parsers at runtime using the Go API. This is useful when:</p>
+<ul>
+<li>Grammars are user provided and/or loaded dynamically</li>
+<li>You need to parse many different formats without pre-compilation</li>
+<li>Building tools like editors, linters, or playground environments</li>
+</ul>
+<h3 id="basic-usage"><a aria-hidden="true" tabindex="-1" href="#basic-usage"><span class="icon icon-link"></span></a>Basic Usage</h3>
+<pre><code class="language-go ll-highlighted">package main
+
+import (
+    &quot;fmt&quot;
+    &quot;github.com/clarete/langlang/go&quot;
+)
+
+func main() {
+    // Create a database with configuration and import loader
+    db := langlang.NewDatabase(
+        langlang.NewConfig(),
+        langlang.NewRelativeImportLoader(),
+    )
+
+    // Build a matcher from a grammar file
+    matcher, err := langlang.QueryMatcher(db, &quot;json.peg&quot;)
+    if err != nil {
+        panic(err)
+    }
+
+    // Parse input
+    input := []byte(`{&quot;hello&quot;: &quot;world&quot;}`)
+    tree, consumed, err := matcher.Match(input)
+    if err != nil {
+        fmt.Println(&quot;Parse error:&quot;, err)
+        return
+    }
+
+    fmt.Printf(&quot;Consumed %d bytes\n&quot;, consumed)
+
+    // Work with the tree
+    root, ok := tree.Root()
+    if ok {
+        fmt.Println(tree.Pretty(root))
+    }
+}</code></pre>
+<h3 id="in-memory-grammars"><a aria-hidden="true" tabindex="-1" href="#in-memory-grammars"><span class="icon icon-link"></span></a>In-Memory Grammars</h3>
+<p>For testing or when grammars aren&#x27;t files, use the in-memory loader:</p>
+<pre><code class="language-go ll-highlighted">loader := langlang.NewInMemoryImportLoader()
+
+// Add grammars as strings
+loader.Add(&quot;number.peg&quot;, []byte(`
+Number &lt;- [0-9]+
+`))
+
+loader.Add(&quot;main.peg&quot;, []byte(`
+@import Number from &quot;./number.peg&quot;
+Expr &lt;- Number (&#x27;+&#x27; Number)*
+`))
+
+db := langlang.NewDatabase(langlang.NewConfig(), loader)
+matcher, _ := langlang.QueryMatcher(db, &quot;main.peg&quot;)</code></pre>
+<h3 id="tree-navigation"><a aria-hidden="true" tabindex="-1" href="#tree-navigation"><span class="icon icon-link"></span></a>Tree Navigation</h3>
+<p>The <code>Tree</code> interface provides methods to inspect parse results:</p>
+<pre><code class="language-go ll-highlighted">tree, _, _ := matcher.Match(input)
+root, _ := tree.Root()
+
+// Get node information
+nodeType := tree.Type(root)      // NodeType_String, _Sequence, _Node, _Error
+name := tree.Name(root)          // Production name for NodeType_Node
+text := tree.Text(root)          // Matched text
+span := tree.Span(root)          // Start/end positions
+
+// Navigate children
+for _, child := range tree.Children(root) {
+    fmt.Printf(&quot;Child: %s = %q\n&quot;, tree.Name(child), tree.Text(child))
+}
+
+// Pretty print
+fmt.Println(tree.Pretty(root))    // Plain text
+fmt.Println(tree.Highlight(root)) // With ANSI colors</code></pre>
+<h3 id="memory-ownership"><a aria-hidden="true" tabindex="-1" href="#memory-ownership"><span class="icon icon-link"></span></a>Memory Ownership</h3>
+<p>The tree returned by <code>Match</code> is <em>borrowed</em> from the matcher. If you call <code>Match</code> again, the previous tree becomes invalid.</p>
+<pre><code class="language-go ll-highlighted">// WRONG: tree1 is invalidated when Match is called again
+tree1, _, _ := matcher.Match(input1)
+tree2, _, _ := matcher.Match(input2)  // tree1 is now invalid!
+process(tree1)  // Bug!
+
+// CORRECT: Copy the tree if you need it later
+tree1, _, _ := matcher.Match(input1)
+tree1Copy := tree1.Copy()  // Your own copy
+tree2, _, _ := matcher.Match(input2)
+process(tree1Copy)  // Safe!</code></pre>
+<h3 id="configuration-options"><a aria-hidden="true" tabindex="-1" href="#configuration-options"><span class="icon icon-link"></span></a>Configuration Options</h3>
+<p>The <code>Config</code> struct controls parser behavior:</p>
+<pre><code class="language-go ll-highlighted">config := langlang.NewConfig()
+
+// Available options (set via functional options or struct fields):
+// - DisableCaptures: Don&#x27;t build a tree, just match
+// - DisableSpaces: Don&#x27;t inject automatic space handling
+// - DisableCaptureSpaces: Don&#x27;t capture whitespace nodes
+// - ShowFails: Collect expected tokens for better errors
+
+db := langlang.NewDatabase(config, loader)</code></pre>
+<h2 id="next-steps"><a aria-hidden="true" tabindex="-1" href="#next-steps"><span class="icon icon-link"></span></a>Next Steps</h2>
+<p>Now that you know how to use langlang, learn about the grammar language itself:</p>
+<ul>
+<li><a href="/docs/language-reference">Reference</a>: Complete guide to the PEG syntax</li>
+<li><a href="/playground">Playground</a>: Try langlang in your browser</li>
+</ul></div></main><footer class="dggeqbd"><nav class="dpdqs1o"><a class="d12zrerw" href="/" data-discover="true">Home</a><a class="d12zrerw" href="/getting-started" data-discover="true">Getting Started</a><a class="d12zrerw" href="/language-reference" data-discover="true">Reference</a><a class="d12zrerw" href="/examples" data-discover="true">Examples</a><a class="d12zrerw" href="/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="d12zrerw">GitHub</a></nav><p class="d1bcvdnu">Made with ♥ by<!-- --> <a href="https://clarete.li" target="_blank" rel="noopener noreferrer">@clarete</a></p></footer></div></div>
+  </body>
+</html>
+

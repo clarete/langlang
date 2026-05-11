@@ -14,7 +14,9 @@ export function applyTheme(mode: ThemeMode) {
 }
 
 export default function ThemeToggle() {
-    const [mode, setMode] = useState<ThemeMode>(currentTheme);
+    const [mode, setMode] = useState<ThemeMode>("light");
+
+    useEffect(() => { setMode(currentTheme()); }, []);
 
     useEffect(() => {
         const handler = (e: Event) => setMode((e as CustomEvent<ThemeMode>).detail);

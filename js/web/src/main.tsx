@@ -3,6 +3,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { PostHogProvider } from '@posthog/react'
 
 import "./global.css";
 
@@ -13,6 +14,11 @@ import HomePage from "./pages/HomePage";
 import GettingStarted from "./docs/getting-started.mdx";
 import LanguageReference from "./docs/language-reference.mdx";
 import Examples from "./docs/examples.mdx";
+
+const options = {
+  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+  defaults: '2026-01-30',
+} as const;
 
 class ErrorBoundary extends React.Component<
     { children: React.ReactNode; fallback?: React.ReactNode },
@@ -65,8 +71,10 @@ const router = createBrowserRouter([
 ReactDOM.hydrateRoot(
     document.getElementById("app") as HTMLElement,
     <React.StrictMode>
-        <ErrorBoundary>
-            <RouterProvider router={router} />
-        </ErrorBoundary>
+        <PostHogProvider apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN} options={options}>
+            <ErrorBoundary>
+                <RouterProvider router={router} />
+            </ErrorBoundary>
+        </PostHogProvider>
     </React.StrictMode>,
 );

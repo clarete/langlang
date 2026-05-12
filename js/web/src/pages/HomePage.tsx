@@ -1,5 +1,5 @@
 import LiveEditor from "../live/LiveEditor";
-import { jsonStrippedGrammar, jsonSmallInput } from "../examples/presets";
+import { sexprGrammar, sexprInput } from "../examples/presets";
 import {
     HomeMain,
     HomeIntro,
@@ -24,7 +24,7 @@ export default function HomePage() {
                     <li>Ahead-of-time parsers are output with no external dependencies</li>
                 </HomeFeatures>
             </HomeIntro>
-            <LiveEditor grammar={jsonStrippedGrammar} input={jsonSmallInput} height="480px" />
+            <LiveEditor grammar={sexprGrammar} input={sexprInput} height="400px" />
         </HomeMain>
     );
 }

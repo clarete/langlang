@@ -77,6 +77,23 @@ Number <- [1-9][0-9]* / '0'`}
   height="300px"
 />
 
+## URL
+
+<LiveEditor
+  grammar={`URL     <- Scheme '://' Host (':' Port)? ('/' Path)? ('?' Query)?
+Scheme  <- [a-zA-Z][a-zA-Z0-9+\-.]*
+Host    <- Label ('.' Label)*
+Label   <- [a-zA-Z0-9][a-zA-Z0-9\-]*
+Port    <- [0-9]+
+Path    <- Segment ('/' Segment)*
+Segment <- [a-zA-Z0-9._~%\-]*
+Query   <- Param ('&' Param)*
+Param   <- [a-zA-Z0-9_]+ '=' [a-zA-Z0-9_%+\-]*`
+}
+  input={`https://api.example.com:8080/v1/users?page=1&limit=20`}
+  height="300px"
+/>
+
 ## Error labels
 
 Attach `^label` to any sub-expression. When that position fails, the label names the error instead of a generic "unexpected character" message. Here the grammar has labels but no recovery rules — parsing stops at the first failure, but the error clearly says *what* was expected.

@@ -31,6 +31,21 @@ export const LiveEditorStatusBar = styled("div")({
     userSelect: "none",
 });
 
+export const LiveEditorExpandButton = styled("button")({
+    marginRight: "auto",
+    background: "none",
+    border: "none",
+    padding: "0.1rem 0.2rem",
+    cursor: "pointer",
+    color: theme.colors.text.muted,
+    lineHeight: 1,
+    display: "flex",
+    alignItems: "center",
+    "&:hover": {
+        color: theme.colors.text.primary,
+    },
+});
+
 export const LiveEditorStatusDot = styled("span")<{ error?: boolean }>({
     display: "inline-block",
     width: "6px",

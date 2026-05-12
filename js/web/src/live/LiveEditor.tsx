@@ -11,6 +11,7 @@ import {
     LiveEditorBody,
     LiveEditorStatusBar,
     LiveEditorStatusDot,
+    LiveEditorExpandButton,
     LiveEditorSide,
     LiveEditorPanelLabel,
     LiveEditorLoading,
@@ -58,6 +59,7 @@ export default function LiveEditor({
 }: LiveEditorProps) {
     const [grammar, setGrammar] = useState(initialGrammar);
     const [input, setInput] = useState(initialInput);
+    const [isFullPage, setIsFullPage] = useState(false);
 
     const windowWidth = useWindowWidth();
     const isNarrow = windowWidth < 768;
@@ -117,6 +119,15 @@ export default function LiveEditor({
             },
         }]);
     }, [hoverRange]);
+
+    useEffect(() => {
+        if (!isFullPage) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setIsFullPage(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [isFullPage]);
 
     const beforeMount = (monaco: Monaco) => {
         monacoRef.current = monaco;
@@ -203,8 +214,12 @@ export default function LiveEditor({
 
     const panelHeight = "180px";
 
+    const rootStyle = isFullPage
+        ? { position: "fixed" as const, inset: 0, height: "100%", zIndex: 1000, borderRadius: 0 }
+        : { height: isNarrow ? "auto" : height };
+
     return (
-        <LiveEditorRoot style={{ height: isNarrow ? "auto" : height }}>
+        <LiveEditorRoot style={rootStyle}>
             {isNarrow ? (
                 <LiveEditorBody style={{ flexDirection: "column" }}>
                     <div style={{ height: panelHeight, flexShrink: 0 }}>{grammarEditor}</div>
@@ -214,7 +229,7 @@ export default function LiveEditor({
                 </LiveEditorBody>
             ) : showOutput ? (
                 <SplitView
-                    initialRatio={0.6}
+                    initialRatio={0.72}
                     top={
                         <LiveEditorBody>
                             <SplitView
@@ -242,6 +257,13 @@ export default function LiveEditor({
                 </LiveEditorBody>
             )}
             <LiveEditorStatusBar>
+                <LiveEditorExpandButton
+                    type="button"
+                    onClick={() => setIsFullPage((v) => !v)}
+                    title={isFullPage ? "Exit full page (Esc)" : "Expand to full page"}
+                >
+                    {isFullPage ? "⊠" : "⛶"}
+                </LiveEditorExpandButton>
                 <LiveEditorStatusDot error={!!outputError} />
                 {outputError ? "Error" : "Live"}
             </LiveEditorStatusBar>

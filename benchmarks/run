@@ -17,17 +17,6 @@ declare -a external_suites=(
 
 # Langlang versions to compare (git tags, branches, or commit hashes)
 declare -a langlang_versions=(
-    # "go/v0.0.1"
-    # "go/v0.0.2"
-    # "go/v0.0.3"
-    # "go/v0.0.4"
-    # "go/v0.0.5"
-    # "go/v0.0.6"
-    # "go/v0.0.7"
-    # "go/v0.0.8"
-    # "go/v0.0.9"
-    "go/v0.0.10"
-    "go/v0.0.11"
     "go/v0.0.12"
 )
 
@@ -152,14 +141,9 @@ run_external_benchmarks() {
     fetch_treesitter_grammar "$SCRIPT_DIR/treesitter_json"
     record_environment "${OUTPUT_ROOT}/external"
 
-    echo -n "Regenerating parsers... "
-    go generate -tags=external ./...
-    if [ $? -eq 0 ]; then
-        echo "OK"
-    else
-        echo "FAIL"
-        return 1
-    fi
+    # Skip `go generate -tags=external`.  Generators (pigeon, peg,
+    # antlr jar, treesitter grammar) aren't required at run time, and
+    # the generated parser files are checked in.
 
     for suite in "${external_suites[@]}"; do
         echo "Benchmarking: $suite"
@@ -187,6 +171,12 @@ run_langlang_version() {
     rm -rf "$worktree_path/benchmarks"
     cp -r "$SCRIPT_DIR" "$worktree_path/benchmarks"
     rm -rf "$worktree_path/benchmarks/output"
+
+    # The harness reads inputs from ../testdata/json/. That layout is
+    # newer than some tagged versions, so ship the current testdata into
+    # the worktree.
+    rm -rf "$worktree_path/testdata"
+    cp -r "$LANGLANG_ROOT/testdata" "$worktree_path/testdata"
 
     cd "$worktree_path/benchmarks"
 

@@ -148,7 +148,7 @@ func getVersion(parser string) string {
 			return v
 		}
 		return "dev"
-	case "buger_jsonparser":
+	case "buger_jsonparser", "buger_jsonparser_skim":
 		if v, ok := moduleVersions["github.com/buger/jsonparser"]; ok {
 			return v
 		}

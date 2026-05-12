@@ -26,6 +26,7 @@ import (
 func init() {
 	registerParser("encoding_json", benchmarkEncodingJSON)
 	registerParser("buger_jsonparser", benchmarkBugerJSONParser)
+	registerParser("buger_jsonparser_skim", benchmarkBugerJSONParserSkim)
 	registerParser("pigeon", benchmarkPigeonParser)
 	registerParser("pointlander", benchmarkPointlanderParser)
 	registerParser("pointlander_stripped", benchmarkPointlanderStrippedParser)
@@ -43,7 +44,53 @@ func benchmarkEncodingJSON(b *testing.B, data []byte) {
 	}
 }
 
+// Recursively visit every value, unescape strings, parse numbers and
+// booleans.
+//
+// This puts buger on the same scope as the other "validator" /
+// "no-tree" configs (langlang_*_nocap).  i.e. fully consume the input
+// and decode every leaf, but don't retain a tree.
+//
+// See the "skim" benchmark for the simpler tree walking top-level
+// array boundaries + top-level object keys, skipping all value
+// contents.
 func benchmarkBugerJSONParser(b *testing.B, data []byte) {
+	var visit func(val []byte, dt jsonparser.ValueType)
+	visit = func(val []byte, dt jsonparser.ValueType) {
+		switch dt {
+		case jsonparser.String:
+			_, _ = jsonparser.ParseString(val)
+		case jsonparser.Number:
+			_, _ = jsonparser.ParseFloat(val)
+		case jsonparser.Boolean:
+			_, _ = jsonparser.ParseBoolean(val)
+		case jsonparser.Object:
+			_ = jsonparser.ObjectEach(val, func(k, v []byte, dt jsonparser.ValueType, _ int) error {
+				_, _ = jsonparser.ParseString(k)
+				visit(v, dt)
+				return nil
+			})
+		case jsonparser.Array:
+			_, _ = jsonparser.ArrayEach(val, func(v []byte, dt jsonparser.ValueType, _ int, _ error) {
+				visit(v, dt)
+			})
+		}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := jsonparser.ArrayEach(data, func(v []byte, dt jsonparser.ValueType, _ int, _ error) {
+			visit(v, dt)
+		})
+		if err != nil {
+			b.Fatalf("error in buger/jsonparser: %v", err)
+		}
+	}
+}
+
+// The "skim" variant for reference. walks the top-level array and
+// each object's top-level keys without parsing any value
+// contents. Reported as the no-work ceiling.
+func benchmarkBugerJSONParserSkim(b *testing.B, data []byte) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
@@ -130,4 +177,3 @@ func benchmarkTreeSitterParser(b *testing.B, data []byte) {
 		tree.Close()
 	}
 }
-

@@ -66,7 +66,7 @@ interface TocEntry {
     level: number;
 }
 
-function TableOfContents({ entries }: { entries: TocEntry[] }) {
+function TableOfContents({ entries, activeId }: { entries: TocEntry[]; activeId: string }) {
     if (entries.length === 0) return null;
     return (
         <DocSidebar>
@@ -74,7 +74,7 @@ function TableOfContents({ entries }: { entries: TocEntry[] }) {
             <DocTocList>
                 {entries.map((e) => (
                     <DocTocItem key={e.id} level={e.level}>
-                        <DocTocLink href={`#${e.id}`}>{e.text}</DocTocLink>
+                        <DocTocLink href={`#${e.id}`} data-active={e.id === activeId ? "true" : undefined}>{e.text}</DocTocLink>
                     </DocTocItem>
                 ))}
             </DocTocList>
@@ -85,6 +85,7 @@ function TableOfContents({ entries }: { entries: TocEntry[] }) {
 export default function DocLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
     const [toc, setToc] = useState<TocEntry[]>([]);
+    const [activeId, setActiveId] = useState<string>("");
 
     useEffect(() => {
         const headings = Array.from(
@@ -105,14 +106,39 @@ export default function DocLayout({ children }: { children: React.ReactNode }) {
                     };
                 }),
         );
+        setActiveId("");
     }, [location.pathname]);
+
+    useEffect(() => {
+        if (toc.length === 0) return;
+
+        function update() {
+            const headings = Array.from(
+                document.querySelectorAll<HTMLElement>(
+                    ".doc-content h2, .doc-content h3, .doc-content h4",
+                ),
+            ).filter((h) => h.id);
+            if (headings.length === 0) return;
+            // Nav bar is ~3.5rem tall; activate a heading once it reaches that line
+            const threshold = 64;
+            let active = headings[0].id;
+            for (const h of headings) {
+                if (h.getBoundingClientRect().top <= threshold) active = h.id;
+            }
+            setActiveId(active);
+        }
+
+        update();
+        window.addEventListener("scroll", update, { passive: true });
+        return () => window.removeEventListener("scroll", update);
+    }, [toc]);
 
     return (
         <MDXProvider components={mdxComponents}>
             <DocRoot>
                 <NavBar />
                 <DocMain>
-                    <TableOfContents entries={toc} />
+                    <TableOfContents entries={toc} activeId={activeId} />
                     <DocContent className="doc-content">{children}</DocContent>
                 </DocMain>
                 <SiteFooter />

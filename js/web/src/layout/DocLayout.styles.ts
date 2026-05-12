@@ -222,9 +222,14 @@ export const DocTocLink = styled("a")({
     padding: "0.2rem 0.4rem",
     borderRadius: theme.radii.sm,
     lineHeight: 1.4,
+    transition: "color 0.15s",
     "&:hover": {
         color: theme.colors.text.primary,
         background: theme.colors.hover.row,
+    },
+    "&[data-active='true']": {
+        color: theme.colors.accent.cream,
+        fontWeight: 500,
     },
 });
 

@@ -1,23 +1,44 @@
 import LiveEditor from '../live/LiveEditor'
-import { jsonStrippedGrammar, jsonSmallInput, csvGrammar, csvMissionsInput } from '../examples/presets'
+import { jsonStrippedGrammar, jsonSmallInput, csvGrammar } from '../examples/presets'
 
 # Examples
 
-Each example below is a complete, runnable grammar. Edit the grammar or input and the parse tree updates live.
+Each example below is a complete, runnable grammar. Edit the grammar
+or input and the parse tree updates live.
+
+## Multilingual Identifier
+
+Identifiers that allow letters from multiple scripts
+
+<LiveEditor
+  grammar={`Identifier <- IdentStart IdentCont*
+IdentStart <- [a-zA-Z_] / [α-ω] / [а-я] / [ぁ-んァ-ン]
+IdentCont  <- IdentStart / [0-9]`}
+  input={`φαση`}
+  height="200px"
+  />
 
 ## CSV
 
-Three rules cover the whole format. `Val` uses a not-predicate (`!`) to consume every character that isn't a comma or newline, which naturally handles empty fields between consecutive commas.
+This covers a limited portion of CSV inputs, but it's a good
+demonstration of how powerful just three grammar rules can be. `Val`
+uses a not-predicate (`!`)  to consume every character that isn't a
+comma or newline, which naturally handles empty fields between
+consecutive commas.
 
 <LiveEditor
   grammar={csvGrammar}
-  input={csvMissionsInput}
+  input={`id,name,email
+1,Alice,alice@example.com
+2,Bob,bob@example.com
+3,Charlie,charlie@example.com
+`}
   height="280px"
 />
 
 ## JSON
 
-`Value` delegates to `Object` and `Array`, both of which reference `Value` again. The recursion just works — PEG resolves it depth-first, so deeply nested structures parse correctly with no extra bookkeeping.
+This grammar encompasses the whole [https://json.org](https://www.json.org) standard.
 
 <LiveEditor
   grammar={jsonStrippedGrammar}

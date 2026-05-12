@@ -85,14 +85,49 @@ StringChar <- !'"' . / '\\' .
 ```
 
 ### Unicode Support
+#### Unicode Literals
 
 langlang has full Unicode support. You can match characters from any script, including CJK, Arabic, Cyrillic, and even emoji, directly in your grammars.
 
 ```peg
-Hiragana  <- [ぁ-ん]         // Match a single Hiragana character
-Katakana  <- [ァ-ン]         // Match a single Katakana character
-Hangul    <- [가-힣]         // Match a single Hangul syllable
+Konnichiwa <- 'こんにちは'      // Japanese greeting
+Annyeong   <- '안녕하세요'       // Korean greeting
+Marhaba    <- 'مرحبا'           // Arabic greeting
+Privet     <- 'привет'        // Russian greeting
 ```
+
+#### Unicode in Character Classes
+
+Character classes work with Unicode characters, including ranges:
+
+```peg
+Hiragana  <- [ぁ-ん]             // Match a single Hiragana character
+Katakana  <- [ァ-ン]             // Match a single Katakana character
+Hangul    <- [가-힣]             // Match a single Hangul syllable
+Cyrillic  <- [а-я]              // Match Cyrillic lowercase letters
+MixedWord <- [a-zA-Zあ-ん]+      // Mix Unicode with ASCII
+```
+
+#### Emoji and Non-BMP Characters
+
+langlang supports characters outside the Basic Multilingual Plane
+(BMP), including emoji. These require 4 bytes in UTF-8 and codepoints
+above U+FFFF.
+
+```peg
+// Match specific emoji
+Brain <- '🧠'
+Heart <- '❤'
+
+// Match range of emoji: Brain, DNA, microbe, petri dish, test tube, etc.
+ScienceEmoji <- [🧠-🧬]
+
+// Combine emoji with text
+Reaction <- '👍' / '👎' / '❤' / '😂'
+```
+
+For example, `[🧠-🧬]` matches any emoji from U+1F9E0 (brain) to
+U+1F9EC (DNA double helix).
 
 ## Composition Operators
 

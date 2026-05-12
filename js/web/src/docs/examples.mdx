@@ -35,7 +35,7 @@ String <- '"' (!'"' .)* '"'`}
   height="300px"
 />
 
-## Arithmetic — without left recursion
+## Arithmetic without left recursion
 
 Operator precedence falls out of rule nesting: `Term` handles `*` and `/`; `Expr` handles `+` and `-`. Because `Term` is always resolved before `Expr` sees its result, multiplication binds tighter — no precedence declarations needed.
 
@@ -49,12 +49,12 @@ Number  <- [1-9][0-9]* / '0'`}
   height="280px"
 />
 
-## Arithmetic — with left recursion
+## Arithmetic with left recursion
 
 The same language, expressed differently. Superscript numbers are precedence levels: higher binds tighter. `Expr² '*' Expr³` means "a level-2 expression, then `*`, then a level-3 expression." The VM resolves left recursion through memoization — the grammar reads exactly like a textbook operator table.
 
 <LiveEditor
-  grammar={`Expr   <- Expr¹ '+' Expr²
+  grammar={`Expr <- Expr¹ '+' Expr²
         / Expr¹ '-' Expr²
         / Expr² '*' Expr³
         / Expr² '/' Expr³

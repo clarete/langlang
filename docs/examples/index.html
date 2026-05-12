@@ -13,8 +13,8 @@
         document.documentElement.setAttribute("data-theme", saved || sys);
       })();
     </script>
-    <script type="module" crossorigin src="/langlang/assets/index-CzHvDnZc.js"></script>
-    <link rel="stylesheet" crossorigin href="/langlang/assets/index-CEsNYGnS.css">
+    <script type="module" crossorigin src="/langlang/assets/index-DYdlWkVd.js"></script>
+    <link rel="stylesheet" crossorigin href="/langlang/assets/index-BJGzhd23.css">
   </head>
   <body>
     <div id="app"><div class="d1ohs5ks"><nav class="n13a6h5r"><div class="n1plrfq3"><a class="n1ycxcn" href="/langlang" data-discover="true">{<!-- --> langlang <!-- -->}</a><div class="n1dsa6xi"><a class="n1ag2bzv" href="/langlang/getting-started" data-discover="true">Getting Started</a><a class="n1ag2bzv" href="/langlang/language-reference" data-discover="true">Reference</a><a class="n1ag2bzv" href="/langlang/examples" data-discover="true">Examples</a><a class="n1ag2bzv" href="/langlang/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="n1ag2bzv">GitHub</a></div><button aria-label="Switch to dark mode" title="Switch to dark mode" class="tlkoiqm">☽</button><button aria-label="Open menu" aria-expanded="false" class="h1r39pg2">☰</button></div></nav><main class="d1nm70v6"><div class="d10qi3ee doc-content"><h1 id="examples"><a aria-hidden="true" tabindex="-1" href="#examples"><span class="icon icon-link"></span></a>Examples</h1>
@@ -38,6 +38,8 @@ consecutive commas.</p>
 <div class="lb63d0q" style="height:280px"><div class="lat19ed">Initializing WASM…</div></div>
 <h2 id="arithmetic-with-left-recursion"><a aria-hidden="true" tabindex="-1" href="#arithmetic-with-left-recursion"><span class="icon icon-link"></span></a>Arithmetic with left recursion<a href="#arithmetic-with-left-recursion" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>The same language, expressed differently. Superscript numbers are precedence levels: higher binds tighter. <code>Expr² &#x27;*&#x27; Expr³</code> means &quot;a level-2 expression, then <code>*</code>, then a level-3 expression.&quot; The VM resolves left recursion through memoization — the grammar reads exactly like a textbook operator table.</p>
+<div class="lb63d0q" style="height:300px"><div class="lat19ed">Initializing WASM…</div></div>
+<h2 id="url"><a aria-hidden="true" tabindex="-1" href="#url"><span class="icon icon-link"></span></a>URL<a href="#url" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <div class="lb63d0q" style="height:300px"><div class="lat19ed">Initializing WASM…</div></div>
 <h2 id="error-labels"><a aria-hidden="true" tabindex="-1" href="#error-labels"><span class="icon icon-link"></span></a>Error labels<a href="#error-labels" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Attach <code>^label</code> to any sub-expression. When that position fails, the label names the error instead of a generic &quot;unexpected character&quot; message. Here the grammar has labels but no recovery rules — parsing stops at the first failure, but the error clearly says <em>what</em> was expected.</p>

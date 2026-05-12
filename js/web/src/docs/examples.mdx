@@ -15,7 +15,7 @@ Identifiers that allow letters from multiple scripts
 IdentStart <- [a-zA-Z_] / [α-ω] / [а-я] / [ぁ-んァ-ン]
 IdentCont  <- IdentStart / [0-9]`}
   input={`φαση`}
-  height="200px"
+  height="500px"
   />
 
 ## CSV
@@ -33,7 +33,7 @@ consecutive commas.
 2,Bob,bob@example.com
 3,Charlie,charlie@example.com
 `}
-  height="280px"
+  height="480px"
 />
 
 ## JSON
@@ -43,7 +43,7 @@ This grammar encompasses the whole [https://json.org](https://www.json.org) stan
 <LiveEditor
   grammar={jsonStrippedGrammar}
   input={jsonSmallInput}
-  height="300px"
+  height="500px"
 />
 
 ## Arithmetic without left recursion
@@ -57,7 +57,7 @@ Unary   <- '-' Unary / Primary
 Primary <- '(' Expr ')' / Number
 Number  <- [1-9][0-9]* / '0'`}
   input={`1 + 2 * 3`}
-  height="280px"
+  height="580px"
 />
 
 ## Arithmetic with left recursion
@@ -74,7 +74,7 @@ The same language, expressed differently. Superscript numbers are precedence lev
         / Number
 Number <- [1-9][0-9]* / '0'`}
   input={`1 + 2 * 3`}
-  height="300px"
+  height="500px"
 />
 
 ## URL
@@ -91,7 +91,7 @@ Query   <- Param ('&' Param)*
 Param   <- [a-zA-Z0-9_]+ '=' [a-zA-Z0-9_%+\-]*`
 }
   input={`https://api.example.com:8080/v1/users?page=1&limit=20`}
-  height="300px"
+  height="500px"
 />
 
 ## Error labels

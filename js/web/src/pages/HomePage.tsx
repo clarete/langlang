@@ -24,7 +24,7 @@ export default function HomePage() {
                     <li>Ahead-of-time parsers are output with no external dependencies</li>
                 </HomeFeatures>
             </HomeIntro>
-            <LiveEditor grammar={sexprGrammar} input={sexprInput} height="400px" />
+            <LiveEditor grammar={sexprGrammar} input={sexprInput} height="680px" />
         </HomeMain>
     );
 }

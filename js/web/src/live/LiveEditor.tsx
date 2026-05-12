@@ -15,8 +15,6 @@ import {
     LiveEditorPanelLabel,
     LiveEditorLoading,
     LiveEditorOutputPane,
-    LiveEditorTabs,
-    LiveEditorTab,
 } from "./LiveEditor.styles";
 import { ErrorDisplay } from "../Playground.styles";
 
@@ -47,7 +45,6 @@ export interface LiveEditorProps {
     grammar?: string;
     input?: string;
     height?: string;
-    defaultView?: "tree" | "trace";
     showOutput?: boolean;
     settings?: LiveEditorSettings;
 }
@@ -56,13 +53,11 @@ export default function LiveEditor({
     grammar: initialGrammar = "",
     input: initialInput = "",
     height = "380px",
-    defaultView = "tree",
     showOutput = true,
     settings,
 }: LiveEditorProps) {
     const [grammar, setGrammar] = useState(initialGrammar);
     const [input, setInput] = useState(initialInput);
-    const [outputView, setOutputView] = useState<"tree" | "trace">(defaultView);
 
     const windowWidth = useWindowWidth();
     const isNarrow = windowWidth < 768;
@@ -166,32 +161,10 @@ export default function LiveEditor({
 
     const outputPanel = showOutput ? (
         <LiveEditorSide style={{ minWidth: "180px" }}>
-            <LiveEditorTabs>
-                <LiveEditorTab
-                    type="button"
-                    active={outputView === "tree"}
-                    onClick={() => setOutputView("tree")}
-                >
-                    Tree
-                </LiveEditorTab>
-                <LiveEditorTab
-                    type="button"
-                    active={outputView === "trace"}
-                    onClick={() => {
-                        setOutputView("trace");
-                        setHoverRange(null);
-                    }}
-                >
-                    Trace
-                </LiveEditorTab>
-            </LiveEditorTabs>
+            <LiveEditorPanelLabel>Tree</LiveEditorPanelLabel>
             <LiveEditorOutputPane>
                 {result ? (
-                    outputView === "tree" ? (
-                        <TreeView tree={result} onHoverRange={setHoverRange} />
-                    ) : (
-                        <TraceExplorer tree={result} onHoverRange={setHoverRange} />
-                    )
+                    <TreeView tree={result} onHoverRange={setHoverRange} />
                 ) : outputError ? (
                     <ErrorDisplay style={{ fontSize: "0.8rem" }}>
                         {outputError}
@@ -200,6 +173,15 @@ export default function LiveEditor({
             </LiveEditorOutputPane>
         </LiveEditorSide>
     ) : null;
+
+    const tracePanel = (
+        <LiveEditorSide>
+            <LiveEditorPanelLabel>Trace</LiveEditorPanelLabel>
+            {result ? (
+                <TraceExplorer tree={result} onHoverRange={setHoverRange} />
+            ) : null}
+        </LiveEditorSide>
+    );
 
     if (workerStatus === "pending") {
         return (
@@ -223,33 +205,42 @@ export default function LiveEditor({
 
     return (
         <LiveEditorRoot style={{ height: isNarrow ? "auto" : height }}>
-            <LiveEditorBody style={{ flexDirection: isNarrow ? "column" : undefined }}>
-                {isNarrow ? (
-                    <>
-                        <div style={{ height: panelHeight, flexShrink: 0 }}>{grammarEditor}</div>
-                        <div style={{ height: panelHeight, flexShrink: 0 }}>{inputEditor}</div>
-                        {showOutput && <div style={{ height: panelHeight, flexShrink: 0 }}>{outputPanel}</div>}
-                    </>
-                ) : showOutput ? (
-                    <SplitView
-                        initialRatio={0.6}
-                        left={
+            {isNarrow ? (
+                <LiveEditorBody style={{ flexDirection: "column" }}>
+                    <div style={{ height: panelHeight, flexShrink: 0 }}>{grammarEditor}</div>
+                    <div style={{ height: panelHeight, flexShrink: 0 }}>{inputEditor}</div>
+                    {showOutput && <div style={{ height: panelHeight, flexShrink: 0 }}>{outputPanel}</div>}
+                    {showOutput && <div style={{ height: panelHeight, flexShrink: 0 }}>{tracePanel}</div>}
+                </LiveEditorBody>
+            ) : showOutput ? (
+                <SplitView
+                    initialRatio={0.6}
+                    top={
+                        <LiveEditorBody>
                             <SplitView
-                                initialRatio={0.55}
-                                left={grammarEditor}
-                                right={inputEditor}
+                                initialRatio={0.6}
+                                left={
+                                    <SplitView
+                                        initialRatio={0.55}
+                                        left={grammarEditor}
+                                        right={inputEditor}
+                                    />
+                                }
+                                right={outputPanel}
                             />
-                        }
-                        right={outputPanel}
-                    />
-                ) : (
+                        </LiveEditorBody>
+                    }
+                    bottom={tracePanel}
+                />
+            ) : (
+                <LiveEditorBody>
                     <SplitView
                         initialRatio={0.55}
-                        top={grammarEditor}
-                        bottom={inputEditor}
+                        left={grammarEditor}
+                        right={inputEditor}
                     />
-                )}
-            </LiveEditorBody>
+                </LiveEditorBody>
+            )}
             <LiveEditorStatusBar>
                 <LiveEditorStatusDot error={!!outputError} />
                 {outputError ? "Error" : "Live"}

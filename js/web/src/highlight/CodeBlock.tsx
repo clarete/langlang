@@ -25,7 +25,9 @@ function HighlightedCode({ lang, code }: { lang: string; code: string }) {
     useEffect(() => {
         let cancelled = false;
         highlight(lang, code)
-            .then((v) => { if (!cancelled) setHighlighted(render(v, "root") ?? null); })
+            .then((v) => {
+                if (!cancelled) setHighlighted(v.type === "error" ? null : (render(v, "root") ?? null));
+            })
             .catch(() => {});
         return () => { cancelled = true; };
     }, [lang, code, render]);

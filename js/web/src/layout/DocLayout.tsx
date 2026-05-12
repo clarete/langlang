@@ -15,6 +15,28 @@ import {
     DocTocLink,
 } from "./DocLayout.styles";
 
+function makeHeading(Tag: "h1" | "h2" | "h3" | "h4") {
+    return function Heading({ id, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+        return (
+            <Tag id={id} {...props}>
+                {children}
+                {id && (
+                    <a href={`#${id}`} className="heading-anchor" aria-hidden="true" tabIndex={-1}>
+                        #
+                    </a>
+                )}
+            </Tag>
+        );
+    };
+}
+
+const mdxComponents = {
+    code: CodeBlock,
+    h2: makeHeading("h2"),
+    h3: makeHeading("h3"),
+    h4: makeHeading("h4"),
+};
+
 interface TocEntry {
     id: string;
     text: string;
@@ -50,16 +72,20 @@ export default function DocLayout({ children }: { children: React.ReactNode }) {
         setToc(
             headings
                 .filter((h) => h.id)
-                .map((h) => ({
-                    id: h.id,
-                    text: h.textContent ?? "",
-                    level: parseInt(h.tagName[1], 10),
-                })),
+                .map((h) => {
+                    const clone = h.cloneNode(true) as HTMLHeadingElement;
+                    clone.querySelector(".heading-anchor")?.remove();
+                    return {
+                        id: h.id,
+                        text: clone.textContent ?? "",
+                        level: parseInt(h.tagName[1], 10),
+                    };
+                }),
         );
     }, [location.pathname]);
 
     return (
-        <MDXProvider components={{ code: CodeBlock }}>
+        <MDXProvider components={mdxComponents}>
             <DocRoot>
                 <NavBar />
                 <DocMain>

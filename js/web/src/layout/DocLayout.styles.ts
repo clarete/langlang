@@ -32,6 +32,20 @@ export const DocContent = styled("div")({
         marginBottom: "1rem",
         lineHeight: 1.2,
     },
+    "& h2, & h3, & h4": {
+        "& .heading-anchor": {
+            marginLeft: "0.4em",
+            fontSize: "0.85em",
+            fontWeight: 400,
+            color: theme.colors.text.muted,
+            textDecoration: "none",
+            opacity: 0,
+            transition: "opacity 0.1s",
+        },
+        "&:hover .heading-anchor": {
+            opacity: 1,
+        },
+    },
     "& h2": {
         fontSize: "1.35rem",
         fontWeight: 600,

@@ -1,5 +1,5 @@
 import type { Monaco } from "@monaco-editor/react";
-import { pegColors, pegColorsLight } from "../highlight/pegColors";
+import { pegColors, pegColorsLight, type PegColors } from "../highlight/pegColors";
 
 const PEG_LANGUAGE_ID = "peg";
 export const PEG_THEME_ID = "langlang-dark";
@@ -167,7 +167,7 @@ export function registerPegLanguage(monaco: Monaco) {
         },
     });
 
-    function tokenRules(c: typeof pegColors) {
+    function tokenRules(c: PegColors) {
         return [
             { token: "type.identifier.peg",   foreground: hex(c.ruleName) },
             { token: "identifier.peg",         foreground: hex(c.ruleRef) },

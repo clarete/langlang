@@ -1,4 +1,14 @@
-export const pegColors = {
+export interface PegColors {
+    ruleName: string;
+    ruleRef: string;
+    literal: string;
+    charClass: string;
+    label: string;
+    comment: string;
+    operator: string;
+}
+
+export const pegColors: PegColors = {
     ruleName:  "#61afef",  // blue   — rule definition names (LHS of <-)
     ruleRef:   "#abb2bf",  // gray   — rule references in expressions
     literal:   "#98c379",  // green  — quoted string literals
@@ -8,7 +18,7 @@ export const pegColors = {
     operator:  "#56b6c2",  // cyan   — <- / ! & ? * + # .
 } as const;
 
-export const pegColorsLight = {
+export const pegColorsLight: PegColors = {
     ruleName:  "#0451a5",  // dark blue
     ruleRef:   "#383a42",  // near-black
     literal:   "#50a14f",  // dark green

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { EditorProps, Monaco } from "@monaco-editor/react";
 import { Editor } from "@monaco-editor/react";
 import { registerPegLanguage, PEG_THEME_ID, PEG_LIGHT_THEME_ID } from "../monaco/peg";
@@ -19,6 +19,19 @@ import {
     LiveEditorTab,
 } from "./LiveEditor.styles";
 import { ErrorDisplay } from "../Playground.styles";
+
+function subscribe(cb: () => void) {
+    window.addEventListener("resize", cb);
+    return () => window.removeEventListener("resize", cb);
+}
+
+function useWindowWidth() {
+    return useSyncExternalStore(
+        subscribe,
+        () => window.innerWidth,
+        () => 1280,
+    );
+}
 
 const EDITOR_OPTIONS = {
     minimap: { enabled: false },
@@ -50,6 +63,9 @@ export default function LiveEditor({
     const [grammar, setGrammar] = useState(initialGrammar);
     const [input, setInput] = useState(initialInput);
     const [outputView, setOutputView] = useState<"tree" | "trace">(defaultView);
+
+    const windowWidth = useWindowWidth();
+    const isNarrow = windowWidth < 768;
 
     const { result, outputError, hoverRange, setHoverRange, workerStatus } =
         useLiveEditor({ grammar, input, settings });
@@ -203,10 +219,18 @@ export default function LiveEditor({
         );
     }
 
+    const panelHeight = "180px";
+
     return (
-        <LiveEditorRoot style={{ height }}>
-            <LiveEditorBody>
-                {showOutput ? (
+        <LiveEditorRoot style={{ height: isNarrow ? "auto" : height }}>
+            <LiveEditorBody style={{ flexDirection: isNarrow ? "column" : undefined }}>
+                {isNarrow ? (
+                    <>
+                        <div style={{ height: panelHeight, flexShrink: 0 }}>{grammarEditor}</div>
+                        <div style={{ height: panelHeight, flexShrink: 0 }}>{inputEditor}</div>
+                        {showOutput && <div style={{ height: panelHeight, flexShrink: 0 }}>{outputPanel}</div>}
+                    </>
+                ) : showOutput ? (
                     <SplitView
                         initialRatio={0.6}
                         left={

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { MDXProvider } from "@mdx-js/react";
 import NavBar from "../nav/NavBar";
@@ -14,6 +14,28 @@ import {
     DocTocItem,
     DocTocLink,
 } from "./DocLayout.styles";
+
+function CopyableCodeBlock(props: React.HTMLAttributes<HTMLPreElement>) {
+    const [copied, setCopied] = useState(false);
+    const ref = useRef<HTMLPreElement>(null);
+
+    function copy() {
+        const text = ref.current?.querySelector("code")?.innerText ?? "";
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        });
+    }
+
+    return (
+        <div style={{ position: "relative" }} className="code-block-wrapper">
+            <pre ref={ref} {...props} />
+            <button onClick={copy} className="copy-button" aria-label="Copy code">
+                {copied ? "✓" : "Copy"}
+            </button>
+        </div>
+    );
+}
 
 function makeHeading(Tag: "h1" | "h2" | "h3" | "h4") {
     return function Heading({ id, children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
@@ -32,6 +54,7 @@ function makeHeading(Tag: "h1" | "h2" | "h3" | "h4") {
 
 const mdxComponents = {
     code: CodeBlock,
+    pre: CopyableCodeBlock,
     h2: makeHeading("h2"),
     h3: makeHeading("h3"),
     h4: makeHeading("h4"),

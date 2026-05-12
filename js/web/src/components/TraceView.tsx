@@ -3,14 +3,12 @@ import TraceNode from "./TraceNode";
 
 interface TraceViewProps {
     tree: Value;
-    renderLeafOnly?: boolean;
     parent?: string;
     onHoverRange?: (span: Span | null) => void;
 }
 
 function TraceView({
     tree,
-    renderLeafOnly = false,
     parent = "ROOT",
     onHoverRange,
 }: TraceViewProps) {
@@ -19,23 +17,20 @@ function TraceView({
             return (
                 <TraceNode
                     node={tree}
-                    renderLeafOnly={renderLeafOnly}
                     parent={parent}
                     onHoverRange={onHoverRange}
                 >
                     <TraceView
                         tree={tree.expr}
-                        renderLeafOnly={renderLeafOnly}
                         parent={`${parent}-${tree.name}`}
                         onHoverRange={onHoverRange}
                     />
                 </TraceNode>
             );
-        case "sequence": {
+        case "sequence":
             return (
                 <TraceNode
                     node={tree}
-                    renderLeafOnly={renderLeafOnly}
                     parent={parent}
                     onHoverRange={onHoverRange}
                 >
@@ -44,29 +39,16 @@ function TraceView({
                             tree={item}
                             // biome-ignore lint/suspicious/noArrayIndexKey: idc!
                             key={index}
-                            renderLeafOnly={renderLeafOnly}
                             parent={`${parent}-${index}`}
                             onHoverRange={onHoverRange}
                         />
                     ))}
                 </TraceNode>
             );
-        }
-
-        case "error":
-            return (
-                <TraceNode
-                    node={tree}
-                    renderLeafOnly={renderLeafOnly}
-                    parent={parent}
-                    onHoverRange={onHoverRange}
-                />
-            );
         default:
             return (
                 <TraceNode
                     node={tree}
-                    renderLeafOnly={renderLeafOnly}
                     parent={parent}
                     onHoverRange={onHoverRange}
                 />

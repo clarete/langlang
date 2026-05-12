@@ -15,8 +15,9 @@ export const PanelHeader = styled("div")({
     justifyContent: "space-between",
     color: theme.colors.text.primary,
     fontFamily: theme.fonts.mono,
-    fontSize: "0.8rem",
-    letterSpacing: "0.02em",
+    fontSize: "0.72rem",
+    letterSpacing: "0.04em",
+    padding: "0.2rem 0.5rem",
     userSelect: "none",
 });
 

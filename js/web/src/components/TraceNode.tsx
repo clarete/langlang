@@ -1,13 +1,12 @@
 import type { Span, Value } from "@langlang/wasm";
 import type React from "react";
 import { NodeContainer, NodeName, SequenceContainer } from "./TraceNode.styles";
-import { useContext, useLayoutEffect, useRef } from "react";
+import { useContext } from "react";
 import { TraceUiContext } from "./TraceExplorer";
 
 interface TraceNodeProps {
     node: Value;
     children?: React.ReactNode;
-    renderLeafOnly?: boolean;
     parent: string;
     onHoverRange?: (span: Span | null) => void;
 }
@@ -56,45 +55,16 @@ function getHighlightProps(
     return { highlighted: false, parentHighlighted: false, level: 0 };
 }
 
-function TraceNode({
-    node,
-    children,
-    renderLeafOnly = false,
-    parent,
-    onHoverRange,
-}: TraceNodeProps) {
-    const { highlight, setHighlight, leafNodeSizeMap, notifyMeasured } =
-        useContext(TraceUiContext);
-
-    const nodeNameRef = useRef<HTMLDivElement>(null);
-
-    useLayoutEffect(() => {
-        const nodeNameElement = nodeNameRef.current;
-        if (!renderLeafOnly && node.type === "string" && nodeNameElement) {
-            leafNodeSizeMap.set(parent, nodeNameElement.getBoundingClientRect());
-            notifyMeasured();
-        }
-    }, [renderLeafOnly, node, parent, leafNodeSizeMap, notifyMeasured]);
-
-    if (renderLeafOnly && node.type !== "string") {
-        return children;
-    }
+function TraceNode({ node, children, parent, onHoverRange }: TraceNodeProps) {
+    const { highlight, setHighlight } = useContext(TraceUiContext);
 
     const highlightProps = getHighlightProps(parent, highlight);
 
     switch (node.type) {
-        case "string": {
-            const sizeData = renderLeafOnly
-                ? leafNodeSizeMap.get(parent)
-                : undefined;
-
-            const style = sizeData ? { width: sizeData.width } : {};
-
+        case "string":
             return (
                 <NodeContainer className="string" data-parent={parent} leaf>
                     <NodeName
-                        ref={nodeNameRef}
-                        style={style}
                         {...highlightProps}
                         onMouseEnter={() => {
                             setHighlight?.(parent);
@@ -105,7 +75,6 @@ function TraceNode({
                     </NodeName>
                 </NodeContainer>
             );
-        }
         case "sequence":
             return (
                 <SequenceContainer
@@ -115,36 +84,21 @@ function TraceNode({
                     {children}
                 </SequenceContainer>
             );
-        case "node": {
-            const sizeData = renderLeafOnly
-                ? leafNodeSizeMap.get(parent)
-                : undefined;
-            const style = sizeData
-                ? {
-                      width: sizeData.width,
-                      paddingLeft: 0,
-                      paddingRight: 0,
-                  }
-                : {};
+        case "node":
             return (
-                <NodeContainer data-parent={parent} style={style}>
-                    {!renderLeafOnly && (
-                        <NodeName
-                            ref={nodeNameRef}
-                            {...highlightProps}
-                            onMouseEnter={() => {
-                                setHighlight?.(parent);
-                                onHoverRange?.(node.span);
-                            }}
-                        >
-                            {node.name}
-                        </NodeName>
-                    )}
+                <NodeContainer data-parent={parent}>
+                    <NodeName
+                        {...highlightProps}
+                        onMouseEnter={() => {
+                            setHighlight?.(parent);
+                            onHoverRange?.(node.span);
+                        }}
+                    >
+                        {node.name}
+                    </NodeName>
                     <div>{children}</div>
                 </NodeContainer>
             );
-        }
-
         default:
             return (
                 <NodeContainer className="unknown" data-parent={parent}>

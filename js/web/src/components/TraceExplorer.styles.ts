@@ -8,8 +8,3 @@ export const TraceViewContainer = styled("div")({
     overflowX: "auto",
     padding: "0.75rem",
 });
-
-export const SourceLine = styled("div")({
-    display: "flex",
-    gap: "0.2rem",
-});

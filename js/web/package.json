@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && bun run copy-assets",
-    "build:docs": "export LANGLANG_WEB_BASE=/langlang/ LANGLANG_WEB_OUTDIR=../../docs && tsc && vite build && vite build --ssr src/entry-server.tsx && bun scripts/prerender.ts && bun run copy-assets",
+    "build:docs": "export LANGLANG_WEB_BASE=/langlang/ LANGLANG_WEB_OUTDIR=../../docs && tsc && vite build --emptyOutDir && vite build --ssr src/entry-server.tsx && bun scripts/prerender.ts && bun run copy-assets",
     "copy-assets": "bun run scripts/copy-assets",
     "preview": "vite preview"
   },

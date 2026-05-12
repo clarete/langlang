@@ -13,144 +13,168 @@
         document.documentElement.setAttribute("data-theme", saved || sys);
       })();
     </script>
-    <script type="module" crossorigin src="/langlang/assets/index-BCe5XlUy.js"></script>
-    <link rel="stylesheet" crossorigin href="/langlang/assets/index-DzFWIPX6.css">
+    <script type="module" crossorigin src="/langlang/assets/index-Bcw6f7qW.js"></script>
+    <link rel="stylesheet" crossorigin href="/langlang/assets/index-BGe236UH.css">
   </head>
   <body>
     <div id="app"><div class="d1ohs5ks"><nav class="n13a6h5r"><div class="n1plrfq3"><a class="n1ycxcn" href="/langlang" data-discover="true">{<!-- --> langlang <!-- -->}</a><div class="n1dsa6xi"><a class="n1ag2bzv" href="/langlang/getting-started" data-discover="true">Getting Started</a><a class="n1ag2bzv" href="/langlang/language-reference" data-discover="true">Reference</a><a class="n1ag2bzv" href="/langlang/examples" data-discover="true">Examples</a><a class="n1ag2bzv" href="/langlang/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="n1ag2bzv">GitHub</a></div><button aria-label="Switch to dark mode" title="Switch to dark mode" class="tlkoiqm">☽</button><button aria-label="Open menu" aria-expanded="false" class="h1r39pg2">☰</button></div></nav><main class="d1nm70v6"><div class="d10qi3ee doc-content"><h1 id="reference"><a aria-hidden="true" tabindex="-1" href="#reference"><span class="icon icon-link"></span></a>Reference</h1>
 <p>Complete guide to the langlang grammar syntax.</p>
-<h2 id="overview"><a aria-hidden="true" tabindex="-1" href="#overview"><span class="icon icon-link"></span></a>Overview</h2>
+<h2 id="overview"><a aria-hidden="true" tabindex="-1" href="#overview"><span class="icon icon-link"></span></a>Overview<a href="#overview" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>langlang uses a grammar format based on Parsing Expression Grammars
 (PEG). If you&#x27;re familiar with regular expressions or BNF notation,
 you&#x27;ll find the syntax intuitive.</p>
 <p>A grammar consists of <strong>productions</strong> (also called rules) that define
 how to parse input. The parser starts from the first production and
 works its way through the grammar recursively.</p>
-<h2 id="productions"><a aria-hidden="true" tabindex="-1" href="#productions"><span class="icon icon-link"></span></a>Productions</h2>
+<h2 id="productions"><a aria-hidden="true" tabindex="-1" href="#productions"><span class="icon icon-link"></span></a>Productions<a href="#productions" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>A production has a name on the left, an arrow, and an expression on
 the right:</p>
-<pre><code class="language-peg ll-highlighted">ProductionName &lt;- Expression</code></pre>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">ProductionName &lt;- Expression</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>The first production in a grammar is the <strong>start rule</strong> — parsing
 begins there.</p>
-<h2 id="terminals"><a aria-hidden="true" tabindex="-1" href="#terminals"><span class="icon icon-link"></span></a>Terminals</h2>
+<h2 id="terminals"><a aria-hidden="true" tabindex="-1" href="#terminals"><span class="icon icon-link"></span></a>Terminals<a href="#terminals" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Terminals match actual characters in the input.</p>
-<h3 id="literals"><a aria-hidden="true" tabindex="-1" href="#literals"><span class="icon icon-link"></span></a>Literals</h3>
+<h3 id="literals"><a aria-hidden="true" tabindex="-1" href="#literals"><span class="icon icon-link"></span></a>Literals<a href="#literals" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Match exact character sequences using single or double quotes:</p>
-<pre><code class="language-peg ll-highlighted">Keyword  &lt;- &#x27;function&#x27;
-Greeting &lt;- &quot;hello&quot;</code></pre>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Keyword  &lt;- &#x27;function&#x27;
+Greeting &lt;- &quot;hello&quot;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>Both quote styles are equivalent. Use whichever makes your grammar more readable (e.g.: double quotes if the literal contains single quotes).</p>
-<h4 id="escape-sequences"><a aria-hidden="true" tabindex="-1" href="#escape-sequences"><span class="icon icon-link"></span></a>Escape Sequences</h4>
+<h4 id="escape-sequences"><a aria-hidden="true" tabindex="-1" href="#escape-sequences"><span class="icon icon-link"></span></a>Escape Sequences<a href="#escape-sequences" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h4>
 <p>Standard escape sequences work inside literals:</p>
 <table><thead><tr><th>Sequence</th><th>Meaning</th></tr></thead><tbody><tr><td><code>\n</code></td><td>Newline</td></tr><tr><td><code>\r</code></td><td>Carriage return</td></tr><tr><td><code>\t</code></td><td>Tab</td></tr><tr><td><code>\\</code></td><td>Backslash</td></tr><tr><td><code>\&#x27;</code></td><td>Single quote</td></tr><tr><td><code>\&quot;</code></td><td>Double quote</td></tr><tr><td><code>\u{XXXX}</code></td><td>Unicode</td></tr></tbody></table>
-<pre><code class="language-peg ll-highlighted">Newline &lt;- &#x27;\n&#x27;
-Tab     &lt;- &#x27;\t&#x27;</code></pre>
-<h3 id="character-classes"><a aria-hidden="true" tabindex="-1" href="#character-classes"><span class="icon icon-link"></span></a>Character Classes</h3>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Newline &lt;- &#x27;\n&#x27;
+Tab     &lt;- &#x27;\t&#x27;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h3 id="character-classes"><a aria-hidden="true" tabindex="-1" href="#character-classes"><span class="icon icon-link"></span></a>Character Classes<a href="#character-classes" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Match any single character from a set using square brackets:</p>
-<pre><code class="language-peg ll-highlighted">Digit  &lt;- [0-9]
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Digit  &lt;- [0-9]
 Letter &lt;- [a-zA-Z]
-Hex    &lt;- [0-9a-fA-F]</code></pre>
+Hex    &lt;- [0-9a-fA-F]</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p><code>[a-z]</code> matches any character from &#x27;a&#x27; to &#x27;z&#x27; (inclusive). You can combine multiple ranges and individual characters:</p>
-<pre><code class="language-peg ll-highlighted">// Matches digits, letters, and underscore
-Identifier &lt;- [a-zA-Z_0-9]</code></pre>
-<h3 id="any-character"><a aria-hidden="true" tabindex="-1" href="#any-character"><span class="icon icon-link"></span></a>Any Character</h3>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Matches digits, letters, and underscore
+Identifier &lt;- [a-zA-Z_0-9]</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h3 id="any-character"><a aria-hidden="true" tabindex="-1" href="#any-character"><span class="icon icon-link"></span></a>Any Character<a href="#any-character" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>The dot <code>.</code> matches any single character except end-of-input:</p>
-<pre><code class="language-peg ll-highlighted">// Match anything until closing quote (using not predicate)
-StringChar &lt;- !&#x27;&quot;&#x27; . / &#x27;\\&#x27; .</code></pre>
-<h3 id="unicode-support"><a aria-hidden="true" tabindex="-1" href="#unicode-support"><span class="icon icon-link"></span></a>Unicode Support</h3>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Match anything until closing quote (using not predicate)
+StringChar &lt;- !&#x27;&quot;&#x27; . / &#x27;\\&#x27; .</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h3 id="unicode-support"><a aria-hidden="true" tabindex="-1" href="#unicode-support"><span class="icon icon-link"></span></a>Unicode Support<a href="#unicode-support" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
+<h4 id="unicode-literals"><a aria-hidden="true" tabindex="-1" href="#unicode-literals"><span class="icon icon-link"></span></a>Unicode Literals<a href="#unicode-literals" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h4>
 <p>langlang has full Unicode support. You can match characters from any script, including CJK, Arabic, Cyrillic, and even emoji, directly in your grammars.</p>
-<pre><code class="language-peg ll-highlighted">Hiragana  &lt;- [ぁ-ん]         // Match a single Hiragana character
-Katakana  &lt;- [ァ-ン]         // Match a single Katakana character
-Hangul    &lt;- [가-힣]         // Match a single Hangul syllable</code></pre>
-<h2 id="composition-operators"><a aria-hidden="true" tabindex="-1" href="#composition-operators"><span class="icon icon-link"></span></a>Composition Operators</h2>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Konnichiwa &lt;- &#x27;こんにちは&#x27;      // Japanese greeting
+Annyeong   &lt;- &#x27;안녕하세요&#x27;       // Korean greeting
+Marhaba    &lt;- &#x27;مرحبا&#x27;           // Arabic greeting
+Privet     &lt;- &#x27;привет&#x27;        // Russian greeting</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h4 id="unicode-in-character-classes"><a aria-hidden="true" tabindex="-1" href="#unicode-in-character-classes"><span class="icon icon-link"></span></a>Unicode in Character Classes<a href="#unicode-in-character-classes" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h4>
+<p>Character classes work with Unicode characters, including ranges:</p>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Hiragana  &lt;- [ぁ-ん]             // Match a single Hiragana character
+Katakana  &lt;- [ァ-ン]             // Match a single Katakana character
+Hangul    &lt;- [가-힣]             // Match a single Hangul syllable
+Cyrillic  &lt;- [а-я]              // Match Cyrillic lowercase letters
+MixedWord &lt;- [a-zA-Zあ-ん]+      // Mix Unicode with ASCII</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h4 id="emoji-and-non-bmp-characters"><a aria-hidden="true" tabindex="-1" href="#emoji-and-non-bmp-characters"><span class="icon icon-link"></span></a>Emoji and Non-BMP Characters<a href="#emoji-and-non-bmp-characters" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h4>
+<p>langlang supports characters outside the Basic Multilingual Plane
+(BMP), including emoji. These require 4 bytes in UTF-8 and codepoints
+above U+FFFF.</p>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Match specific emoji
+Brain &lt;- &#x27;🧠&#x27;
+Heart &lt;- &#x27;❤&#x27;
+
+// Match range of emoji: Brain, DNA, microbe, petri dish, test tube, etc.
+ScienceEmoji &lt;- [🧠-🧬]
+
+// Combine emoji with text
+Reaction &lt;- &#x27;👍&#x27; / &#x27;👎&#x27; / &#x27;❤&#x27; / &#x27;😂&#x27;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<p>For example, <code>[🧠-🧬]</code> matches any emoji from U+1F9E0 (brain) to
+U+1F9EC (DNA double helix).</p>
+<h2 id="composition-operators"><a aria-hidden="true" tabindex="-1" href="#composition-operators"><span class="icon icon-link"></span></a>Composition Operators<a href="#composition-operators" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Build complex expressions from simpler ones.</p>
-<h3 id="sequence"><a aria-hidden="true" tabindex="-1" href="#sequence"><span class="icon icon-link"></span></a>Sequence</h3>
+<h3 id="sequence"><a aria-hidden="true" tabindex="-1" href="#sequence"><span class="icon icon-link"></span></a>Sequence<a href="#sequence" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Expressions separated by whitespace must match in order:</p>
-<pre><code class="language-peg ll-highlighted">// Matches &quot;let x = 5&quot;
-LetStatement &lt;- &#x27;let&#x27; Identifier &#x27;=&#x27; Expression</code></pre>
-<h3 id="ordered-choice"><a aria-hidden="true" tabindex="-1" href="#ordered-choice"><span class="icon icon-link"></span></a>Ordered Choice</h3>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Matches &quot;let x = 5&quot;
+LetStatement &lt;- &#x27;let&#x27; Identifier &#x27;=&#x27; Expression</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h3 id="ordered-choice"><a aria-hidden="true" tabindex="-1" href="#ordered-choice"><span class="icon icon-link"></span></a>Ordered Choice<a href="#ordered-choice" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>The <code>/</code> operator tries alternatives left-to-right, stopping at the first match:</p>
-<pre><code class="language-peg ll-highlighted">Value &lt;- Number / String / Boolean</code></pre>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Value &lt;- Number / String / Boolean</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>Unlike regular expressions or CFGs, PEG choices are <strong>ordered</strong> and <strong>unambiguous</strong> — the first matching alternative wins.</p>
-<h3 id="grouping"><a aria-hidden="true" tabindex="-1" href="#grouping"><span class="icon icon-link"></span></a>Grouping</h3>
+<h3 id="grouping"><a aria-hidden="true" tabindex="-1" href="#grouping"><span class="icon icon-link"></span></a>Grouping<a href="#grouping" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Use parentheses to group sub-expressions:</p>
-<pre><code class="language-peg ll-highlighted">Ambiguous &lt;- &#x27;a&#x27; / &#x27;b&#x27; &#x27;c&#x27;    // Without grouping: matches &#x27;a&#x27; OR &#x27;bc&#x27;
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Ambiguous &lt;- &#x27;a&#x27; / &#x27;b&#x27; &#x27;c&#x27;    // Without grouping: matches &#x27;a&#x27; OR &#x27;bc&#x27;
 
-Clear &lt;- &#x27;a&#x27; (&#x27;b&#x27; / &#x27;c&#x27;)      // With grouping: matches &#x27;ab&#x27; OR &#x27;ac&#x27;</code></pre>
-<h2 id="repetition-operators"><a aria-hidden="true" tabindex="-1" href="#repetition-operators"><span class="icon icon-link"></span></a>Repetition Operators</h2>
+Clear &lt;- &#x27;a&#x27; (&#x27;b&#x27; / &#x27;c&#x27;)      // With grouping: matches &#x27;ab&#x27; OR &#x27;ac&#x27;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h2 id="repetition-operators"><a aria-hidden="true" tabindex="-1" href="#repetition-operators"><span class="icon icon-link"></span></a>Repetition Operators<a href="#repetition-operators" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Control how many times an expression matches.</p>
-<h3 id="zero-or-more-"><a aria-hidden="true" tabindex="-1" href="#zero-or-more-"><span class="icon icon-link"></span></a>Zero or More (<code>*</code>)</h3>
+<h3 id="zero-or-more-"><a aria-hidden="true" tabindex="-1" href="#zero-or-more-"><span class="icon icon-link"></span></a>Zero or More (<code>*</code>)<a href="#zero-or-more-" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Match zero or more occurrences:</p>
-<pre><code class="language-peg ll-highlighted">As &lt;- &#x27;a&#x27;*        // Matches &quot;&quot;, &quot;a&quot;, &quot;aaa&quot;, ...
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">As &lt;- &#x27;a&#x27;*        // Matches &quot;&quot;, &quot;a&quot;, &quot;aaa&quot;, ...
 
-List &lt;- Value (&#x27;,&#x27; Value)* // Matches comma-separated values</code></pre>
+List &lt;- Value (&#x27;,&#x27; Value)* // Matches comma-separated values</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>Zero-or-more <strong>never fails</strong> — it succeeds even without matching anything.</p>
-<h3 id="one-or-more-"><a aria-hidden="true" tabindex="-1" href="#one-or-more-"><span class="icon icon-link"></span></a>One or More (<code>+</code>)</h3>
+<h3 id="one-or-more-"><a aria-hidden="true" tabindex="-1" href="#one-or-more-"><span class="icon icon-link"></span></a>One or More (<code>+</code>)<a href="#one-or-more-" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Match one or more occurrences:</p>
-<pre><code class="language-peg ll-highlighted">As &lt;- &#x27;a&#x27;+        // Matches &quot;a&quot;, &quot;aa&quot;, &quot;aaa&quot;, ... (but not &quot;&quot;)
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">As &lt;- &#x27;a&#x27;+        // Matches &quot;a&quot;, &quot;aa&quot;, &quot;aaa&quot;, ... (but not &quot;&quot;)
 
-Digits &lt;- [0-9]+  // Must have at least one digit</code></pre>
+Digits &lt;- [0-9]+  // Must have at least one digit</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>This is syntactic sugar for <code>e e*</code>.</p>
-<h3 id="optional-"><a aria-hidden="true" tabindex="-1" href="#optional-"><span class="icon icon-link"></span></a>Optional (<code>?</code>)</h3>
+<h3 id="optional-"><a aria-hidden="true" tabindex="-1" href="#optional-"><span class="icon icon-link"></span></a>Optional (<code>?</code>)<a href="#optional-" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Match zero or one occurrence:</p>
-<pre><code class="language-peg ll-highlighted">Color    &lt;- &#x27;colo&#x27; &#x27;u&#x27;? &#x27;r&#x27;  // Matches &quot;color&quot; or &quot;colour&quot;
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Color    &lt;- &#x27;colo&#x27; &#x27;u&#x27;? &#x27;r&#x27;  // Matches &quot;color&quot; or &quot;colour&quot;
 
-SignedInt &lt;- [+-]? Digits    // Optional sign before number</code></pre>
-<h2 id="predicates"><a aria-hidden="true" tabindex="-1" href="#predicates"><span class="icon icon-link"></span></a>Predicates</h2>
+SignedInt &lt;- [+-]? Digits    // Optional sign before number</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h2 id="predicates"><a aria-hidden="true" tabindex="-1" href="#predicates"><span class="icon icon-link"></span></a>Predicates<a href="#predicates" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Predicates look ahead without consuming input.</p>
-<h3 id="not-predicate-"><a aria-hidden="true" tabindex="-1" href="#not-predicate-"><span class="icon icon-link"></span></a>Not Predicate (<code>!</code>)</h3>
+<h3 id="not-predicate-"><a aria-hidden="true" tabindex="-1" href="#not-predicate-"><span class="icon icon-link"></span></a>Not Predicate (<code>!</code>)<a href="#not-predicate-" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Succeeds if the expression <strong>fails</strong> to match (without consuming input):</p>
-<pre><code class="language-peg ll-highlighted">NotQuote   &lt;- !&#x27;&quot;&#x27; .                          // Match any char that&#x27;s not a quote
-Identifier &lt;- !Keyword [a-zA-Z_][a-zA-Z0-9_]* // Match word that&#x27;s not a keyword</code></pre>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">NotQuote   &lt;- !&#x27;&quot;&#x27; .                          // Match any char that&#x27;s not a quote
+Identifier &lt;- !Keyword [a-zA-Z_][a-zA-Z0-9_]* // Match word that&#x27;s not a keyword</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>This enables <strong>unlimited lookahead</strong> — you can check arbitrarily complex conditions before committing to a match.</p>
-<pre><code class="language-peg ll-highlighted">// Classic PEG example: match content between brackets
-BracketString &lt;- &#x27;[&#x27; (!&#x27;]&#x27; .)* &#x27;]&#x27;</code></pre>
-<h3 id="and-predicate-"><a aria-hidden="true" tabindex="-1" href="#and-predicate-"><span class="icon icon-link"></span></a>And Predicate (<code>&amp;</code>)</h3>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Classic PEG example: match content between brackets
+BracketString &lt;- &#x27;[&#x27; (!&#x27;]&#x27; .)* &#x27;]&#x27;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h3 id="and-predicate-"><a aria-hidden="true" tabindex="-1" href="#and-predicate-"><span class="icon icon-link"></span></a>And Predicate (<code>&amp;</code>)<a href="#and-predicate-" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Succeeds if the expression <strong>matches</strong> (without consuming input):</p>
-<pre><code class="language-peg ll-highlighted">// Only match if followed by specific char
-SpecialA &lt;- &#x27;a&#x27; &amp;&#x27;(&#x27;</code></pre>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Only match if followed by specific char
+SpecialA &lt;- &#x27;a&#x27; &amp;&#x27;(&#x27;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>Use <code>&amp;</code> when you want to assert a positive condition before committing
 to a branch. It reads more clearly than a double negation (<code>!!e</code>) in
 those cases:</p>
-<pre><code class="language-peg ll-highlighted">// Assert the identifier starts with a valid character before consuming
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Assert the identifier starts with a valid character before consuming
 Identifier &lt;- &amp;[a-zA-Z_] [a-zA-Z_0-9]+
 
 // Gate on a delimiter that signals the format to expect
-TypedValue &lt;- &amp;&#x27;{&#x27; Object / &amp;&#x27;[&#x27; Array / Scalar</code></pre>
-<h2 id="whitespace-control"><a aria-hidden="true" tabindex="-1" href="#whitespace-control"><span class="icon icon-link"></span></a>Whitespace Control</h2>
-<h3 id="automatic-whitespace-handling"><a aria-hidden="true" tabindex="-1" href="#automatic-whitespace-handling"><span class="icon icon-link"></span></a>Automatic Whitespace Handling</h3>
+TypedValue &lt;- &amp;&#x27;{&#x27; Object / &amp;&#x27;[&#x27; Array / Scalar</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h2 id="whitespace-control"><a aria-hidden="true" tabindex="-1" href="#whitespace-control"><span class="icon icon-link"></span></a>Whitespace Control<a href="#whitespace-control" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
+<h3 id="automatic-whitespace-handling"><a aria-hidden="true" tabindex="-1" href="#automatic-whitespace-handling"><span class="icon icon-link"></span></a>Automatic Whitespace Handling<a href="#automatic-whitespace-handling" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>langlang automatically inserts whitespace handling between elements of
 non-syntactic productions. A production is <strong>syntactic</strong> if all its
 expressions lead only to terminal matches.</p>
-<pre><code class="language-peg ll-highlighted">// Non-syntactic: calls other production, gets auto-spacing
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Non-syntactic: calls other production, gets auto-spacing
 Expr &lt;- Int &#x27;+&#x27; Int
 
 // Syntactic: only terminals, no auto-spacing
-Int &lt;- [0-9]+</code></pre>
+Int &lt;- [0-9]+</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>For <code>Expr</code>, the parser automatically allows whitespace before <code>Int</code>,
 <code>&#x27;+&#x27;</code>, and the second <code>Int</code>. So <code>&quot;1+2&quot;</code> and <code>&quot;1 + 2&quot;</code> both parse
 successfully.</p>
-<h3 id="disabling-auto-spacing-"><a aria-hidden="true" tabindex="-1" href="#disabling-auto-spacing-"><span class="icon icon-link"></span></a>Disabling Auto-Spacing (<code>#</code>)</h3>
+<h3 id="disabling-auto-spacing-"><a aria-hidden="true" tabindex="-1" href="#disabling-auto-spacing-"><span class="icon icon-link"></span></a>Disabling Auto-Spacing (<code>#</code>)<a href="#disabling-auto-spacing-" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Use <code>#</code> to <strong>disable</strong> automatic whitespace handling for an expression:</p>
-<pre><code class="language-peg ll-highlighted">// Without #: &quot;3 rd&quot; would match (spaces between number and suffix)
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Without #: &quot;3 rd&quot; would match (spaces between number and suffix)
 // With #: space between number and suffix causes failure
 Ordinal &lt;- Decimal #(&#x27;st&#x27; / &#x27;nd&#x27; / &#x27;rd&#x27; / &#x27;th&#x27;)
-Decimal &lt;- [0-9]+</code></pre>
+Decimal &lt;- [0-9]+</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <table><thead><tr><th>Input</th><th>Without <code>#</code></th><th>With <code>#</code></th></tr></thead><tbody><tr><td><code>&quot;3rd&quot;</code></td><td>✓ matches</td><td>✓ matches</td></tr><tr><td><code>&quot;3 rd&quot;</code></td><td>✓ matches</td><td>✗ fails</td></tr><tr><td><code>&quot; 3rd&quot;</code></td><td>✓ matches</td><td>✓ matches</td></tr></tbody></table>
 <p>A common use case is string literals where internal spaces matter:</p>
-<pre><code class="language-peg ll-highlighted">// Non-syntactic (calls DQ production)
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Non-syntactic (calls DQ production)
 String &lt;- DQ #((!DQ .)* DQ)
-DQ     &lt;- &#x27;&quot;&#x27;</code></pre>
-<h2 id="error-handling"><a aria-hidden="true" tabindex="-1" href="#error-handling"><span class="icon icon-link"></span></a>Error Handling</h2>
-<h3 id="labels"><a aria-hidden="true" tabindex="-1" href="#labels"><span class="icon icon-link"></span></a>Labels</h3>
+DQ     &lt;- &#x27;&quot;&#x27;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h2 id="error-handling"><a aria-hidden="true" tabindex="-1" href="#error-handling"><span class="icon icon-link"></span></a>Error Handling<a href="#error-handling" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
+<h3 id="labels"><a aria-hidden="true" tabindex="-1" href="#labels"><span class="icon icon-link"></span></a>Labels<a href="#labels" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Attach error labels to expressions using <code>^</code>:</p>
-<pre><code class="language-peg ll-highlighted">Array &lt;- &#x27;[&#x27; (Value (&#x27;,&#x27; Value^itemExpected)*)? &#x27;]&#x27;^closeBracket</code></pre>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">Array &lt;- &#x27;[&#x27; (Value (&#x27;,&#x27; Value^itemExpected)*)? &#x27;]&#x27;^closeBracket</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>When parsing fails at a labeled expression, the label appears in the
 error message instead of a generic &quot;expected X&quot; message.  Labels are
 syntactic sugar for throwing a failure if the labeled expression
 fails.  e.g.: <code>Exp^label = Exp / throw(label)</code></p>
-<h3 id="recovery-expressions"><a aria-hidden="true" tabindex="-1" href="#recovery-expressions"><span class="icon icon-link"></span></a>Recovery Expressions</h3>
+<h3 id="recovery-expressions"><a aria-hidden="true" tabindex="-1" href="#recovery-expressions"><span class="icon icon-link"></span></a>Recovery Expressions<a href="#recovery-expressions" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
 <p>Recovery rules let the parser continue after errors, producing a partial parse tree with error nodes:</p>
-<pre><code class="language-peg ll-highlighted">// Main grammar
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// Main grammar
 JSON  &lt;- Value^jsonValue EOF^eof
 Array &lt;- &#x27;[&#x27; (Value (&#x27;,&#x27; Value^item)*)? &#x27;]&#x27;^close
 
@@ -158,7 +182,7 @@ Array &lt;- &#x27;[&#x27; (Value (&#x27;,&#x27; Value^item)*)? &#x27;]&#x27;^clo
 jsonValue &lt;- .*           // Consume rest of input on failure
 item      &lt;- (![,\]] .)*  // Skip until comma or bracket
 close     &lt;-              // Empty: just mark the error
-eof       &lt;- .*</code></pre>
+eof       &lt;- .*</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>When a labeled expression fails and a recovery rule with that label exists, the parser:</p>
 <ol>
 <li>Executes the recovery expression</li>
@@ -166,42 +190,42 @@ eof       &lt;- .*</code></pre>
 <li>Continues parsing</li>
 </ol>
 <p>This enables &quot;keep parsing&quot; behavior useful for IDEs and linters.</p>
-<h2 id="import-system"><a aria-hidden="true" tabindex="-1" href="#import-system"><span class="icon icon-link"></span></a>Import System</h2>
+<h2 id="import-system"><a aria-hidden="true" tabindex="-1" href="#import-system"><span class="icon icon-link"></span></a>Import System<a href="#import-system" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Split large grammars across files using imports:</p>
-<pre><code class="language-peg ll-highlighted">// file: main.peg
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// file: main.peg
 @import Value from &quot;./value.peg&quot;
 @import String from &quot;./string.peg&quot;
 
-Document &lt;- Value+</code></pre>
-<pre><code class="language-peg ll-highlighted">// file: value.peg
+Document &lt;- Value+</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// file: value.peg
 Value  &lt;- Number / String
-Number &lt;- [0-9]+</code></pre>
+Number &lt;- [0-9]+</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <p>Imported productions and all their dependencies are merged into the importing grammar.</p>
-<h3 id="import-syntax"><a aria-hidden="true" tabindex="-1" href="#import-syntax"><span class="icon icon-link"></span></a>Import Syntax</h3>
-<pre><code class="language-peg ll-highlighted">@import ProductionName from &quot;path/to/file.peg&quot;</code></pre>
+<h3 id="import-syntax"><a aria-hidden="true" tabindex="-1" href="#import-syntax"><span class="icon icon-link"></span></a>Import Syntax<a href="#import-syntax" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">@import ProductionName from &quot;path/to/file.peg&quot;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
 <ul>
 <li>Paths are relative to the importing file</li>
 <li>Only the named production (and its dependencies) are imported</li>
 <li>Multiple imports can reference the same file</li>
 </ul>
-<h2 id="operator-reference"><a aria-hidden="true" tabindex="-1" href="#operator-reference"><span class="icon icon-link"></span></a>Operator Reference</h2>
+<h2 id="operator-reference"><a aria-hidden="true" tabindex="-1" href="#operator-reference"><span class="icon icon-link"></span></a>Operator Reference<a href="#operator-reference" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <table><thead><tr><th>Operator</th><th>Name</th><th>Description</th></tr></thead><tbody><tr><td><code>&#x27;...&#x27;</code></td><td>Literal</td><td>Match exact string (supports Unicode)</td></tr><tr><td><code>[...]</code></td><td>Class</td><td>Match character from set (supports Unicode ranges)</td></tr><tr><td><code>.</code></td><td>Any</td><td>Match any single character (including Unicode)</td></tr><tr><td><code>e1 e2</code></td><td>Sequence</td><td>Match e1 then e2</td></tr><tr><td><code>e1 / e2</code></td><td>Ordered Choice</td><td>Try e1, then e2 if e1 fails</td></tr><tr><td><code>e*</code></td><td>Zero or More</td><td>Match e zero or more times</td></tr><tr><td><code>e+</code></td><td>One or More</td><td>Match e one or more times</td></tr><tr><td><code>e?</code></td><td>Optional</td><td>Match e zero or one time</td></tr><tr><td><code>!e</code></td><td>Not Predicate</td><td>Succeed if e fails (no consume)</td></tr><tr><td><code>&amp;e</code></td><td>And Predicate</td><td>Succeed if e matches (no consume)</td></tr><tr><td><code>#e</code></td><td>Lexification</td><td>Disable auto-whitespace for e</td></tr><tr><td><code>e^label</code></td><td>Label</td><td>Attach error label to e</td></tr><tr><td><code>(e)</code></td><td>Grouping</td><td>Group expressions</td></tr></tbody></table>
-<h2 id="tips-and-best-practices"><a aria-hidden="true" tabindex="-1" href="#tips-and-best-practices"><span class="icon icon-link"></span></a>Tips and Best Practices</h2>
-<h3 id="avoid-common-pitfalls"><a aria-hidden="true" tabindex="-1" href="#avoid-common-pitfalls"><span class="icon icon-link"></span></a>Avoid Common Pitfalls</h3>
-<h4 id="greedy-matching"><a aria-hidden="true" tabindex="-1" href="#greedy-matching"><span class="icon icon-link"></span></a>Greedy Matching</h4>
+<h2 id="tips-and-best-practices"><a aria-hidden="true" tabindex="-1" href="#tips-and-best-practices"><span class="icon icon-link"></span></a>Tips and Best Practices<a href="#tips-and-best-practices" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
+<h3 id="avoid-common-pitfalls"><a aria-hidden="true" tabindex="-1" href="#avoid-common-pitfalls"><span class="icon icon-link"></span></a>Avoid Common Pitfalls<a href="#avoid-common-pitfalls" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h3>
+<h4 id="greedy-matching"><a aria-hidden="true" tabindex="-1" href="#greedy-matching"><span class="icon icon-link"></span></a>Greedy Matching<a href="#greedy-matching" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h4>
 <p>Repetitions are greedy — they consume as much as possible:</p>
-<pre><code class="language-peg ll-highlighted">// WRONG: .* consumes everything including quotes
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// WRONG: .* consumes everything including quotes
 BadString &lt;- &#x27;&quot;&#x27; .* &#x27;&quot;&#x27;
 
 // CORRECT: stop at the quote
-GoodString &lt;- &#x27;&quot;&#x27; (!&#x27;&quot;&#x27; .)* &#x27;&quot;&#x27;</code></pre>
-<h4 id="order-matters"><a aria-hidden="true" tabindex="-1" href="#order-matters"><span class="icon icon-link"></span></a>Order Matters</h4>
+GoodString &lt;- &#x27;&quot;&#x27; (!&#x27;&quot;&#x27; .)* &#x27;&quot;&#x27;</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div>
+<h4 id="order-matters"><a aria-hidden="true" tabindex="-1" href="#order-matters"><span class="icon icon-link"></span></a>Order Matters<a href="#order-matters" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h4>
 <p>In ordered choice, put specific matches before general ones:</p>
-<pre><code class="language-peg ll-highlighted">// WRONG: &#x27;if&#x27; never matches because Identifier matches first
+<div style="position:relative" class="code-block-wrapper"><pre><code class="language-peg ll-highlighted">// WRONG: &#x27;if&#x27; never matches because Identifier matches first
 Keyword &lt;- Identifier / &#x27;if&#x27; / &#x27;else&#x27;
 
 // CORRECT: keywords before identifier
-Keyword &lt;- &#x27;if&#x27; / &#x27;else&#x27; / Identifier</code></pre></div></main><footer class="dggeqbd"><nav class="dpdqs1o"><a class="d12zrerw" href="/langlang" data-discover="true">Home</a><a class="d12zrerw" href="/langlang/getting-started" data-discover="true">Getting Started</a><a class="d12zrerw" href="/langlang/language-reference" data-discover="true">Reference</a><a class="d12zrerw" href="/langlang/examples" data-discover="true">Examples</a><a class="d12zrerw" href="/langlang/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="d12zrerw">GitHub</a></nav><p class="d1bcvdnu">Made with ♥ by<!-- --> <a href="https://clarete.li" target="_blank" rel="noopener noreferrer">@clarete</a></p></footer></div></div>
+Keyword &lt;- &#x27;if&#x27; / &#x27;else&#x27; / Identifier</code></pre><button class="copy-button" aria-label="Copy code">Copy</button></div></div></main><footer class="dggeqbd"><nav class="dpdqs1o"><a class="d12zrerw" href="/langlang" data-discover="true">Home</a><a class="d12zrerw" href="/langlang/getting-started" data-discover="true">Getting Started</a><a class="d12zrerw" href="/langlang/language-reference" data-discover="true">Reference</a><a class="d12zrerw" href="/langlang/examples" data-discover="true">Examples</a><a class="d12zrerw" href="/langlang/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="d12zrerw">GitHub</a></nav><p class="d1bcvdnu">Made with ♥ by<!-- --> <a href="https://clarete.li" target="_blank" rel="noopener noreferrer">@clarete</a></p></footer></div></div>
   </body>
 </html>
 

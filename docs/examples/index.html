@@ -13,28 +13,36 @@
         document.documentElement.setAttribute("data-theme", saved || sys);
       })();
     </script>
-    <script type="module" crossorigin src="/langlang/assets/index-BCe5XlUy.js"></script>
-    <link rel="stylesheet" crossorigin href="/langlang/assets/index-DzFWIPX6.css">
+    <script type="module" crossorigin src="/langlang/assets/index-Bcw6f7qW.js"></script>
+    <link rel="stylesheet" crossorigin href="/langlang/assets/index-BGe236UH.css">
   </head>
   <body>
     <div id="app"><div class="d1ohs5ks"><nav class="n13a6h5r"><div class="n1plrfq3"><a class="n1ycxcn" href="/langlang" data-discover="true">{<!-- --> langlang <!-- -->}</a><div class="n1dsa6xi"><a class="n1ag2bzv" href="/langlang/getting-started" data-discover="true">Getting Started</a><a class="n1ag2bzv" href="/langlang/language-reference" data-discover="true">Reference</a><a class="n1ag2bzv" href="/langlang/examples" data-discover="true">Examples</a><a class="n1ag2bzv" href="/langlang/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="n1ag2bzv">GitHub</a></div><button aria-label="Switch to dark mode" title="Switch to dark mode" class="tlkoiqm">☽</button><button aria-label="Open menu" aria-expanded="false" class="h1r39pg2">☰</button></div></nav><main class="d1nm70v6"><div class="d10qi3ee doc-content"><h1 id="examples"><a aria-hidden="true" tabindex="-1" href="#examples"><span class="icon icon-link"></span></a>Examples</h1>
-<p>Each example below is a complete, runnable grammar. Edit the grammar or input and the parse tree updates live.</p>
-<h2 id="csv"><a aria-hidden="true" tabindex="-1" href="#csv"><span class="icon icon-link"></span></a>CSV</h2>
-<p>Three rules cover the whole format. <code>Val</code> uses a not-predicate (<code>!</code>) to consume every character that isn&#x27;t a comma or newline, which naturally handles empty fields between consecutive commas.</p>
+<p>Each example below is a complete, runnable grammar. Edit the grammar
+or input and the parse tree updates live.</p>
+<h2 id="multilingual-identifier"><a aria-hidden="true" tabindex="-1" href="#multilingual-identifier"><span class="icon icon-link"></span></a>Multilingual Identifier<a href="#multilingual-identifier" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
+<p>Identifiers that allow letters from multiple scripts</p>
+<div class="lb63d0q" style="height:200px"><div class="lat19ed">Initializing WASM…</div></div>
+<h2 id="csv"><a aria-hidden="true" tabindex="-1" href="#csv"><span class="icon icon-link"></span></a>CSV<a href="#csv" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
+<p>This covers a limited portion of CSV inputs, but it&#x27;s a good
+demonstration of how powerful just three grammar rules can be. <code>Val</code>
+uses a not-predicate (<code>!</code>)  to consume every character that isn&#x27;t a
+comma or newline, which naturally handles empty fields between
+consecutive commas.</p>
 <div class="lb63d0q" style="height:280px"><div class="lat19ed">Initializing WASM…</div></div>
-<h2 id="json"><a aria-hidden="true" tabindex="-1" href="#json"><span class="icon icon-link"></span></a>JSON</h2>
-<p><code>Value</code> delegates to <code>Object</code> and <code>Array</code>, both of which reference <code>Value</code> again. The recursion just works — PEG resolves it depth-first, so deeply nested structures parse correctly with no extra bookkeeping.</p>
+<h2 id="json"><a aria-hidden="true" tabindex="-1" href="#json"><span class="icon icon-link"></span></a>JSON<a href="#json" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
+<p>This grammar encompasses the whole <a href="https://www.json.org">https://json.org</a> standard.</p>
 <div class="lb63d0q" style="height:300px"><div class="lat19ed">Initializing WASM…</div></div>
-<h2 id="arithmetic-without-left-recursion"><a aria-hidden="true" tabindex="-1" href="#arithmetic-without-left-recursion"><span class="icon icon-link"></span></a>Arithmetic without left recursion</h2>
+<h2 id="arithmetic-without-left-recursion"><a aria-hidden="true" tabindex="-1" href="#arithmetic-without-left-recursion"><span class="icon icon-link"></span></a>Arithmetic without left recursion<a href="#arithmetic-without-left-recursion" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Operator precedence falls out of rule nesting: <code>Term</code> handles <code>*</code> and <code>/</code>; <code>Expr</code> handles <code>+</code> and <code>-</code>. Because <code>Term</code> is always resolved before <code>Expr</code> sees its result, multiplication binds tighter — no precedence declarations needed.</p>
 <div class="lb63d0q" style="height:280px"><div class="lat19ed">Initializing WASM…</div></div>
-<h2 id="arithmetic-with-left-recursion"><a aria-hidden="true" tabindex="-1" href="#arithmetic-with-left-recursion"><span class="icon icon-link"></span></a>Arithmetic with left recursion</h2>
+<h2 id="arithmetic-with-left-recursion"><a aria-hidden="true" tabindex="-1" href="#arithmetic-with-left-recursion"><span class="icon icon-link"></span></a>Arithmetic with left recursion<a href="#arithmetic-with-left-recursion" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>The same language, expressed differently. Superscript numbers are precedence levels: higher binds tighter. <code>Expr² &#x27;*&#x27; Expr³</code> means &quot;a level-2 expression, then <code>*</code>, then a level-3 expression.&quot; The VM resolves left recursion through memoization — the grammar reads exactly like a textbook operator table.</p>
 <div class="lb63d0q" style="height:300px"><div class="lat19ed">Initializing WASM…</div></div>
-<h2 id="error-labels"><a aria-hidden="true" tabindex="-1" href="#error-labels"><span class="icon icon-link"></span></a>Error labels</h2>
+<h2 id="error-labels"><a aria-hidden="true" tabindex="-1" href="#error-labels"><span class="icon icon-link"></span></a>Error labels<a href="#error-labels" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Attach <code>^label</code> to any sub-expression. When that position fails, the label names the error instead of a generic &quot;unexpected character&quot; message. Here the grammar has labels but no recovery rules — parsing stops at the first failure, but the error clearly says <em>what</em> was expected.</p>
 <div class="lb63d0q" style="height:300px"><div class="lat19ed">Initializing WASM…</div></div>
-<h2 id="error-recovery"><a aria-hidden="true" tabindex="-1" href="#error-recovery"><span class="icon icon-link"></span></a>Error recovery</h2>
+<h2 id="error-recovery"><a aria-hidden="true" tabindex="-1" href="#error-recovery"><span class="icon icon-link"></span></a>Error recovery<a href="#error-recovery" class="heading-anchor" aria-hidden="true" tabindex="-1">#</a></h2>
 <p>Recovery rules are definitions that share a name with a label. When <code>^value</code> fails, the parser runs <code>value &lt;- (!&#x27;;&#x27; .)*</code> — consuming input up to the next <code>;</code> — then records an error node and continues. <code>semi &lt;-</code> is an empty rule: it marks the missing <code>;</code> without consuming anything. The result is a complete parse tree covering all three assignments, with an error node only where the value was missing.</p>
 <div class="lb63d0q" style="height:360px"><div class="lat19ed">Initializing WASM…</div></div></div></main><footer class="dggeqbd"><nav class="dpdqs1o"><a class="d12zrerw" href="/langlang" data-discover="true">Home</a><a class="d12zrerw" href="/langlang/getting-started" data-discover="true">Getting Started</a><a class="d12zrerw" href="/langlang/language-reference" data-discover="true">Reference</a><a class="d12zrerw" href="/langlang/examples" data-discover="true">Examples</a><a class="d12zrerw" href="/langlang/playground" data-discover="true">Playground</a><a href="https://github.com/clarete/langlang" target="_blank" rel="noopener noreferrer" class="d12zrerw">GitHub</a></nav><p class="d1bcvdnu">Made with ♥ by<!-- --> <a href="https://clarete.li" target="_blank" rel="noopener noreferrer">@clarete</a></p></footer></div></div>
   </body>

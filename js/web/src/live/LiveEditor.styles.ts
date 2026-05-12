@@ -101,29 +101,31 @@ export const LiveEditorOutputPane = styled("div")({
 export const LiveEditorTabs = styled("div")({
     display: "flex",
     gap: "0.1rem",
-    padding: "0.2rem 0.4rem 0",
+    padding: "0 0.4rem 0",
     background: theme.colors.bg.bar,
     borderBottom: `1px solid ${theme.colors.border.subtle}`,
 });
 
 export const LiveEditorTab = styled("button")<{ active?: boolean }>({
-    fontFamily: theme.fonts.mono,
     fontSize: "0.72rem",
-    padding: "0.15rem 0.5rem",
+    padding: "0.2rem 0.5rem",
     background: "transparent",
-    border: `1px solid transparent`,
-    borderBottom: "none",
+    border: "none",
     color: theme.colors.text.muted,
     cursor: "pointer",
     borderRadius: "4px 4px 0 0",
-    letterSpacing: "0.03em",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    marginTop: "4px",
     variants: [
         {
             props: { active: true },
             style: {
                 color: theme.colors.text.strong,
                 background: theme.colors.bg.panel,
-                borderColor: theme.colors.border.subtle,
+                border: `1px solid ${theme.colors.border.subtle}`,
+                borderBottom: "none",
+                marginBottom: "-1px",
             },
         },
     ],

@@ -1,5 +1,5 @@
 import type { Monaco } from "@monaco-editor/react";
-import { pegColors } from "../highlight/pegColors";
+import { pegColors, pegColorsLight } from "../highlight/pegColors";
 
 const PEG_LANGUAGE_ID = "peg";
 export const PEG_THEME_ID = "langlang-dark";
@@ -167,31 +167,33 @@ export function registerPegLanguage(monaco: Monaco) {
         },
     });
 
-    const tokenRules = [
-        { token: "type.identifier.peg",     foreground: hex(pegColors.ruleName) },
-        { token: "identifier.peg",           foreground: hex(pegColors.ruleRef) },
-        { token: "string.peg",               foreground: hex(pegColors.literal) },
-        { token: "string.quote.peg",         foreground: hex(pegColors.literal) },
-        { token: "string.escape.peg",        foreground: hex(pegColors.literal) },
-        { token: "constant.character.peg",   foreground: hex(pegColors.charClass) },
-        { token: "delimiter.square.peg",     foreground: hex(pegColors.charClass) },
-        { token: "keyword.peg",              foreground: hex(pegColors.label) },
-        { token: "annotation.peg",           foreground: hex(pegColors.label) },
-        { token: "comment.peg",              foreground: hex(pegColors.comment) },
-        { token: "keyword.operator.peg",     foreground: hex(pegColors.operator) },
-    ];
+    function tokenRules(c: typeof pegColors) {
+        return [
+            { token: "type.identifier.peg",   foreground: hex(c.ruleName) },
+            { token: "identifier.peg",         foreground: hex(c.ruleRef) },
+            { token: "string.peg",             foreground: hex(c.literal) },
+            { token: "string.quote.peg",       foreground: hex(c.literal) },
+            { token: "string.escape.peg",      foreground: hex(c.literal) },
+            { token: "constant.character.peg", foreground: hex(c.charClass) },
+            { token: "delimiter.square.peg",   foreground: hex(c.charClass) },
+            { token: "keyword.peg",            foreground: hex(c.label) },
+            { token: "annotation.peg",         foreground: hex(c.label) },
+            { token: "comment.peg",            foreground: hex(c.comment) },
+            { token: "keyword.operator.peg",   foreground: hex(c.operator) },
+        ];
+    }
 
     monaco.editor.defineTheme(PEG_THEME_ID, {
         base: "vs-dark",
         inherit: true,
-        rules: tokenRules,
+        rules: tokenRules(pegColors),
         colors: {},
     });
 
     monaco.editor.defineTheme(PEG_LIGHT_THEME_ID, {
         base: "vs",
         inherit: true,
-        rules: tokenRules,
+        rules: tokenRules(pegColorsLight),
         colors: { "editor.background": "#f5f4f1" },
     });
 }

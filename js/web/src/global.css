@@ -13,13 +13,13 @@
 	--bg-control-hover-strong: #cccccc;
 	--bg-overlay-dark: rgba(0, 0, 0, 0.06);
 
-	--text-primary: rgba(18, 16, 12, 0.85);
-	--text-strong: rgba(18, 16, 12, 0.9);
-	--text-stronger: rgba(18, 16, 12, 0.92);
-	--text-strongest: rgba(18, 16, 12, 0.98);
-	--text-muted: rgba(18, 16, 12, 0.5);
-	--text-muted2: rgba(18, 16, 12, 0.68);
-	--text-placeholder: rgba(18, 16, 12, 0.35);
+	--text-primary: rgba(18, 16, 12, 0.88);
+	--text-strong: rgba(18, 16, 12, 0.93);
+	--text-stronger: rgba(18, 16, 12, 0.95);
+	--text-strongest: rgba(18, 16, 12, 0.99);
+	--text-muted: rgba(18, 16, 12, 0.62);
+	--text-muted2: rgba(18, 16, 12, 0.76);
+	--text-placeholder: rgba(18, 16, 12, 0.42);
 
 	--border-subtle: rgba(0, 0, 0, 0.07);
 	--border-subtle2: rgba(0, 0, 0, 0.09);
@@ -142,6 +142,33 @@ code {
 .peg-Import       { color: #c678dd; }                             /* label    */
 .peg-Comment      { color: #5c6370; font-style: italic; }        /* comment  */
 .peg-error        { text-decoration: underline wavy rgba(255, 100, 100, 0.6); }
+
+/* Light-theme overrides for higher contrast */
+:root .peg-Definition > .peg-Identifier:first-child { color: #0451a5; }
+:root .peg-Identifier   { color: #383a42; }
+:root .peg-Literal      { color: #50a14f; }
+:root .peg-Class        { color: #b05f00; }
+:root .peg-LEFTARROW,
+:root .peg-SLASH,
+:root .peg-Prefix > span:first-child,
+:root .peg-Suffix > span:last-child,
+:root .peg-Any          { color: #0184bc; }
+:root .peg-Labeled > .peg-Identifier,
+:root .peg-Import       { color: #7c3aed; }
+:root .peg-Comment      { color: #6a717f; font-style: italic; }
+
+[data-theme="dark"] .peg-Definition > .peg-Identifier:first-child { color: #61afef; }
+[data-theme="dark"] .peg-Identifier   { color: #abb2bf; }
+[data-theme="dark"] .peg-Literal      { color: #98c379; }
+[data-theme="dark"] .peg-Class        { color: #e5c07b; }
+[data-theme="dark"] .peg-LEFTARROW,
+[data-theme="dark"] .peg-SLASH,
+[data-theme="dark"] .peg-Prefix > span:first-child,
+[data-theme="dark"] .peg-Suffix > span:last-child,
+[data-theme="dark"] .peg-Any          { color: #56b6c2; }
+[data-theme="dark"] .peg-Labeled > .peg-Identifier,
+[data-theme="dark"] .peg-Import       { color: #c678dd; }
+[data-theme="dark"] .peg-Comment      { color: #5c6370; font-style: italic; }
 
 /* Monaco inline decoration used to highlight the input span when hovering tree nodes */
 .ll-hover-highlight {

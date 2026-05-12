@@ -1,8 +1,28 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { NavRoot, NavContainer, NavLogo, NavLinks, NavLink } from "./NavBar.styles";
+import {
+    NavRoot,
+    NavContainer,
+    NavLogo,
+    NavLinks,
+    NavLink,
+    HamburgerButton,
+    MobileMenu,
+    MobileNavLink,
+} from "./NavBar.styles";
 import ThemeToggle from "./ThemeToggle";
 
+const NAV_LINKS = [
+    { to: "/getting-started", label: "Getting Started" },
+    { to: "/language-reference", label: "Reference" },
+    { to: "/examples", label: "Examples" },
+    { to: "/playground", label: "Playground" },
+    { href: "https://github.com/clarete/langlang", label: "GitHub" },
+] as const;
+
 export default function NavBar() {
+    const [open, setOpen] = useState(false);
+
     return (
         <NavRoot>
             <NavContainer>
@@ -10,28 +30,58 @@ export default function NavBar() {
                     {"{"} langlang {"}"}
                 </NavLogo>
                 <NavLinks>
-                    <NavLink as={Link as any} to="/getting-started">
-                        Getting Started
-                    </NavLink>
-                    <NavLink as={Link as any} to="/language-reference">
-                        Reference
-                    </NavLink>
-                    <NavLink as={Link as any} to="/examples">
-                        Examples
-                    </NavLink>
-                    <NavLink as={Link as any} to="/playground">
-                        Playground
-                    </NavLink>
-                    <NavLink
-                        href="https://github.com/clarete/langlang"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        GitHub
-                    </NavLink>
+                    {NAV_LINKS.map((link) =>
+                        "href" in link ? (
+                            <NavLink
+                                key={link.label}
+                                href={link.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                {link.label}
+                            </NavLink>
+                        ) : (
+                            <NavLink key={link.label} as={Link as any} to={link.to}>
+                                {link.label}
+                            </NavLink>
+                        )
+                    )}
                 </NavLinks>
                 <ThemeToggle />
+                <HamburgerButton
+                    aria-label={open ? "Close menu" : "Open menu"}
+                    aria-expanded={open}
+                    onClick={() => setOpen((v) => !v)}
+                >
+                    {open ? "✕" : "☰"}
+                </HamburgerButton>
             </NavContainer>
+            {open && (
+                <MobileMenu>
+                    {NAV_LINKS.map((link) =>
+                        "href" in link ? (
+                            <MobileNavLink
+                                key={link.label}
+                                href={link.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={() => setOpen(false)}
+                            >
+                                {link.label}
+                            </MobileNavLink>
+                        ) : (
+                            <MobileNavLink
+                                key={link.label}
+                                as={Link as any}
+                                to={link.to}
+                                onClick={() => setOpen(false)}
+                            >
+                                {link.label}
+                            </MobileNavLink>
+                        )
+                    )}
+                </MobileMenu>
+            )}
         </NavRoot>
     );
 }

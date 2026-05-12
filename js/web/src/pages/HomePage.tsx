@@ -1,21 +1,11 @@
 import LiveEditor from "../live/LiveEditor";
+import { jsonStrippedGrammar, jsonSmallInput } from "../examples/presets";
 import {
     HomeMain,
     HomeIntro,
     HomeDescription,
     HomeFeatures,
 } from "./HomePage.styles";
-
-const DEMO_GRAMMAR = `JSON    <- Value
-Value   <- Object / Array / String / Number / Bool / 'null'
-Object  <- '{' (Member (',' Member)*)? '}'
-Member  <- String ':' Value
-Array   <- '[' (Value (',' Value)*)? ']'
-Number  <- [0-9]+
-Bool    <- 'true' / 'false'
-String  <- '"' (!'"' .)* '"'`;
-
-const DEMO_INPUT = `{"name": "langlang", "cool": true}`;
 
 export default function HomePage() {
     return (
@@ -34,7 +24,7 @@ export default function HomePage() {
                     <li>Ahead-of-time parsers are output with no external dependencies</li>
                 </HomeFeatures>
             </HomeIntro>
-            <LiveEditor grammar={DEMO_GRAMMAR} input={DEMO_INPUT} height="480px" />
+            <LiveEditor grammar={jsonStrippedGrammar} input={jsonSmallInput} height="480px" />
         </HomeMain>
     );
 }

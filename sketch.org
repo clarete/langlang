@@ -505,6 +505,210 @@ Expr (1..7)
         └── "3" (6..7)
 #+end_example
 
+** Rewrite
+
+langlang currently lacks support for semantic actions, a common feature in many parser generators. Instead of semantic actions, parsers generated with langlang return a Tree​ that provides an API to traverse the parser results.  That works well enough hiding the implementation of the tree itself.  Behind the scenes, it carries a Struct of Arrays, with a very tight memory layout, avoiding pointers in favor of integer IDs for the nodes.  That gets us the functionality we want with pretty good performance, and that's likely good enough for most cases.  But I think we want to go a little further with langlang and maybe increase its usefulness by allowing users to also describe the tree traversals in a higher level way.
+
+One of the use cases that motivates me to think abou this is the desire to generate a translator that takes a parse tree and outputs an AST.  That is a very common task within a compiler, and it is no different within langlang.  This feature would allow us to bootstrap the file [[./go/grammar_parser_v2.go][go/grammar_parser_v2.go]].
+
+Let's take the contrived example of a PEG for parsing PEGs:
+
+#+begin_src peg
+  // smol-peg.peg
+  Grammar    <- Definition+ EOF
+  Definition <- Identifier "<-" Expression
+  Expression <- Sequence ("/" Sequence)*
+  Sequence   <- Prefix*
+  Prefix     <- ("&" / "!")? Suffix
+  Suffix     <- Primary ("?" / "*" / "+")?
+  Primary    <- Identifier !"<-"
+              / "(" Expression ")"
+              / Literal / Class / "."
+  Identifier <- [a-zA-Z_][a-zA-Z0-9_]*
+  Literal    <- "'" (!"'" Char)* "'"
+              / '"' (!'"' Char)* '"'
+  Class      <- '[' (!']' Range)* ']'
+  Range      <- Char '-' Char / Char
+  Char       <- '\\' [nrt'"\[\]\\] / !'\\' .
+#+end_src
+
+What the output of ~langlang -grammar smol-peg.peg -input smol-peg.peg~ would look like:
+
+#+begin_src text
+  Grammar (1:1..22:1)
+  └── Sequence<12> (1:1..22:1)
+      ├── Definition (1:1..2:1)
+      │   └── Sequence<3> (1:1..2:1)
+      │       ├── Identifier (1..8)
+      │       │   └── "Grammar" (1..8)
+      │       ├── "<-" (12..14)
+      │       └── Expression (1:15..2:1)
+      │           └── Sequence (1:15..2:1)
+      │               └── Sequence<2> (1:15..2:1)
+      │                   ├── Prefix (15..26)
+      │                   │   └── Suffix (15..26)
+      │                   │       └── Sequence<2> (15..26)
+      │                   │           ├── Primary (15..25)
+      │                   │           │   └── Identifier (15..25)
+      │                   │           │       └── "Definition" (15..25)
+      │                   │           └── "+" (25..26)
+      │                   └── Prefix (1:27..2:1)
+      │                       └── Sequence<2> (1:27..2:1)
+      │                           ├── "!" (27..28)
+      │                           └── Suffix (1:28..2:1)
+      │                               └── Primary (28..29)
+      │                                   └── "." (28..29)
+      ...
+#+end_src
+
+
+When I stumbled upon "Parsing Expression Grammars for Structured Data"[2], I had a lot of hope that it would give me some insights about how to start to build this feature.  This is the language extension we can use to declare the matching rules that'd match against the parse tree.  I tried to use that a teeny bit when I wrote [[https://github.com/clarete/effigy][Effigy]] a while ago, and despite my lack of experience, it kind of worked for my toy use case there.  What it did not give me was a smooth pipeline experience.  I needed to write actions for both traversals (the peg parser, and the list parser) in the host language, which isn't ideal.
+
+The matching of the tree above would roughly like this:
+
+#+begin_src peg
+  // smol-peg-parser.peg
+  Grammar    <- { "Grammar" Definition+ }
+  Definition <- { "Definition" { Identifier "<-" Expression } }
+  Expression <- { "Expression" Sequence ("/" Sequence)*}
+  Sequence   <- { "Sequence" Prefix* }
+  Prefix     <- { "Prefix" ("&" / "!")? Suffix }
+  Suffix     <- { "Suffix" Primary ("?" / "*" / "+")? }
+  Primary    <- { "Primary" Identifier }
+              / { "Primary" "(" Expression ")" }
+              / { "Primary" Literal }
+              / { "Primary" Class }
+              / { "Primary" "." }
+  Identifier <- { "Identifier" Atom }
+  Literal    <- { "Literal" Atom }
+  Range      <- { "Range" Char "-" Char }
+              / { "Range" Char }
+  Char       <- { "Char" Atom }
+#+end_src
+
+The tree matching looks pretty lean and uses all the constructs langlang users are already familiar with, introducing only one new operator ~{}~.  The missing part is declaring the transformations to the tree.
+
+The article "Modular Semantic Actions"[1] has a few interesting ideas, like the arity checking of the signatures of the actions against what the grammar produces statically; but I need to salvage this and maybe other ideas because the whole doesn't fit what I need. I don't want to provide an API in a host language, I want semantic actions to be *part* of the tool I'm building.
+
+While pondering how to provide such feature, I started by excluding what I didn't want first: I do not want to promote the mix up between grammar and actions declared in any specific host language, tying a grammar to a single language.
+
+Then, looking at "PEG-based transformer provides front-, middle- and back-end stages in a simple compiler"[3], that seems to cover a lot of ground.  They introduce a new output operator `->` and the tiniest lisp API for transforming the output trees.  That lets me picture a closed the loop with more sophisticated transformations to the output trees described in our high level language.
+
+Borrowing those ideas and introducing a way to declare built-in types and a new operator ~->~ to declare the rules that'd transform the matched tree would give us something like this:
+
+#+begin_src peg
+
+  // smol-peg-translator.peg
+
+  type Grammar struct {
+    Definitions []Definition
+  }
+
+  type Definition struct {
+    Name string
+    Expr Expression
+  }
+
+  type Expression enum {
+    Choice
+    Sequence
+    And
+    Not
+    Optional
+    ZeroOrMore
+    OneOrMore
+    Primary
+  }
+
+  type Primary enum {
+    Identifier
+    Literal
+    Class
+    Any
+    Expression
+  }
+
+  type Choice     struct { Options []Expression }
+  type Sequence   struct { Items []Expression }
+  type And        struct { Expr Expression }
+  type Not        struct { Expr Expression }
+  type Optional   struct { Expr Expression }
+  type ZeroOrMore struct { Expr Expression }
+  type OneOrMore  struct { Expr Expression }
+
+  type Identifier struct { Name string }
+  type Literal    struct { Value string }
+  type Any        struct {}
+
+  type Class struct { Items []ClassItem }
+
+  type ClassItem enum {
+    Range
+    Literal
+  }
+
+  type Range struct {
+    Left  string
+    Right string
+  }
+
+  // translation rules
+  Grammar    <- { "Grammar" Definition+:def }
+              -> Grammar(Definitions: def)
+
+  Definition <- { "Definition" { Identifier "<-" Expression } }
+              -> Definition(Identifier, Expression)
+
+  Expression <- { "Expression" Sequence:x }
+              -> x
+              / { "Expression" (Sequence ("/" Sequence)+):xs }
+              -> Choice(Options: xs)
+
+  Sequence   <- { "Sequence" Prefix*:items }
+              -> Sequence(Items: items)
+
+  Prefix     <- { "Prefix" "&" Suffix } -> And(Expr: Suffix)
+              / { "Prefix" "!" Suffix } -> Not(Expr: Suffix)
+              / { "Prefix" Suffix }     -> Suffix
+
+  Suffix     <- { "Suffix" Primary "?" } -> Optional(Expr: Primary)
+              / { "Suffix" Primary "*" } -> ZeroOrMore(Expr: Primary)
+              / { "Suffix" Primary "+" } -> OneOrMore(Expr: Primary)
+              / { "Suffix" Primary }     -> Primary
+
+  Primary    <- { "Primary" Identifier:x }       -> Identifier(Name: x)
+              / { "Primary" "(" Expression ")" } -> Expression
+              / { "Primary" Literal:x }          -> Literal(Value: x)
+              / { "Primary" Class }              -> Class
+              / { "Primary" "." }                -> Any()
+
+  Identifier <- { "Identifier" Atom:x } -> x
+  Literal    <- { "Literal" Atom:x }    -> x
+
+  Class      <- { "Class" Range+:items }
+              -> Class(Items: items)
+
+  Range      <- { "Range" Char:l "-" Char:r } -> Range(Left: l, Right: r)
+              / { "Range" Char:c }            -> Literal(Value: c)
+
+  Char       <- { "Char" Atom:x } -> x
+
+  Atom       <- !{ .* } .  // any leaf: matches anything that is not a node.
+#+end_src
+
+(Notice that we're not unescaping the output of ~Atom~)
+
+That does look like it'd allow me to achieve my initial goal of bootstrapping the CST to AST translator in langlang.  It visits each node exactly once, as this is executed *after* the parse tree has been materialized.  It re-uses a whole lot of the classic PEG grammar to match the tree itself, and the semantic actions are subtle enough in this example not to be too big of a problem to be mangled with the matching rules themselves.
+
+My concern committing to this design is the natural limits of what it imposes.  If I want to bootstrap more of langlang beyond the translation phases, I'd need something more flexible.  Taking the ~AddCharsets~ step for example, a single pass in a fixed order can't express that.  Even more so if there are other rules like this naive ~Simplify~:
+
+#+begin_src peg
+  // smol-peg-rewriter.peg
+  Simplify <- Choice(Options: { Expression:x })    -> x
+            / Not(Not(Expression:x))               -> And(Expr: x)
+            / ZeroOrMore(ZeroOrMore(Expression:x)) -> ZeroOrMore(Expr: x)
+#+end_src
+
 * Rambling
 ** Incremental Parsing
 

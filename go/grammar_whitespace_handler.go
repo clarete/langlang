@@ -45,7 +45,11 @@ outer:
 		defs = append(defs, newDef)
 		defMap[def.Name] = newDef
 	}
-	return NewGrammarNode(n.Imports, defs, defMap, n.SourceLocation())
+
+	newGrammar := NewGrammarNode(n.Imports, defs, defMap, n.SourceLocation())
+	newGrammar.SourceFiles = n.SourceFiles
+	newGrammar.Errors = n.Errors
+	return newGrammar
 }
 
 func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {

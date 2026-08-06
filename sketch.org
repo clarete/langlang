@@ -505,6 +505,7 @@ Expr (1..7)
         └── "3" (6..7)
 #+end_example
 
+* Rambling
 ** Rewrite
 
 langlang currently lacks support for semantic actions, a common feature in many parser generators. Instead of semantic actions, parsers generated with langlang return a Tree​ that provides an API to traverse the parser results.  That works well enough hiding the implementation of the tree itself.  Behind the scenes, it carries a Struct of Arrays, with a very tight memory layout, avoiding pointers in favor of integer IDs for the nodes.  That gets us the functionality we want with pretty good performance, and that's likely good enough for most cases.  But I think we want to go a little further with langlang and maybe increase its usefulness by allowing users to also describe the tree traversals in a higher level way.
@@ -709,7 +710,6 @@ My concern committing to this design is the natural limits of what it imposes.  
             / ZeroOrMore(ZeroOrMore(Expression:x)) -> ZeroOrMore(Expr: x)
 #+end_src
 
-* Rambling
 ** Incremental Parsing
 
    The parser will fail at the first error by default (as Parsing

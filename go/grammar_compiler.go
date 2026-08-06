@@ -410,7 +410,7 @@ func (c *compiler) VisitLabeledNode(node *LabeledNode) error {
 	c.emit(IChoice{Label: l1, sl: c.currentSrc()})
 
 	if err := node.Expr.Accept(c); err != nil {
-		return nil
+		return err
 	}
 
 	c.emitCommit(l2)

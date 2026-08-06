@@ -55,6 +55,10 @@ func newRuleGraph(g *GrammarNode) *RuleGraph {
 	return rg
 }
 
+func (rg *RuleGraph) Grammar() *GrammarNode {
+	return rg.grammar
+}
+
 func (rg *RuleGraph) Closure(start string) []string {
 	var (
 		out  []string

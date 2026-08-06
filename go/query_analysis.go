@@ -165,6 +165,19 @@ func computeCallGraphData(db *Database, key FilePath) (*CallGraphData, error) {
 	}, nil
 }
 
+var RuleGraphQuery = &Query[FilePath, *RuleGraph]{
+	Name:    "RuleGraph",
+	Compute: computeRuleGraph,
+}
+
+func computeRuleGraph(db *Database, key FilePath) (*RuleGraph, error) {
+	grammar, err := Get(db, ResolvedImportsQuery, key)
+	if err != nil {
+		return nil, err
+	}
+	return newRuleGraph(grammar), nil
+}
+
 // UnusedRulesQuery finds rules that are never referenced.
 // Used for: Diagnostics (warnings), code lens
 var UnusedRulesQuery = &Query[FilePath, []string]{
@@ -173,16 +186,16 @@ var UnusedRulesQuery = &Query[FilePath, []string]{
 }
 
 func computeUnusedRules(db *Database, key FilePath) ([]string, error) {
-	grammar, err := Get(db, ResolvedImportsQuery, key)
+	rg, err := Get(db, RuleGraphQuery, key)
 	if err != nil {
 		return nil, err
 	}
-
-	rg := newRuleGraph(grammar)
-	callers := rg.Callers()
-	implicit := rg.SpacingClosure()
-
-	var unused []string
+	var (
+		grammar  = rg.Grammar()
+		callers  = rg.Callers()
+		implicit = rg.SpacingClosure()
+		unused   []string
+	)
 	for i, def := range grammar.Definitions {
 		if i == 0 {
 			continue // Skip the entry point
@@ -426,19 +439,11 @@ var DefinitionDepsQuery = &Query[DefKey, []string]{
 }
 
 func computeDefinitionDeps(db *Database, key DefKey) ([]string, error) {
-	grammar, err := Get(db, ResolvedImportsQuery, FilePath(key.File))
+	rg, err := Get(db, RuleGraphQuery, FilePath(key.File))
 	if err != nil {
 		return nil, err
 	}
-	def, ok := grammar.DefsByName[key.Name]
-	if !ok {
-		return nil, nil
-	}
-	deps := newSortedDeps()
-	if err := findDefinitionDeps(grammar, def.Expr, deps); err != nil {
-		return nil, err
-	}
-	return deps.names, nil
+	return rg.Closure(key.Name), nil
 }
 
 // ShouldInlineQuery determines if a definition should be inlined.

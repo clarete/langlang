@@ -2,15 +2,15 @@ package langlang
 
 import "fmt"
 
-// Keep in sync with `builtins.peg` or find a better way to track them
-var skipAddingCaptures = map[string]struct{}{
-	"Spacing": {},
-	"Space":   {},
-	"EOF":     {},
-	"EOL":     {},
-}
-
 func AddCaptures(n AstNode, cfg *Config) (*GrammarNode, error) {
+	// Keep in sync with `builtins.peg` or find a better way to track them
+	var skipAddingCaptures = map[string]struct{}{
+		"Spacing": {},
+		"Space":   {},
+		"EOF":     {},
+		"EOL":     {},
+	}
+
 	grammar, ok := n.(*GrammarNode)
 	if !ok {
 		return nil, fmt.Errorf("grammar expected, but got %#v", n)

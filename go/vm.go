@@ -290,6 +290,7 @@ func (vm *virtualMachine) MatchRule(data []byte, ruleAddress int) (Tree, int, er
 	stack.reset()
 	stack.tree.reset()
 	stack.tree.bindInput(data)
+	vm.predicate = false
 	vm.ffp = -1
 	vm.ffpPC = 0
 	if vm.showFails {

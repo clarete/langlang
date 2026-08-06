@@ -268,7 +268,7 @@ func (p *GrammarParserV2) parseImport(id NodeID) *ImportNode {
 	}
 	path, _ := unescape(p.tree.Text(items[idx]))
 	path = path[1 : len(path)-1]
-	return NewImportNode(NewLiteralNode(path, p.sloc(items[3])), names, p.sloc(id))
+	return NewImportNode(NewLiteralNode(path, p.sloc(items[idx])), names, p.sloc(id))
 }
 
 // Definition <- Identifier LEFTARROW Expression

@@ -67,24 +67,6 @@ func QueryBytecode(db *Database, entryPath string) (*Bytecode, error) {
 	return Get(db, EncodedBytecodeQuery, FilePath(entryPath))
 }
 
-// QueryIsRecursive checks if a definition is recursive using the
-// query system.
-func QueryIsRecursive(db *Database, filePath, defName string) (bool, error) {
-	return Get(db, IsRecursiveQuery, DefKey{File: filePath, Name: defName})
-}
-
-// QueryDefSize returns the compiled size of a definition using the
-// query system.
-func QueryDefSize(db *Database, filePath, defName string) (int, error) {
-	return Get(db, DefSizeQuery, DefKey{File: filePath, Name: defName})
-}
-
-// QuerySourceFiles returns the list of source files involved in
-// compiling a grammar.
-func QuerySourceFiles(db *Database, entryPath string) ([]string, error) {
-	return Get(db, SourceFilesQuery, FilePath(entryPath))
-}
-
 // QueryDiagnostics returns all diagnostics (errors, warnings, info)
 // for a grammar file. This includes parse errors and semantic
 // analysis results.
@@ -113,12 +95,6 @@ func QueryDiagnosticsAsError(db *Database, entryPath string) error {
 		return nil
 	}
 	return NewGrammarError(diagnostics)
-}
-
-// QueryParseErrors returns only parse errors (syntax errors) for a
-// grammar file.
-func QueryParseErrors(db *Database, entryPath string) ([]Diagnostic, error) {
-	return Get(db, ParseErrorsQuery, FilePath(entryPath))
 }
 
 // QueryResolver provides a high-level API for resolving grammar

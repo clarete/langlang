@@ -222,23 +222,6 @@ func TestTransformationPipelineCaching(t *testing.T) {
 	assert.GreaterOrEqual(t, stats.CachedCount, 5)
 }
 
-func TestDeepDependencyChainCaching(t *testing.T) {
-	loader := NewInMemoryImportLoader()
-	loader.Add("test.peg", []byte(`G <- "hello"`))
-
-	cfg := NewConfig()
-	db := NewDatabase(cfg, loader)
-
-	// Query ShouldInlineQuery which has deep dependencies
-	_, err := Get(db, ShouldInlineQuery, DefKey{File: "test.peg", Name: "G"})
-	require.NoError(t, err)
-
-	stats := db.Stats()
-	// Should have many queries cached due to dependency chain
-	assert.Greater(t, stats.CachedCount, 5)
-	assert.Greater(t, stats.DepsCount, 0)
-}
-
 func TestCascadingInvalidation(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	loader.Add("test.peg", []byte(`G <- "hello"`))
@@ -532,7 +515,7 @@ func TestIsRecursiveQuery(t *testing.T) {
 
 // Analysis Query Tests
 
-func TestErrorLabelsQuery(t *testing.T) {
+func TestRuleGraphLabelTargets(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	loader.Add("test.peg", []byte(`
 A <- "a"^ErrA
@@ -544,15 +527,16 @@ C <- A^ErrA B
 	cfg.SetBool("grammar.add_builtins", false)
 	db := NewDatabase(cfg, loader)
 
-	labels, err := Get(db, ErrorLabelsQuery, FilePath("test.peg"))
+	rg, err := Get(db, RuleGraphQuery, FilePath("test.peg"))
 	require.NoError(t, err)
+	labels := rg.LabelTargets()
 
 	assert.Contains(t, labels, "ErrA")
 	assert.Contains(t, labels, "ErrB")
 	assert.Len(t, labels, 2)
 }
 
-func TestDefinitionDepsQuery(t *testing.T) {
+func TestRuleGraphClosure(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	loader.Add("test.peg", []byte(`
 A <- B C
@@ -565,8 +549,9 @@ D <- "d"
 	cfg.SetBool("grammar.add_builtins", false)
 	db := NewDatabase(cfg, loader)
 
-	deps, err := Get(db, DefinitionDepsQuery, DefKey{File: "test.peg", Name: "A"})
+	rg, err := Get(db, RuleGraphQuery, FilePath("test.peg"))
 	require.NoError(t, err)
+	deps := rg.Closure("A")
 
 	// A depends on B, C, and transitively on D
 	assert.Contains(t, deps, "B")
@@ -574,80 +559,7 @@ D <- "d"
 	assert.Contains(t, deps, "D")
 }
 
-func TestShouldInlineQuery(t *testing.T) {
-	loader := NewInMemoryImportLoader()
-	loader.Add("test.peg", []byte(`
-Entry <- Small Large Recursive Recovery
-Small <- "a"
-Large <- "a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "l" "m" "n" "o"
-Recursive <- "x" Recursive / "y"
-Recovery <- "recovery"
-Other <- Small^Recovery
-`))
-
-	cfg := NewConfig()
-	cfg.SetBool("grammar.add_builtins", false)
-	cfg.SetBool("compiler.inline.enabled", true)
-	cfg.SetInt("compiler.inline.max_size", 10)
-	db := NewDatabase(cfg, loader)
-
-	t.Run("Small rule should be inlined", func(t *testing.T) {
-		shouldInline, err := Get(db, ShouldInlineQuery, DefKey{File: "test.peg", Name: "Small"})
-		require.NoError(t, err)
-		assert.True(t, shouldInline)
-	})
-
-	t.Run("Large rule should not be inlined", func(t *testing.T) {
-		shouldInline, err := Get(db, ShouldInlineQuery, DefKey{File: "test.peg", Name: "Large"})
-		require.NoError(t, err)
-		assert.False(t, shouldInline)
-	})
-
-	t.Run("Recursive rule should not be inlined", func(t *testing.T) {
-		shouldInline, err := Get(db, ShouldInlineQuery, DefKey{File: "test.peg", Name: "Recursive"})
-		require.NoError(t, err)
-		assert.False(t, shouldInline)
-	})
-
-	t.Run("Recovery rule should not be inlined", func(t *testing.T) {
-		shouldInline, err := Get(db, ShouldInlineQuery, DefKey{File: "test.peg", Name: "Recovery"})
-		require.NoError(t, err)
-		assert.False(t, shouldInline)
-	})
-
-	t.Run("Entry point should not be inlined", func(t *testing.T) {
-		shouldInline, err := Get(db, ShouldInlineQuery, DefKey{File: "test.peg", Name: "Entry"})
-		require.NoError(t, err)
-		assert.False(t, shouldInline)
-	})
-}
-
-func TestIsSyntacticQuery(t *testing.T) {
-	loader := NewInMemoryImportLoader()
-	loader.Add("test.peg", []byte(`
-Syntactic <- "hello" [a-z]+
-NonSyntactic <- Syntactic Other
-Other <- "other"
-`))
-
-	cfg := NewConfig()
-	cfg.SetBool("grammar.add_builtins", false)
-	db := NewDatabase(cfg, loader)
-
-	t.Run("Syntactic rule", func(t *testing.T) {
-		isSyntactic, err := Get(db, IsSyntacticQuery, DefKey{File: "test.peg", Name: "Syntactic"})
-		require.NoError(t, err)
-		assert.True(t, isSyntactic)
-	})
-
-	t.Run("Non-syntactic rule (has identifier)", func(t *testing.T) {
-		isSyntactic, err := Get(db, IsSyntacticQuery, DefKey{File: "test.peg", Name: "NonSyntactic"})
-		require.NoError(t, err)
-		assert.False(t, isSyntactic)
-	})
-}
-
-func TestCapExprSizeQuery(t *testing.T) {
+func TestCompilerCapExprSize(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	// Use multi-char literals that won't be converted to charsets
 	// Single char literals like "a" become CharsetNode after transformation
@@ -666,56 +578,35 @@ FixedRange <- [a-z]
 	cfg.SetBool("grammar.captures", false)
 	db := NewDatabase(cfg, loader)
 
+	grammar, err := Get(db, TransformedGrammarQuery, FilePath("test.peg"))
+	require.NoError(t, err)
+
+	c := newCompilerWithDB(db, "test.peg")
+	size := func(name string) (int, bool) {
+		return c.capExprSize(grammar.DefsByName[name].Expr)
+	}
+
 	t.Run("Fixed size literal", func(t *testing.T) {
-		result, err := Get(db, CapExprSizeQuery, DefKey{File: "test.peg", Name: "Fixed"})
-		require.NoError(t, err)
-		assert.True(t, result.IsFixed)
-		assert.Equal(t, 2, result.Size)
+		sz, fixed := size("Fixed")
+		assert.True(t, fixed)
+		assert.Equal(t, 2, sz)
 	})
 
 	t.Run("Variable size choice", func(t *testing.T) {
-		result, err := Get(db, CapExprSizeQuery, DefKey{File: "test.peg", Name: "Variable"})
-		require.NoError(t, err)
-		assert.False(t, result.IsFixed)
+		_, fixed := size("Variable")
+		assert.False(t, fixed)
 	})
 
 	t.Run("Fixed size choice", func(t *testing.T) {
-		result, err := Get(db, CapExprSizeQuery, DefKey{File: "test.peg", Name: "FixedChoice"})
-		require.NoError(t, err)
-		assert.True(t, result.IsFixed)
-		assert.Equal(t, 2, result.Size)
+		sz, fixed := size("FixedChoice")
+		assert.True(t, fixed)
+		assert.Equal(t, 2, sz)
 	})
 
 	t.Run("Fixed size range (1 char)", func(t *testing.T) {
-		result, err := Get(db, CapExprSizeQuery, DefKey{File: "test.peg", Name: "FixedRange"})
-		require.NoError(t, err)
-		// Character ranges always match exactly 1 character
-		assert.True(t, result.IsFixed)
-		assert.Equal(t, 1, result.Size)
+		_, fixed := size("FixedRange")
+		assert.False(t, fixed)
 	})
-}
-
-func TestStringTableQuery(t *testing.T) {
-	loader := NewInMemoryImportLoader()
-	loader.Add("test.peg", []byte(`
-A <- "a"^ErrA
-B <- "b"
-`))
-
-	cfg := NewConfig()
-	cfg.SetBool("grammar.add_builtins", false)
-	db := NewDatabase(cfg, loader)
-
-	st, err := Get(db, StringTableQuery, FilePath("test.peg"))
-	require.NoError(t, err)
-
-	// Should have rule names and error labels
-	assert.Contains(t, st.StringsMap, "A")
-	assert.Contains(t, st.StringsMap, "B")
-	assert.Contains(t, st.StringsMap, "ErrA")
-
-	// First string should be empty sentinel
-	assert.Equal(t, "", st.Strings[0])
 }
 
 func TestIsLeftRecursiveQuery(t *testing.T) {

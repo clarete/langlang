@@ -188,7 +188,7 @@ var opNames = map[byte]string{
 	opCapReturnLR:           "cap_return_lr",
 }
 
-var (
+const (
 	// opAnySizeInBytes: 1 because `Any` has no params
 	opAnySizeInBytes = 1
 	// opCharSizeInBytes: 3, 1 for the opcode and 2 for the

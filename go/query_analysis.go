@@ -142,26 +142,22 @@ func computeCallGraphData(db *Database, key FilePath) (*CallGraphData, error) {
 		return nil, err
 	}
 
+	rg := newRuleGraph(grammar)
 	callers := make(map[string][]CallerInfo)
 	callees := make(map[string][]string)
 
 	for _, def := range grammar.Definitions {
-		// Initialize callees for this definition
-		if _, ok := callees[def.Name]; !ok {
-			callees[def.Name] = []string{}
-		}
-
-		// Find all identifiers referenced in this definition
-		Inspect(def.Expr, func(n AstNode) bool {
-			if id, ok := n.(*IdentifierNode); ok {
-				callees[def.Name] = append(callees[def.Name], id.Value)
-				callers[id.Value] = append(callers[id.Value], CallerInfo{
-					Name:     def.Name,
-					Location: id.SourceLocation(),
-				})
+		callees[def.Name] = []string{}
+		for _, ref := range rg.refs[def.Name] {
+			if ref.Kind != RefKind_Call {
+				continue
 			}
-			return true
-		})
+			callees[def.Name] = append(callees[def.Name], ref.Name)
+			callers[ref.Name] = append(callers[ref.Name], CallerInfo{
+				Name:     def.Name,
+				Location: ref.Loc,
+			})
+		}
 	}
 	return &CallGraphData{
 		Callers: callers,
@@ -182,41 +178,36 @@ func computeUnusedRules(db *Database, key FilePath) ([]string, error) {
 		return nil, err
 	}
 
-	callGraph, err := Get(db, CallGraphDataQuery, key)
-	if err != nil {
-		return nil, err
-	}
+	rg := newRuleGraph(grammar)
+	callers := rg.Callers()
+	implicit := rg.SpacingClosure()
 
 	var unused []string
-
-	// Skip the first definition (entry point) and builtins
-	builtins := map[string]bool{
-		"Spacing": true, "Space": true, "EOF": true, "EOL": true,
-	}
-
 	for i, def := range grammar.Definitions {
-		// Skip the entry point
 		if i == 0 {
+			continue // Skip the entry point
+		}
+		if isBuiltinDefinition(grammar, def) {
 			continue
 		}
-
-		// Skip builtins
-		if builtins[def.Name] {
+		if _, ok := implicit[def.Name]; ok {
 			continue
 		}
-
-		// Check if this rule is called anywhere
-		if callers, ok := callGraph.Callers[def.Name]; !ok || len(callers) == 0 {
-			// Also check if it's used as a recovery rule
-			recoveryRules, _ := Get(db, RecoveryRulesQuery, key)
-			if info, ok := recoveryRules[def.Name]; ok && len(info.UsageLocs) > 0 {
-				continue // Used as recovery rule
-			}
+		if len(callers[def.Name]) == 0 {
 			unused = append(unused, def.Name)
 		}
 	}
-
 	return unused, nil
+}
+
+// isBuiltinDefinition tries to find out if a definition is builtin or
+// user-defined by matching the file name it was declared.
+func isBuiltinDefinition(g *GrammarNode, def *DefinitionNode) bool {
+	id := int(def.SourceLocation().FileID)
+	if id < len(g.SourceFiles) {
+		return g.SourceFiles[id] == BuiltinsPath
+	}
+	return false
 }
 
 // UndefinedReferencesQuery finds identifiers with no definition.

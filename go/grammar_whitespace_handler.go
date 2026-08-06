@@ -20,20 +20,15 @@ func InjectWhitespaces(n AstNode) (AstNode, error) {
 
 func (wi *whitespaceInjector) Run(n *GrammarNode) *GrammarNode {
 	var (
-		defs         = make([]*DefinitionNode, 0, len(n.Definitions))
-		defMap       = make(map[string]*DefinitionNode, len(n.Definitions))
-		spDeps       = newSortedDeps()
-		spDef, hasSp = n.DefsByName[spacingIdentifier]
+		defs    = make([]*DefinitionNode, 0, len(n.Definitions))
+		defMap  = make(map[string]*DefinitionNode, len(n.Definitions))
+		spacing = newRuleGraph(n).SpacingClosure()
 	)
-	if hasSp {
-		spDeps.names = append(spDeps.names, spacingIdentifier)
-		findDefinitionDeps(n, spDef, spDeps)
-	}
 outer:
 	for _, def := range n.Definitions {
 		// Avoid injecting `Spacing` within the `Spacing` rule
 		// and its dependencies
-		for _, dep := range spDeps.names {
+		for dep := range spacing {
 			if def.Name == dep {
 				defs = append(defs, def)
 				defMap[def.Name] = def

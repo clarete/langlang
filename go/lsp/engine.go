@@ -452,12 +452,12 @@ func posInSpan(line, col int, sp langlang.Span) bool {
 func toLspRange(s langlang.Span) Range {
 	return Range{
 		Start: Position{
-			Line:      max(s.Start.Line - 1),
-			Character: max(s.Start.Column - 1),
+			Line:      max(s.Start.Line-1, 0),
+			Character: max(s.Start.Column-1, 0),
 		},
 		End: Position{
-			Line:      max(s.End.Line - 1),
-			Character: max(s.End.Column - 1),
+			Line:      max(s.End.Line-1, 0),
+			Character: max(s.End.Column-1, 0),
 		},
 	}
 }

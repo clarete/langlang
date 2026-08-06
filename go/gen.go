@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 )
 
 //go:embed api.go vm.go vm_stack.go vm_charset.go tree.go tree_printer.go errors.go pos.go
@@ -26,11 +25,7 @@ type GenGoOptions struct {
 	SourceFile  string
 }
 
-type tmplRenderOpts struct {
-	PackageName string
-}
-
-func GenGoEval(asm *Program, cfg *Config, opt GenGoOptions) (string, error) {
+func GenGoEval(asm *Program, cfg *Config, opt GenGoOptions) ([]byte, error) {
 	g := newGoEvalEmitter(opt)
 	g.writePrelude()
 	g.writeInterfaces()
@@ -39,7 +34,7 @@ func GenGoEval(asm *Program, cfg *Config, opt GenGoOptions) (string, error) {
 	g.writeParserConstructor()
 	g.writeParserMethods(asm)
 	g.writeDeps()
-	return g.output()
+	return g.formatOutput()
 }
 
 type goEvalEmitter struct {
@@ -318,23 +313,12 @@ func (g *goEvalEmitter) writeDeps() {
 	}
 }
 
-func (g *goEvalEmitter) output() (string, error) {
-	parserTmpl, err := template.New("parser").Parse(g.parser.buffer.String())
+func (g *goEvalEmitter) formatOutput() ([]byte, error) {
+	formatted, err := format.Source(g.parser.buffer.Bytes())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	var output bytes.Buffer
-	vv := tmplRenderOpts{
-		PackageName: g.options.PackageName,
-	}
-	if err = parserTmpl.Execute(&output, vv); err != nil {
-		return "", err
-	}
-	formatted, err := format.Source(output.Bytes())
-	if err != nil {
-		return "", err
-	}
-	return string(formatted), nil
+	return formatted, nil
 }
 
 func cleanGoModule(fs embed.FS, fileName string) (string, error) {
@@ -400,14 +384,14 @@ func readAPI(fs embed.FS, fileName string) string {
 }
 
 type outputWriter struct {
-	buffer      *strings.Builder
+	buffer      *bytes.Buffer
 	indentLevel int
 	space       string
 }
 
 func newOutputWriter(space string) *outputWriter {
 	return &outputWriter{
-		buffer: &strings.Builder{},
+		buffer: &bytes.Buffer{},
 		space:  space,
 	}
 }

@@ -220,7 +220,7 @@ func main() {
 		fatal("Expected `-output-language`")
 	}
 
-	var outputData string
+	var outputData []byte
 	switch *a.outputLang {
 	case "go":
 		outputData, err = langlang.GenGoEval(program, cfg, langlang.GenGoOptions{
@@ -239,7 +239,7 @@ func main() {
 		fatal("Can't emit code: %s", err.Error())
 	}
 
-	if err = os.WriteFile(*a.outputPath, []byte(outputData), 0644); err != nil {
+	if err = os.WriteFile(*a.outputPath, outputData, 0644); err != nil {
 		fatal("Can't write output: %s", err.Error())
 	}
 }

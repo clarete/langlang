@@ -442,7 +442,7 @@ func (n LexNode) PrettyString() string           { return ppAstNode(&n, formatNo
 func (n LexNode) HighlightPrettyString() string  { return ppAstNode(&n, formatNodeThemed) }
 
 func (n LexNode) String() string {
-	if _, ok := n.Expr.(SequenceNode); ok {
+	if _, ok := n.Expr.(*SequenceNode); ok {
 		return fmt.Sprintf("#(%s)", n.Expr.String())
 	}
 	return fmt.Sprintf("#%s", n.Expr)

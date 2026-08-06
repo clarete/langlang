@@ -3,6 +3,7 @@ package langlang
 import "fmt"
 
 // ParsedGrammarQuery parses a grammar file and returns its AST.
+//
 // The returned grammar may contain ErrorNode instances if there were
 // parse errors - check grammar.Errors to get diagnostics.
 var ParsedGrammarQuery = &Query[FilePath, *GrammarNode]{

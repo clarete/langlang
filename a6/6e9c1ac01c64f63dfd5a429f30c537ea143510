@@ -1,0 +1,25 @@
+sketch.org
+  s_f1fdf582a0df13::t_d27d3c612bcd6e 570,573,576-581,593-597,600-612,614,620-626,628-630,656-660,666,685
+  s_f1fdf582a0df13::t_68e718e287db1b 584-585
+  s_f1fdf582a0df13::t_64efb17f1691d3 613,615-619,627,631-655,661-665,667-684,686-696,699-700
+  s_f1fdf582a0df13::t_a28638225e331c 705-708
+  s_f1fdf582a0df13::t_833cc25b39dbb1 589-592
+  s_f1fdf582a0df13::t_5ba0a9a23c3be0 701-704
+  s_f1fdf582a0df13::t_c2e61b4011585f 709-710
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "development:1.6.15",
+  "base_commit_sha": "a66e9c1ac01c64f63dfd5a429f30c537ea143510",
+  "prompts": {},
+  "sessions": {
+    "s_f1fdf582a0df13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff5f035a-950a-416e-807e-f96ba1d8a198",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    }
+  }
+}

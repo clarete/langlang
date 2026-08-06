@@ -8,12 +8,17 @@ func AddCaptures(n AstNode, cfg *Config) (*GrammarNode, error) {
 		return nil, fmt.Errorf("grammar expected, but got %#v", n)
 	}
 	var (
-		rg      = newRuleGraph(grammar)
-		spacing = rg.SpacingClosure()
-		enabled = cfg.GetBool("grammar.capture_spaces")
+		rg       = newRuleGraph(grammar)
+		recovery = rg.LabelTargets()
+		spacing  = rg.SpacingClosure()
+		enabled  = cfg.GetBool("grammar.capture_spaces")
 	)
 	for _, def := range grammar.Definitions {
 		if _, skip := spacing[def.Name]; skip && !enabled {
+			continue
+		}
+
+		if _, isRecovery := recovery[def.Name]; !isRecovery && isZeroWidth(def.Expr) {
 			continue
 		}
 

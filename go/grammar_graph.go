@@ -105,3 +105,15 @@ func (rg *RuleGraph) Callers() map[string][]Caller {
 	}
 	return out
 }
+
+func (rg *RuleGraph) LabelTargets() map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, refs := range rg.refs {
+		for _, ref := range refs {
+			if ref.Kind == RefKind_Label {
+				out[ref.Name] = struct{}{}
+			}
+		}
+	}
+	return out
+}

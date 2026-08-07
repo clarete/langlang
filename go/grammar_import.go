@@ -1,11 +1,5 @@
 package langlang
 
-const unknownFileID FileID = -1
-
-func NewSourceLocation(f FileID, s Span) SourceLocation {
-	return SourceLocation{FileID: f, Span: s}
-}
-
 // sortedDeps tracks definition dependencies in insertion order.
 // Used by import resolution and grammar transformations.
 type sortedDeps struct {

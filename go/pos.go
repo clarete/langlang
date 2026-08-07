@@ -51,6 +51,15 @@ func (s Span) String() string {
 	return fmt.Sprintf("%d:%d..%d:%d", startLine, startCol, endLine, endCol)
 }
 
+// ---- SourceLocation ----
+
+const unknownFileID FileID = -1
+
+// NewSourceLocation creates a SourceLocation
+func NewSourceLocation(f FileID, s Span) SourceLocation {
+	return SourceLocation{FileID: f, Span: s}
+}
+
 // srcMapEntry is the decoded form of a source map entry.
 type srcMapEntry struct {
 	offset                           int

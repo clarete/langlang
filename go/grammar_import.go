@@ -1,79 +1,81 @@
 package langlang
 
-// sortedDeps tracks definition dependencies in insertion order.
-// Used by import resolution and grammar transformations.
-type sortedDeps struct {
-	names []string
-	nodes map[string]*DefinitionNode
+type ImportGraph struct {
+	// Root is the resolved path of the entry file
+	Root string
+	// Order contanis resolved paths in pre-order, with Root first
+	Order []string
+	// Files maps between resolved paths and parsed grammar nodes
+	Files map[string]*GrammarNode
+	// Edges maps between resolved paths and their import nodes.
+	// The edges are sorted in the order they appear in the
+	// source.
+	Edges map[string][]ImportEdge
 }
 
-func newSortedDeps() *sortedDeps {
-	return &sortedDeps{names: []string{}, nodes: map[string]*DefinitionNode{}}
+type ImportEdge struct {
+	Node         *ImportNode
+	From, To     string
+	ResolveError error
+	ParseError   error
+	IsCycle      bool
 }
 
-// findDefinitionDeps traverses the definition `node` and finds all
-// identifiers within it.  If the identifier hasn't been seen yet, it
-// will add it to the dependency list, and traverse into the
-// definition that points into that identifier.
-func findDefinitionDeps(g *GrammarNode, node AstNode, deps *sortedDeps) error {
-	switch n := node.(type) {
-	case *DefinitionNode:
-		return findDefinitionDeps(g, n.Expr, deps)
-	case *IdentifierNode:
-		// Let's not recurse if this dep has been seen already
-		if _, ok := deps.nodes[n.Value]; ok {
-			return nil
-		}
+var ImportGraphQuery = &Query[FilePath, *ImportGraph]{
+	Name:    "ImportGraph",
+	Compute: computeImportGraph,
+}
 
-		// save definition as a dependency and recurse into it
-		def, ok := g.DefsByName[n.Value]
-		if !ok {
-			// Skip undefined references as they will be caught by semantic
-			// analysis (through UndefinedReferencesQuery) with proper
-			// source location info
-			return nil
-		}
-		deps.nodes[n.Value] = def
-		deps.names = append(deps.names, n.Value)
-		return findDefinitionDeps(g, def.Expr, deps)
-	case *SequenceNode:
-		for _, item := range n.Items {
-			if err := findDefinitionDeps(g, item, deps); err != nil {
-				return err
-			}
-		}
-		return nil
-	case *ChoiceNode:
-		if err := findDefinitionDeps(g, n.Left, deps); err != nil {
-			return err
-		}
-		if err := findDefinitionDeps(g, n.Right, deps); err != nil {
-			return err
-		}
-		return nil
-	case *OptionalNode:
-		return findDefinitionDeps(g, n.Expr, deps)
-	case *ZeroOrMoreNode:
-		return findDefinitionDeps(g, n.Expr, deps)
-	case *OneOrMoreNode:
-		return findDefinitionDeps(g, n.Expr, deps)
-	case *AndNode:
-		return findDefinitionDeps(g, n.Expr, deps)
-	case *NotNode:
-		return findDefinitionDeps(g, n.Expr, deps)
-	case *LexNode:
-		return findDefinitionDeps(g, n.Expr, deps)
-	case *LabeledNode:
-		// save definition as a dependency and recurse into it
-		if def, ok := g.DefsByName[n.Label]; ok {
-			deps.nodes[n.Label] = def
-			deps.names = append(deps.names, n.Label)
-			if err := findDefinitionDeps(g, def.Expr, deps); err != nil {
-				return err
-			}
-		}
-		return findDefinitionDeps(g, n.Expr, deps)
-	default:
+func computeImportGraph(db *Database, key FilePath) (*ImportGraph, error) {
+	root, err := db.Loader().GetPath(string(key), string(key))
+	if err != nil {
+		return nil, err
+	}
+	g := &ImportGraph{
+		Root:  root,
+		Files: map[string]*GrammarNode{},
+		Edges: map[string][]ImportEdge{},
+	}
+	if err := g.visit(db, root, map[string]bool{}); err != nil {
+		return nil, err
+	}
+	return g, nil
+}
+
+func (g *ImportGraph) visit(db *Database, path string, inProgress map[string]bool) error {
+	if _, seen := g.Files[path]; seen {
 		return nil
 	}
+	grammar, err := Get(db, ParsedGrammarQuery, FilePath(path))
+	if err != nil {
+		return err
+	}
+	g.Files[path] = grammar
+	g.Order = append(g.Order, path)
+
+	inProgress[path] = true
+	defer delete(inProgress, path)
+
+	for _, node := range grammar.Imports {
+		edge := ImportEdge{Node: node, From: path}
+		to, err := db.Loader().GetPath(node.GetPath(), path)
+		switch {
+		case err != nil:
+			edge.ResolveError = err
+		case inProgress[to]:
+			edge.To = to
+			edge.IsCycle = true
+		default:
+			if _, err := Get(db, ParsedGrammarQuery, FilePath(to)); err != nil {
+				edge.ParseError = err
+			} else {
+				edge.To = to
+			}
+		}
+		g.Edges[path] = append(g.Edges[path], edge)
+		if edge.To != "" && !edge.IsCycle {
+			g.visit(db, to, inProgress)
+		}
+	}
+	return nil
 }

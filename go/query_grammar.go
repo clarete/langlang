@@ -63,17 +63,21 @@ var ResolvedImportsQuery = &Query[FilePath, *GrammarNode]{
 // If builtins are enabled, they are merged as an implicit import from
 // BuiltinsPath, giving them proper FileIDs for code navigation.
 func computeResolvedImports(db *Database, key FilePath) (*GrammarNode, error) {
-	grammar, err := resolveImportsRecursive(db, string(key), string(key))
+	g, err := Get(db, ImportGraphQuery, key)
 	if err != nil {
 		return nil, err
 	}
+
+	grammar := resolveFromGraph(g, g.Root, map[string]*GrammarNode{})
+
 	if db.Config().GetBool("grammar.add_builtins") {
-		builtinsGrammar, err := resolveImportsRecursive(db, BuiltinsPath, BuiltinsPath)
+		bg, err := Get(db, ImportGraphQuery, FilePath(BuiltinsPath))
 		if err != nil {
 			return nil, err
 		}
-		grammar = mergeBuiltinsGrammar(grammar, builtinsGrammar)
+		grammar = mergeBuiltinsGrammar(grammar, resolveFromGraph(bg, bg.Root, map[string]*GrammarNode{}))
 	}
+
 	grammar.SourceFiles = db.AllFilePaths()
 	return grammar, nil
 }
@@ -91,53 +95,38 @@ func mergeBuiltinsGrammar(grammar, builtins *GrammarNode) *GrammarNode {
 	return grammar
 }
 
-// resolveImportsRecursive recursively resolves imports for a grammar
-// file.  FileIDs are now set during parsing via computeParsedGrammar,
-// so we don't need to update them here.
-func resolveImportsRecursive(db *Database, importPath, parentPath string) (*GrammarNode, error) {
-	path, err := db.Loader().GetPath(importPath, parentPath)
-	if err != nil {
-		return nil, err
-	}
-	grammar, err := Get(db, ParsedGrammarQuery, FilePath(path))
-	if err != nil {
-		return nil, err
+func resolveFromGraph(g *ImportGraph, path string, resolved map[string]*GrammarNode) *GrammarNode {
+	if done, ok := resolved[path]; ok {
+		return done
 	}
 
-	grammar = copyGrammarNode(grammar)
+	grammar := copyGrammarNode(g.Files[path])
 
-	for _, importNode := range grammar.Imports {
-		childGrammar, err := resolveImportsRecursive(db, importNode.GetPath(), path)
-		if err != nil {
-			// These errors will be surfaced by the ParsedGrammarQuery query
-			continue
+	for _, e := range g.Edges[path] {
+		if e.To == "" {
+			continue // unresolved or unparseable (reported by ImportErrorsQuery)
 		}
 
-		for _, name := range importNode.GetNames() {
-			importedDefinition, ok := childGrammar.DefsByName[name]
+		child := g.Files[e.To]
+		if !e.IsCycle {
+			child = resolveFromGraph(g, e.To, resolved)
+		}
+
+		crg := newRuleGraph(child)
+		for _, name := range e.Node.GetNames() {
+			def, ok := child.DefsByName[name]
 			if !ok {
-				// Skip missing names: they'll be caught as undefined
-				// references by UndefinedReferencesQuery when used
-				continue
+				continue // ImportErrorMissingName
 			}
-
-			grammar.AddDefinition(importedDefinition)
-
-			deps, err := findDefinitionDepsFromGrammar(childGrammar, importedDefinition)
-			if err != nil {
-				// Skip deps that fail as they will be caught by
-				// UndefinedReferencesQuery later
-				continue
-			}
-			for _, depName := range deps.names {
-				grammar.AddDefinition(deps.nodes[depName])
+			grammar.AddDefinition(def)
+			for _, dep := range crg.Closure(name) {
+				grammar.AddDefinition(child.DefsByName[dep])
 			}
 		}
 	}
-
-	grammar.Imports = []*ImportNode{}
-
-	return grammar, nil
+	grammar.Imports = nil
+	resolved[path] = grammar
+	return grammar
 }
 
 // copyGrammarNode creates a shallow copy of a grammar node to avoid
@@ -161,14 +150,6 @@ func copyGrammarNode(g *GrammarNode) *GrammarNode {
 		DefsByName:  defsByName,
 		SourceFiles: g.SourceFiles,
 	}
-}
-
-func findDefinitionDepsFromGrammar(g *GrammarNode, node *DefinitionNode) (*sortedDeps, error) {
-	deps := newSortedDeps()
-	if err := findDefinitionDeps(g, node.Expr, deps); err != nil {
-		return nil, err
-	}
-	return deps, nil
 }
 
 // SourceFilesQuery returns the list of source files involved in

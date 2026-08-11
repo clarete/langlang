@@ -74,7 +74,9 @@ func (g *ImportGraph) visit(db *Database, path string, inProgress map[string]boo
 		}
 		g.Edges[path] = append(g.Edges[path], edge)
 		if edge.To != "" && !edge.IsCycle {
-			g.visit(db, to, inProgress)
+			if err := g.visit(db, to, inProgress); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

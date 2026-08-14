@@ -63,7 +63,7 @@ func computeAllParseErrors(db *Database, key FilePath) ([]Diagnostic, error) {
 			}
 		}
 	}
-	importedFiles, err := discoverImportedFiles(db, string(key), string(key), make(map[string]bool))
+	importedFiles, err := discoverImportedFiles(db, string(key), string(key))
 	if err != nil {
 		// If import discovery fails, return what we have
 		return allDiagnostics, nil
@@ -91,30 +91,18 @@ func computeAllParseErrors(db *Database, key FilePath) ([]Diagnostic, error) {
 }
 
 // discoverImportedFiles recursively discovers all imported files.
-func discoverImportedFiles(db *Database, importPath, parentPath string, visited map[string]bool) ([]string, error) {
+func discoverImportedFiles(db *Database, importPath, parentPath string) ([]string, error) {
 	path, err := db.Loader().GetPath(importPath, parentPath)
 	if err != nil {
 		return nil, err
 	}
-	if visited[path] {
-		return nil, nil
-	}
-	visited[path] = true
-
-	grammar, err := Get(db, ParsedGrammarQuery, FilePath(path))
+	ig, err := Get(db, ImportGraphQuery, FilePath(path))
 	if err != nil {
 		return nil, err
 	}
 	var discovered []string
-	if path != parentPath || importPath != parentPath {
-		discovered = append(discovered, path)
-	}
-	for _, imp := range grammar.Imports {
-		childPaths, err := discoverImportedFiles(db, imp.GetPath(), path, visited)
-		if err != nil {
-			return nil, err
-		}
-		discovered = append(discovered, childPaths...)
+	for _, item := range ig.Order[1:] {
+		discovered = append(discovered, item)
 	}
 	return discovered, nil
 }

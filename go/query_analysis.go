@@ -33,10 +33,10 @@ var ImportErrorsQuery = &Query[FilePath, []ImportErrorInfo]{
 }
 
 func computeImportErrors(db *Database, key FilePath) ([]ImportErrorInfo, error) {
-	return computeImportErrorsRecursive(db, string(key), string(key), make(map[string]bool))
+	return computeImportErrorsRecursive(db, string(key), string(key), map[string]struct{}{})
 }
 
-func computeImportErrorsRecursive(db *Database, importPath, parentPath string, visited map[string]bool) ([]ImportErrorInfo, error) {
+func computeImportErrorsRecursive(db *Database, importPath, parentPath string, visited map[string]struct{}) ([]ImportErrorInfo, error) {
 	// Resolve the actual file path
 	path, err := db.Loader().GetPath(importPath, parentPath)
 	if err != nil {
@@ -44,10 +44,10 @@ func computeImportErrorsRecursive(db *Database, importPath, parentPath string, v
 	}
 
 	// Avoid cycles
-	if visited[path] {
+	if _, ok := visited[path]; ok {
 		return nil, nil
 	}
-	visited[path] = true
+	visited[path] = struct{}{}
 
 	// Get the parsed grammar (before import resolution)
 	grammar, err := Get(db, ParsedGrammarQuery, FilePath(path))

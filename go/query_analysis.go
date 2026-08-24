@@ -33,99 +33,64 @@ var ImportErrorsQuery = &Query[FilePath, []ImportErrorInfo]{
 }
 
 func computeImportErrors(db *Database, key FilePath) ([]ImportErrorInfo, error) {
-	return computeImportErrorsRecursive(db, string(key), string(key), map[string]struct{}{})
-}
-
-func computeImportErrorsRecursive(db *Database, importPath, parentPath string, visited map[string]struct{}) ([]ImportErrorInfo, error) {
-	// Resolve the actual file path
-	path, err := db.Loader().GetPath(importPath, parentPath)
+	ig, err := Get(db, ImportGraphQuery, key)
 	if err != nil {
-		return nil, nil // Can't resolve entry file path - skip
-	}
-
-	// Avoid cycles
-	if _, ok := visited[path]; ok {
-		return nil, nil
-	}
-	visited[path] = struct{}{}
-
-	// Get the parsed grammar (before import resolution)
-	grammar, err := Get(db, ParsedGrammarQuery, FilePath(path))
-	if err != nil {
-		return nil, nil // Parse error in current file - skip (caught by ParseErrorsQuery)
+		return nil, err
 	}
 
 	var importErrors []ImportErrorInfo
 
-	// Check each import statement
-	for _, importNode := range grammar.Imports {
-		importedPath, err := db.Loader().GetPath(importNode.GetPath(), path)
-		if err != nil {
-			// File not found error
-			importErrors = append(importErrors, ImportErrorInfo{
-				Kind:       ImportErrorFileNotFound,
-				SourceFile: importNode.GetPath(),
-				Message:    err.Error(),
-				Location:   importNode.SourceLocation(),
-			})
-			continue
-		}
-
-		// Get the parsed grammar of the imported file
-		importedGrammar, err := Get(db, ParsedGrammarQuery, FilePath(importedPath))
-		if err != nil {
-			// Determine the kind of error and extract message
+	for _, path := range ig.Order {
+		for _, edge := range ig.Edges[path] {
 			var (
 				kind ImportErrorKind
 				msg  string
 			)
-
-			var loadErr *FileLoadError
-			var grammarErr *GrammarError
-
-			if errors.As(err, &loadErr) {
-				// File could not be loaded (not found, permission denied, etc.)
+			switch {
+			case edge.ResolveError != nil:
 				kind = ImportErrorFileNotFound
-				msg = loadErr.Err.Error()
-			} else if errors.As(err, &grammarErr) && len(grammarErr.Diagnostics) > 0 {
-				// Parse error with diagnostics
-				kind = ImportErrorParseFailure
-				msg = grammarErr.Diagnostics[0].Message
-			} else {
-				// Other parse error
-				kind = ImportErrorParseFailure
-				msg = err.Error()
+				msg = edge.ResolveError.Error()
+
+			case edge.ParseError != nil:
+				// TODO: A missing file surfaces here as FileLoadError, not as
+				// a ResolveError.  GetPath succeeds on a path that isn't on disk.
+				// So only a  GrammarError is a parse failure.
+				var (
+					loadErr    *FileLoadError
+					grammarErr *GrammarError
+				)
+				switch {
+				case errors.As(edge.ParseError, &loadErr):
+					kind, msg = ImportErrorFileNotFound, loadErr.Err.Error()
+				case errors.As(edge.ParseError, &grammarErr) && len(grammarErr.Diagnostics) > 0:
+					kind, msg = ImportErrorParseFailure, grammarErr.Diagnostics[0].Message
+				default:
+					kind, msg = ImportErrorParseFailure, edge.ParseError.Error()
+				}
+
+			default:
+				imported := ig.Files[edge.To]
+				for _, name := range edge.Node.GetNames() {
+					if _, ok := imported.DefsByName[name]; !ok {
+						importErrors = append(importErrors, ImportErrorInfo{
+							Kind:       ImportErrorMissingName,
+							Name:       name,
+							SourceFile: edge.Node.GetPath(),
+							Location:   edge.Node.SourceLocation(),
+						})
+					}
+				}
+				continue
 			}
 
 			importErrors = append(importErrors, ImportErrorInfo{
 				Kind:       kind,
-				SourceFile: importNode.GetPath(),
+				SourceFile: edge.Node.GetPath(),
 				Message:    msg,
-				Location:   importNode.SourceLocation(),
+				Location:   edge.Node.SourceLocation(),
 			})
-			continue
 		}
-
-		// Check each imported name
-		for _, name := range importNode.GetNames() {
-			if _, ok := importedGrammar.DefsByName[name]; !ok {
-				importErrors = append(importErrors, ImportErrorInfo{
-					Kind:       ImportErrorMissingName,
-					Name:       name,
-					SourceFile: importNode.GetPath(),
-					Location:   importNode.SourceLocation(),
-				})
-			}
-		}
-
-		// Recursively check imports in the imported file
-		childErrors, err := computeImportErrorsRecursive(db, importNode.GetPath(), path, visited)
-		if err != nil {
-			continue
-		}
-		importErrors = append(importErrors, childErrors...)
 	}
-
 	return importErrors, nil
 }
 

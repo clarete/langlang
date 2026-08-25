@@ -1,5 +1,15 @@
 package langlang
 
+// ImportErrorKind discriminates the type of import error.
+type ImportErrorKind int
+
+const (
+	ImportErrorNone ImportErrorKind = iota
+	ImportErrorResolve
+	ImportErrorCycle
+	ImportErrorMissingName
+)
+
 type ImportGraph struct {
 	// Root is the resolved path of the entry file
 	Root string
@@ -14,11 +24,14 @@ type ImportGraph struct {
 }
 
 type ImportEdge struct {
-	Node         *ImportNode
-	From, To     string
-	ResolveError error
-	ParseError   error
-	IsCycle      bool
+	Node     *ImportNode
+	From, To string
+	ErrMsg   string
+	ErrKind  ImportErrorKind
+}
+
+func (e ImportEdge) IsCycle() bool {
+	return e.ErrKind == ImportErrorCycle
 }
 
 var ImportGraphQuery = &Query[FilePath, *ImportGraph]{
@@ -61,19 +74,21 @@ func (g *ImportGraph) visit(db *Database, path string, inProgress map[string]boo
 		to, err := db.Loader().GetPath(node.GetPath(), path)
 		switch {
 		case err != nil:
-			edge.ResolveError = err
+			edge.ErrKind = ImportErrorResolve
+			edge.ErrMsg = err.Error()
 		case inProgress[to]:
 			edge.To = to
-			edge.IsCycle = true
+			edge.ErrKind = ImportErrorCycle
 		default:
 			if _, err := Get(db, ParsedGrammarQuery, FilePath(to)); err != nil {
-				edge.ParseError = err
+				edge.ErrKind = ImportErrorResolve
+				edge.ErrMsg = err.Error()
 			} else {
 				edge.To = to
 			}
 		}
 		g.Edges[path] = append(g.Edges[path], edge)
-		if edge.To != "" && !edge.IsCycle {
+		if edge.To != "" && !edge.IsCycle() {
 			if err := g.visit(db, to, inProgress); err != nil {
 				return err
 			}

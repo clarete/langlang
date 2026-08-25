@@ -1,20 +1,8 @@
 package langlang
 
-import (
-	"errors"
-	"fmt"
-)
+import "fmt"
 
 // Import Errors Query
-
-// ImportErrorKind discriminates the type of import error.
-type ImportErrorKind int
-
-const (
-	ImportErrorMissingName  ImportErrorKind = iota // Name not found in source file
-	ImportErrorFileNotFound                        // Import file doesn't exist
-	ImportErrorParseFailure                        // Import file has syntax errors
-)
 
 // ImportErrorInfo holds information about an import error.
 type ImportErrorInfo struct {
@@ -42,53 +30,27 @@ func computeImportErrors(db *Database, key FilePath) ([]ImportErrorInfo, error) 
 
 	for _, path := range ig.Order {
 		for _, edge := range ig.Edges[path] {
-			var (
-				kind ImportErrorKind
-				msg  string
-			)
-			switch {
-			case edge.ResolveError != nil:
-				kind = ImportErrorFileNotFound
-				msg = edge.ResolveError.Error()
-
-			case edge.ParseError != nil:
-				// TODO: A missing file surfaces here as FileLoadError, not as
-				// a ResolveError.  GetPath succeeds on a path that isn't on disk.
-				// So only a  GrammarError is a parse failure.
-				var (
-					loadErr    *FileLoadError
-					grammarErr *GrammarError
-				)
-				switch {
-				case errors.As(edge.ParseError, &loadErr):
-					kind, msg = ImportErrorFileNotFound, loadErr.Err.Error()
-				case errors.As(edge.ParseError, &grammarErr) && len(grammarErr.Diagnostics) > 0:
-					kind, msg = ImportErrorParseFailure, grammarErr.Diagnostics[0].Message
-				default:
-					kind, msg = ImportErrorParseFailure, edge.ParseError.Error()
-				}
-
-			default:
-				imported := ig.Files[edge.To]
-				for _, name := range edge.Node.GetNames() {
-					if _, ok := imported.DefsByName[name]; !ok {
-						importErrors = append(importErrors, ImportErrorInfo{
-							Kind:       ImportErrorMissingName,
-							Name:       name,
-							SourceFile: edge.Node.GetPath(),
-							Location:   edge.Node.SourceLocation(),
-						})
-					}
-				}
+			if edge.ErrKind != ImportErrorNone {
+				importErrors = append(importErrors, ImportErrorInfo{
+					Kind:       edge.ErrKind,
+					Message:    edge.ErrMsg,
+					SourceFile: edge.Node.GetPath(),
+					Location:   edge.Node.SourceLocation(),
+				})
 				continue
 			}
 
-			importErrors = append(importErrors, ImportErrorInfo{
-				Kind:       kind,
-				SourceFile: edge.Node.GetPath(),
-				Message:    msg,
-				Location:   edge.Node.SourceLocation(),
-			})
+			// Check each imported name
+			for _, name := range edge.Node.GetNames() {
+				if _, ok := ig.Files[edge.To].DefsByName[name]; !ok {
+					importErrors = append(importErrors, ImportErrorInfo{
+						Kind:       ImportErrorMissingName,
+						Name:       name,
+						SourceFile: edge.Node.GetPath(),
+						Location:   edge.Node.SourceLocation(),
+					})
+				}
+			}
 		}
 	}
 	return importErrors, nil
@@ -265,12 +227,15 @@ func computeDiagnostics(db *Database, key FilePath) ([]Diagnostic, error) {
 		case ImportErrorMissingName:
 			msg = fmt.Sprintf("Name '%s' is not declared in %s", ie.Name, ie.SourceFile)
 			code = "missing-import"
-		case ImportErrorFileNotFound:
+		case ImportErrorResolve:
 			msg = fmt.Sprintf("Cannot find import '%s': %s", ie.SourceFile, ie.Message)
 			code = "import-not-found"
-		case ImportErrorParseFailure:
-			msg = fmt.Sprintf("Failed to parse import '%s': %s", ie.SourceFile, ie.Message)
-			code = "import-parse-error"
+		case ImportErrorCycle:
+			msg = fmt.Sprintf("Import cycle detected: '%s'", ie.SourceFile)
+			if ie.Message != "" {
+				msg += ": " + ie.Message
+			}
+			code = "import-cycle"
 		}
 		diagnostics = append(diagnostics, Diagnostic{
 			Location: ie.Location,

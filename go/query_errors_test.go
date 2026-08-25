@@ -3,6 +3,9 @@ package langlang
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseErrorsQuery_ValidGrammar(t *testing.T) {
@@ -23,6 +26,245 @@ func TestParseErrorsQuery_ValidGrammar(t *testing.T) {
 			t.Logf("  - %s", d.FormatCLI())
 		}
 	}
+}
+
+func TestImportErrorsQuery_FileNotFound(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("a.peg", []byte(`
+@import B from "./nope.peg"
+A <- B
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	errs, err := Get(db, ImportErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+	require.Len(t, errs, 1)
+	assert.Equal(t, ImportErrorResolve, errs[0].Kind)
+	assert.Equal(t, "./nope.peg", errs[0].SourceFile)
+	assert.NotEmpty(t, errs[0].Message)
+}
+
+func TestImportErrorsQuery_MissingName(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("lib.peg", []byte(`B <- "b"`))
+	loader.Add("a.peg", []byte(`
+@import Nope from "./lib.peg"
+A <- Nope
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	errs, err := Get(db, ImportErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+	require.Len(t, errs, 1)
+	assert.Equal(t, ImportErrorMissingName, errs[0].Kind)
+	assert.Equal(t, "Nope", errs[0].Name)
+}
+
+func TestImportErrorsQuery_NestedImportErrors(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("c.peg", []byte(`C <- "c"`))
+	loader.Add("b.peg", []byte(`
+@import Missing from "./c.peg"
+@import X from "./ghost.peg"
+B <- "b"
+`))
+	loader.Add("a.peg", []byte(`
+@import B from "./b.peg"
+A <- B
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	// Errors inside an imported file's own imports must surface
+	// when querying the root.
+	errs, err := Get(db, ImportErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+
+	kinds := map[ImportErrorKind]int{}
+	for _, e := range errs {
+		kinds[e.Kind]++
+	}
+	assert.Equal(t, 1, kinds[ImportErrorMissingName], "missing name in nested import: %v", errs)
+	assert.Equal(t, 1, kinds[ImportErrorResolve], "unresolvable file in nested import: %v", errs)
+}
+
+func TestImportErrorsQuery_CleanImports(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("c.peg", []byte(`C <- "c"`))
+	loader.Add("b.peg", []byte(`
+@import C from "./c.peg"
+B <- C
+`))
+	loader.Add("a.peg", []byte(`
+@import B from "./b.peg"
+A <- B
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	errs, err := Get(db, ImportErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+	assert.Empty(t, errs)
+}
+
+func TestImportErrorsQuery_CycleReported(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("a.peg", []byte(`
+@import B from "./b.peg"
+A <- B
+`))
+	loader.Add("b.peg", []byte(`
+@import A from "./a.peg"
+B <- "b"
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	// A cyclic import must terminate and be reported as a cycle -
+	// exactly once, on the back-edge that closes the loop (b.peg's
+	// import of a.peg). The forward edge (a -> b) is healthy and
+	// must not produce a spurious error.
+	errs, err := Get(db, ImportErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, ImportErrorCycle, errs[0].Kind)
+	assert.Equal(t, "./a.peg", errs[0].SourceFile)
+}
+
+// diagnosticByCode returns the single diagnostic carrying the given code,
+// failing the test if there is not exactly one.  Import diagnostics
+// are the user-facing surface, so tests assert on them rather than on
+// the intermediate ImportErrorInfo.
+func diagnosticByCode(t *testing.T, ds []Diagnostic, code string) Diagnostic {
+	t.Helper()
+	var found []Diagnostic
+	for _, d := range ds {
+		if d.Code == code {
+			found = append(found, d)
+		}
+	}
+	require.Lenf(t, found, 1, "expected exactly one %q diagnostic, got: %v", code, ds)
+	return found[0]
+}
+
+func TestDiagnosticsQuery_ImportFileNotFound(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("a.peg", []byte(`
+@import B from "./nope.peg"
+A <- B
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	// A missing file shows up as a diagnostic on the import
+	// statement, attributed to the importing file, carrying the
+	// underlying loader error in its message.
+	diagnostics, err := Get(db, DiagnosticsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+
+	d := diagnosticByCode(t, diagnostics, "import-not-found")
+	assert.Equal(t, DiagnosticError, d.Severity)
+	assert.Equal(t, "a.peg", d.FilePath)
+	assert.Contains(t, d.Message, "Cannot find import './nope.peg'")
+	assert.Contains(t, d.Message, "nope.peg")
+	// The diagnostic spans the import statement, not a zero range.
+	assert.Greater(t, d.Location.Span.End.Cursor, d.Location.Span.Start.Cursor)
+}
+
+func TestDiagnosticsQuery_MissingImportName(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("lib.peg", []byte(`B <- "b"`))
+	loader.Add("a.peg", []byte(`
+@import Nope from "./lib.peg"
+A <- Nope
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	diagnostics, err := Get(db, DiagnosticsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+
+	// The message names both the symbol and the file it was
+	// expected in - the source, not the importer.
+	d := diagnosticByCode(t, diagnostics, "missing-import")
+	assert.Equal(t, DiagnosticError, d.Severity)
+	assert.Equal(t, "a.peg", d.FilePath)
+	assert.Equal(t, "Name 'Nope' is not declared in ./lib.peg", d.Message)
+	assert.Greater(t, d.Location.Span.End.Cursor, d.Location.Span.Start.Cursor)
+}
+
+func TestDiagnosticsQuery_ImportCycle(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	loader.Add("a.peg", []byte(`
+@import B from "./b.peg"
+A <- B
+`))
+	loader.Add("b.peg", []byte(`
+@import A from "./a.peg"
+B <- "b"
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	diagnostics, err := Get(db, DiagnosticsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+
+	// A cycle is reported once, on the back-edge import that closes
+	// the loop - which lives in b.peg, so the diagnostic is
+	// attributed there, not to the entry file.
+	d := diagnosticByCode(t, diagnostics, "import-cycle")
+	assert.Equal(t, DiagnosticError, d.Severity)
+	assert.Equal(t, "b.peg", d.FilePath)
+	assert.Contains(t, d.Message, "Import cycle detected")
+	assert.Contains(t, d.Message, "./a.peg")
+	assert.Greater(t, d.Location.Span.End.Cursor, d.Location.Span.Start.Cursor)
+}
+
+func TestAllParseErrorsQuery_BrokenImportDoesNotTruncateOthers(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	// One import can't be found at all, the other has a syntax
+	// error inside.  And the unresolvable one won't stop parse
+	// errors from the other from being reported.
+	loader.Add("a.peg", []byte(`
+@import X from "./ghost.peg"
+@import Helper from "./helper.peg"
+A <- Helper
+`))
+	loader.Add("helper.peg", []byte(`Helper <- "hello`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	diagnostics, err := Get(db, AllParseErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+
+	found := false
+	for _, d := range diagnostics {
+		if d.FilePath == "helper.peg" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected helper.peg parse errors despite broken sibling import: %v", diagnostics)
 }
 
 func TestParseErrorsQuery_SyntaxError(t *testing.T) {

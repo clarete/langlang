@@ -108,7 +108,7 @@ func resolveFromGraph(g *ImportGraph, path string, resolved map[string]*GrammarN
 		}
 
 		child := g.Files[e.To]
-		if !e.IsCycle {
+		if !e.IsCycle() {
 			child = resolveFromGraph(g, e.To, resolved)
 		}
 

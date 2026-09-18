@@ -26,7 +26,10 @@ func computeImportErrors(db *Database, key FilePath) ([]ImportErrorInfo, error) 
 		return nil, err
 	}
 
-	var importErrors []ImportErrorInfo
+	var (
+		importErrors []ImportErrorInfo
+		resolved     = map[string]*GrammarNode{}
+	)
 
 	for _, path := range ig.Order {
 		for _, edge := range ig.Edges[path] {
@@ -40,9 +43,11 @@ func computeImportErrors(db *Database, key FilePath) ([]ImportErrorInfo, error) 
 				continue
 			}
 
+			child := resolveFromGraph(ig, edge.To, resolved)
+
 			// Check each imported name
 			for _, name := range edge.Node.GetNames() {
-				if _, ok := ig.Files[edge.To].DefsByName[name]; !ok {
+				if _, ok := child.DefsByName[name]; !ok {
 					importErrors = append(importErrors, ImportErrorInfo{
 						Kind:       ImportErrorMissingName,
 						Name:       name,

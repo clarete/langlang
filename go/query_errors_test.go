@@ -144,6 +144,64 @@ B <- "b"
 	assert.Equal(t, "./a.peg", errs[0].SourceFile)
 }
 
+func TestImportErrorsQuery_ReExportedName(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	// c.peg defines X; b.peg re-exports X from c; a.peg imports X
+	// from b.
+	loader.Add("c.peg", []byte(`X <- "x"`))
+	loader.Add("b.peg", []byte(`
+@import X from "./c.peg"
+B <- X
+`))
+	loader.Add("a.peg", []byte(`
+@import X from "./b.peg"
+A <- X
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", false)
+	db := NewDatabase(cfg, loader)
+
+	// X is not defined directly in b.peg, it is re-exported.  So
+	// the name-check must consult b's *resolved* grammar, the same
+	// view resolution uses.  Checking b's raw parsed grammar would
+	// wrongly report X as a missing import.
+	errs, err := Get(db, ImportErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+	assert.Empty(t, errs)
+
+	// The query must agree with resolution, which does provide X.
+	g, err := Get(db, ResolvedImportsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+	assert.Contains(t, g.DefsByName, "X")
+}
+
+func TestImportErrorsQuery_ImportedBuiltinIsNotAnExport(t *testing.T) {
+	loader := NewInMemoryImportLoader()
+	// lib.peg provides Y, but not EOF.  EOF is a builtin, injected
+	// into every resolved grammar - but a file does not *export* a
+	// builtin, so importing EOF from lib must still be missing.
+	loader.Add("lib.peg", []byte(`Y <- "y"`))
+	loader.Add("a.peg", []byte(`
+@import EOF from "./lib.peg"
+A <- EOF
+`))
+
+	cfg := NewConfig()
+	cfg.SetBool("grammar.add_builtins", true) // builtins in play
+	db := NewDatabase(cfg, loader)
+
+	// The name-check must use the builtins-free resolved view
+	// (resolveFromGraph), not the fully-resolved-with-builtins
+	// grammar, otherwise EOF would be found as an ambient builtin
+	// and the real error masked.
+	errs, err := Get(db, ImportErrorsQuery, FilePath("a.peg"))
+	require.NoError(t, err)
+	require.Len(t, errs, 1)
+	assert.Equal(t, ImportErrorMissingName, errs[0].Kind)
+	assert.Equal(t, "EOF", errs[0].Name)
+}
+
 // diagnosticByCode returns the single diagnostic carrying the given code,
 // failing the test if there is not exactly one.  Import diagnostics
 // are the user-facing surface, so tests assert on them rather than on

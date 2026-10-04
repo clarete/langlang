@@ -826,6 +826,12 @@ func (c *compiler) capExprSize(node AstNode) (int, bool) {
 	case *LexNode:
 		return c.capExprSize(n.Expr)
 
+	case *AndNode:
+		return 0, true
+
+	case *NotNode:
+		return 0, true
+
 	default:
 		return 0, false
 	}

@@ -25,7 +25,7 @@ Suffix      <- Primary ("?" / "*" / "+" / Superscript)?
 Primary     <- Identifier !LEFTARROW
              / "(" Expression ")"^MissingClosingParen
              / List / Literal / Class / Any
-List        <- "{" (!"}" Expression)* "}"^MissingClosingCurly
+List        <- "{" Expression "}"^MissingClosingCurly
 
 // Lexical syntax
 Identifier  <- [a-zA-Z_][a-zA-Z0-9_]*

@@ -12,13 +12,16 @@ func AddCaptures(n AstNode, cfg *Config) (*GrammarNode, error) {
 		recovery = rg.LabelTargets()
 		spacing  = rg.SpacingClosure()
 		enabled  = cfg.GetBool("grammar.capture_spaces")
+		defs     = make([]*DefinitionNode, 0, len(grammar.Definitions))
 	)
 	for _, def := range grammar.Definitions {
 		if _, skip := spacing[def.Name]; skip && !enabled {
+			defs = append(defs, def)
 			continue
 		}
 
 		if _, isRecovery := recovery[def.Name]; !isRecovery && isZeroWidth(def.Expr) {
+			defs = append(defs, def)
 			continue
 		}
 
@@ -26,17 +29,19 @@ func AddCaptures(n AstNode, cfg *Config) (*GrammarNode, error) {
 		if !isSyntactic(def, false) {
 			expr = addUnamedCaptures(expr)
 		}
-		def.Expr = NewCaptureNode(def.Name, expr, def.SourceLocation())
+		defs = append(defs, def.withExpr(NewCaptureNode(def.Name, expr, def.SourceLocation())))
 	}
-	return grammar, nil
+	return grammar.withDefinitions(defs), nil
 }
 
 func addUnamedCaptures(expr AstNode) AstNode {
 	switch e := expr.(type) {
 	case *SequenceNode:
+		items := make([]AstNode, len(e.Items))
 		for i, item := range e.Items {
-			e.Items[i] = addUnamedCaptures(item)
+			items[i] = addUnamedCaptures(item)
 		}
+		return NewSequenceNode(items, e.SourceLocation())
 
 	case *ChoiceNode:
 		l := addUnamedCaptures(e.Left)
@@ -50,23 +55,21 @@ func addUnamedCaptures(expr AstNode) AstNode {
 		// capture node instead of adding one capture per
 		// choice branch.
 		if clOk && cl.Name == "" && crOk && cr.Name == "" {
-			expr = NewCaptureNode("", e, e.SourceLocation())
-		} else {
-			e.Left = l
-			e.Right = r
+			choice := NewChoiceNode(cl.Expr, cr.Expr, e.SourceLocation())
+			return NewCaptureNode("", choice, e.SourceLocation())
 		}
+		return NewChoiceNode(l, r, e.SourceLocation())
 
 	case *OptionalNode:
-		e.Expr = addUnamedCaptures(e.Expr)
+		return NewOptionalNode(addUnamedCaptures(e.Expr), e.SourceLocation())
 
 	case *ZeroOrMoreNode:
 		i := addUnamedCaptures(e.Expr)
 
 		// Rewrite: Star(Cap(Syntactic())) -> Cap(Star(Syntactic()))
 		if cap, isCap := i.(*CaptureNode); isCap && isSyntactic(cap.Expr, false) {
-			e.Expr = cap.Expr
-			cap.Expr = e
-			return cap
+			body := NewZeroOrMoreNode(cap.Expr, e.SourceLocation())
+			return NewCaptureNode(cap.Name, body, cap.SourceLocation())
 		}
 
 		// Rewrite: (!x Cap(y))* -> Cap((!x y)*)
@@ -94,21 +97,21 @@ func addUnamedCaptures(expr AstNode) AstNode {
 			second, secondIsCapture := seq.Items[1].(*CaptureNode)
 			if firstIsNot && secondIsCapture && second.Name == "" {
 				// unwrap item within capture, and wrap the whole expr
-				seq.Items[1] = second.Expr
-				expr = NewCaptureNode("", e, e.SourceLocation())
-				return expr
+				body := NewSequenceNode([]AstNode{seq.Items[0], second.Expr}, seq.SourceLocation())
+				star := NewZeroOrMoreNode(body, e.SourceLocation())
+				return NewCaptureNode("", star, e.SourceLocation())
 			}
 		}
-		e.Expr = addUnamedCaptures(e.Expr)
+		return NewZeroOrMoreNode(i, e.SourceLocation())
 
 	case *OneOrMoreNode:
-		e.Expr = addUnamedCaptures(e.Expr)
+		return NewOneOrMoreNode(addUnamedCaptures(e.Expr), e.SourceLocation())
 
 	case *LexNode:
-		e.Expr = addUnamedCaptures(e.Expr)
+		return NewLexNode(addUnamedCaptures(e.Expr), e.SourceLocation())
 
 	case *LabeledNode:
-		e.Expr = addUnamedCaptures(e.Expr)
+		return NewLabeledNode(e.Label, addUnamedCaptures(e.Expr), e.SourceLocation())
 
 	case *NotNode, *AndNode:
 		// predicates don't move the cursor, thus should never

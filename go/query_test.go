@@ -337,6 +337,65 @@ Spacing <- [ \t]*
 
 // Transformation Tests
 
+func TestGrammarPassesPreserveInput(t *testing.T) {
+	const source = `
+G <- #((A / 'x' / 'y')? [a-z]* (!EOL .)* A+ 'q'^Missing) / A 'z'
+A <- 'a'
+Missing <- '?'
+EOL <- '\n'
+Spacing <- [ \t]*
+`
+	parse := func() *GrammarNode {
+		node, err := NewGrammarParser([]byte(source)).Parse()
+		require.NoError(t, err)
+		grammar := node.(*GrammarNode)
+		require.Empty(t, grammar.Errors)
+		grammar.SourceFiles = []string{"test.peg"}
+		return grammar
+	}
+	for _, tt := range []struct {
+		Name string
+		Run  func(*GrammarNode) (*GrammarNode, error)
+	}{
+		{
+			Name: "whitespace",
+			Run: func(g *GrammarNode) (*GrammarNode, error) {
+				node, err := InjectWhitespaces(g)
+				return node.(*GrammarNode), err
+			},
+		},
+		{
+			Name: "charsets",
+			Run: func(g *GrammarNode) (*GrammarNode, error) {
+				return AddCharsets(g)
+			},
+		},
+		{
+			Name: "captures",
+			Run: func(g *GrammarNode) (*GrammarNode, error) {
+				return AddCaptures(g, NewConfig())
+			},
+		},
+	} {
+		t.Run(tt.Name, func(t *testing.T) {
+			input, original := parse(), parse()
+			output, err := tt.Run(input)
+			require.NoError(t, err)
+			assert.Equal(t, original, input)
+			assert.NotEqual(t, original.PrettyString(), output.PrettyString())
+			assert.Equal(t, original.SourceFiles, output.SourceFiles)
+			for _, def := range output.Definitions {
+				assert.Same(t, def, output.DefsByName[def.Name])
+				assert.Equal(t, original.DefsByName[def.Name].SourceLocation(), def.SourceLocation())
+			}
+			again, err := tt.Run(input)
+			require.NoError(t, err)
+			assert.Equal(t, output, again)
+			assert.Equal(t, original, input)
+		})
+	}
+}
+
 func TestWithCharsetsQuery(t *testing.T) {
 	loader := NewInMemoryImportLoader()
 	loader.Add("test.peg", []byte(`G <- [a-z]`))

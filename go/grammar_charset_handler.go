@@ -3,22 +3,22 @@ package langlang
 import "fmt"
 
 func AddCharsets(n AstNode) (*GrammarNode, error) {
-	var err error
 	grammar, ok := n.(*GrammarNode)
 	if !ok {
 		return nil, fmt.Errorf("grammar expected, but got %#v", n)
 	}
+	defs := make([]*DefinitionNode, 0, len(grammar.Definitions))
 	for _, def := range grammar.Definitions {
-		def.Expr, err = addCharset(def.Expr)
+		expr, err := addCharset(def.Expr)
 		if err != nil {
 			return nil, err
 		}
+		defs = append(defs, def.withExpr(expr))
 	}
-	return grammar, nil
+	return grammar.withDefinitions(defs), nil
 }
 
 func addCharset(expr AstNode) (AstNode, error) {
-	var err error
 	switch e := expr.(type) {
 	case *SequenceNode:
 		// Seq([Item]) -> Item; this essentially drops
@@ -50,8 +50,10 @@ func addCharset(expr AstNode) (AstNode, error) {
 		}
 
 		// Recurse into the sequence normally
+		items := make([]AstNode, len(e.Items))
 		for i, item := range e.Items {
-			e.Items[i], err = addCharset(item)
+			var err error
+			items[i], err = addCharset(item)
 			if err != nil {
 				return nil, err
 			}
@@ -60,8 +62,8 @@ func addCharset(expr AstNode) (AstNode, error) {
 		// Seq(Not(Lit(l0) Any)); this replaces ll that with
 		// the complement of the charset `[l0]`.  Which also
 		// means anything, but `l0`.
-		if len(e.Items) == 2 {
-			fst, snd := e.Items[0], e.Items[1]
+		if len(items) == 2 {
+			fst, snd := items[0], items[1]
 			not, fstIsNot := fst.(*NotNode)
 			_, sndIsAny := snd.(*AnyNode)
 			if fstIsNot && sndIsAny {
@@ -76,6 +78,7 @@ func addCharset(expr AstNode) (AstNode, error) {
 				}
 			}
 		}
+		return NewSequenceNode(items, e.SourceLocation()), nil
 
 	case *ClassNode:
 		var classCharset *charset = nil
@@ -120,8 +123,7 @@ func addCharset(expr AstNode) (AstNode, error) {
 			return NewCharsetNode(cs, e.SourceLocation()), nil
 		}
 
-		e.Left = lh
-		e.Right = rh
+		return NewChoiceNode(lh, rh, e.SourceLocation()), nil
 
 	case *LiteralNode:
 		if len(e.Value) == 1 && fitcs(r(e.Value)) {
@@ -130,31 +132,36 @@ func addCharset(expr AstNode) (AstNode, error) {
 		}
 
 	case *OptionalNode:
-		e.Expr, err = addCharset(e.Expr)
+		child, err := addCharset(e.Expr)
+		return NewOptionalNode(child, e.SourceLocation()), err
 
 	case *ZeroOrMoreNode:
-		e.Expr, err = addCharset(e.Expr)
+		child, err := addCharset(e.Expr)
+		return NewZeroOrMoreNode(child, e.SourceLocation()), err
 
 	case *OneOrMoreNode:
-		e.Expr, err = addCharset(e.Expr)
+		child, err := addCharset(e.Expr)
+		return NewOneOrMoreNode(child, e.SourceLocation()), err
 
 	case *LexNode:
-		e.Expr, err = addCharset(e.Expr)
+		child, err := addCharset(e.Expr)
+		return NewLexNode(child, e.SourceLocation()), err
 
 	case *LabeledNode:
-		e.Expr, err = addCharset(e.Expr)
+		child, err := addCharset(e.Expr)
+		return NewLabeledNode(e.Label, child, e.SourceLocation()), err
 
 	case *NotNode:
-		e.Expr, err = addCharset(e.Expr)
+		child, err := addCharset(e.Expr)
+		return NewNotNode(child, e.SourceLocation()), err
 
 	case *AndNode:
-		e.Expr, err = addCharset(e.Expr)
+		child, err := addCharset(e.Expr)
+		return NewAndNode(child, e.SourceLocation()), err
 
 	case *CaptureNode:
-		e.Expr, err = addCharset(e.Expr)
-	}
-	if err != nil {
-		return nil, err
+		child, err := addCharset(e.Expr)
+		return NewCaptureNode(e.Name, child, e.SourceLocation()), err
 	}
 	return expr, nil
 }

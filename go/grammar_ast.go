@@ -611,6 +611,10 @@ func (n DefinitionNode) Equal(o AstNode) bool {
 	}
 }
 
+func (n *DefinitionNode) withExpr(expr AstNode) *DefinitionNode {
+	return &DefinitionNode{src: n.src, Name: n.Name, Expr: expr}
+}
+
 // Node Type: Import
 
 type ImportNode struct {
@@ -733,6 +737,21 @@ func (n *GrammarNode) AddDefinition(def *DefinitionNode) {
 	if _, ok := n.DefsByName[def.Name]; !ok {
 		n.Definitions = append(n.Definitions, def)
 		n.DefsByName[def.Name] = def
+	}
+}
+
+func (n *GrammarNode) withDefinitions(defs []*DefinitionNode) *GrammarNode {
+	byName := make(map[string]*DefinitionNode, len(defs))
+	for _, def := range defs {
+		byName[def.Name] = def
+	}
+	return &GrammarNode{
+		src:         n.src,
+		Imports:     n.Imports,
+		Definitions: defs,
+		DefsByName:  byName,
+		SourceFiles: n.SourceFiles,
+		Errors:      n.Errors,
 	}
 }
 

@@ -21,30 +21,17 @@ func InjectWhitespaces(n AstNode) (AstNode, error) {
 func (wi *whitespaceInjector) Run(n *GrammarNode) *GrammarNode {
 	var (
 		defs    = make([]*DefinitionNode, 0, len(n.Definitions))
-		defMap  = make(map[string]*DefinitionNode, len(n.Definitions))
 		spacing = newRuleGraph(n).SpacingClosure()
 	)
-outer:
 	for _, def := range n.Definitions {
-		// Avoid injecting `Spacing` within the `Spacing` rule
-		// and its dependencies
-		for dep := range spacing {
-			if def.Name == dep {
-				defs = append(defs, def)
-				defMap[def.Name] = def
-				continue outer
-			}
+		// Spacing and its dependencies keep their own spacing policy.
+		if _, skip := spacing[def.Name]; skip {
+			defs = append(defs, def)
+			continue
 		}
-		expr := wi.expandExpr(def.Expr, true)
-		newDef := NewDefinitionNode(def.Name, expr, def.SourceLocation())
-		defs = append(defs, newDef)
-		defMap[def.Name] = newDef
+		defs = append(defs, def.withExpr(wi.expandExpr(def.Expr, true)))
 	}
-
-	newGrammar := NewGrammarNode(n.Imports, defs, defMap, n.SourceLocation())
-	newGrammar.SourceFiles = n.SourceFiles
-	newGrammar.Errors = n.Errors
-	return newGrammar
+	return n.withDefinitions(defs)
 }
 
 func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
@@ -86,18 +73,22 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 		// return the choice with all its child nodes
 		// expanded, but the choice node itself is untouched.
 		if isSyntactic(node, true) {
-			node.Left = wi.expandExpr(node.Left, true)
-			node.Right = wi.expandExpr(node.Right, true)
-			return node
+			return NewChoiceNode(
+				wi.expandExpr(node.Left, true),
+				wi.expandExpr(node.Right, true),
+				n.SourceLocation(),
+			)
 		}
 
 		// expand expresion for each alternative within the
 		// choice.  Notice that we're disabling the
 		// `consumeFirst` flag here to prevent duplicating the
 		// whitespace handler
-		node.Left = wi.expandExpr(node.Left, false)
-		node.Right = wi.expandExpr(node.Right, false)
-		return node
+		return NewChoiceNode(
+			wi.expandExpr(node.Left, false),
+			wi.expandExpr(node.Right, false),
+			n.SourceLocation(),
+		)
 
 	case *NotNode:
 		return NewNotNode(wi.expandExpr(node.Expr, true), n.SourceLocation())

@@ -446,9 +446,9 @@ Spacing <- ' '*
 }
 
 func TestWithWhitespaceQueryNoDoubleSpacing(t *testing.T) {
-	// ZeroOrMore and OneOrMore with an inner sequence of
+	// Optional and repetition with an inner sequence of
 	// non-terminals should not inject a Spacing call before the
-	// first item of the inner sequence, because the repetition
+	// first item of the inner sequence, because the outer
 	// wrapper already adds one.
 	//
 	// Correct:   (Spacing (A Spacing B))*
@@ -458,6 +458,26 @@ func TestWithWhitespaceQueryNoDoubleSpacing(t *testing.T) {
 		grammar     string
 		expectedAST string
 	}{
+		{
+			name: "Optional with sequence",
+			grammar: `
+G <- (A B)? C
+A <- "a"
+B <- "b"
+C <- "c"
+Spacing <- ' '*
+`,
+			expectedAST: `Sequence (2:6..3:1)
+├── Optional (2:6..2:12)
+│   └── Sequence (2:6..2:12)
+│       ├── Identifier[Spacing] (1)
+│       └── Sequence (2:7..2:10)
+│           ├── Identifier[A] (2:7..2:8)
+│           ├── Identifier[Spacing] (1)
+│           └── Identifier[B] (2:9..2:10)
+├── Identifier[Spacing] (1)
+└── Identifier[C] (2:13..2:14)`,
+		},
 		{
 			name: "ZeroOrMore with sequence",
 			grammar: `

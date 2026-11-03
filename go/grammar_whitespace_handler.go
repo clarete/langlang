@@ -62,6 +62,15 @@ func (wi *whitespaceInjector) expandExpr(n AstNode, consumeFirst bool) AstNode {
 				isOneOrMore)
 
 			if shouldConsumeSpaces && !skip {
+				// Insert Spacing *within* the OptionalNode, that way spacing gets rolled
+				// back when the optional expression fails.  This is also consistent with
+				// what we do to both {Zero,One}OrMore.
+				if opt, ok := item.(*OptionalNode); ok {
+					expr := wi.expandExpr(opt.Expr, false)
+					seq := NewSequenceNode([]AstNode{wsCall(), expr}, opt.SourceLocation())
+					newItems = append(newItems, NewOptionalNode(seq, opt.SourceLocation()))
+					continue
+				}
 				newItems = append(newItems, wsCall())
 			}
 			newItems = append(newItems, wi.expandExpr(item, true))

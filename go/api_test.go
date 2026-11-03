@@ -35,9 +35,10 @@ func TestTransformedGrammarQuery(t *testing.T) {
             ├── Identifier[Spacing] (1)
             ├── Capture (7..8)
             │   └── Charset[[a]] (7..8)
-            ├── Identifier[Spacing] (1)
             ├── Optional (10..12)
-            │   └── Identifier[G] (10..11)
+            │   └── Sequence (10..12)
+            │       ├── Identifier[Spacing] (1)
+            │       └── Identifier[G] (10..11)
             ├── Identifier[Spacing] (1)
             └── Capture (14..15)
                 └── Charset[[b]] (14..15)`,

@@ -28,7 +28,7 @@ func TestParseDefinition(t *testing.T) {
 			ExpectedOutput: `Grammar (1..15)
 └── Definition[A] (1..15)
     └── Choice (6..15)
-        ├── Sequence (6..10)
+        ├── Sequence (6..9)
         │   └── Literal[a] (7..8)
         └── Sequence (12..15)
             └── Literal[b] (13..14)`,
@@ -37,8 +37,8 @@ func TestParseDefinition(t *testing.T) {
 			Name:    "Comment",
 			Grammar: "A <- . // something something",
 			ExpectedOutput: `Grammar (1..30)
-└── Definition[A] (1..30)
-    └── Sequence (6..30)
+└── Definition[A] (1..7)
+    └── Sequence (6..7)
         └── Any (6..7)`,
 		},
 	} {
@@ -71,10 +71,10 @@ func TestParseExpression(t *testing.T) {
 			ExpectedOutput: `Grammar (1..21)
 └── Definition[G] (1..21)
     └── Choice (6..21)
-        ├── Sequence (6..10)
+        ├── Sequence (6..9)
         │   └── Literal[a] (7..8)
         └── Choice (12..21)
-            ├── Sequence (12..16)
+            ├── Sequence (12..15)
             │   └── Literal[b] (13..14)
             └── Sequence (18..21)
                 └── Literal[c] (19..20)`,

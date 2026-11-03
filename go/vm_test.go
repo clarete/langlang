@@ -59,6 +59,105 @@ func TestVM(t *testing.T) {
 
 	vmTests := []vmTest{
 		{
+			Name: "Absent optional leaves spacing untouched",
+			Grammar: `G <- A B?
+A <- 'a'
+B <- 'b'`,
+			Input:          "a ",
+			ExpectedCursor: 1,
+			ExpectedAST: `G (1..2)
+└── A (1..2)
+    └── "a" (1..2)`,
+		},
+		{
+			Name: "Present optional consumes spacing",
+			Grammar: `G <- A B?
+A <- 'a'
+B <- 'b'`,
+			Input:          "a b",
+			ExpectedCursor: 3,
+			ExpectedAST: `G (1..4)
+└── Sequence<3> (1..4)
+    ├── A (1..2)
+    │   └── "a" (1..2)
+    ├── Spacing (2..3)
+    │   └── " " (2..3)
+    └── B (3..4)
+        └── "b" (3..4)`,
+		},
+		{
+			Name: "Absent terminal optional leaves explicit spacing",
+			Grammar: `G <- A 'b'? #(' ' 'c')
+A <- 'a'`,
+			Input:          "a c",
+			ExpectedCursor: 3,
+			ExpectedAST: `G (1..4)
+└── Sequence<3> (1..4)
+    ├── A (1..2)
+    │   └── "a" (1..2)
+    ├── " " (2..3)
+    └── "c" (3..4)`,
+		},
+		{
+			Name: "Present terminal optional consumes spacing",
+			Grammar: `G <- A 'b'?
+A <- 'a'`,
+			Input:          "a b",
+			ExpectedCursor: 3,
+			ExpectedAST: `G (1..4)
+└── Sequence<3> (1..4)
+    ├── A (1..2)
+    │   └── "a" (1..2)
+    ├── Spacing (2..3)
+    │   └── " " (2..3)
+    └── "b" (3..4)`,
+		},
+		{
+			Name: "Failed optional sequence discards spacing and captures",
+			Grammar: `G <- A (B C)?
+A <- 'a'
+B <- 'b'
+C <- 'c'`,
+			Input:          "a b ",
+			ExpectedCursor: 1,
+			ExpectedAST: `G (1..2)
+└── A (1..2)
+    └── "a" (1..2)`,
+		},
+		{
+			Name: "EOF consumes spacing after absent optional",
+			Grammar: `G <- A B? EOF
+A <- 'a'
+B <- 'b'`,
+			Input:          "a ",
+			ExpectedCursor: 2,
+			ExpectedAST: `G (1..3)
+└── Sequence<2> (1..3)
+    ├── A (1..2)
+    │   └── "a" (1..2)
+    └── Spacing (2..3)
+        └── " " (2..3)`,
+		},
+		{
+			Name:           "Terminal-only optional keeps spacing policy",
+			Grammar:        `G <- 'a' 'b'?`,
+			Input:          "a ",
+			ExpectedCursor: 1,
+			ExpectedAST: `G (1..2)
+└── "a" (1..2)`,
+		},
+		{
+			Name: "Lexified optional keeps spacing policy",
+			Grammar: `G <- #(A B?)
+A <- 'a'
+B <- 'b'`,
+			Input:          "a ",
+			ExpectedCursor: 1,
+			ExpectedAST: `G (1..2)
+└── A (1..2)
+    └── "a" (1..2)`,
+		},
+		{
 			Name:           "Any",
 			Grammar:        "G <- .",
 			Input:          "foo",

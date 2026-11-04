@@ -1,11 +1,151 @@
 package langlang
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseUnicodeEscapes(t *testing.T) {
+	for _, test := range []struct {
+		Name        string
+		Escape      string
+		FixedEscape string
+		Value       string
+		WantError   bool
+	}{
+		{
+			Name:        "before surrogates",
+			Escape:      `\u{D7FF}`,
+			FixedEscape: `\uD7FF`,
+			Value:       "\uD7FF",
+		},
+		{
+			Name:        "first high surrogate",
+			Escape:      `\u{D800}`,
+			FixedEscape: `\uD800`,
+			WantError:   true,
+		},
+		{
+			Name:        "last high surrogate",
+			Escape:      `\u{DBFF}`,
+			FixedEscape: `\uDBFF`,
+			WantError:   true,
+		},
+		{
+			Name:        "first low surrogate",
+			Escape:      `\u{DC00}`,
+			FixedEscape: `\uDC00`,
+			WantError:   true,
+		},
+		{
+			Name:        "last low surrogate",
+			Escape:      `\u{DFFF}`,
+			FixedEscape: `\uDFFF`,
+			WantError:   true,
+		},
+		{
+			Name:        "after surrogates",
+			Escape:      `\u{E000}`,
+			FixedEscape: `\uE000`,
+			Value:       "\uE000",
+		},
+		{
+			Name:        "replacement character",
+			Escape:      `\u{FFFD}`,
+			FixedEscape: `\uFFFD`,
+			Value:       "\uFFFD",
+		},
+		{
+			Name:   "supplementary character",
+			Escape: `\u{1F600}`,
+			Value:  "😀",
+		},
+		{
+			Name:   "maximum scalar value",
+			Escape: `\u{10FFFF}`,
+			Value:  "\U0010FFFF",
+		},
+		{
+			Name:      "above maximum scalar value",
+			Escape:    `\u{110000}`,
+			WantError: true,
+		},
+		{
+			Name:        "surrogate pair",
+			Escape:      `\u{D83D}\u{DE00}`,
+			FixedEscape: `\uD83D\uDE00`,
+			WantError:   true,
+		},
+	} {
+		for _, form := range []struct {
+			Name   string
+			Escape string
+		}{
+			{
+				Name:   "braced decoder",
+				Escape: test.Escape,
+			},
+			{
+				Name:   "four digit decoder",
+				Escape: test.FixedEscape,
+			},
+		} {
+			if form.Escape == "" {
+				continue
+			}
+			t.Run(test.Name+"/"+form.Name, func(t *testing.T) {
+				value, err := unescape(form.Escape)
+				if test.WantError {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, test.Value, value)
+			})
+		}
+		for _, form := range []struct {
+			Name    string
+			Grammar string
+		}{
+			{
+				Name:    "single quoted literal",
+				Grammar: "G <- '%s'",
+			},
+			{
+				Name:    "double quoted literal",
+				Grammar: `G <- "%s"`,
+			},
+			{
+				Name:    "character class",
+				Grammar: "G <- [%s]",
+			},
+		} {
+			t.Run(test.Name+"/"+form.Name, func(t *testing.T) {
+				parser := NewGrammarParser([]byte(fmt.Sprintf(form.Grammar, test.Escape)))
+				output, err := parser.Parse()
+				require.NoError(t, err)
+				grammar := output.(*GrammarNode)
+				if test.WantError {
+					require.NotEmpty(t, grammar.Errors)
+					return
+				}
+				require.Empty(t, grammar.Errors)
+				require.Len(t, grammar.Definitions, 1)
+				seq := grammar.Definitions[0].Expr.(*SequenceNode)
+				require.Len(t, seq.Items, 1)
+				value := seq.Items[0]
+				if class, ok := value.(*ClassNode); ok {
+					require.Len(t, class.Items, 1)
+					value = class.Items[0]
+				}
+				assert.Equal(t, test.Value, value.(*LiteralNode).Value)
+			})
+		}
+	}
+}
 
 func TestParseDefinition(t *testing.T) {
 	for _, test := range []struct {

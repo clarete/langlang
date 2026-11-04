@@ -669,6 +669,10 @@ func unescapeChar(s string) (value rune, encode bool, tail string, err error) {
 				s = s[1:]
 				digits++
 			}
+			if v > utf8.MaxRune || v >= 0xD800 && v <= 0xDFFF {
+				err = errors.New("unable to unescape string: invalid Unicode scalar value")
+				return
+			}
 			if digits == 0 {
 				err = errors.New("unable to unescape string: \\u{...} must have 1-6 hex digits")
 				return
@@ -678,10 +682,6 @@ func unescapeChar(s string) (value rune, encode bool, tail string, err error) {
 				return
 			}
 			s = s[1:]
-			if v > 0x10FFFF {
-				err = errors.New("unable to unescape string: code point > U+10FFFF")
-				return
-			}
 			value = v
 		} else {
 			n := 4
@@ -699,6 +699,9 @@ func unescapeChar(s string) (value rune, encode bool, tail string, err error) {
 				v = v<<4 | x
 			}
 			s = s[n:]
+			if v >= 0xD800 && v <= 0xDFFF {
+				err = errors.New("unable to unescape string: invalid Unicode scalar value")
+			}
 			value = v
 		}
 

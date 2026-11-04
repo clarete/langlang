@@ -110,7 +110,8 @@ func (p *GrammarParserV2) parseAnyNode(id NodeID) AstNode {
 		name := p.tree.Name(id)
 		switch name {
 		case "Import":
-			return p.parseImport(id)
+			importNode, _ := p.parseImport(id)
+			return importNode
 		case "Definition":
 			def, _ := p.parseDefinition(id)
 			return def
@@ -220,7 +221,11 @@ func (p *GrammarParserV2) parseGrammar(id NodeID) (*GrammarNode, error) {
 		}
 		switch p.tree.Name(itemID) {
 		case "Import":
-			imports = append(imports, p.parseImport(itemID))
+			importNode, err := p.parseImport(itemID)
+			if err != nil {
+				return nil, err
+			}
+			imports = append(imports, importNode)
 		case "Definition":
 			def, err := p.parseDefinition(itemID)
 			if err != nil {
@@ -240,7 +245,7 @@ func (p *GrammarParserV2) parseGrammar(id NodeID) (*GrammarNode, error) {
 }
 
 // Import <- "@import" Identifier ("," Identifier)* "from" Literal
-func (p *GrammarParserV2) parseImport(id NodeID) *ImportNode {
+func (p *GrammarParserV2) parseImport(id NodeID) (*ImportNode, error) {
 	var (
 		child, _ = p.tree.Child(id)
 		names    []*LiteralNode
@@ -266,9 +271,13 @@ func (p *GrammarParserV2) parseImport(id NodeID) *ImportNode {
 		}
 		break
 	}
-	path, _ := unescape(p.tree.Text(items[idx]))
+	path, err := unescape(p.tree.Text(items[idx]))
+	if err != nil {
+		return nil, err
+	}
+
 	path = path[1 : len(path)-1]
-	return NewImportNode(NewLiteralNode(path, p.sloc(items[idx])), names, p.sloc(id))
+	return NewImportNode(NewLiteralNode(path, p.sloc(items[idx])), names, p.sloc(id)), nil
 }
 
 // Definition <- Identifier LEFTARROW Expression

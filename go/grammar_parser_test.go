@@ -147,6 +147,28 @@ func TestParseUnicodeEscapes(t *testing.T) {
 	}
 }
 
+func TestParseImportInvalidEscape(t *testing.T) {
+	for _, test := range []struct {
+		Name    string
+		Grammar string
+	}{
+		{
+			Name:    "escape sequence instead of source file",
+			Grammar: `@import X from '\q'`,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			parser := NewGrammarParser([]byte(test.Grammar))
+			output, err := parser.Parse()
+			require.NoError(t, err)
+			grammar := output.(*GrammarNode)
+			require.Len(t, grammar.Errors, 1)
+			assert.Contains(t, grammar.Errors[0].Message, "unknown unescape sequence: q")
+			assert.Empty(t, grammar.Imports)
+		})
+	}
+}
+
 func TestParseDefinition(t *testing.T) {
 	for _, test := range []struct {
 		Name           string

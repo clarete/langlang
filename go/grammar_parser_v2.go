@@ -90,39 +90,10 @@ func (p *GrammarParserV2) parseErrorToNode(err error) *ErrorNode {
 func (p *GrammarParserV2) parseErrorNode(id NodeID) *ErrorNode {
 	label := p.tree.Name(id)
 	span := p.tree.Span(id)
-	// Try to parse child if any as the recovered content
-	var child AstNode
-	if childID, ok := p.tree.Child(id); ok {
-		child = p.parseAnyNode(childID)
-	}
 	return &ErrorNode{
 		src:     NewSourceLocation(p.fileID, span),
 		Code:    labelToErrorCode(label),
 		Message: p.tree.Message(id),
-		Child:   child,
-	}
-}
-
-// parseAnyNode attempts to parse any node type, used for error recovery children.
-func (p *GrammarParserV2) parseAnyNode(id NodeID) AstNode {
-	switch p.tree.Type(id) {
-	case NodeType_Node:
-		name := p.tree.Name(id)
-		switch name {
-		case "Import":
-			importNode, _ := p.parseImport(id)
-			return importNode
-		case "Definition":
-			def, _ := p.parseDefinition(id)
-			return def
-		default:
-			expr, _ := p.parseExpression(id)
-			return expr
-		}
-	case NodeType_Error:
-		return p.parseErrorNode(id)
-	default:
-		return nil
 	}
 }
 
